@@ -85,7 +85,7 @@ function AddCategoryModal({ open, onClose, onAdd, adding }: AddCategoryModalProp
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Category Name <span className="text-red-500">*</span></label>
             <input ref={inputRef} type="text" value={name} onChange={(e) => { setName(e.target.value); setErr(""); }}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" placeholder="e.g. Thread, Fabric" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900" placeholder="e.g. Thread, Fabric" />
             {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
           </div>
           <div className="flex justify-end gap-2 pt-1">
