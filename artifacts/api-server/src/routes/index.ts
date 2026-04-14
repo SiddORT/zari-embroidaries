@@ -5,6 +5,7 @@ import hsnRouter from "./hsn";
 import lookupsRouter from "./lookups";
 import materialsRouter from "./materials";
 import fabricsRouter from "./fabrics";
+import ordersRouter from "./orders";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(hsnRouter);
 router.use(lookupsRouter);
 router.use(materialsRouter);
 router.use(fabricsRouter);
+router.use(ordersRouter);
 
 export default router;

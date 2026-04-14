@@ -117,7 +117,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
 
             {/* Other top links */}
             {TOP_LINKS.filter((l) => l.href !== "/dashboard").map(({ label, href }) => {
-              const active = location === href;
+              const active = location === href || location.startsWith(href + "/");
               return (
                 <Link
                   key={href}

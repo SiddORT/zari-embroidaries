@@ -41,8 +41,9 @@ pnpm workspace monorepo using TypeScript. Full-stack ERP authentication system f
 
 ## Navigation
 
-- **TopNavbar** — "Masters" is now a click-open dropdown showing: HSN (`/masters/hsn`), Materials (`/masters/materials`), Fabric (`/masters/fabric`)
+- **TopNavbar** — "Masters" is a click-open dropdown (HSN, Materials, Fabric). "Orders" is a direct link. Other links: Vendors, Settings.
 - Direct link `/masters` redirects to `/masters/hsn`
+- Nav active state: exact match for most links; `startsWith` used for `/orders` so `/orders/:id` also highlights the nav item
 
 ## Reusable Master Components
 
@@ -83,6 +84,12 @@ Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
 - `DELETE /api/fabrics/:id` — Soft delete
 - `GET /api/lookups/:type` — List lookup records (item-types, unit-types, width-unit-types)
 - `POST /api/lookups/:type` — Create lookup record
+- `GET /api/orders` — List orders (search, status, orderType, page, limit; filter is_deleted=false; sorted created_at DESC)
+- `GET /api/orders/:id` — Get single order by ID
+- `POST /api/orders` — Create order (auto-generates ORD0001... code)
+- `PUT /api/orders/:id` — Full update
+- `PATCH /api/orders/:id/status` — Patch status fields (status, costStatus, approvalStatus, invoiceStatus, productionMode, invoiceNumber, paymentStatus)
+- `DELETE /api/orders/:id` — Soft delete
 
 ## Database Schema
 
@@ -90,6 +97,7 @@ Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
 - `hsn_master` table: id, hsn_code (unique), gst_percentage, govt_description, remarks, is_active, is_deleted, created_by, created_at, updated_by, updated_at
 - `materials` table: id, material_code (auto MAT0001...), item_type, quality, type, color, hex_code, color_name, size, unit_price, unit_type, current_stock, hsn_code, gst_percent, vendor, location, is_active, is_deleted, created_by/at, updated_by/at
 - `fabrics` table: id, fabric_code (auto FAB0001...), fabric_type, quality, color, hex_code, color_name, width, width_unit_type, price_per_meter, unit_type, current_stock, hsn_code, gst_percent, vendor, location, is_active, is_deleted, created_by/at, updated_by/at
+- `orders` table: id, order_id (auto ORD0001...), order_type (swatch|style), client, status, priority, assigned_to, delivery_date, remarks, production_mode, cost_status, approval_status, invoice_status, invoice_number, payment_status, plus swatch fields (fabric/length/width/quantity/refs), style fields (product/pattern/size/colors), making process, artwork, costing, client centre, is_deleted, audit columns
 - `item_types` table: id, name (unique), is_active, created_at
 - `unit_types` table: id, name (unique), is_active, created_at
 - `width_unit_types` table: id, name (unique), is_active, created_at

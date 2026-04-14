@@ -12,6 +12,8 @@ import Dashboard from "@/pages/dashboard";
 import HSNMaster from "@/pages/HSNMaster";
 import MaterialsMaster from "@/pages/MaterialsMaster";
 import FabricMaster from "@/pages/FabricMaster";
+import Orders from "@/pages/Orders";
+import OrderDetails from "@/pages/OrderDetails";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +51,8 @@ function Router() {
       <Route path="/masters/hsn" component={HSNMaster} />
       <Route path="/masters/materials" component={MaterialsMaster} />
       <Route path="/masters/fabric" component={FabricMaster} />
+      <Route path="/orders" component={Orders} />
+      <Route path="/orders/:id" component={OrderDetails} />
       <Route component={NotFound} />
     </Switch>
   );

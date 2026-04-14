@@ -1,0 +1,221 @@
+Create Orders module for ZARI ERP using React + Tailwind CSS.
+
+Build a unified order system supporting:
+
+Swatch Orders
+Style Orders
+
+inside a single Orders module.
+
+Do NOT create separate pages for swatch and style orders.
+
+
+ORDERS TABLE PAGE
+
+Create page:
+
+/pages/Orders.jsx
+
+Columns:
+
+Order ID
+Order Type (Swatch / Style)
+Client
+Reference Item (Swatch Name or Product Name)
+Status
+Priority
+Assigned To
+Delivery Date
+Cost Status
+Approval Status
+Invoice Status
+Actions
+
+Add button:
+
++ Create Order
+
+
+CREATE ORDER MODAL
+
+Step 1:
+
+Select Order Type:
+
+Swatch
+Style
+
+
+DYNAMIC FIELD BEHAVIOR
+
+If Swatch selected show:
+
+Fabric dropdown
+Length
+Width
+Quantity
+Reference Swatch dropdown
+Reference Style dropdown
+Upload Reference Images
+Upload Reference Documents
+
+
+If Style selected show:
+
+Products dropdown
+Patterns dropdown
+Toile image upload
+Size breakdown input
+Color variants input
+Reference Swatch dropdown
+Upload Reference Images
+
+
+COMMON FIELDS BOTH TYPES
+
+Client dropdown
+Priority dropdown
+Assigned To dropdown
+Delivery Date
+Remarks
+
+
+CREATE ORDER DETAILS PAGE
+
+Create page:
+
+/pages/OrderDetails.jsx
+
+
+DISPLAY ORDER USING STEP CARDS LAYOUT
+
+
+CARD 1
+
+Order Overview
+
+Shows:
+
+Order ID
+Client
+Order Type
+Status
+Priority
+Assigned To
+Delivery Date
+Production Mode
+
+
+CARD 2
+
+Making Process
+
+Shows:
+
+Fabric
+Materials
+Consumption
+Artisan assignment
+Outsource assignment
+
+
+CARD 3
+
+Artwork
+
+Shows:
+
+Artwork files
+Hours
+Rate
+Feedback status
+
+
+CARD 4
+
+Costing
+
+Shows:
+
+Material cost
+Artisan cost
+Outsource cost
+Custom charges
+Total cost
+
+
+CARD 5
+
+Client Centre
+
+Shows:
+
+Artwork preview
+WIP images
+Final images
+Generate share link
+Client comments
+
+
+CARD 6
+
+Invoice
+
+Shows:
+
+Invoice status
+Invoice number
+Payment status
+
+
+CARD INTERACTION RULE
+
+Each card must include:
+
+Edit button
+
+Click edit opens modal popup
+
+
+STATUS PANEL
+
+Add sticky right-side panel showing:
+
+Order Status
+Cost Status
+Approval Status
+Invoice Status
+Assigned Artisan
+Production Mode
+Last Updated
+
+
+PRODUCTION MODE TOGGLE
+
+Add toggle:
+
+In-house
+Outsource
+Hybrid
+
+
+PRIMARY BUTTON STYLE
+
+black background
+gold text
+
+
+IMPORTANT
+
+Reuse existing master components where possible.
+
+Use modular architecture so future modules:
+
+Production
+Purchase
+Sales
+
+can connect easily.
+
+
+Return Orders.jsx and OrderDetails.jsx implementation.
