@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, X, Plus } from "lucide-react";
 
 interface SearchableSelectProps {
   label?: string;
@@ -11,10 +11,12 @@ interface SearchableSelectProps {
   required?: boolean;
   error?: string;
   clearable?: boolean;
+  onAdd?: () => void;
+  addLabel?: string;
 }
 
 export default function SearchableSelect({
-  label, value, onChange, options, placeholder = "Select...", required, error, clearable,
+  label, value, onChange, options, placeholder = "Select...", required, error, clearable, onAdd, addLabel,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -103,20 +105,28 @@ export default function SearchableSelect({
           {label}{required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
-      <div className="relative">
-        <button ref={buttonRef} type="button" onClick={openDropdown}
-          className={`w-full flex items-center justify-between rounded-lg border px-3.5 py-2.5 text-sm bg-white shadow-sm transition outline-none text-left
-            ${open ? "border-gray-900 ring-2 ring-gray-900/10" : error ? "border-red-400" : "border-gray-300 hover:border-gray-400"}`}>
-          <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder}</span>
-          <div className="flex items-center gap-1 shrink-0">
-            {clearable && value && (
-              <span role="button" onClick={handleClear} className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
-                <X size={12} />
-              </span>
-            )}
-            <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
-          </div>
-        </button>
+      <div className={`flex gap-2 items-center`}>
+        <div className="relative flex-1">
+          <button ref={buttonRef} type="button" onClick={openDropdown}
+            className={`w-full flex items-center justify-between rounded-lg border px-3.5 py-2.5 text-sm bg-white shadow-sm transition outline-none text-left
+              ${open ? "border-gray-900 ring-2 ring-gray-900/10" : error ? "border-red-400" : "border-gray-300 hover:border-gray-400"}`}>
+            <span className={value ? "text-gray-900" : "text-gray-400"}>{value || placeholder}</span>
+            <div className="flex items-center gap-1 shrink-0">
+              {clearable && value && (
+                <span role="button" onClick={handleClear} className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
+                  <X size={12} />
+                </span>
+              )}
+              <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+            </div>
+          </button>
+        </div>
+        {onAdd && (
+          <button type="button" onClick={onAdd} title={addLabel ?? "Add new"}
+            className="shrink-0 flex items-center justify-center h-[42px] w-[42px] rounded-lg border border-gray-300 bg-white text-gray-600 shadow-sm hover:border-gray-900 hover:text-gray-900 transition">
+            <Plus size={16} />
+          </button>
+        )}
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
       {typeof document !== "undefined" && createPortal(dropdown, document.body)}
