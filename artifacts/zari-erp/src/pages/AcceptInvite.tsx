@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
-const API = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
+const API = "/api";
 
 export default function AcceptInvite() {
   const [, setLocation] = useLocation();
