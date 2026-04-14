@@ -6,20 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useLogin } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import ZariLogo from "@assets/image_1776152751088.png";
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.string().min(1, { message: "Username or email is required." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
@@ -60,7 +50,6 @@ export default function Login() {
           } else if (error.data?.error === "Account disabled") {
             errorMessage = "Your account has been disabled";
           }
-          
           toast({
             variant: "destructive",
             title: "Authentication Failed",
@@ -72,127 +61,155 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background w-full">
-      {/* Left side - Branding / Graphic */}
-      <div className="hidden md:flex flex-col flex-1 bg-sidebar border-r border-border p-12 justify-between relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 bg-[url('https://images.unsplash.com/photo-1600164318625-f71eeeb481dd?q=80&w=2940&auto=format&fit=crop')] bg-cover bg-center mix-blend-overlay"></div>
-        <div className="relative z-10">
-          <img src={ZariLogo} alt="ZARI Embroideries" className="h-12 w-auto mb-8" />
-          <h1 className="text-4xl font-serif tracking-tight text-foreground max-w-md mt-16 leading-snug">
-            Precision, craft, and scale.
-          </h1>
-          <p className="text-muted-foreground mt-4 max-w-sm text-lg">
-            The enterprise resource platform for Zari Embroideries.
-          </p>
+    <div className="min-h-[100dvh] flex flex-col md:flex-row w-full">
+
+      {/* LEFT SIDE — Dark branding panel */}
+      <div className="hidden md:flex flex-col flex-1 bg-black px-16 py-12 justify-between">
+        {/* Top logo */}
+        <div>
+          <img
+            src={ZariLogo}
+            alt="ZARI Embroideries"
+            className="h-14 w-auto brightness-90"
+          />
         </div>
-        <div className="relative z-10">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} Zari Embroideries. All rights reserved.
+
+        {/* Center text */}
+        <div>
+          <h1 className="text-5xl font-serif text-white leading-tight tracking-tight max-w-md">
+            Precision crafted for the art of embroidery.
+          </h1>
+        </div>
+
+        {/* Bottom text */}
+        <div>
+          <p className="text-sm text-white/40 tracking-wide uppercase">
+            ZARI EMBROIDERIES &copy; {new Date().getFullYear()}
           </p>
         </div>
       </div>
 
-      {/* Right side - Form */}
-      <div className="flex-1 flex flex-col justify-center px-8 md:px-24 py-12">
-        <div className="w-full max-w-sm mx-auto">
-          <div className="md:hidden mb-12 flex justify-center">
-            <img src={ZariLogo} alt="ZARI Embroideries" className="h-10 w-auto" />
-          </div>
-          
+      {/* RIGHT SIDE — Light login panel */}
+      <div className="flex-1 flex flex-col justify-center items-center bg-gray-100 px-6 py-12">
+
+        {/* Mobile logo */}
+        <div className="md:hidden mb-10 flex justify-center">
+          <img src={ZariLogo} alt="ZARI Embroideries" className="h-10 w-auto" />
+        </div>
+
+        {/* Login card */}
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg px-10 py-10">
+
+          {/* Headings */}
           <div className="mb-8">
-            <h2 className="text-2xl font-medium tracking-tight text-foreground">Sign In</h2>
-            <p className="text-sm text-muted-foreground mt-2">
-              Enter your credentials to access your account.
+            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">
+              Welcome Back
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Sign in to your ERP workspace
             </p>
           </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="name@zari.com"
-                        type="email"
-                        autoCapitalize="none"
-                        autoComplete="email"
-                        autoCorrect="off"
-                        disabled={loginMutation.isPending}
-                        className="bg-card border-border"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
 
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between">
-                      <FormLabel>Password</FormLabel>
-                      <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors">
-                        Forgot password?
-                      </Link>
-                    </div>
-                    <FormControl>
-                      <div className="relative">
-                        <Input
-                          type={showPassword ? "text" : "password"}
-                          placeholder="••••••••"
-                          autoCapitalize="none"
-                          autoComplete="current-password"
-                          disabled={loginMutation.isPending}
-                          className="bg-card border-border pr-10"
-                          {...field}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground"
-                          onClick={() => setShowPassword(!showPassword)}
-                          disabled={loginMutation.isPending}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword ? "Hide password" : "Show password"}
-                          </span>
-                        </Button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button
-                type="submit"
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors h-11 text-base font-medium"
-                disabled={loginMutation.isPending}
+            {/* Username or Email */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium text-gray-700"
               >
-                {loginMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Authenticating...
-                  </>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
-            </form>
-          </Form>
+                Username or Email
+              </label>
+              <input
+                id="email"
+                type="text"
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect="off"
+                placeholder="name@zarierp.com"
+                disabled={loginMutation.isPending}
+                {...form.register("email")}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 disabled:opacity-50"
+              />
+              {form.formState.errors.email && (
+                <p className="text-xs text-red-500 mt-0.5">
+                  {form.formState.errors.email.message}
+                </p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-gray-700"
+              >
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  autoCapitalize="none"
+                  autoComplete="current-password"
+                  disabled={loginMutation.isPending}
+                  {...form.register("password")}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 pr-11 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  disabled={loginMutation.isPending}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Forgot password — right aligned */}
+              <div className="flex justify-end mt-0.5">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-gray-500 hover:text-gray-900 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+
+              {form.formState.errors.password && (
+                <p className="text-xs text-red-500 -mt-1">
+                  {form.formState.errors.password.message}
+                </p>
+              )}
+            </div>
+
+            {/* Sign In button */}
+            <button
+              type="submit"
+              disabled={loginMutation.isPending}
+              className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-black focus:outline-none focus:ring-2 focus:ring-gray-900/30 disabled:opacity-60"
+            >
+              {loginMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Authenticating...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <p className="mt-8 text-center text-xs text-gray-400">
+            ZARI EMBROIDERIES &copy; {new Date().getFullYear()} &mdash; Enterprise Resource Planning
+          </p>
         </div>
       </div>
     </div>
