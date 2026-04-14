@@ -28,6 +28,7 @@ import {
 } from "@/hooks/useMaterials";
 import { useItemTypes, useUnitTypes, useCreateItemType, useCreateUnitType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
+import { useAllVendors } from "@/hooks/useVendors";
 
 const EMPTY_FORM: MaterialFormData = {
   itemType: "", quality: "", type: "", color: "#c9b45c", hexCode: "#c9b45c",
@@ -102,6 +103,7 @@ export default function MaterialsMaster() {
   const createHSN = useCreateHSN();
 
   const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
+  const { data: allVendors = [] } = useAllVendors();
   const hsnOptions = hsnData?.data ?? [];
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -414,8 +416,14 @@ export default function MaterialsMaster() {
             options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
           />
 
-          <InputField label="Vendor" placeholder="e.g. ABC Suppliers" value={form.vendor ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Vendor</label>
+            <select value={form.vendor ?? ""} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))}
+              className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+              <option value="">— Select Vendor —</option>
+              {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
+            </select>
+          </div>
 
           <InputField label="Location" placeholder="e.g. Warehouse A" value={form.location ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
