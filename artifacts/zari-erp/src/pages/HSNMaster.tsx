@@ -14,8 +14,8 @@ import StatusToggle from "@/components/master/StatusToggle";
 import ExportExcelButton, { type ExportColumn } from "@/components/master/ExportExcelButton";
 import InputField from "@/components/ui/InputField";
 import TextareaField from "@/components/ui/TextareaField";
-import SelectField from "@/components/ui/SelectField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
   useHSNList,
@@ -382,13 +382,16 @@ export default function HSNMaster() {
           disabled={!!editRecord}
         />
 
-        <SelectField
+        <SearchableSelect
           label="GST Percentage"
           required
-          options={GST_OPTIONS}
+          options={GST_OPTIONS.map((o) => o.label)}
           placeholder="Select GST %"
-          value={form.gstPercentage}
-          onChange={(e) => setForm((f) => ({ ...f, gstPercentage: e.target.value }))}
+          value={GST_OPTIONS.find((o) => o.value === form.gstPercentage)?.label ?? ""}
+          onChange={(label) => {
+            const opt = GST_OPTIONS.find((o) => o.label === label);
+            setForm((f) => ({ ...f, gstPercentage: opt ? opt.value : "" }));
+          }}
           error={errors.gstPercentage}
         />
 
