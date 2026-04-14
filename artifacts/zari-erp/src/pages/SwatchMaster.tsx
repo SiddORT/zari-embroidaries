@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, Plus, Paperclip, X } from "lucide-react";
+import { Pencil, Trash2, Paperclip, X } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,6 +15,7 @@ import ExportExcelButton, { type ExportColumn } from "@/components/master/Export
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import AddableSelect from "@/components/ui/AddableSelect";
 
 import {
   useSwatchList, useCreateSwatch, useUpdateSwatch, useToggleSwatchStatus, useDeleteSwatch,
@@ -147,7 +148,7 @@ export default function SwatchMaster() {
   const fabricOptions = (fabricsData ?? []).map(f => `${f.fabricType} – ${f.quality}`.trim());
   const unitOptions = (unitTypesData ?? []).filter(u => u.isActive).map(u => u.name);
   const clientOptions = ((clientsData ?? []) as ClientRecord[]).map(c => c.brandName);
-  const swatchCatOptions = (swatchCatsData ?? []).filter(c => c.isActive).map(c => c.name);
+  const swatchCatOptions = (swatchCatsData ?? []).filter(c => c.isActive).map(c => ({ value: c.name, label: c.name }));
 
   function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
   function openEdit(r: SwatchRecord) {
@@ -297,19 +298,11 @@ export default function SwatchMaster() {
             <InputField label="Swatch Name" value={form.swatchName} onChange={(e) => setForm(f => ({ ...f, swatchName: e.target.value }))}
               error={errors.swatchName} required placeholder="Enter swatch name" />
 
-            <div className="flex flex-col gap-1 py-2">
-              <label className="text-sm font-medium text-gray-700">Swatch Category</label>
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <SearchableSelect value={form.swatchCategory} onChange={(v) => setForm(f => ({ ...f, swatchCategory: v }))}
-                    options={swatchCatOptions} placeholder="Select category" clearable />
-                </div>
-                <button type="button" onClick={() => setAddCatOpen(true)}
-                  className="h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center rounded-lg border border-dashed border-gray-400 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition"
-                  title="Add new category">
-                  <Plus size={16} />
-                </button>
-              </div>
+            <div className="py-2">
+              <AddableSelect label="Swatch Category" value={form.swatchCategory}
+                onChange={(v) => setForm(f => ({ ...f, swatchCategory: v }))}
+                onAdd={() => setAddCatOpen(true)} addLabel="+ Add New Category"
+                options={swatchCatOptions} placeholder="Select category" />
             </div>
 
             <SearchableSelect label="Base Fabric" value={form.fabric} onChange={(v) => setForm(f => ({ ...f, fabric: v }))}
