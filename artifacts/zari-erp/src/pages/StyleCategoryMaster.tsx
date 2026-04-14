@@ -129,19 +129,15 @@ export default function StyleCategoryMaster() {
       <div className="max-w-screen-xl mx-auto space-y-5">
         <MasterHeader title="Style Category Master" onAdd={openCreate} addLabel="Add Category" />
 
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search categories…" />
-            </div>
-            <ExportExcelButton data={(data?.data ?? []) as unknown as Record<string, unknown>[]} columns={exportColumns} filename="style-categories" />
+        <div className="flex gap-3 items-center">
+          <div className="flex-1">
+            <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search categories…" />
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+          <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+            {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <ExportExcelButton data={(data?.data ?? []) as unknown as Record<string, unknown>[]} columns={exportColumns} filename="style-categories" />
         </div>
 
         <MasterTable columns={columns} rows={rows} loading={isLoading}
