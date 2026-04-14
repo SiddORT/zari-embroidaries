@@ -1,0 +1,229 @@
+Create HSN Master module UI for ZARI ERP using React and Tailwind CSS.
+
+Follow enterprise ERP constrained master UI structure.
+
+Do NOT modify backend authentication logic.
+
+
+HSN MASTER FIELDS
+
+Create master with fields:
+
+HSN Code (required, unique)
+GST Percentage (required dropdown)
+Government Description (required textarea)
+Remarks (optional textarea)
+
+Audit fields:
+
+created_by
+created_at
+updated_by
+updated_at
+
+Status field:
+
+Active / Inactive toggle
+
+
+PAGE LAYOUT STRUCTURE
+
+Use existing Top Navigation Bar.
+
+Page layout:
+
+Page Title:
+
+HSN Master
+
+Top-right button:
+
+Add HSN
+
+
+Below title:
+
+Search input
+
+Export to Excel button
+
+
+Below filters:
+
+Data table with pagination
+
+
+DATA TABLE COLUMNS
+
+HSN Code
+GST %
+Government Description
+Status
+Created By
+Created At
+Updated By
+Updated At
+Actions
+
+
+TABLE FEATURES
+
+Implement:
+
+Search by HSN code
+Search by description
+Pagination
+Sorting support (optional)
+
+Actions column must include:
+
+Edit
+Delete
+Status Toggle
+
+
+ADD / EDIT MODAL FORM
+
+Open modal when clicking:
+
+Add HSN
+Edit
+
+Modal fields:
+
+HSN Code input
+
+GST Percentage dropdown:
+
+0%
+5%
+12%
+18%
+28%
+
+Government Description textarea
+
+Remarks textarea
+
+Status toggle
+
+
+VALIDATIONS
+
+HSN Code required
+
+GST % required
+
+Government Description required
+
+Prevent duplicate HSN codes
+
+
+STATUS TOGGLE
+
+Active → Inactive
+
+Inactive → Active
+
+
+DELETE RULE
+
+Soft delete preferred:
+
+Change status instead of permanent delete
+
+
+EXPORT FEATURE
+
+Add Export to Excel button
+
+Export:
+
+All table rows
+
+Columns:
+
+HSN Code
+GST %
+Government Description
+Remarks
+Status
+Created By
+Created At
+Updated By
+Updated At
+
+
+CREATE REUSABLE MASTER COMPONENTS
+
+Generate reusable ERP components:
+
+
+/components/master
+
+MasterLayout.jsx
+MasterHeader.jsx
+MasterTable.jsx
+MasterFormModal.jsx
+StatusToggle.jsx
+SearchBar.jsx
+ExportExcelButton.jsx
+
+
+CREATE UI COMPONENTS
+
+
+/components/ui
+
+InputField.jsx
+TextareaField.jsx
+SelectField.jsx
+PrimaryButton.jsx
+
+
+PRIMARY BUTTON STYLE
+
+Use:
+
+black background
+
+gold text
+
+
+FORM BEHAVIOR
+
+Modal opens centered
+
+Responsive layout
+
+Close on cancel
+
+Submit validation errors inline
+
+
+PAGINATION STYLE
+
+Bottom-right aligned
+
+Rows per page selector:
+
+10
+25
+50
+
+
+PROJECT STRUCTURE OUTPUT
+
+
+/pages
+
+HSNMaster.jsx
+
+
+IMPORTANT
+
+Do NOT change backend logic.
+
+Build frontend structure reusable for future masters.
+
+Return clean ERP-grade reusable components and HSNMaster page.

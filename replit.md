@@ -30,6 +30,28 @@ pnpm workspace monorepo using TypeScript. Full-stack ERP authentication system f
 - Token stored in localStorage under `zarierp_token`
 - Protected routes via `useGetMe` hook
 
+## Frontend Pages & Navigation
+
+- **Login** (`/login`) — Split-screen auth page with ZariButton (black + gold text)
+- **Forgot Password** (`/forgot-password`) — 3-step: request → reset → success
+- **Dashboard** (`/dashboard`) — Summary cards + recent activity
+- **HSN Master** (`/masters`) — Full CRUD master module (see below)
+- **TopNavbar** — Horizontal nav bar: ZARI branding left, nav links center, user+logout right
+- **ZariButton** — Reusable button: primary (black bg + gold text) and secondary variants
+
+## Reusable Master Components
+
+Located at `artifacts/zari-erp/src/components/master/`:
+- `MasterHeader` — Page title + Add button
+- `MasterTable` — Data table with sortable cols, skeleton loading, empty state
+- `MasterFormModal` — Centered modal with header/footer and keyboard close
+- `StatusToggle` — Active/Inactive pill button
+- `SearchBar` — Search input with clear button
+- `ExportExcelButton` — XLSX export using the `xlsx` library
+
+Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
+- `InputField`, `TextareaField`, `SelectField` — Styled form controls with labels and inline errors
+
 ## API Routes
 
 - `POST /api/auth/login` — Login, returns JWT
@@ -37,10 +59,16 @@ pnpm workspace monorepo using TypeScript. Full-stack ERP authentication system f
 - `POST /api/auth/forgot-password` — Request password reset
 - `POST /api/auth/reset-password` — Reset password with token
 - `GET /api/auth/me` — Get current user (requires Bearer token)
+- `GET /api/hsn` — List HSN records (search, page, limit query params)
+- `POST /api/hsn` — Create HSN record
+- `PUT /api/hsn/:id` — Update HSN record
+- `PATCH /api/hsn/:id/status` — Toggle Active/Inactive
+- `DELETE /api/hsn/:id` — Soft delete (marks Inactive)
 
 ## Database Schema
 
 - `users` table: id, username, email, hashed_password, role, is_active, created_at
+- `hsn_master` table: id, hsn_code (unique), gst_percentage, govt_description, remarks, is_active, created_by, created_at, updated_by, updated_at
 
 ## Key Commands
 

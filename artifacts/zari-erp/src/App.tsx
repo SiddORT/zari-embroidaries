@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
 import Dashboard from "@/pages/dashboard";
+import HSNMaster from "@/pages/HSNMaster";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/masters" component={HSNMaster} />
       <Route component={NotFound} />
     </Switch>
   );
