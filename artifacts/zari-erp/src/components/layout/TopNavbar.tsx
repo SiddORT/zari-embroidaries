@@ -97,7 +97,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               </button>
 
               {mastersOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
+                <div className="absolute top-full left-0 mt-1.5 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50 grid grid-cols-2 gap-0.5">
                   {MASTERS_ITEMS.map(({ label, href }) => {
                     const active = location === href || (href === "/masters/hsn" && location === "/masters");
                     return (
@@ -105,7 +105,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                         key={href}
                         href={href}
                         onClick={() => setMastersOpen(false)}
-                        className={`block px-4 py-2.5 text-sm font-medium transition-colors ${
+                        className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           active
                             ? "text-gray-900 bg-gray-50 font-semibold"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
