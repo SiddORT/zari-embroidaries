@@ -26,6 +26,7 @@ import {
 import { useUnitTypes } from "@/hooks/useLookups";
 import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 
+const ITEM_TYPE_OPTIONS = ["Packaging Material", "Asset Inventory", "Stationary"];
 const LOCATION_OPTIONS = ["In-house", "Outsource"];
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -33,7 +34,7 @@ const STATUS_OPTIONS = [
   { value: "inactive", label: "Inactive" },
 ];
 const EMPTY_FORM: PackagingMaterialFormData = {
-  itemName: "", department: "", size: "", unitType: "",
+  itemType: "", itemName: "", department: "", size: "", unitType: "",
   unitPrice: "", vendor: "", location: "", isActive: true,
 };
 type FormErrors = Partial<Record<keyof PackagingMaterialFormData, string>>;
@@ -106,6 +107,7 @@ export default function PackagingMaterialsMaster() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [filterItemType, setFilterItemType] = useState("");
   const [filterDept, setFilterDept] = useState("");
   const [filterVendor, setFilterVendor] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
@@ -120,7 +122,7 @@ export default function PackagingMaterialsMaster() {
   const [addDeptOpen, setAddDeptOpen] = useState(false);
 
   const { data, isLoading } = usePackagingMaterialList({
-    search, status, department: filterDept, vendor: filterVendor, location: filterLocation, page, limit,
+    search, status, itemType: filterItemType, department: filterDept, vendor: filterVendor, location: filterLocation, page, limit,
   });
   const { data: deptData } = useDepartments();
   const { data: unitTypesData } = useUnitTypes();
@@ -136,7 +138,7 @@ export default function PackagingMaterialsMaster() {
   function openEdit(r: PackagingMaterialRecord) {
     setEditRecord(r);
     setForm({
-      itemName: r.itemName, department: r.department ?? "", size: r.size ?? "",
+      itemType: r.itemType ?? "", itemName: r.itemName, department: r.department ?? "", size: r.size ?? "",
       unitType: r.unitType ?? "", unitPrice: r.unitPrice ?? "",
       vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive,
     });
@@ -171,6 +173,7 @@ export default function PackagingMaterialsMaster() {
   const columns: Column[] = [
     { key: "_srNo", label: "Sr No" },
     { key: "itemCode", label: "Item Code", render: (r) => <span className="font-mono text-xs font-semibold text-gray-700">{asPM(r).itemCode}</span> },
+    { key: "itemType", label: "Item Type", render: (r) => asPM(r).itemType || "—" },
     { key: "itemName", label: "Item Name", render: (r) => asPM(r).itemName },
     { key: "department", label: "Department", render: (r) => asPM(r).department || "—" },
     { key: "size", label: "Size", render: (r) => asPM(r).size || "—" },
@@ -198,6 +201,7 @@ export default function PackagingMaterialsMaster() {
 
   const exportColumns: ExportColumn[] = [
     { key: "itemCode", label: "Item Code" },
+    { key: "itemType", label: "Item Type" },
     { key: "itemName", label: "Item Name" },
     { key: "department", label: "Department" },
     { key: "size", label: "Size" },
@@ -228,6 +232,10 @@ export default function PackagingMaterialsMaster() {
 
         {/* Row 2: filters */}
         <div className="flex items-center gap-3 flex-wrap">
+          <select value={filterItemType} onChange={(e) => { setFilterItemType(e.target.value); setPage(1); }} className={SELECT_CLS}>
+            <option value="">All Item Types</option>
+            {ITEM_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
           <select value={filterDept} onChange={(e) => { setFilterDept(e.target.value); setPage(1); }} className={SELECT_CLS}>
             <option value="">All Departments</option>
             {deptOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -259,6 +267,14 @@ export default function PackagingMaterialsMaster() {
               <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 font-mono">
                 {editRecord ? editRecord.itemCode : "Auto-generated"}
               </div>
+            </div>
+            <div className="flex flex-col gap-1 py-2">
+              <label className="text-sm font-medium text-gray-700">Item Type</label>
+              <select value={form.itemType} onChange={(e) => setForm(f => ({ ...f, itemType: e.target.value }))}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
+                <option value="">Select item type</option>
+                {ITEM_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <InputField label="Item Name" value={form.itemName} onChange={(e) => setForm(f => ({ ...f, itemName: e.target.value }))}
               error={errors.itemName} required placeholder="e.g. Box 10x10" />

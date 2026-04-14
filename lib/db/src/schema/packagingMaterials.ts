@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 export const packagingMaterialsTable = pgTable("packaging_materials", {
   id: serial("id").primaryKey(),
   itemCode: text("item_code").notNull().unique(),
+  itemType: text("item_type"),
   itemName: text("item_name").notNull(),
   department: text("department"),
   size: text("size"),
@@ -22,6 +23,7 @@ export const packagingMaterialsTable = pgTable("packaging_materials", {
 export type PackagingMaterial = typeof packagingMaterialsTable.$inferSelect;
 
 export const insertPackagingMaterialSchema = z.object({
+  itemType: z.string().optional(),
   itemName: z.string().min(1, "Item Name is required"),
   department: z.string().optional(),
   size: z.string().optional(),

@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 export type PackagingMaterialRecord = {
   id: number;
   itemCode: string;
+  itemType: string | null;
   itemName: string;
   department: string | null;
   size: string | null;
@@ -20,6 +21,7 @@ export type PackagingMaterialRecord = {
 };
 
 export type PackagingMaterialFormData = {
+  itemType: string;
   itemName: string;
   department: string;
   size: string;
@@ -36,12 +38,12 @@ const BASE = "/api/packaging-materials";
 const QK = "packaging-materials";
 
 export function usePackagingMaterialList(p: {
-  search: string; status: StatusFilter; department: string; vendor: string; location: string; page: number; limit: number;
+  search: string; status: StatusFilter; itemType: string; department: string; vendor: string; location: string; page: number; limit: number;
 }) {
   return useQuery({
     queryKey: [QK, p],
     queryFn: () => customFetch<{ data: PackagingMaterialRecord[]; total: number; page: number; limit: number }>(
-      `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&department=${encodeURIComponent(p.department)}&vendor=${encodeURIComponent(p.vendor)}&location=${encodeURIComponent(p.location)}&page=${p.page}&limit=${p.limit}`
+      `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&itemType=${encodeURIComponent(p.itemType)}&department=${encodeURIComponent(p.department)}&vendor=${encodeURIComponent(p.vendor)}&location=${encodeURIComponent(p.location)}&page=${p.page}&limit=${p.limit}`
     ),
     placeholderData: (prev) => prev,
   });

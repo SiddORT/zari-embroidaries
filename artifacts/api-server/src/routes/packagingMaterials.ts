@@ -11,6 +11,7 @@ type AuthRequest = Request & { user?: { userId: number; email: string; role: str
 router.get("/packaging-materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
+  const itemType = (req.query.itemType as string) ?? "";
   const department = (req.query.department as string) ?? "";
   const vendor = (req.query.vendor as string) ?? "";
   const location = (req.query.location as string) ?? "";
@@ -21,6 +22,7 @@ router.get("/packaging-materials", requireAuth, async (req: AuthRequest, res): P
   const conditions = [eq(packagingMaterialsTable.isDeleted, false)];
   if (status === "active") conditions.push(eq(packagingMaterialsTable.isActive, true));
   else if (status === "inactive") conditions.push(eq(packagingMaterialsTable.isActive, false));
+  if (itemType) conditions.push(eq(packagingMaterialsTable.itemType, itemType));
   if (department) conditions.push(ilike(packagingMaterialsTable.department, `%${department}%`));
   if (vendor) conditions.push(ilike(packagingMaterialsTable.vendor, `%${vendor}%`));
   if (location) conditions.push(eq(packagingMaterialsTable.location, location));
