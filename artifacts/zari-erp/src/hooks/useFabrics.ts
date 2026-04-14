@@ -76,6 +76,14 @@ export function useFabricList(params: { search: string; status: StatusFilter; fa
   });
 }
 
+export function useAllFabrics() {
+  return useQuery<FabricRecord[]>({
+    queryKey: ["fabrics", "all"],
+    queryFn: () => customFetch<FabricRecord[]>("/api/fabrics/all"),
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateFabric() {
   const qc = useQueryClient();
   return useMutation({

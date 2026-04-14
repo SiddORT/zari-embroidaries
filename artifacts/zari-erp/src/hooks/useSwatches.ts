@@ -1,18 +1,33 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+export type SwatchAttachment = { name: string; type: string; data: string; size: number };
+
 export type SwatchRecord = {
-  id: number; swatchCode: string; swatchName: string; fabric: string | null; colorName: string | null;
-  hexCode: string | null; width: string | null; unitType: string | null; finishType: string | null;
-  gsm: string | null; client: string | null; approvalStatus: string; remarks: string | null;
+  id: number; swatchCode: string; swatchName: string;
+  client: string | null; swatchCategory: string | null;
+  fabric: string | null; location: string | null; swatchDate: string | null;
+  length: string | null; width: string | null; unitType: string | null;
+  hours: string | null; attachments: SwatchAttachment[] | null;
+  colorName: string | null; hexCode: string | null; finishType: string | null;
+  gsm: string | null; approvalStatus: string; remarks: string | null;
   isActive: boolean; isDeleted: boolean; createdBy: string; createdAt: string;
   updatedBy: string | null; updatedAt: string | null;
 };
 
 export type SwatchFormData = {
-  swatchName: string; fabric: string; colorName: string; hexCode: string; width: string;
-  unitType: string; finishType: string; gsm: string; client: string;
-  approvalStatus: string; remarks: string; isActive: boolean;
+  client: string;
+  swatchName: string;
+  swatchCategory: string;
+  fabric: string;
+  location: string;
+  swatchDate: string;
+  length: string;
+  width: string;
+  unitType: string;
+  hours: string;
+  attachments: SwatchAttachment[];
+  isActive: boolean;
 };
 
 export type StatusFilter = "all" | "active" | "inactive";
@@ -20,11 +35,21 @@ export type StatusFilter = "all" | "active" | "inactive";
 const BASE = "/api/swatches";
 const QK = "swatches";
 
-export function useSwatchList(p: { search: string; status: StatusFilter; page: number; limit: number }) {
+export function useSwatchList(p: {
+  search: string; status: StatusFilter;
+  client: string; location: string; swatchCategory: string;
+  page: number; limit: number;
+}) {
   return useQuery({
     queryKey: [QK, p],
-    queryFn: () => customFetch<{ data: SwatchRecord[]; total: number; page: number; limit: number }>(
-      `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
+    queryFn: () => {
+      const qs = new URLSearchParams({
+        search: p.search, status: p.status,
+        client: p.client, location: p.location, swatchCategory: p.swatchCategory,
+        page: String(p.page), limit: String(p.limit),
+      }).toString();
+      return customFetch<{ data: SwatchRecord[]; total: number; page: number; limit: number }>(`${BASE}?${qs}`);
+    },
     placeholderData: (prev) => prev,
   });
 }

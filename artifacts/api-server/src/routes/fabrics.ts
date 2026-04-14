@@ -47,6 +47,11 @@ router.get("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void>
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
+router.get("/fabrics/all", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(fabricsTable).where(and(eq(fabricsTable.isDeleted, false), eq(fabricsTable.isActive, true))).orderBy(fabricsTable.fabricType);
+  res.json(rows);
+});
+
 router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertFabricSchema.safeParse(req.body);
   if (!parsed.success) {

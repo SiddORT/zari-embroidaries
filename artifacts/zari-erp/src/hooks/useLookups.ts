@@ -36,8 +36,10 @@ export function useItemTypes() { return useLookupList("item-types"); }
 export function useUnitTypes() { return useLookupList("unit-types"); }
 export function useWidthUnitTypes() { return useLookupList("width-unit-types"); }
 export function useFabricTypes() { return useLookupList("fabric-types"); }
+export function useSwatchCategories() { return useLookupList("swatch-categories"); }
 
 export function useCreateItemType() { return useCreateLookup("item-types"); }
 export function useCreateUnitType() { return useCreateLookup("unit-types"); }
 export function useCreateWidthUnitType() { return useCreateLookup("width-unit-types"); }
 export function useCreateFabricType() { return useCreateLookup("fabric-types"); }
+export function useCreateSwatchCategory() { return useCreateLookup("swatch-categories"); }
