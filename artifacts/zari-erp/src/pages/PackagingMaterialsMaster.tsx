@@ -72,7 +72,7 @@ function AddDeptModal({ open, onClose, onAdd, adding }: AddDeptModalProps) {
         <form onSubmit={(e) => { void handleSubmit(e); }}>
           <input ref={inputRef} value={name} onChange={(e) => setName(e.target.value)}
             placeholder="Department name"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 mb-1" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 mb-1" />
           {err && <p className="text-xs text-red-500 mb-2">{err}</p>}
           <div className="flex justify-end gap-2 mt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
