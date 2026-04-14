@@ -29,7 +29,7 @@ import {
 } from "@/hooks/useMaterials";
 import { useItemTypes, useUnitTypes, useCreateItemType, useCreateUnitType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
-import { useAllVendors, useCreateVendor } from "@/hooks/useVendors";
+import { useAllVendors } from "@/hooks/useVendors";
 
 const EMPTY_FORM: MaterialFormData = {
   itemType: "", quality: "", type: "", color: "#c9b45c", hexCode: "#c9b45c",
@@ -105,7 +105,6 @@ export default function MaterialsMaster() {
 
   const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
   const { data: allVendors = [] } = useAllVendors();
-  const createVendor = useCreateVendor();
   const hsnOptions = hsnData?.data ?? [];
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -121,10 +120,6 @@ export default function MaterialsMaster() {
   const [addHSNOpen, setAddHSNOpen] = useState(false);
   const [hsnForm, setHsnForm] = useState<HsnFormData>(EMPTY_HSN_FORM);
   const [hsnErrors, setHsnErrors] = useState<HsnErrors>({});
-  const [addVendorOpen, setAddVendorOpen] = useState(false);
-  const [newVendorBrand, setNewVendorBrand] = useState("");
-  const [newVendorContact, setNewVendorContact] = useState("");
-  const [vendorErrors, setVendorErrors] = useState<{ brand?: string; contact?: string }>({});
 
   const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); };
   const openEdit = (r: MaterialRecord) => {
@@ -223,28 +218,6 @@ export default function MaterialsMaster() {
       setAddHSNOpen(false);
     } catch (err: unknown) {
       const msg = (err as { data?: { error?: string } })?.data?.error ?? "Failed to add HSN.";
-      toast({ title: "Error", description: msg, variant: "destructive" });
-    }
-  };
-
-  const handleAddVendor = async () => {
-    const e: { brand?: string; contact?: string } = {};
-    if (!newVendorBrand.trim()) e.brand = "Brand name is required";
-    if (!newVendorContact.trim()) e.contact = "Contact name is required";
-    setVendorErrors(e);
-    if (Object.keys(e).length > 0) return;
-    try {
-      const created = await createVendor.mutateAsync({
-        brandName: newVendorBrand.trim(), contactName: newVendorContact.trim(),
-        email: "", altEmail: "", contactNo: "", altContactNo: "", country: "",
-        hasGst: false, gstNo: "", bankAccounts: [], address1: "", address2: "",
-        pincode: "", state: "", city: "", paymentAttachments: [], isActive: true,
-      });
-      setForm((f) => ({ ...f, vendor: created.brandName }));
-      setNewVendorBrand(""); setNewVendorContact(""); setVendorErrors({});
-      setAddVendorOpen(false);
-    } catch (err: unknown) {
-      const msg = (err as { data?: { error?: string } })?.data?.error ?? "Failed to add vendor.";
       toast({ title: "Error", description: msg, variant: "destructive" });
     }
   };
@@ -445,9 +418,7 @@ export default function MaterialsMaster() {
           <SearchableSelect label="Vendor" value={form.vendor ?? ""}
             onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
             options={allVendors.map(v => v.brandName)}
-            placeholder="Select vendor" clearable
-            onAdd={() => { setNewVendorBrand(""); setNewVendorContact(""); setVendorErrors({}); setAddVendorOpen(true); }}
-            addLabel="Add Vendor" />
+            placeholder="Select vendor" clearable />
 
           <SearchableSelect label="Location" value={form.location ?? ""}
             onChange={(v) => setForm((f) => ({ ...f, location: v }))}
@@ -529,20 +500,6 @@ export default function MaterialsMaster() {
           onChange={(e) => setHsnForm((f) => ({ ...f, govtDescription: e.target.value }))} error={hsnErrors.govtDescription} />
       </MasterFormModal>
 
-      {/* Add Vendor mini-modal */}
-      <MasterFormModal
-        open={addVendorOpen}
-        title="Add Vendor"
-        onClose={() => setAddVendorOpen(false)}
-        onSubmit={handleAddVendor}
-        submitting={createVendor.isPending}
-        submitLabel="Add"
-      >
-        <InputField label="Brand Name" required placeholder="e.g. Shree Textiles" value={newVendorBrand}
-          onChange={(e) => setNewVendorBrand(e.target.value)} error={vendorErrors.brand} />
-        <InputField label="Contact Name" required placeholder="e.g. Ramesh Kumar" value={newVendorContact}
-          onChange={(e) => setNewVendorContact(e.target.value)} error={vendorErrors.contact} />
-      </MasterFormModal>
     </AppLayout>
   );
 }
