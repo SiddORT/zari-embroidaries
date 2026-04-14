@@ -16,8 +16,8 @@ const MASTERS_ITEMS = [
   { label: "Clients",          href: "/masters/clients" },
   { label: "Vendors",          href: "/masters/vendors" },
   { label: "Style Categories", href: "/masters/style-categories" },
-  { label: "Swatch Master",    href: "/masters/swatches" },
-  { label: "Style Master",     href: "/masters/styles" },
+  { label: "Swatch",           href: "/masters/swatches" },
+  { label: "Style",            href: "/masters/styles" },
 ];
 
 const TOP_LINKS = [
