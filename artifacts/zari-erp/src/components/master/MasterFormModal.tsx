@@ -9,7 +9,7 @@ interface MasterFormModalProps {
   onSubmit: () => void;
   submitting?: boolean;
   submitLabel?: string;
-  size?: "md" | "xl";
+  size?: "md" | "xl" | "2xl";
   children: ReactNode;
 }
 
@@ -42,7 +42,7 @@ export default function MasterFormModal({
       ref={overlayRef}
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
-      <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] ${size === "xl" ? "max-w-2xl" : "max-w-lg"}`}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] ${size === "2xl" ? "max-w-4xl" : size === "xl" ? "max-w-2xl" : "max-w-lg"}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>

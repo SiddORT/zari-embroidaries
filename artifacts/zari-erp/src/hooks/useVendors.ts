@@ -1,19 +1,51 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+export interface BankAccount {
+  bankName: string;
+  accountNo: string;
+  ifscCode: string;
+}
+
+export interface PaymentAttachment {
+  name: string;
+  type: string;
+  data: string;
+  size: number;
+}
+
 export type VendorRecord = {
   id: number; vendorCode: string; brandName: string; contactName: string;
   email: string | null; altEmail: string | null; contactNo: string | null; altContactNo: string | null;
-  hasGst: boolean; gstNo: string | null; bankName: string | null; accountNo: string | null; ifscCode: string | null;
-  address1: string | null; address2: string | null; country: string | null; state: string | null;
-  city: string | null; pincode: string | null; isActive: boolean; isDeleted: boolean;
+  country: string | null;
+  hasGst: boolean; gstNo: string | null;
+  bankName: string | null; accountNo: string | null; ifscCode: string | null;
+  bankAccounts: BankAccount[] | null;
+  address1: string | null; address2: string | null; pincode: string | null;
+  state: string | null; city: string | null;
+  paymentAttachments: PaymentAttachment[] | null;
+  isActive: boolean; isDeleted: boolean;
   createdBy: string; createdAt: string; updatedBy: string | null; updatedAt: string | null;
 };
 
 export type VendorFormData = {
-  brandName: string; contactName: string; email: string; altEmail: string; contactNo: string;
-  altContactNo: string; hasGst: boolean; gstNo: string; bankName: string; accountNo: string; ifscCode: string;
-  address1: string; address2: string; country: string; state: string; city: string; pincode: string; isActive: boolean;
+  brandName: string;
+  contactName: string;
+  email: string;
+  altEmail: string;
+  contactNo: string;
+  altContactNo: string;
+  country: string;
+  hasGst: boolean;
+  gstNo: string;
+  bankAccounts: BankAccount[];
+  address1: string;
+  address2: string;
+  pincode: string;
+  state: string;
+  city: string;
+  paymentAttachments: PaymentAttachment[];
+  isActive: boolean;
 };
 
 export type StatusFilter = "all" | "active" | "inactive";

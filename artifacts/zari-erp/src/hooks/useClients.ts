@@ -4,16 +4,20 @@ import { customFetch } from "@workspace/api-client-react";
 export type ClientRecord = {
   id: number; clientCode: string; brandName: string; contactName: string; email: string;
   altEmail: string | null; contactNo: string; altContactNo: string | null;
-  countryOfOrigin: string; hasGst: boolean; gstNo: string | null;
-  address1: string; address2: string | null; country: string | null; state: string | null;
-  city: string | null; pincode: string | null; isActive: boolean; isDeleted: boolean;
+  country: string | null; countryOfOrigin: string | null;
+  isActive: boolean; isDeleted: boolean;
   createdBy: string; createdAt: string; updatedBy: string | null; updatedAt: string | null;
 };
 
 export type ClientFormData = {
-  brandName: string; contactName: string; email: string; altEmail: string; contactNo: string;
-  altContactNo: string; countryOfOrigin: string; hasGst: boolean; gstNo: string;
-  address1: string; address2: string; country: string; state: string; city: string; pincode: string; isActive: boolean;
+  brandName: string;
+  contactName: string;
+  email: string;
+  altEmail: string;
+  contactNo: string;
+  altContactNo: string;
+  country: string;
+  isActive: boolean;
 };
 
 export type StatusFilter = "all" | "active" | "inactive";
@@ -37,7 +41,7 @@ export function useAllClients() {
 export function useCreateClient() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: ClientFormData) => customFetch<ClientRecord>(BASE, { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (data: ClientFormData) => customFetch<ClientRecord>(BASE, { method: "POST", body: JSON.stringify({ ...data, countryOfOrigin: data.country }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
@@ -46,7 +50,7 @@ export function useUpdateClient() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<ClientFormData> }) =>
-      customFetch<ClientRecord>(`${BASE}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+      customFetch<ClientRecord>(`${BASE}/${id}`, { method: "PUT", body: JSON.stringify({ ...data, countryOfOrigin: data.country }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
