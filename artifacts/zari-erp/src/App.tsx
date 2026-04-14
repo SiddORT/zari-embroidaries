@@ -10,6 +10,8 @@ import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
 import Dashboard from "@/pages/dashboard";
 import HSNMaster from "@/pages/HSNMaster";
+import MaterialsMaster from "@/pages/MaterialsMaster";
+import FabricMaster from "@/pages/FabricMaster";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,12 @@ function RootRedirect() {
   return null;
 }
 
+function MastersRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation("/masters/hsn"); }, [setLocation]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -37,7 +45,10 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/masters" component={HSNMaster} />
+      <Route path="/masters" component={MastersRedirect} />
+      <Route path="/masters/hsn" component={HSNMaster} />
+      <Route path="/masters/materials" component={MaterialsMaster} />
+      <Route path="/masters/fabric" component={FabricMaster} />
       <Route component={NotFound} />
     </Switch>
   );

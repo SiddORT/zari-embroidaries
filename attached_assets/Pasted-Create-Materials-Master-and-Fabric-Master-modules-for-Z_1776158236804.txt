@@ -1,0 +1,358 @@
+Create Materials Master and Fabric Master modules for ZARI ERP using React + Tailwind CSS.
+
+Reuse existing reusable ERP master components created earlier:
+
+MasterLayout
+MasterHeader
+MasterTable
+MasterFormModal
+StatusToggle
+SearchBar
+ExportExcelButton
+
+Do NOT modify authentication backend.
+
+
+UPDATE NAVIGATION STRUCTURE
+
+Top navigation menu:
+
+Masters
+
+Dropdown items:
+
+HSN
+Materials
+Fabric
+
+
+DATABASE TABLE STRUCTURE REQUIRED
+
+
+materials
+
+id
+material_code (auto generated)
+item_type
+quality
+type
+color
+hex_code
+color_name
+size
+unit_price
+unit_type
+current_stock
+hsn_code
+gst_percent
+vendor
+location
+status
+is_deleted
+created_by
+created_at
+updated_by
+updated_at
+
+
+fabrics
+
+id
+fabric_code (auto generated)
+fabric_type
+quality
+color
+hex_code
+color_name
+width
+width_unit_type
+price_per_meter
+unit_type
+current_stock
+hsn_code
+gst_percent
+vendor
+location
+status
+is_deleted
+created_by
+created_at
+updated_by
+updated_at
+
+
+MATERIAL MASTER FORM FIELDS
+
+
+Item Type (dropdown required)
+
+Quality (required)
+
+Type (optional)
+
+Color picker
+
+Hex Code auto populated
+
+Color Name (required)
+
+Size (required)
+
+Unit Price (required)
+
+Unit Type dropdown required
+
+Current Stock required
+
+HSN Code dropdown required
+
+GST % auto populated from HSN
+
+Vendor dropdown optional
+
+Location optional
+
+
+FABRIC MASTER FORM FIELDS
+
+
+Fabric Type dropdown required
+
+Quality required
+
+Color picker
+
+Hex Code auto populated
+
+Color Name required
+
+Width required
+
+Width Unit Type dropdown required
+
+Price Per Meter required
+
+Unit Type dropdown required
+
+Current Stock required
+
+HSN Code dropdown required
+
+GST % auto populated from HSN
+
+Vendor dropdown optional
+
+Location optional
+
+
+INLINE MASTER CREATION SUPPORT
+
+
+Item Type dropdown:
+
+add option:
+
++ Add Item Type
+
+opens modal:
+
+Item Type Name
+Status toggle
+
+
+Unit Type dropdown:
+
+add option:
+
++ Add Unit Type
+
+opens modal:
+
+Unit Type Name
+Status toggle
+
+
+Width Unit Type dropdown:
+
+add option:
+
++ Add Width Unit Type
+
+
+HSN dropdown:
+
+add option:
+
++ Add HSN
+
+opens HSN modal
+
+
+After save:
+
+refresh dropdown automatically
+
+
+AUTO POPULATION RULES
+
+
+Selecting HSN:
+
+auto-fill GST %
+
+
+Selecting Color:
+
+auto-fill Hex Code
+
+
+GENERATE MATERIAL CODE
+
+Format:
+
+MAT0001
+MAT0002
+
+
+GENERATE FABRIC CODE
+
+Format:
+
+FAB0001
+FAB0002
+
+
+DATATABLE FEATURES BOTH MASTERS
+
+
+Columns:
+
+Sr No
+Code
+Type
+Quality
+Color Name
+Unit Price / Price Per Meter
+Unit Type
+HSN Code
+GST %
+Current Stock
+Status
+Created By
+Created At
+Updated By
+Updated At
+Actions
+
+
+TABLE BEHAVIOR
+
+
+Latest record first:
+
+created_at DESC
+
+
+Soft delete only:
+
+set
+
+is_deleted = true
+
+
+Hide deleted rows from table
+
+
+STATUS BEHAVIOR
+
+
+Active visible everywhere
+
+Inactive visible in master only
+
+Deleted hidden
+
+
+DELETE CONFIRMATION MODAL
+
+
+Show popup:
+
+Are you sure you want to delete this record?
+
+
+Buttons:
+
+Cancel
+Delete
+
+
+EXPORT FEATURE
+
+
+Export to Excel button
+
+Export columns:
+
+all visible columns
+
+
+SEARCH SUPPORT
+
+
+Search by:
+
+Code
+Type
+Quality
+Color Name
+HSN
+
+
+PAGINATION SUPPORT
+
+
+Rows per page:
+
+10
+25
+50
+
+
+SERIAL NUMBER COLUMN
+
+
+Add Sr No column
+
+pagination aware numbering
+
+
+PRIMARY BUTTON STYLE
+
+
+background black
+
+text gold
+
+
+CREATE NEW PAGES
+
+
+/pages
+
+MaterialsMaster.jsx
+FabricMaster.jsx
+
+
+IMPORTANT
+
+
+Reuse existing master components
+
+Follow ERP constrained UI design
+
+Do not permanently delete records
+
+Use status + is_deleted flags
+
+Return clean reusable implementation

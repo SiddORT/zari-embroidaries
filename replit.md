@@ -39,6 +39,11 @@ pnpm workspace monorepo using TypeScript. Full-stack ERP authentication system f
 - **TopNavbar** — Horizontal nav bar: ZARI branding left, nav links center, user+logout right
 - **ZariButton** — Reusable button: primary (black bg + gold text) and secondary variants
 
+## Navigation
+
+- **TopNavbar** — "Masters" is now a click-open dropdown showing: HSN (`/masters/hsn`), Materials (`/masters/materials`), Fabric (`/masters/fabric`)
+- Direct link `/masters` redirects to `/masters/hsn`
+
 ## Reusable Master Components
 
 Located at `artifacts/zari-erp/src/components/master/`:
@@ -51,6 +56,8 @@ Located at `artifacts/zari-erp/src/components/master/`:
 
 Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
 - `InputField`, `TextareaField`, `SelectField` — Styled form controls with labels and inline errors
+- `AddableSelect` — Custom dropdown (DOM-based, not native `<select>`) with optional inline "+ Add New" action at bottom
+- `ConfirmModal` — Delete confirmation modal with warning icon, Cancel + red Delete buttons
 
 ## API Routes
 
@@ -59,16 +66,33 @@ Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
 - `POST /api/auth/forgot-password` — Request password reset
 - `POST /api/auth/reset-password` — Reset password with token
 - `GET /api/auth/me` — Get current user (requires Bearer token)
-- `GET /api/hsn` — List HSN records (search, page, limit query params)
+- `GET /api/hsn` — List HSN records (search, status, page, limit; filter is_deleted=false; sorted created_at DESC)
 - `POST /api/hsn` — Create HSN record
 - `PUT /api/hsn/:id` — Update HSN record
 - `PATCH /api/hsn/:id/status` — Toggle Active/Inactive
-- `DELETE /api/hsn/:id` — Soft delete (marks Inactive)
+- `DELETE /api/hsn/:id` — Soft delete (sets is_deleted=true)
+- `GET /api/materials` — List materials (search, status, page, limit; filter is_deleted=false)
+- `POST /api/materials` — Create material (auto-generates MAT0001... code)
+- `PUT /api/materials/:id` — Update material
+- `PATCH /api/materials/:id/status` — Toggle Active/Inactive
+- `DELETE /api/materials/:id` — Soft delete
+- `GET /api/fabrics` — List fabrics (search, status, page, limit; filter is_deleted=false)
+- `POST /api/fabrics` — Create fabric (auto-generates FAB0001... code)
+- `PUT /api/fabrics/:id` — Update fabric
+- `PATCH /api/fabrics/:id/status` — Toggle Active/Inactive
+- `DELETE /api/fabrics/:id` — Soft delete
+- `GET /api/lookups/:type` — List lookup records (item-types, unit-types, width-unit-types)
+- `POST /api/lookups/:type` — Create lookup record
 
 ## Database Schema
 
 - `users` table: id, username, email, hashed_password, role, is_active, created_at
-- `hsn_master` table: id, hsn_code (unique), gst_percentage, govt_description, remarks, is_active, created_by, created_at, updated_by, updated_at
+- `hsn_master` table: id, hsn_code (unique), gst_percentage, govt_description, remarks, is_active, is_deleted, created_by, created_at, updated_by, updated_at
+- `materials` table: id, material_code (auto MAT0001...), item_type, quality, type, color, hex_code, color_name, size, unit_price, unit_type, current_stock, hsn_code, gst_percent, vendor, location, is_active, is_deleted, created_by/at, updated_by/at
+- `fabrics` table: id, fabric_code (auto FAB0001...), fabric_type, quality, color, hex_code, color_name, width, width_unit_type, price_per_meter, unit_type, current_stock, hsn_code, gst_percent, vendor, location, is_active, is_deleted, created_by/at, updated_by/at
+- `item_types` table: id, name (unique), is_active, created_at
+- `unit_types` table: id, name (unique), is_active, created_at
+- `width_unit_types` table: id, name (unique), is_active, created_at
 
 ## Key Commands
 
