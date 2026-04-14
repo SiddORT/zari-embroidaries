@@ -18,7 +18,8 @@ const MASTERS_ITEMS = [
   { label: "Style Categories",  href: "/masters/style-categories" },
   { label: "Swatch Categories", href: "/masters/swatch-categories" },
   { label: "Swatch",            href: "/masters/swatches" },
-  { label: "Style",            href: "/masters/styles" },
+  { label: "Style",                href: "/masters/styles" },
+  { label: "Packaging Materials",  href: "/masters/packaging-materials" },
 ];
 
 const TOP_LINKS = [

@@ -12,6 +12,7 @@ import styleCategoriesRouter from "./styleCategories";
 import swatchCategoriesRouter from "./swatchCategories";
 import swatchesRouter from "./swatches";
 import stylesRouter from "./styles";
+import packagingMaterialsRouter from "./packagingMaterials";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(styleCategoriesRouter);
 router.use(swatchCategoriesRouter);
 router.use(swatchesRouter);
 router.use(stylesRouter);
+router.use(packagingMaterialsRouter);
 
 export default router;

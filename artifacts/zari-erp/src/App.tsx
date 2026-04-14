@@ -20,6 +20,7 @@ import StyleCategoryMaster from "@/pages/StyleCategoryMaster";
 import SwatchCategoryMaster from "@/pages/SwatchCategoryMaster";
 import SwatchMaster from "@/pages/SwatchMaster";
 import StyleMaster from "@/pages/StyleMaster";
+import PackagingMaterialsMaster from "@/pages/PackagingMaterialsMaster";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ function Router() {
       <Route path="/masters/swatch-categories" component={SwatchCategoryMaster} />
       <Route path="/masters/swatches" component={SwatchMaster} />
       <Route path="/masters/styles" component={StyleMaster} />
+      <Route path="/masters/packaging-materials" component={PackagingMaterialsMaster} />
       <Route path="/orders" component={Orders} />
       <Route path="/orders/:id" component={OrderDetails} />
       <Route component={NotFound} />

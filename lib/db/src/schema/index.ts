@@ -9,3 +9,4 @@ export * from "./vendors";
 export * from "./styleCategories";
 export * from "./swatches";
 export * from "./styles";
+export * from "./packagingMaterials";
