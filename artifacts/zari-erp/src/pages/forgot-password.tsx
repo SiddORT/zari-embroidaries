@@ -3,9 +3,10 @@ import { useLocation, Link } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useForgotPassword, useResetPassword } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import ZariButton from "@/components/ui/ZariButton";
 import ZariLogo from "@assets/image_1776152751088.png";
 
 const requestSchema = z.object({
@@ -162,17 +163,14 @@ export default function ForgotPassword() {
                   )}
                 </div>
 
-                <button
+                <ZariButton
                   type="submit"
-                  disabled={forgotMutation.isPending}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-black focus:outline-none focus:ring-2 focus:ring-gray-900/30 disabled:opacity-60"
+                  fullWidth
+                  loading={forgotMutation.isPending}
+                  className="py-3"
                 >
-                  {forgotMutation.isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
-                  ) : (
-                    "Send Reset Link"
-                  )}
-                </button>
+                  {forgotMutation.isPending ? "Sending..." : "Send Reset Link"}
+                </ZariButton>
               </form>
 
               <p className="mt-8 text-center text-xs text-gray-400">
@@ -266,17 +264,14 @@ export default function ForgotPassword() {
                   )}
                 </div>
 
-                <button
+                <ZariButton
                   type="submit"
-                  disabled={resetMutation.isPending}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-black focus:outline-none focus:ring-2 focus:ring-gray-900/30 disabled:opacity-60"
+                  fullWidth
+                  loading={resetMutation.isPending}
+                  className="py-3"
                 >
-                  {resetMutation.isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Resetting...</>
-                  ) : (
-                    "Reset Password"
-                  )}
-                </button>
+                  {resetMutation.isPending ? "Resetting..." : "Reset Password"}
+                </ZariButton>
               </form>
 
               <p className="mt-8 text-center text-xs text-gray-400">
@@ -295,12 +290,13 @@ export default function ForgotPassword() {
               <p className="text-sm text-gray-500 mb-7">
                 Your password has been updated. You can now sign in with your new credentials.
               </p>
-              <button
+              <ZariButton
+                fullWidth
                 onClick={() => setLocation("/login")}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-black focus:outline-none focus:ring-2 focus:ring-gray-900/30"
+                className="py-3"
               >
                 Return to Sign In
-              </button>
+              </ZariButton>
 
               <p className="mt-8 text-center text-xs text-gray-400">
                 ZARI EMBROIDERIES &copy; {new Date().getFullYear()} &mdash; Enterprise Resource Planning

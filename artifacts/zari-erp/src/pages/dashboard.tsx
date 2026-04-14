@@ -14,6 +14,7 @@ import {
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
+import ZariButton from "@/components/ui/ZariButton";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -116,7 +117,6 @@ export default function Dashboard() {
 
   return (
     <AppLayout
-      title="Dashboard"
       username={user.username}
       role={user.role}
       onLogout={handleLogout}

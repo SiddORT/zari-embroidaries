@@ -3,9 +3,10 @@ import { useLocation, Link } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useLogin } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import ZariButton from "@/components/ui/ZariButton";
 import ZariLogo from "@assets/image_1776152751088.png";
 
 const loginSchema = z.object({
@@ -190,20 +191,14 @@ export default function Login() {
             </div>
 
             {/* Sign In button */}
-            <button
+            <ZariButton
               type="submit"
-              disabled={loginMutation.isPending}
-              className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-black focus:outline-none focus:ring-2 focus:ring-gray-900/30 disabled:opacity-60"
+              fullWidth
+              loading={loginMutation.isPending}
+              className="mt-2 py-3"
             >
-              {loginMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Authenticating...
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </button>
+              {loginMutation.isPending ? "Authenticating..." : "Sign In"}
+            </ZariButton>
           </form>
 
           {/* Footer */}

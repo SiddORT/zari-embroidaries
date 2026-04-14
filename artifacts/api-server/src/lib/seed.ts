@@ -3,23 +3,28 @@ import { db, usersTable } from "@workspace/db";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
 
-export async function seedAdminUser(): Promise<void> {
-  const adminEmail = "admin@zarierp.com";
+const ADMIN_EMAIL = "admin@zarierp.com";
+const ADMIN_PASSWORD = "Admin@123";
 
+export async function seedAdminUser(): Promise<void> {
   const [existing] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.email, adminEmail));
+    .where(eq(usersTable.email, ADMIN_EMAIL));
 
   if (existing) {
-    logger.info("Admin user already exists, skipping seed");
+    await db
+      .update(usersTable)
+      .set({ hashedPassword: hashPassword(ADMIN_PASSWORD), isActive: true })
+      .where(eq(usersTable.email, ADMIN_EMAIL));
+    logger.info("Admin user password synced on startup");
     return;
   }
 
   await db.insert(usersTable).values({
     username: "admin",
-    email: adminEmail,
-    hashedPassword: hashPassword("Admin@123"),
+    email: ADMIN_EMAIL,
+    hashedPassword: hashPassword(ADMIN_PASSWORD),
     role: "admin",
     isActive: true,
   });
