@@ -53,17 +53,26 @@ export interface MaterialFormData {
 
 export type StatusFilter = "all" | "active" | "inactive";
 
-function materialKey(params: { search: string; status: StatusFilter; page: number; limit: number }) {
-  return ["materials", params] as const;
+export interface MaterialFilters {
+  search: string;
+  status: StatusFilter;
+  hsnCode: string;
+  type: string;
+  vendor: string;
+  page: number;
+  limit: number;
 }
 
-export function useMaterialList(params: { search: string; status: StatusFilter; page: number; limit: number }) {
+export function useMaterialList(params: MaterialFilters) {
   return useQuery<MaterialListResponse>({
-    queryKey: materialKey(params),
+    queryKey: ["materials", params],
     queryFn: () => {
       const qs = new URLSearchParams({
         search: params.search,
         status: params.status,
+        hsnCode: params.hsnCode,
+        type: params.type,
+        vendor: params.vendor,
         page: String(params.page),
         limit: String(params.limit),
       }).toString();

@@ -12,6 +12,9 @@ type AuthRequest = Request & { user?: { userId: number; email: string; role: str
 router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
+  const hsnCodeFilter = (req.query.hsnCode as string) ?? "";
+  const typeFilter = (req.query.type as string) ?? "";
+  const vendorFilter = (req.query.vendor as string) ?? "";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
   const offset = (page - 1) * limit;
@@ -19,6 +22,9 @@ router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<voi
   const conditions = [eq(materialsTable.isDeleted, false)];
   if (status === "active") conditions.push(eq(materialsTable.isActive, true));
   else if (status === "inactive") conditions.push(eq(materialsTable.isActive, false));
+  if (hsnCodeFilter) conditions.push(eq(materialsTable.hsnCode, hsnCodeFilter));
+  if (typeFilter) conditions.push(eq(materialsTable.itemType, typeFilter));
+  if (vendorFilter) conditions.push(ilike(materialsTable.vendor, `%${vendorFilter}%`));
 
   if (search) {
     conditions.push(
@@ -28,6 +34,7 @@ router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<voi
         ilike(materialsTable.quality, `%${search}%`),
         ilike(materialsTable.colorName, `%${search}%`),
         ilike(materialsTable.hsnCode, `%${search}%`),
+        ilike(materialsTable.vendor, `%${search}%`),
       )!,
     );
   }
