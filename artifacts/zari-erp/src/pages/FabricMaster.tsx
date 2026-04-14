@@ -295,42 +295,40 @@ export default function FabricMaster() {
       <div className="max-w-screen-xl mx-auto space-y-5">
         <MasterHeader title="Fabric Master" onAdd={openAdd} addLabel="Add Fabric" />
 
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="flex-1 min-w-48">
-            <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
+        <div className="space-y-3">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
+            </div>
+            <ExportExcelButton data={rows as Record<string, unknown>[]} filename="Fabric_Master" columns={exportColumns} disabled={isLoading} />
           </div>
-
-          <select value={fabricTypeFilter} onChange={(e) => { setFabricTypeFilter(e.target.value); setPage(1); }}
-            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-            <option value="">All Fabric Types</option>
-            {fabricTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-          </select>
-
-          <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
-            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-            <option value="">All Vendors</option>
-            {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
-          </select>
-
-          <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
-            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-            <option value="">All HSN Codes</option>
-            {hsnOptions.map((h) => <option key={h.hsnCode} value={h.hsnCode}>{h.hsnCode}</option>)}
-          </select>
-
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
-            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-            {STATUS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-
-          {hasFilters && (
-            <button onClick={() => { setStatusFilter("all"); setFabricTypeFilter(""); setVendorFilter(""); setHsnCodeFilter(""); setPage(1); }}
-              className="px-3 py-2 text-sm text-gray-500 hover:text-red-500 border border-gray-200 rounded-lg hover:border-red-200 transition-colors">
-              Clear
-            </button>
-          )}
-
-          <ExportExcelButton data={rows as Record<string, unknown>[]} filename="Fabric_Master" columns={exportColumns} disabled={isLoading} />
+          <div className="flex flex-wrap gap-2 items-center">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+              {STATUS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select value={fabricTypeFilter} onChange={(e) => { setFabricTypeFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+              <option value="">All Fabric Types</option>
+              {fabricTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+            <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+              <option value="">All HSN Codes</option>
+              {hsnOptions.map((h) => <option key={h.hsnCode} value={h.hsnCode}>{h.hsnCode}</option>)}
+            </select>
+            <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+              <option value="">All Vendors</option>
+              {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
+            </select>
+            {hasFilters && (
+              <button onClick={() => { setStatusFilter("all"); setFabricTypeFilter(""); setVendorFilter(""); setHsnCodeFilter(""); setPage(1); }}
+                className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors">
+                Clear Filters
+              </button>
+            )}
+          </div>
         </div>
 
         <MasterTable

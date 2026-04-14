@@ -81,13 +81,11 @@ export default function MaterialsMaster() {
   const [hsnCodeFilter, setHsnCodeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [vendorFilter, setVendorFilter] = useState("");
-  const [debouncedVendor, setDebouncedVendor] = useState("");
+
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   useEffect(() => { const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { const t = setTimeout(() => { setDebouncedVendor(vendorFilter); setPage(1); }, 350); return () => clearTimeout(t); }, [vendorFilter]);
-
-  const { data, isLoading } = useMaterialList({ search: debouncedSearch, status: statusFilter, hsnCode: hsnCodeFilter, type: typeFilter, vendor: debouncedVendor, page, limit });
+  const { data, isLoading } = useMaterialList({ search: debouncedSearch, status: statusFilter, hsnCode: hsnCodeFilter, type: typeFilter, vendor: vendorFilter, page, limit });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
 
@@ -316,13 +314,11 @@ export default function MaterialsMaster() {
               <option value="">All HSN Codes</option>
               {hsnOptions.map((h) => <option key={h.hsnCode} value={h.hsnCode}>{h.hsnCode}</option>)}
             </select>
-            <input
-              type="text"
-              value={vendorFilter}
-              onChange={(e) => { setVendorFilter(e.target.value); }}
-              placeholder="Filter by vendor..."
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 w-44"
-            />
+            <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+              <option value="">All Vendors</option>
+              {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
+            </select>
             {(typeFilter || hsnCodeFilter || vendorFilter || statusFilter !== "all") && (
               <button
                 onClick={() => { setTypeFilter(""); setHsnCodeFilter(""); setVendorFilter(""); setStatusFilter("all"); setPage(1); }}
