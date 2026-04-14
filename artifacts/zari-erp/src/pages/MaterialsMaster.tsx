@@ -382,9 +382,6 @@ export default function MaterialsMaster() {
             options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
           />
 
-          <InputField label="GST %" value={form.gstPercent ? `${form.gstPercent}%` : "—"} readOnly disabled
-            className="bg-gray-50 text-gray-500"
-          />
           <InputField label="Vendor" placeholder="e.g. ABC Suppliers" value={form.vendor ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} />
 
