@@ -4,11 +4,12 @@ interface SearchBarProps {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  className?: string;
 }
 
-export default function SearchBar({ value, onChange, placeholder = "Search..." }: SearchBarProps) {
+export default function SearchBar({ value, onChange, placeholder = "Search...", className }: SearchBarProps) {
   return (
-    <div className="relative">
+    <div className={`relative${className ? ` ${className}` : ""}`}>
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
       <input
         type="text"
