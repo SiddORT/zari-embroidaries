@@ -145,7 +145,7 @@ export default function SwatchMaster() {
   const deleteMutation = useDeleteSwatch();
   const createCatMutation = useCreateSwatchCategory();
 
-  const fabricOptions = (fabricsData ?? []).map(f => `${f.fabricType} – ${f.quality}`.trim());
+  const fabricOptions = (fabricsData ?? []).map(f => { const v = `${f.fabricType} – ${f.quality}`.trim(); return { value: v, label: v }; });
   const unitOptions = (unitTypesData ?? []).filter(u => u.isActive).map(u => u.name);
   const clientOptions = ((clientsData ?? []) as ClientRecord[]).map(c => c.brandName);
   const swatchCatOptions = (swatchCatsData ?? []).filter(c => c.isActive).map(c => ({ value: c.name, label: c.name }));
@@ -305,8 +305,11 @@ export default function SwatchMaster() {
                 options={swatchCatOptions} placeholder="Select category" />
             </div>
 
-            <SearchableSelect label="Base Fabric" value={form.fabric} onChange={(v) => setForm(f => ({ ...f, fabric: v }))}
-              options={fabricOptions} placeholder="Select fabric" clearable />
+            <div className="py-2">
+              <AddableSelect label="Base Fabric" value={form.fabric}
+                onChange={(v) => setForm(f => ({ ...f, fabric: v }))}
+                options={fabricOptions} placeholder="Select fabric" />
+            </div>
 
             <div className="flex flex-col gap-1 py-2">
               <label className="text-sm font-medium text-gray-700">Location</label>
