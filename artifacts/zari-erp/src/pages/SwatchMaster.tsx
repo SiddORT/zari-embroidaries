@@ -311,14 +311,9 @@ export default function SwatchMaster() {
                 options={fabricOptions} placeholder="Select fabric" />
             </div>
 
-            <div className="flex flex-col gap-1 py-2">
-              <label className="text-sm font-medium text-gray-700">Location</label>
-              <select value={form.location} onChange={(e) => setForm(f => ({ ...f, location: e.target.value }))}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
-                <option value="">Select location</option>
-                {LOCATION_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
+            <SearchableSelect label="Location" value={form.location}
+              onChange={(v) => setForm(f => ({ ...f, location: v }))}
+              options={LOCATION_OPTIONS} placeholder="Select location" clearable />
 
             <div className="flex flex-col gap-1 py-2">
               <label className="text-sm font-medium text-gray-700">Date</label>

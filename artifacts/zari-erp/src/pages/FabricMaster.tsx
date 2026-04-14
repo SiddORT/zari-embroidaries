@@ -15,6 +15,7 @@ import ExportExcelButton, { type ExportColumn } from "@/components/master/Export
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AddableSelect from "@/components/ui/AddableSelect";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
   useFabricList,
@@ -407,14 +408,10 @@ export default function FabricMaster() {
             options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
           />
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Vendor</label>
-            <select value={form.vendor ?? ""} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))}
-              className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              <option value="">— Select Vendor —</option>
-              {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
-            </select>
-          </div>
+          <SearchableSelect label="Vendor" value={form.vendor ?? ""}
+            onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
+            options={allVendors.map(v => v.brandName)}
+            placeholder="Select vendor" clearable />
 
           <InputField label="Location" placeholder="e.g. Rack B-3" value={form.location ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />

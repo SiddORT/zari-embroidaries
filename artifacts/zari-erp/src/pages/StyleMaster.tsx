@@ -14,6 +14,7 @@ import StatusToggle from "@/components/master/StatusToggle";
 import ExportExcelButton, { type ExportColumn } from "@/components/master/ExportExcelButton";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
   useStyleList, useCreateStyle, useUpdateStyle, useToggleStyleStatus, useDeleteStyle,
@@ -182,27 +183,17 @@ export default function StyleMaster() {
           title={editRecord ? "Edit Style" : "Add Style"}
           onSubmit={handleSubmit} submitting={createMutation.isPending || updateMutation.isPending}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0">
-            <div className="flex flex-col gap-1 py-2">
-              <label className="text-sm font-medium text-gray-700">Client<span className="text-red-500 ml-0.5">*</span></label>
-              <select value={form.client} onChange={(e) => setForm(f => ({ ...f, client: e.target.value }))}
-                className={`border rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.client ? "border-red-400" : "border-gray-300"}`}>
-                <option value="">Select client</option>
-                {clientOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {errors.client && <p className="text-xs text-red-500 mt-0.5">{errors.client}</p>}
-            </div>
+            <SearchableSelect label="Client" value={form.client}
+              onChange={(v) => setForm(f => ({ ...f, client: v }))}
+              options={clientOptions.map(o => o.value)}
+              placeholder="Select client" required error={errors.client} clearable />
             <InputField label="Style No" value={form.styleNo} onChange={(e) => setForm(f => ({ ...f, styleNo: e.target.value }))}
               error={errors.styleNo} required placeholder="e.g. STY-001" />
             <InputField label="Invoice No (Optional)" value={form.invoiceNo} onChange={(e) => setForm(f => ({ ...f, invoiceNo: e.target.value }))} placeholder="Invoice number" />
             <InputField label="Description (Style Name)" value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Style description" />
-            <div className="flex flex-col gap-1 py-2">
-              <label className="text-sm font-medium text-gray-700">Place of Issue</label>
-              <select value={form.placeOfIssue} onChange={(e) => setForm(f => ({ ...f, placeOfIssue: e.target.value }))}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
-                <option value="">Select place</option>
-                {PLACE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
+            <SearchableSelect label="Place of Issue" value={form.placeOfIssue}
+              onChange={(v) => setForm(f => ({ ...f, placeOfIssue: v }))}
+              options={PLACE_OPTIONS} placeholder="Select place" clearable />
             <InputField label="Vendor PO No" value={form.vendorPoNo} onChange={(e) => setForm(f => ({ ...f, vendorPoNo: e.target.value }))} placeholder="Vendor PO number" />
             <InputField label="Shipping Date" value={form.shippingDate} onChange={(e) => setForm(f => ({ ...f, shippingDate: e.target.value }))} placeholder="DD/MM/YYYY" type="date" />
             <InputField label="Attach Link" value={form.attachLink} onChange={(e) => setForm(f => ({ ...f, attachLink: e.target.value }))} placeholder="https://…" />
