@@ -26,7 +26,7 @@ import {
   type FabricFormData,
   type StatusFilter,
 } from "@/hooks/useFabrics";
-import { useUnitTypes, useWidthUnitTypes, useCreateUnitType, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
+import { useWidthUnitTypes, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 
@@ -91,10 +91,8 @@ export default function FabricMaster() {
   const deleteMutation = useDeleteFabric();
 
   const { data: fabricTypes = [] } = useFabricTypes();
-  const { data: unitTypes = [] } = useUnitTypes();
   const { data: widthUnitTypes = [] } = useWidthUnitTypes();
   const createFabricType = useCreateFabricType();
-  const createUnitType = useCreateUnitType();
   const createWidthUnitType = useCreateWidthUnitType();
   const createHSN = useCreateHSN();
 
@@ -110,8 +108,6 @@ export default function FabricMaster() {
 
   const [addFabricTypeOpen, setAddFabricTypeOpen] = useState(false);
   const [newFabricTypeName, setNewFabricTypeName] = useState("");
-  const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
-  const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [addWidthUnitTypeOpen, setAddWidthUnitTypeOpen] = useState(false);
   const [newWidthUnitTypeName, setNewWidthUnitTypeName] = useState("");
   const [addHSNOpen, setAddHSNOpen] = useState(false);
@@ -138,7 +134,6 @@ export default function FabricMaster() {
     if (!form.width.trim()) e.width = "Width is required";
     if (!form.widthUnitType) e.widthUnitType = "Width Unit Type is required";
     if (!form.pricePerMeter.trim()) e.pricePerMeter = "Price Per Meter is required";
-    if (!form.unitType) e.unitType = "Unit Type is required";
     if (!form.currentStock.trim()) e.currentStock = "Current Stock is required";
     if (!form.hsnCode) e.hsnCode = "HSN Code is required";
     setErrors(e);
@@ -187,15 +182,6 @@ export default function FabricMaster() {
     } catch { toast({ title: "Error", description: "Failed to add fabric type.", variant: "destructive" }); }
   };
 
-  const handleAddUnitType = async () => {
-    if (!newUnitTypeName.trim()) return;
-    try {
-      await createUnitType.mutateAsync({ name: newUnitTypeName.trim(), isActive: true });
-      setForm((f) => ({ ...f, unitType: newUnitTypeName.trim() }));
-      setNewUnitTypeName(""); setAddUnitTypeOpen(false);
-    } catch { toast({ title: "Error", description: "Failed to add unit type.", variant: "destructive" }); }
-  };
-
   const handleAddWidthUnitType = async () => {
     if (!newWidthUnitTypeName.trim()) return;
     try {
@@ -228,7 +214,6 @@ export default function FabricMaster() {
 
   const asFab = (r: TableRow) => r as unknown as FabricRecord;
   const fabricTypeOptions = fabricTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
-  const unitTypeOptions = unitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const widthUnitTypeOptions = widthUnitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
 
@@ -376,15 +361,8 @@ export default function FabricMaster() {
 
           <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
             onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
-          <AddableSelect
-            label="Unit Type" required value={form.unitType}
-            onChange={(v) => setForm((f) => ({ ...f, unitType: v }))}
-            onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
-            addLabel="+ Add Unit Type"
-            options={unitTypeOptions} placeholder="Select Unit Type" error={errors.unitType}
-          />
 
-          <InputField label="Current Stock" required placeholder="e.g. 500" type="number" value={form.currentStock}
+          <InputField label="Current Stock (meters)" required placeholder="e.g. 500" type="number" value={form.currentStock}
             onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))} error={errors.currentStock} />
           <AddableSelect
             label="HSN Code" required value={form.hsnCode}
@@ -437,13 +415,6 @@ export default function FabricMaster() {
         onSubmit={handleAddFabricType} submitting={createFabricType.isPending} submitLabel="Add">
         <InputField label="Fabric Type Name" required placeholder="e.g. Cotton, Silk, Velvet" value={newFabricTypeName}
           onChange={(e) => setNewFabricTypeName(e.target.value)} />
-      </MasterFormModal>
-
-      {/* Add Unit Type mini-modal */}
-      <MasterFormModal open={addUnitTypeOpen} title="Add Unit Type" onClose={() => setAddUnitTypeOpen(false)}
-        onSubmit={handleAddUnitType} submitting={createUnitType.isPending} submitLabel="Add">
-        <InputField label="Unit Type Name" required placeholder="e.g. Meters" value={newUnitTypeName}
-          onChange={(e) => setNewUnitTypeName(e.target.value)} />
       </MasterFormModal>
 
       {/* Add Width Unit Type mini-modal */}
