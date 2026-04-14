@@ -8,6 +8,7 @@ export const hsnTable = pgTable("hsn_master", {
   govtDescription: text("govt_description").notNull(),
   remarks: text("remarks"),
   isActive: boolean("is_active").notNull().default(true),
+  isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text("updated_by"),

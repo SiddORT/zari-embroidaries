@@ -15,6 +15,7 @@ import ExportExcelButton, { type ExportColumn } from "@/components/master/Export
 import InputField from "@/components/ui/InputField";
 import TextareaField from "@/components/ui/TextareaField";
 import SelectField from "@/components/ui/SelectField";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 import {
   useHSNList,
@@ -24,6 +25,7 @@ import {
   useDeleteHSN,
   type HsnRecord,
   type HsnFormData,
+  type StatusFilter,
 } from "@/hooks/useHSN";
 
 const GST_OPTIONS = [
@@ -32,6 +34,12 @@ const GST_OPTIONS = [
   { value: "12", label: "12%" },
   { value: "18", label: "18%" },
   { value: "28", label: "28%" },
+];
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All Status" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
 ];
 
 const EMPTY_FORM: HsnFormData = {
@@ -53,7 +61,7 @@ function formatDate(val: string | null | undefined) {
       year: "numeric",
     });
   } catch {
-    return val;
+    return String(val);
   }
 }
 
@@ -84,6 +92,7 @@ export default function HSNMaster() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
@@ -92,7 +101,12 @@ export default function HSNMaster() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data, isLoading } = useHSNList({ search: debouncedSearch, page, limit });
+  const { data, isLoading } = useHSNList({
+    search: debouncedSearch,
+    status: statusFilter,
+    page,
+    limit,
+  });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
 
@@ -105,6 +119,8 @@ export default function HSNMaster() {
   const [editRecord, setEditRecord] = useState<HsnRecord | null>(null);
   const [form, setForm] = useState<HsnFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const [deleteTarget, setDeleteTarget] = useState<HsnRecord | null>(null);
 
   const openAdd = () => {
     setEditRecord(null);
@@ -137,7 +153,6 @@ export default function HSNMaster() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
-
     try {
       if (editRecord) {
         await updateMutation.mutateAsync({ id: editRecord.id, data: form });
@@ -166,21 +181,42 @@ export default function HSNMaster() {
     }
   };
 
-  const handleDelete = async (record: HsnRecord) => {
-    if (!confirm(`Deactivate HSN code "${record.hsnCode}"? This will mark it as Inactive.`)) return;
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteMutation.mutateAsync(record.id);
-      toast({ title: "Deactivated", description: `HSN ${record.hsnCode} has been deactivated.` });
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast({ title: "Deleted", description: `HSN ${deleteTarget.hsnCode} has been deleted.` });
+      setDeleteTarget(null);
     } catch {
-      toast({ title: "Error", description: "Failed to deactivate record.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to delete record.", variant: "destructive" });
     }
   };
 
   const asHsn = (r: TableRow) => r as unknown as HsnRecord;
 
   const columns: Column[] = [
-    { key: "hsnCode", label: "HSN Code", render: (r) => <span className="font-mono font-semibold text-gray-900">{asHsn(r).hsnCode}</span> },
-    { key: "gstPercentage", label: "GST %", render: (r) => <span className="font-medium">{asHsn(r).gstPercentage}%</span> },
+    {
+      key: "srNo",
+      label: "Sr No",
+      className: "w-16 text-center",
+      render: (r) => {
+        const idx = rows.findIndex((row) => row.id === asHsn(r).id);
+        const srNo = (page - 1) * limit + (idx === -1 ? 0 : idx) + 1;
+        return <span className="text-gray-400 text-xs font-medium">{srNo}</span>;
+      },
+    },
+    {
+      key: "hsnCode",
+      label: "HSN Code",
+      render: (r) => (
+        <span className="font-mono font-semibold text-gray-900">{asHsn(r).hsnCode}</span>
+      ),
+    },
+    {
+      key: "gstPercentage",
+      label: "GST %",
+      render: (r) => <span className="font-medium">{asHsn(r).gstPercentage}%</span>,
+    },
     {
       key: "govtDescription",
       label: "Government Description",
@@ -201,10 +237,30 @@ export default function HSNMaster() {
         />
       ),
     },
-    { key: "createdBy", label: "Created By", render: (r) => <span className="text-gray-500">{asHsn(r).createdBy}</span> },
-    { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDate(asHsn(r).createdAt)}</span> },
-    { key: "updatedBy", label: "Updated By", render: (r) => <span className="text-gray-500">{asHsn(r).updatedBy ?? "—"}</span> },
-    { key: "updatedAt", label: "Updated At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDate(asHsn(r).updatedAt)}</span> },
+    {
+      key: "createdBy",
+      label: "Created By",
+      render: (r) => <span className="text-gray-500">{asHsn(r).createdBy}</span>,
+    },
+    {
+      key: "createdAt",
+      label: "Created At",
+      render: (r) => (
+        <span className="text-gray-500 whitespace-nowrap">{formatDate(asHsn(r).createdAt)}</span>
+      ),
+    },
+    {
+      key: "updatedBy",
+      label: "Updated By",
+      render: (r) => <span className="text-gray-500">{asHsn(r).updatedBy ?? "—"}</span>,
+    },
+    {
+      key: "updatedAt",
+      label: "Updated At",
+      render: (r) => (
+        <span className="text-gray-500 whitespace-nowrap">{formatDate(asHsn(r).updatedAt)}</span>
+      ),
+    },
     {
       key: "actions",
       label: "Actions",
@@ -218,10 +274,10 @@ export default function HSNMaster() {
             <Pencil className="h-4 w-4" />
           </button>
           <button
-            onClick={() => handleDelete(asHsn(r))}
+            onClick={() => setDeleteTarget(asHsn(r))}
             disabled={deleteMutation.isPending}
             className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-            title="Deactivate"
+            title="Delete"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -259,13 +315,29 @@ export default function HSNMaster() {
 
         {/* Filters row */}
         <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search */}
           <div className="flex-1">
             <SearchBar
               value={search}
-              onChange={setSearch}
+              onChange={(v) => { setSearch(v); setPage(1); }}
               placeholder="Search by HSN code or description..."
             />
           </div>
+
+          {/* Status filter */}
+          <div className="sm:w-44">
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+            >
+              {STATUS_FILTER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Export */}
           <ExportExcelButton
             data={rows as Record<string, unknown>[]}
             filename="HSN_Master"
@@ -286,7 +358,7 @@ export default function HSNMaster() {
             limit,
             total,
             onPageChange: setPage,
-            onLimitChange: setLimit,
+            onLimitChange: (l) => { setLimit(l); setPage(1); },
           }}
         />
       </div>
@@ -355,11 +427,28 @@ export default function HSNMaster() {
               }`}
             />
           </button>
-          <span className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}>
+          <span
+            className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}
+          >
             {form.isActive ? "Active" : "Inactive"}
           </span>
         </div>
       </MasterFormModal>
+
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Delete HSN Record"
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete HSN code "${deleteTarget.hsnCode}"? This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleteMutation.isPending}
+      />
     </AppLayout>
   );
 }

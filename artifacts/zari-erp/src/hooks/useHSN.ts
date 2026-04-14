@@ -8,6 +8,7 @@ export interface HsnRecord {
   govtDescription: string;
   remarks: string | null;
   isActive: boolean;
+  isDeleted: boolean;
   createdBy: string;
   createdAt: string;
   updatedBy: string | null;
@@ -29,16 +30,24 @@ export interface HsnFormData {
   isActive: boolean;
 }
 
-function hsnKey(params: { search: string; page: number; limit: number }) {
+export type StatusFilter = "all" | "active" | "inactive";
+
+function hsnKey(params: { search: string; status: StatusFilter; page: number; limit: number }) {
   return ["hsn", params] as const;
 }
 
-export function useHSNList(params: { search: string; page: number; limit: number }) {
+export function useHSNList(params: {
+  search: string;
+  status: StatusFilter;
+  page: number;
+  limit: number;
+}) {
   return useQuery<HsnListResponse>({
     queryKey: hsnKey(params),
     queryFn: () => {
       const qs = new URLSearchParams({
         search: params.search,
+        status: params.status,
         page: String(params.page),
         limit: String(params.limit),
       }).toString();

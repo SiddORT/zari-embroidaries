@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or } from "drizzle-orm";
+import { eq, ilike, or, and, desc } from "drizzle-orm";
 import { db, hsnTable } from "@workspace/db";
 import { insertHsnSchema, updateHsnSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -12,23 +12,36 @@ type AuthRequest = Request & { user?: { userId: number; email: string; role: str
 
 router.get("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
+  const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
   const offset = (page - 1) * limit;
 
-  const baseWhere = search
-    ? or(ilike(hsnTable.hsnCode, `%${search}%`), ilike(hsnTable.govtDescription, `%${search}%`))
-    : undefined;
+  const conditions = [eq(hsnTable.isDeleted, false)];
+
+  if (status === "active") conditions.push(eq(hsnTable.isActive, true));
+  else if (status === "inactive") conditions.push(eq(hsnTable.isActive, false));
+
+  if (search) {
+    conditions.push(
+      or(
+        ilike(hsnTable.hsnCode, `%${search}%`),
+        ilike(hsnTable.govtDescription, `%${search}%`),
+      )!,
+    );
+  }
+
+  const whereClause = and(...conditions);
 
   const [rows, countRows] = await Promise.all([
     db
       .select()
       .from(hsnTable)
-      .where(baseWhere)
-      .orderBy(hsnTable.createdAt)
+      .where(whereClause)
+      .orderBy(desc(hsnTable.createdAt))
       .limit(limit)
       .offset(offset),
-    db.select({ id: hsnTable.id }).from(hsnTable).where(baseWhere),
+    db.select({ id: hsnTable.id }).from(hsnTable).where(whereClause),
   ]);
 
   res.json({ data: rows, total: countRows.length, page, limit });
@@ -91,7 +104,7 @@ router.put("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void>
   const [record] = await db
     .update(hsnTable)
     .set({ ...parsed.data, updatedBy, updatedAt: new Date() })
-    .where(eq(hsnTable.id, id))
+    .where(and(eq(hsnTable.id, id), eq(hsnTable.isDeleted, false)))
     .returning();
 
   if (!record) {
@@ -110,7 +123,11 @@ router.patch("/hsn/:id/status", requireAuth, async (req: AuthRequest, res): Prom
     return;
   }
 
-  const [existing] = await db.select().from(hsnTable).where(eq(hsnTable.id, id));
+  const [existing] = await db
+    .select()
+    .from(hsnTable)
+    .where(and(eq(hsnTable.id, id), eq(hsnTable.isDeleted, false)));
+
   if (!existing) {
     res.status(404).json({ error: "HSN record not found" });
     return;
@@ -137,8 +154,8 @@ router.delete("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db
     .update(hsnTable)
-    .set({ isActive: false, updatedBy, updatedAt: new Date() })
-    .where(eq(hsnTable.id, id))
+    .set({ isDeleted: true, updatedBy, updatedAt: new Date() })
+    .where(and(eq(hsnTable.id, id), eq(hsnTable.isDeleted, false)))
     .returning();
 
   if (!record) {
@@ -146,8 +163,8 @@ router.delete("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
     return;
   }
 
-  logger.info({ id: record.id }, "HSN record soft-deleted");
-  res.json({ message: "HSN record deactivated", record });
+  logger.info({ id: record.id }, "HSN record soft-deleted (is_deleted=true)");
+  res.json({ message: "HSN record deleted", record });
 });
 
 export default router;
