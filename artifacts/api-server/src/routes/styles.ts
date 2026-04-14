@@ -12,6 +12,8 @@ type AuthRequest = Request & { user?: { userId: number; email: string; role: str
 router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
+  const clientFilter = (req.query.client as string) ?? "";
+  const locationFilter = (req.query.location as string) ?? "";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
   const offset = (page - 1) * limit;
@@ -19,12 +21,13 @@ router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> 
   const conditions = [eq(stylesTable.isDeleted, false)];
   if (status === "active") conditions.push(eq(stylesTable.isActive, true));
   else if (status === "inactive") conditions.push(eq(stylesTable.isActive, false));
+  if (clientFilter) conditions.push(ilike(stylesTable.client, `%${clientFilter}%`));
+  if (locationFilter) conditions.push(ilike(stylesTable.placeOfIssue, `%${locationFilter}%`));
   if (search) {
     conditions.push(or(
       ilike(stylesTable.styleNo, `%${search}%`),
       ilike(stylesTable.client, `%${search}%`),
       ilike(stylesTable.description, `%${search}%`),
-      ilike(stylesTable.styleCategory, `%${search}%`),
     )!);
   }
 

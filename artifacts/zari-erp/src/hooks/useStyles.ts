@@ -12,7 +12,7 @@ export type StyleRecord = {
 export type StyleFormData = {
   client: string; styleNo: string; invoiceNo: string; description: string;
   attachLink: string; placeOfIssue: string; vendorPoNo: string; shippingDate: string;
-  styleCategory: string; referenceSwatchId: string; isActive: boolean;
+  isActive: boolean;
 };
 
 export type StatusFilter = "all" | "active" | "inactive";
@@ -20,11 +20,11 @@ export type StatusFilter = "all" | "active" | "inactive";
 const BASE = "/api/styles";
 const QK = "styles";
 
-export function useStyleList(p: { search: string; status: StatusFilter; page: number; limit: number }) {
+export function useStyleList(p: { search: string; status: StatusFilter; client: string; location: string; page: number; limit: number }) {
   return useQuery({
     queryKey: [QK, p],
     queryFn: () => customFetch<{ data: StyleRecord[]; total: number; page: number; limit: number }>(
-      `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
+      `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&client=${encodeURIComponent(p.client)}&location=${encodeURIComponent(p.location)}&page=${p.page}&limit=${p.limit}`),
     placeholderData: (prev) => prev,
   });
 }

@@ -20,12 +20,10 @@ import {
   type StyleRecord, type StyleFormData, type StatusFilter,
 } from "@/hooks/useStyles";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
-import { useAllStyleCategories, type StyleCategoryRecord } from "@/hooks/useStyleCategories";
-import { useAllSwatches, type SwatchRecord } from "@/hooks/useSwatches";
 
 const EMPTY_FORM: StyleFormData = {
   client: "", styleNo: "", invoiceNo: "", description: "", attachLink: "",
-  placeOfIssue: "", vendorPoNo: "", shippingDate: "", styleCategory: "", referenceSwatchId: "", isActive: true,
+  placeOfIssue: "", vendorPoNo: "", shippingDate: "", isActive: true,
 };
 type FormErrors = Partial<Record<keyof StyleFormData, string>>;
 
@@ -42,6 +40,8 @@ const asStyle = (r: TableRow) => r as unknown as StyleRecord;
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" },
 ];
+
+const SELECT_CLS = "border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900";
 
 export default function StyleMaster() {
   const [, setLocation] = useLocation();
@@ -62,6 +62,8 @@ export default function StyleMaster() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [filterClient, setFilterClient] = useState("");
+  const [filterLocation, setFilterLocation] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
@@ -71,10 +73,8 @@ export default function StyleMaster() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const { data, isLoading } = useStyleList({ search, status, page, limit });
+  const { data, isLoading } = useStyleList({ search, status, client: filterClient, location: filterLocation, page, limit });
   const { data: clientsData } = useAllClients();
-  const { data: categoriesData } = useAllStyleCategories();
-  const { data: swatchesData } = useAllSwatches();
 
   const createMutation = useCreateStyle();
   const updateMutation = useUpdateStyle();
@@ -88,8 +88,7 @@ export default function StyleMaster() {
       client: r.client, styleNo: r.styleNo, invoiceNo: r.invoiceNo ?? "",
       description: r.description ?? "", attachLink: r.attachLink ?? "",
       placeOfIssue: r.placeOfIssue ?? "", vendorPoNo: r.vendorPoNo ?? "",
-      shippingDate: r.shippingDate ?? "", styleCategory: r.styleCategory,
-      referenceSwatchId: r.referenceSwatchId ?? "", isActive: r.isActive,
+      shippingDate: r.shippingDate ?? "", isActive: r.isActive,
     });
     setErrors({}); setModalOpen(true);
   }
@@ -97,7 +96,6 @@ export default function StyleMaster() {
     const e: FormErrors = {};
     if (!form.client.trim()) e.client = "Client is required";
     if (!form.styleNo.trim()) e.styleNo = "Style No is required";
-    if (!form.styleCategory.trim()) e.styleCategory = "Style Category is required";
     setErrors(e); return Object.keys(e).length === 0;
   }
   async function handleSubmit() {
@@ -120,8 +118,7 @@ export default function StyleMaster() {
     { key: "client", label: "Client", render: (r) => asStyle(r).client },
     { key: "styleNo", label: "Style No", render: (r) => asStyle(r).styleNo },
     { key: "description", label: "Description", render: (r) => asStyle(r).description || "—" },
-    { key: "styleCategory", label: "Category", render: (r) => asStyle(r).styleCategory },
-    { key: "placeOfIssue", label: "Place of Issue", render: (r) => asStyle(r).placeOfIssue || "—" },
+    { key: "placeOfIssue", label: "Location", render: (r) => asStyle(r).placeOfIssue || "—" },
     { key: "shippingDate", label: "Shipping Date", render: (r) => asStyle(r).shippingDate || "—" },
     { key: "isActive", label: "Status", render: (r) => <StatusToggle isActive={asStyle(r).isActive} onToggle={() => toggleStatus.mutate(asStyle(r).id)} /> },
     { key: "createdBy", label: "Created By", render: (r) => asStyle(r).createdBy },
@@ -146,33 +143,13 @@ export default function StyleMaster() {
     { key: "styleNo", label: "Style No" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "description", label: "Description" },
-    { key: "styleCategory", label: "Style Category" },
-    { key: "placeOfIssue", label: "Place of Issue" },
+    { key: "placeOfIssue", label: "Location" },
     { key: "shippingDate", label: "Shipping Date" },
     { key: "createdBy", label: "Created By" },
     { key: "createdAt", label: "Created At" },
   ];
 
   const clientOptions = ((clientsData ?? []) as ClientRecord[]).map(c => ({ value: c.brandName, label: c.brandName }));
-  const categoryOptions = ((categoriesData ?? []) as StyleCategoryRecord[]).map(c => ({ value: c.categoryName, label: c.categoryName }));
-  const swatchOptions = ((swatchesData ?? []) as SwatchRecord[]).map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
-
-  function SF({ label, field, options, required, placeholder }: {
-    label: string; field: keyof StyleFormData; options: { value: string; label: string }[];
-    required?: boolean; placeholder?: string;
-  }) {
-    return (
-      <div className="flex flex-col gap-1 py-2">
-        <label className="text-sm font-medium text-gray-700">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
-        <select value={String(form[field] ?? "")} onChange={(e) => setForm(f => ({ ...f, [field]: e.target.value }))}
-          className={`border rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors[field] ? "border-red-400" : "border-gray-300"}`}>
-          <option value="">{placeholder ?? `Select ${label}`}</option>
-          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {errors[field] && <p className="text-xs text-red-500 mt-0.5">{errors[field]}</p>}
-      </div>
-    );
-  }
 
   if (!user) return null;
 
@@ -181,15 +158,20 @@ export default function StyleMaster() {
       <div className="max-w-screen-xl mx-auto space-y-5">
         <MasterHeader title="Style Master" onAdd={openCreate} addLabel="Add Style" />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search styles…" />
-          <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <div className="flex items-center gap-3">
+          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search styles…" className="flex-1" />
+          <select value={filterClient} onChange={(e) => { setFilterClient(e.target.value); setPage(1); }} className={SELECT_CLS}>
+            <option value="">All Clients</option>
+            {clientOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={filterLocation} onChange={(e) => { setFilterLocation(e.target.value); setPage(1); }} className={SELECT_CLS}>
+            <option value="">All Locations</option>
+            {PLACE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }} className={SELECT_CLS}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <div className="ml-auto">
-            <ExportExcelButton data={(data?.data ?? []) as unknown as Record<string, unknown>[]} columns={exportColumns} filename="styles" />
-          </div>
+          <ExportExcelButton data={(data?.data ?? []) as unknown as Record<string, unknown>[]} columns={exportColumns} filename="styles" />
         </div>
 
         <MasterTable columns={columns} rows={rows} loading={isLoading}
@@ -200,17 +182,30 @@ export default function StyleMaster() {
           title={editRecord ? "Edit Style" : "Add Style"}
           onSubmit={handleSubmit} submitting={createMutation.isPending || updateMutation.isPending}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0">
-            <SF label="Client" field="client" options={clientOptions} required placeholder="Select client" />
+            <div className="flex flex-col gap-1 py-2">
+              <label className="text-sm font-medium text-gray-700">Client<span className="text-red-500 ml-0.5">*</span></label>
+              <select value={form.client} onChange={(e) => setForm(f => ({ ...f, client: e.target.value }))}
+                className={`border rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.client ? "border-red-400" : "border-gray-300"}`}>
+                <option value="">Select client</option>
+                {clientOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {errors.client && <p className="text-xs text-red-500 mt-0.5">{errors.client}</p>}
+            </div>
             <InputField label="Style No" value={form.styleNo} onChange={(e) => setForm(f => ({ ...f, styleNo: e.target.value }))}
               error={errors.styleNo} required placeholder="e.g. STY-001" />
             <InputField label="Invoice No (Optional)" value={form.invoiceNo} onChange={(e) => setForm(f => ({ ...f, invoiceNo: e.target.value }))} placeholder="Invoice number" />
             <InputField label="Description (Style Name)" value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Style description" />
-            <SF label="Style Category" field="styleCategory" options={categoryOptions} required placeholder="Select category" />
-            <SF label="Place of Issue" field="placeOfIssue" options={PLACE_OPTIONS.map(p => ({ value: p, label: p }))} placeholder="Select place" />
+            <div className="flex flex-col gap-1 py-2">
+              <label className="text-sm font-medium text-gray-700">Place of Issue</label>
+              <select value={form.placeOfIssue} onChange={(e) => setForm(f => ({ ...f, placeOfIssue: e.target.value }))}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
+                <option value="">Select place</option>
+                {PLACE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
             <InputField label="Vendor PO No" value={form.vendorPoNo} onChange={(e) => setForm(f => ({ ...f, vendorPoNo: e.target.value }))} placeholder="Vendor PO number" />
             <InputField label="Shipping Date" value={form.shippingDate} onChange={(e) => setForm(f => ({ ...f, shippingDate: e.target.value }))} placeholder="DD/MM/YYYY" type="date" />
             <InputField label="Attach Link" value={form.attachLink} onChange={(e) => setForm(f => ({ ...f, attachLink: e.target.value }))} placeholder="https://…" />
-            <SF label="Reference Swatch (Optional)" field="referenceSwatchId" options={swatchOptions} placeholder="Select swatch" />
           </div>
           <div className="flex items-center gap-3 pt-2">
             <label className="text-sm font-medium text-gray-700">Active</label>
