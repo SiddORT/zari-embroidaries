@@ -275,7 +275,7 @@ export default function SwatchMaster() {
             <select value={swatchCategoryFilter} onChange={(e) => { setSwatchCategoryFilter(e.target.value); setPage(1); }}
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
               <option value="">All Categories</option>
-              {swatchCatOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              {swatchCatOptions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
             <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
