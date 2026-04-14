@@ -182,7 +182,7 @@ export default function StyleMaster() {
         <MasterFormModal open={modalOpen} onClose={() => setModalOpen(false)} size="xl"
           title={editRecord ? "Edit Style" : "Add Style"}
           onSubmit={handleSubmit} submitting={createMutation.isPending || updateMutation.isPending}>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0">
+          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
             <SearchableSelect label="Client" value={form.client}
               onChange={(v) => setForm(f => ({ ...f, client: v }))}
               options={clientOptions.map(o => o.value)}
