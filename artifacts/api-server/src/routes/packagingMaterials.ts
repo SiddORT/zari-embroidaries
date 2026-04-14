@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc } from "drizzle-orm";
+import { eq, ilike, and, or, desc } from "drizzle-orm";
 import { db, packagingMaterialsTable, insertPackagingMaterialSchema, updatePackagingMaterialSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
@@ -24,7 +24,12 @@ router.get("/packaging-materials", requireAuth, async (req: AuthRequest, res): P
   if (department) conditions.push(ilike(packagingMaterialsTable.department, `%${department}%`));
   if (vendor) conditions.push(ilike(packagingMaterialsTable.vendor, `%${vendor}%`));
   if (location) conditions.push(eq(packagingMaterialsTable.location, location));
-  if (search) conditions.push(ilike(packagingMaterialsTable.itemName, `%${search}%`));
+  if (search) {
+    conditions.push(or(
+      ilike(packagingMaterialsTable.itemName, `%${search}%`),
+      ilike(packagingMaterialsTable.itemCode, `%${search}%`),
+    )!);
+  }
 
   const whereClause = and(...conditions);
   const [rows, countRows] = await Promise.all([
@@ -38,8 +43,10 @@ router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): 
   const parsed = insertPackagingMaterialSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
   const createdBy = req.user?.email ?? "system";
-  const [record] = await db.insert(packagingMaterialsTable).values({ ...parsed.data, createdBy }).returning();
-  logger.info({ id: record.id }, "Packaging material created");
+  const total = await db.select({ id: packagingMaterialsTable.id }).from(packagingMaterialsTable);
+  const itemCode = `ITM${String(total.length + 1).padStart(4, "0")}`;
+  const [record] = await db.insert(packagingMaterialsTable).values({ ...parsed.data, itemCode, createdBy }).returning();
+  logger.info({ id: record.id, itemCode }, "Item master record created");
   res.status(201).json(record);
 });
 

@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 export const packagingMaterialsTable = pgTable("packaging_materials", {
   id: serial("id").primaryKey(),
+  itemCode: text("item_code").notNull().unique(),
   itemName: text("item_name").notNull(),
   department: text("department"),
   size: text("size"),

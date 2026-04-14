@@ -3,6 +3,7 @@ import { customFetch } from "@workspace/api-client-react";
 
 export type PackagingMaterialRecord = {
   id: number;
+  itemCode: string;
   itemName: string;
   department: string | null;
   size: string | null;

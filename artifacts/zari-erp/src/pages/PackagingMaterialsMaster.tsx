@@ -27,20 +27,16 @@ import { useUnitTypes } from "@/hooks/useLookups";
 import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 
 const LOCATION_OPTIONS = ["In-house", "Outsource"];
-
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
 ];
-
 const EMPTY_FORM: PackagingMaterialFormData = {
   itemName: "", department: "", size: "", unitType: "",
   unitPrice: "", vendor: "", location: "", isActive: true,
 };
-
 type FormErrors = Partial<Record<keyof PackagingMaterialFormData, string>>;
-
 const asPM = (r: TableRow) => r as unknown as PackagingMaterialRecord;
 
 function formatDate(val: string | null | undefined) {
@@ -154,14 +150,14 @@ export default function PackagingMaterialsMaster() {
   async function handleSubmit() {
     if (!validate()) return;
     try {
-      if (editRecord) { await updateMutation.mutateAsync({ id: editRecord.id, data: form }); toast({ title: "Record updated" }); }
-      else { await createMutation.mutateAsync(form); toast({ title: "Record created" }); }
+      if (editRecord) { await updateMutation.mutateAsync({ id: editRecord.id, data: form }); toast({ title: "Item updated" }); }
+      else { await createMutation.mutateAsync(form); toast({ title: "Item created" }); }
       setModalOpen(false);
     } catch (err: unknown) { toast({ title: "Error", description: err instanceof Error ? err.message : "Error", variant: "destructive" }); }
   }
   async function handleDelete() {
     if (!deleteId) return;
-    await deleteMutation.mutateAsync(deleteId); setDeleteId(null); toast({ title: "Record deleted" });
+    await deleteMutation.mutateAsync(deleteId); setDeleteId(null); toast({ title: "Item deleted" });
   }
   async function handleAddDept(name: string) {
     await addDeptMutation.mutateAsync(name);
@@ -174,6 +170,7 @@ export default function PackagingMaterialsMaster() {
 
   const columns: Column[] = [
     { key: "_srNo", label: "Sr No" },
+    { key: "itemCode", label: "Item Code", render: (r) => <span className="font-mono text-xs font-semibold text-gray-700">{asPM(r).itemCode}</span> },
     { key: "itemName", label: "Item Name", render: (r) => asPM(r).itemName },
     { key: "department", label: "Department", render: (r) => asPM(r).department || "—" },
     { key: "size", label: "Size", render: (r) => asPM(r).size || "—" },
@@ -200,6 +197,7 @@ export default function PackagingMaterialsMaster() {
   ];
 
   const exportColumns: ExportColumn[] = [
+    { key: "itemCode", label: "Item Code" },
     { key: "itemName", label: "Item Name" },
     { key: "department", label: "Department" },
     { key: "size", label: "Size" },
@@ -220,10 +218,16 @@ export default function PackagingMaterialsMaster() {
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="max-w-screen-xl mx-auto space-y-5">
-        <MasterHeader title="Packaging Materials" onAdd={openCreate} addLabel="Add Item" />
+        <MasterHeader title="Item Master" onAdd={openCreate} addLabel="Add Item" />
 
+        {/* Row 1: search + export */}
         <div className="flex items-center gap-3">
-          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search items…" className="flex-1" />
+          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by item name or code…" className="flex-1" />
+          <ExportExcelButton data={(data?.data ?? []) as unknown as Record<string, unknown>[]} columns={exportColumns} filename="item-master" />
+        </div>
+
+        {/* Row 2: filters */}
+        <div className="flex items-center gap-3 flex-wrap">
           <select value={filterDept} onChange={(e) => { setFilterDept(e.target.value); setPage(1); }} className={SELECT_CLS}>
             <option value="">All Departments</option>
             {deptOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -239,7 +243,6 @@ export default function PackagingMaterialsMaster() {
           <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }} className={SELECT_CLS}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <ExportExcelButton data={(data?.data ?? []) as unknown as Record<string, unknown>[]} columns={exportColumns} filename="packaging-materials" />
         </div>
 
         <MasterTable columns={columns} rows={rows} loading={isLoading}
@@ -247,9 +250,16 @@ export default function PackagingMaterialsMaster() {
           pagination={{ page, limit, total: data?.total ?? 0, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }} />
 
         <MasterFormModal open={modalOpen} onClose={() => setModalOpen(false)} size="xl"
-          title={editRecord ? "Edit Packaging Material" : "Add Packaging Material"}
+          title={editRecord ? "Edit Item" : "Add Item"}
           onSubmit={handleSubmit} submitting={createMutation.isPending || updateMutation.isPending}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0">
+            {/* Item Code — read only */}
+            <div className="flex flex-col gap-1 py-2">
+              <label className="text-sm font-medium text-gray-700">Item Code</label>
+              <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 font-mono">
+                {editRecord ? editRecord.itemCode : "Auto-generated"}
+              </div>
+            </div>
             <InputField label="Item Name" value={form.itemName} onChange={(e) => setForm(f => ({ ...f, itemName: e.target.value }))}
               error={errors.itemName} required placeholder="e.g. Box 10x10" />
             <div className="py-2">
@@ -287,7 +297,7 @@ export default function PackagingMaterialsMaster() {
         </MasterFormModal>
 
         <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}
-          title="Delete Item" message="Are you sure you want to delete this packaging material?" />
+          title="Delete Item" message="Are you sure you want to delete this item?" />
 
         <AddDeptModal open={addDeptOpen} onClose={() => setAddDeptOpen(false)}
           onAdd={handleAddDept} adding={addDeptMutation.isPending} />
