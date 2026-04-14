@@ -35,7 +35,9 @@ function useCreateLookup(type: string) {
 export function useItemTypes() { return useLookupList("item-types"); }
 export function useUnitTypes() { return useLookupList("unit-types"); }
 export function useWidthUnitTypes() { return useLookupList("width-unit-types"); }
+export function useFabricTypes() { return useLookupList("fabric-types"); }
 
 export function useCreateItemType() { return useCreateLookup("item-types"); }
 export function useCreateUnitType() { return useCreateLookup("unit-types"); }
 export function useCreateWidthUnitType() { return useCreateLookup("width-unit-types"); }
+export function useCreateFabricType() { return useCreateLookup("fabric-types"); }

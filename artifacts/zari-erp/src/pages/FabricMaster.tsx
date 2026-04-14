@@ -26,7 +26,7 @@ import {
   type FabricFormData,
   type StatusFilter,
 } from "@/hooks/useFabrics";
-import { useUnitTypes, useWidthUnitTypes, useCreateUnitType, useCreateWidthUnitType } from "@/hooks/useLookups";
+import { useUnitTypes, useWidthUnitTypes, useCreateUnitType, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 
@@ -90,8 +90,10 @@ export default function FabricMaster() {
   const toggleMutation = useToggleFabricStatus();
   const deleteMutation = useDeleteFabric();
 
+  const { data: fabricTypes = [] } = useFabricTypes();
   const { data: unitTypes = [] } = useUnitTypes();
   const { data: widthUnitTypes = [] } = useWidthUnitTypes();
+  const createFabricType = useCreateFabricType();
   const createUnitType = useCreateUnitType();
   const createWidthUnitType = useCreateWidthUnitType();
   const createHSN = useCreateHSN();
@@ -106,6 +108,8 @@ export default function FabricMaster() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<FabricRecord | null>(null);
 
+  const [addFabricTypeOpen, setAddFabricTypeOpen] = useState(false);
+  const [newFabricTypeName, setNewFabricTypeName] = useState("");
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [addWidthUnitTypeOpen, setAddWidthUnitTypeOpen] = useState(false);
@@ -174,6 +178,15 @@ export default function FabricMaster() {
     } catch { toast({ title: "Error", description: "Failed to delete.", variant: "destructive" }); }
   };
 
+  const handleAddFabricType = async () => {
+    if (!newFabricTypeName.trim()) return;
+    try {
+      await createFabricType.mutateAsync({ name: newFabricTypeName.trim(), isActive: true });
+      setForm((f) => ({ ...f, fabricType: newFabricTypeName.trim() }));
+      setNewFabricTypeName(""); setAddFabricTypeOpen(false);
+    } catch { toast({ title: "Error", description: "Failed to add fabric type.", variant: "destructive" }); }
+  };
+
   const handleAddUnitType = async () => {
     if (!newUnitTypeName.trim()) return;
     try {
@@ -214,6 +227,7 @@ export default function FabricMaster() {
   };
 
   const asFab = (r: TableRow) => r as unknown as FabricRecord;
+  const fabricTypeOptions = fabricTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const unitTypeOptions = unitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const widthUnitTypeOptions = widthUnitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
@@ -321,8 +335,13 @@ export default function FabricMaster() {
         size="xl"
       >
         <div className="grid grid-cols-2 gap-4">
-          <InputField label="Fabric Type" required placeholder="e.g. Cotton, Silk" value={form.fabricType}
-            onChange={(e) => setForm((f) => ({ ...f, fabricType: e.target.value }))} error={errors.fabricType} />
+          <AddableSelect
+            label="Fabric Type" required value={form.fabricType}
+            onChange={(v) => setForm((f) => ({ ...f, fabricType: v }))}
+            onAdd={() => { setNewFabricTypeName(""); setAddFabricTypeOpen(true); }}
+            addLabel="+ Add Type"
+            options={fabricTypeOptions} placeholder="Select Fabric Type" error={errors.fabricType}
+          />
           <InputField label="Quality" required placeholder="e.g. Premium" value={form.quality}
             onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))} error={errors.quality} />
 
@@ -412,6 +431,13 @@ export default function FabricMaster() {
         onCancel={() => setDeleteTarget(null)}
         loading={deleteMutation.isPending}
       />
+
+      {/* Add Fabric Type mini-modal */}
+      <MasterFormModal open={addFabricTypeOpen} title="Add Fabric Type" onClose={() => setAddFabricTypeOpen(false)}
+        onSubmit={handleAddFabricType} submitting={createFabricType.isPending} submitLabel="Add">
+        <InputField label="Fabric Type Name" required placeholder="e.g. Cotton, Silk, Velvet" value={newFabricTypeName}
+          onChange={(e) => setNewFabricTypeName(e.target.value)} />
+      </MasterFormModal>
 
       {/* Add Unit Type mini-modal */}
       <MasterFormModal open={addUnitTypeOpen} title="Add Unit Type" onClose={() => setAddUnitTypeOpen(false)}

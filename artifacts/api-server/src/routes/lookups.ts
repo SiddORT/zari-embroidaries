@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, itemTypesTable, unitTypesTable, widthUnitTypesTable } from "@workspace/db";
+import { db, itemTypesTable, unitTypesTable, widthUnitTypesTable, fabricTypesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 
@@ -10,6 +10,7 @@ function lookupTable(type: string) {
   if (type === "item-types") return itemTypesTable;
   if (type === "unit-types") return unitTypesTable;
   if (type === "width-unit-types") return widthUnitTypesTable;
+  if (type === "fabric-types") return fabricTypesTable;
   return null;
 }
 
