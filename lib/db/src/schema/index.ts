@@ -10,3 +10,4 @@ export * from "./styleCategories";
 export * from "./swatches";
 export * from "./styles";
 export * from "./packagingMaterials";
+export * from "./roles";

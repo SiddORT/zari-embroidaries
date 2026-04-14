@@ -21,6 +21,8 @@ import SwatchCategoryMaster from "@/pages/SwatchCategoryMaster";
 import SwatchMaster from "@/pages/SwatchMaster";
 import StyleMaster from "@/pages/StyleMaster";
 import PackagingMaterialsMaster from "@/pages/PackagingMaterialsMaster";
+import UserManagement from "@/pages/UserManagement";
+import AcceptInvite from "@/pages/AcceptInvite";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +69,8 @@ function Router() {
       <Route path="/masters/packaging-materials" component={PackagingMaterialsMaster} />
       <Route path="/orders" component={Orders} />
       <Route path="/orders/:id" component={OrderDetails} />
+      <Route path="/user-management" component={UserManagement} />
+      <Route path="/accept-invite" component={AcceptInvite} />
       <Route component={NotFound} />
     </Switch>
   );

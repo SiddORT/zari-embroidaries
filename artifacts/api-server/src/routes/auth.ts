@@ -138,6 +138,47 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
   res.json(ResetPasswordResponse.parse({ message: "Password reset successfully" }));
 });
 
+router.get("/auth/invite/:token", async (req, res): Promise<void> => {
+  const { token } = req.params;
+  const [user] = await db
+    .select({ id: usersTable.id, username: usersTable.username, email: usersTable.email, inviteTokenExpiry: usersTable.inviteTokenExpiry })
+    .from(usersTable)
+    .where(eq(usersTable.inviteToken, token));
+
+  if (!user || !user.inviteTokenExpiry || user.inviteTokenExpiry < new Date()) {
+    res.status(400).json({ error: "Invalid or expired invite link" });
+    return;
+  }
+  res.json({ data: { username: user.username, email: user.email } });
+});
+
+router.post("/auth/accept-invite", async (req, res): Promise<void> => {
+  const { token, password } = req.body as { token: string; password: string };
+  if (!token || !password || password.length < 8) {
+    res.status(400).json({ error: "Token and a password of at least 8 characters are required" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.inviteToken, token));
+
+  if (!user || !user.inviteTokenExpiry || user.inviteTokenExpiry < new Date()) {
+    res.status(400).json({ error: "Invalid or expired invite link" });
+    return;
+  }
+
+  const hashed = hashPassword(password);
+  await db
+    .update(usersTable)
+    .set({ hashedPassword: hashed, isActive: true, inviteToken: null, inviteTokenExpiry: null })
+    .where(eq(usersTable.id, user.id));
+
+  logger.info({ userId: user.id }, "Invite accepted, account activated");
+  res.json({ message: "Account activated. You can now sign in." });
+});
+
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const user = (req as typeof req & { user?: { userId: number } }).user;
   if (!user) {

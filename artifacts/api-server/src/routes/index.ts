@@ -13,11 +13,13 @@ import swatchCategoriesRouter from "./swatchCategories";
 import swatchesRouter from "./swatches";
 import stylesRouter from "./styles";
 import packagingMaterialsRouter from "./packagingMaterials";
+import userManagementRouter from "./userManagement";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(userManagementRouter);
 router.use(hsnRouter);
 router.use(lookupsRouter);
 router.use(materialsRouter);

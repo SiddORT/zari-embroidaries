@@ -9,6 +9,8 @@ export const usersTable = pgTable("users", {
   hashedPassword: text("hashed_password").notNull(),
   role: text("role").notNull().default("user"),
   isActive: boolean("is_active").notNull().default(true),
+  inviteToken: text("invite_token"),
+  inviteTokenExpiry: timestamp("invite_token_expiry", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
