@@ -9,6 +9,7 @@ import ordersRouter from "./orders";
 import clientsRouter from "./clients";
 import vendorsRouter from "./vendors";
 import styleCategoriesRouter from "./styleCategories";
+import swatchCategoriesRouter from "./swatchCategories";
 import swatchesRouter from "./swatches";
 import stylesRouter from "./styles";
 
@@ -24,6 +25,7 @@ router.use(ordersRouter);
 router.use(clientsRouter);
 router.use(vendorsRouter);
 router.use(styleCategoriesRouter);
+router.use(swatchCategoriesRouter);
 router.use(swatchesRouter);
 router.use(stylesRouter);
 

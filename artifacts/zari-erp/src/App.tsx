@@ -17,6 +17,7 @@ import OrderDetails from "@/pages/OrderDetails";
 import ClientMaster from "@/pages/ClientMaster";
 import VendorMaster from "@/pages/VendorMaster";
 import StyleCategoryMaster from "@/pages/StyleCategoryMaster";
+import SwatchCategoryMaster from "@/pages/SwatchCategoryMaster";
 import SwatchMaster from "@/pages/SwatchMaster";
 import StyleMaster from "@/pages/StyleMaster";
 
@@ -59,6 +60,7 @@ function Router() {
       <Route path="/masters/clients" component={ClientMaster} />
       <Route path="/masters/vendors" component={VendorMaster} />
       <Route path="/masters/style-categories" component={StyleCategoryMaster} />
+      <Route path="/masters/swatch-categories" component={SwatchCategoryMaster} />
       <Route path="/masters/swatches" component={SwatchMaster} />
       <Route path="/masters/styles" component={StyleMaster} />
       <Route path="/orders" component={Orders} />

@@ -15,8 +15,9 @@ const MASTERS_ITEMS = [
   { label: "Fabric",           href: "/masters/fabric" },
   { label: "Clients",          href: "/masters/clients" },
   { label: "Vendors",          href: "/masters/vendors" },
-  { label: "Style Categories", href: "/masters/style-categories" },
-  { label: "Swatch",           href: "/masters/swatches" },
+  { label: "Style Categories",  href: "/masters/style-categories" },
+  { label: "Swatch Categories", href: "/masters/swatch-categories" },
+  { label: "Swatch",            href: "/masters/swatches" },
   { label: "Style",            href: "/masters/styles" },
 ];
 
