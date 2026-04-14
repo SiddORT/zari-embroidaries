@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, User, Users } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -31,11 +31,13 @@ const TOP_LINKS = [
 ];
 
 export default function TopNavbar({ username, role, onLogout, isLoggingOut }: TopNavbarProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const mastersRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const mastersActive = location.startsWith("/masters");
 
@@ -57,6 +59,17 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     return () => document.removeEventListener("mousedown", handle);
   }, [mastersOpen]);
 
+  useEffect(() => {
+    if (!profileOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [profileOpen]);
+
   return (
     <>
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
@@ -74,7 +87,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
 
           {/* CENTER — Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {/* Dashboard */}
             <Link
               href="/dashboard"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -142,27 +154,69 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
             })}
           </nav>
 
-          {/* RIGHT — User + logout */}
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col items-end leading-tight">
-              <span className="text-sm font-medium text-gray-900">{username}</span>
-              <span className="text-xs text-gray-400 capitalize">{role}</span>
+          {/* RIGHT — Profile dropdown */}
+          <div className="flex items-center gap-2">
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen((v) => !v)}
+                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+                  style={{ backgroundColor: "#111", color: "#C9B45C" }}
+                >
+                  {initials}
+                </div>
+                <div className="hidden sm:flex flex-col items-start leading-tight">
+                  <span className="text-sm font-medium text-gray-900">{username}</span>
+                  <span className="text-xs text-gray-400 capitalize">{role}</span>
+                </div>
+                <ChevronDown className={`hidden sm:block h-3.5 w-3.5 text-gray-400 transition-transform ${profileOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {profileOpen && (
+                <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  {/* User info header */}
+                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{username}</p>
+                    <p className="text-xs text-gray-400 capitalize">{role}</p>
+                  </div>
+
+                  <div className="p-1">
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate("/profile"); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
+                    >
+                      <User className="h-4 w-4 text-gray-400 shrink-0" />
+                      Profile
+                    </button>
+
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate("/user-management"); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
+                    >
+                      <Users className="h-4 w-4 text-gray-400 shrink-0" />
+                      User Management
+                    </button>
+
+                    <div className="my-1 border-t border-gray-100" />
+
+                    <button
+                      onClick={() => { setProfileOpen(false); onLogout(); }}
+                      disabled={isLoggingOut}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors text-left disabled:opacity-50"
+                    >
+                      {isLoggingOut
+                        ? <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                        : <LogOut className="h-4 w-4 shrink-0" />}
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            <div
-              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-              style={{ backgroundColor: "#111", color: "#C9B45C" }}
-            >
-              {initials}
-            </div>
-            <button
-              onClick={onLogout}
-              disabled={isLoggingOut}
-              title="Sign out"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-gray-200 text-gray-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
-            >
-              {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-              <span>Sign Out</span>
-            </button>
+
+            {/* Mobile menu toggle */}
             <button
               onClick={() => setMobileOpen((v) => !v)}
               className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
@@ -187,7 +241,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 Dashboard
               </Link>
 
-              {/* Masters expand/collapse */}
               <button
                 onClick={() => setMobileMastersOpen((v) => !v)}
                 className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
@@ -226,15 +279,26 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   {label}
                 </Link>
               ))}
+
+              <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-1">
+                <Link href="/profile" onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <User className="h-4 w-4 text-gray-400" /> Profile
+                </Link>
+                <Link href="/user-management" onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <Users className="h-4 w-4 text-gray-400" /> User Management
+                </Link>
+                <button
+                  onClick={() => { setMobileOpen(false); onLogout(); }}
+                  disabled={isLoggingOut}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                  Sign Out
+                </button>
+              </div>
             </nav>
-            <button
-              onClick={() => { setMobileOpen(false); onLogout(); }}
-              disabled={isLoggingOut}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
-            >
-              {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-              Sign Out
-            </button>
           </div>
         )}
       </header>
