@@ -53,17 +53,20 @@ export interface FabricFormData {
 
 export type StatusFilter = "all" | "active" | "inactive";
 
-function fabricKey(params: { search: string; status: StatusFilter; page: number; limit: number }) {
+function fabricKey(params: { search: string; status: StatusFilter; fabricType: string; vendor: string; hsnCode: string; page: number; limit: number }) {
   return ["fabrics", params] as const;
 }
 
-export function useFabricList(params: { search: string; status: StatusFilter; page: number; limit: number }) {
+export function useFabricList(params: { search: string; status: StatusFilter; fabricType: string; vendor: string; hsnCode: string; page: number; limit: number }) {
   return useQuery<FabricListResponse>({
     queryKey: fabricKey(params),
     queryFn: () => {
       const qs = new URLSearchParams({
         search: params.search,
         status: params.status,
+        fabricType: params.fabricType,
+        vendor: params.vendor,
+        hsnCode: params.hsnCode,
         page: String(params.page),
         limit: String(params.limit),
       }).toString();

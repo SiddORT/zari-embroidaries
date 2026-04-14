@@ -12,6 +12,9 @@ type AuthRequest = Request & { user?: { userId: number; email: string; role: str
 router.get("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
+  const fabricType = (req.query.fabricType as string) ?? "";
+  const vendor = (req.query.vendor as string) ?? "";
+  const hsnCode = (req.query.hsnCode as string) ?? "";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
   const offset = (page - 1) * limit;
@@ -19,6 +22,9 @@ router.get("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void>
   const conditions = [eq(fabricsTable.isDeleted, false)];
   if (status === "active") conditions.push(eq(fabricsTable.isActive, true));
   else if (status === "inactive") conditions.push(eq(fabricsTable.isActive, false));
+  if (fabricType) conditions.push(ilike(fabricsTable.fabricType, `%${fabricType}%`));
+  if (vendor) conditions.push(ilike(fabricsTable.vendor, `%${vendor}%`));
+  if (hsnCode) conditions.push(ilike(fabricsTable.hsnCode, `%${hsnCode}%`));
 
   if (search) {
     conditions.push(

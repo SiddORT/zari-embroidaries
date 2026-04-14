@@ -77,11 +77,20 @@ export default function FabricMaster() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [fabricTypeFilter, setFabricTypeFilter] = useState("");
+  const [vendorFilter, setVendorFilter] = useState("");
+  const [hsnCodeFilter, setHsnCodeFilter] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   useEffect(() => { const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350); return () => clearTimeout(t); }, [search]);
 
-  const { data, isLoading } = useFabricList({ search: debouncedSearch, status: statusFilter, page, limit });
+  const hasFilters = statusFilter !== "all" || fabricTypeFilter || vendorFilter || hsnCodeFilter;
+
+  const { data, isLoading } = useFabricList({
+    search: debouncedSearch, status: statusFilter,
+    fabricType: fabricTypeFilter, vendor: vendorFilter, hsnCode: hsnCodeFilter,
+    page, limit,
+  });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
 
@@ -286,16 +295,41 @@ export default function FabricMaster() {
       <div className="max-w-screen-xl mx-auto space-y-5">
         <MasterHeader title="Fabric Master" onAdd={openAdd} addLabel="Add Fabric" />
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex-1 min-w-48">
             <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
           </div>
-          <div className="sm:w-44">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              {STATUS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+
+          <select value={fabricTypeFilter} onChange={(e) => { setFabricTypeFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+            <option value="">All Fabric Types</option>
+            {fabricTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+          </select>
+
+          <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+            <option value="">All Vendors</option>
+            {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
+          </select>
+
+          <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+            <option value="">All HSN Codes</option>
+            {hsnOptions.map((h) => <option key={h.hsnCode} value={h.hsnCode}>{h.hsnCode}</option>)}
+          </select>
+
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
+            className="rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+            {STATUS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+
+          {hasFilters && (
+            <button onClick={() => { setStatusFilter("all"); setFabricTypeFilter(""); setVendorFilter(""); setHsnCodeFilter(""); setPage(1); }}
+              className="px-3 py-2 text-sm text-gray-500 hover:text-red-500 border border-gray-200 rounded-lg hover:border-red-200 transition-colors">
+              Clear
+            </button>
+          )}
+
           <ExportExcelButton data={rows as Record<string, unknown>[]} filename="Fabric_Master" columns={exportColumns} disabled={isLoading} />
         </div>
 
