@@ -28,7 +28,7 @@ const EMPTY_FORM: StyleFormData = {
 };
 type FormErrors = Partial<Record<keyof StyleFormData, string>>;
 
-const PLACE_OPTIONS = ["In-house", "Outsource"];
+const PLACE_OPTIONS = ["In-house", "Out-house"];
 
 function formatDate(val: string | null | undefined) {
   if (!val) return "—";

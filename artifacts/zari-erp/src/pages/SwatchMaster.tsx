@@ -22,7 +22,7 @@ import {
   type SwatchRecord, type SwatchFormData, type SwatchAttachment, type StatusFilter,
 } from "@/hooks/useSwatches";
 import { useAllFabrics } from "@/hooks/useFabrics";
-import { useUnitTypes, useSwatchCategories, useCreateSwatchCategory } from "@/hooks/useLookups";
+import { useUnitTypes, useSwatchCategories, useCreateSwatchCategory, useCreateUnitType } from "@/hooks/useLookups";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 
 const LOCATION_OPTIONS = ["Inhouse", "Client"];
@@ -101,6 +101,59 @@ function AddCategoryModal({ open, onClose, onAdd, adding }: AddCategoryModalProp
   );
 }
 
+interface AddUnitTypeModalProps {
+  open: boolean;
+  onClose: () => void;
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => Promise<void>;
+  adding: boolean;
+}
+
+function AddUnitTypeModal({ open, onClose, value, onChange, onSubmit, adding }: AddUnitTypeModalProps) {
+  const [err, setErr] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) { setErr(""); setTimeout(() => inputRef.current?.focus(), 50); }
+  }, [open]);
+
+  if (!open) return null;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!value.trim()) { setErr("Unit type name is required"); return; }
+    try { await onSubmit(); }
+    catch { setErr("Unit type already exists or failed to add"); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-gray-900">Add Unit Type</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-400"><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type Name <span className="text-red-500">*</span></label>
+            <input ref={inputRef} type="text" value={value} onChange={(e) => { onChange(e.target.value); setErr(""); }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900" placeholder="e.g. Meters, Yards" />
+            {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={adding}
+              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+              {adding ? "Adding…" : "Add"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function SwatchMaster() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
@@ -132,6 +185,8 @@ export default function SwatchMaster() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [addCatOpen, setAddCatOpen] = useState(false);
+  const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
+  const [newUnitTypeName, setNewUnitTypeName] = useState("");
 
   const { data, isLoading } = useSwatchList({ search, status, client: clientFilter, location: locationFilter, swatchCategory: swatchCategoryFilter, page, limit });
   const { data: fabricsData } = useAllFabrics();
@@ -144,6 +199,7 @@ export default function SwatchMaster() {
   const toggleStatus = useToggleSwatchStatus();
   const deleteMutation = useDeleteSwatch();
   const createCatMutation = useCreateSwatchCategory();
+  const createUnitType = useCreateUnitType();
 
   const fabricOptions = (fabricsData ?? []).map(f => { const v = `${f.fabricType} – ${f.quality}`.trim(); return { value: v, label: v }; });
   const unitOptions = (unitTypesData ?? []).filter(u => u.isActive).map(u => u.name);
@@ -203,8 +259,17 @@ export default function SwatchMaster() {
   }
 
   async function handleAddCategory(name: string) {
-    const record = await createCatMutation.mutateAsync({ name, isActive: true });
+    const record = await createCatMutation.mutateAsync({ name, isActive: true }) as { name: string };
     setForm(f => ({ ...f, swatchCategory: record.name }));
+  }
+
+  async function handleAddUnitType() {
+    if (!newUnitTypeName.trim()) return;
+    try {
+      const record = await createUnitType.mutateAsync({ name: newUnitTypeName.trim(), isActive: true }) as { name: string };
+      setForm(f => ({ ...f, unitType: record.name }));
+      setNewUnitTypeName(""); setAddUnitTypeOpen(false);
+    } catch { toast({ title: "Error", description: "Failed to add unit type.", variant: "destructive" }); }
   }
 
   const rows: TableRow[] = ((data?.data ?? []) as SwatchRecord[]).map((r, i) => ({ ...(r as unknown as TableRow), _srNo: (page - 1) * limit + i + 1 }));
@@ -305,11 +370,10 @@ export default function SwatchMaster() {
                 options={swatchCatOptions} placeholder="Select category" />
             </div>
 
-            <div className="py-2">
-              <AddableSelect label="Base Fabric" value={form.fabric}
-                onChange={(v) => setForm(f => ({ ...f, fabric: v }))}
-                options={fabricOptions} placeholder="Select fabric" />
-            </div>
+            <SearchableSelect label="Base Fabric" value={form.fabric}
+              onChange={(v) => setForm(f => ({ ...f, fabric: v }))}
+              options={fabricOptions.map(o => o.value)}
+              placeholder="Select fabric" clearable />
 
             <SearchableSelect label="Location" value={form.location}
               onChange={(v) => setForm(f => ({ ...f, location: v }))}
@@ -324,8 +388,12 @@ export default function SwatchMaster() {
             <InputField label="Length" value={form.length} onChange={(e) => setForm(f => ({ ...f, length: e.target.value }))} placeholder="e.g. 120" />
             <InputField label="Width" value={form.width} onChange={(e) => setForm(f => ({ ...f, width: e.target.value }))} placeholder="e.g. 60" />
 
-            <SearchableSelect label="Unit Type" value={form.unitType} onChange={(v) => setForm(f => ({ ...f, unitType: v }))}
-              options={unitOptions} placeholder="Select unit" clearable />
+            <AddableSelect label="Unit Type" value={form.unitType}
+              onChange={(v) => setForm(f => ({ ...f, unitType: v }))}
+              onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
+              addLabel="+ Add Unit Type"
+              options={unitOptions.map(u => ({ value: u, label: u }))}
+              placeholder="Select unit" />
             <InputField label="Hours" value={form.hours} onChange={(e) => setForm(f => ({ ...f, hours: e.target.value }))} placeholder="e.g. 4.5" />
           </div>
 
@@ -364,6 +432,10 @@ export default function SwatchMaster() {
 
         <AddCategoryModal open={addCatOpen} onClose={() => setAddCatOpen(false)}
           onAdd={handleAddCategory} adding={createCatMutation.isPending} />
+
+        <AddUnitTypeModal open={addUnitTypeOpen} onClose={() => setAddUnitTypeOpen(false)}
+          value={newUnitTypeName} onChange={setNewUnitTypeName}
+          onSubmit={handleAddUnitType} adding={createUnitType.isPending} />
       </div>
     </AppLayout>
   );
