@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,7 +12,6 @@ import Dashboard from "@/pages/dashboard";
 
 const queryClient = new QueryClient();
 
-// Configure the token getter globally before any queries
 setAuthTokenGetter(() => localStorage.getItem("zarierp_token"));
 
 function RootRedirect() {
@@ -43,11 +42,6 @@ function Router() {
 }
 
 function App() {
-  // Ensure dark mode by default for Zari ERP
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

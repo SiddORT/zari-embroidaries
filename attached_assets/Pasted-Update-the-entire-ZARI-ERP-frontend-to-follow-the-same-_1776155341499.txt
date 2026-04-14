@@ -1,0 +1,184 @@
+Update the entire ZARI ERP frontend to follow the same light-theme enterprise UI style as the current login page.
+
+Keep backend logic unchanged.
+
+Apply consistent styling across:
+
+Forgot Password page
+Reset Password page
+Dashboard page
+Sidebar navigation
+Top navbar
+All internal pages
+
+
+GLOBAL DESIGN SYSTEM
+
+Use:
+
+React
+Tailwind CSS
+
+Create a consistent enterprise light theme with:
+
+Primary background: light gray (#f8f9fb)
+Card background: white
+Primary button: black background with white text
+Accent color: subtle gold where appropriate
+Rounded corners
+Soft shadows
+Balanced spacing
+
+
+FORGOT PASSWORD PAGE
+
+Follow the same layout as login page:
+
+Left panel:
+
+dark branding panel
+
+show:
+
+ZARI EMBROIDERIES logo text
+
+subtitle:
+
+Precision crafted for the art of embroidery.
+
+Right panel:
+
+light theme card layout
+
+Include:
+
+email input field
+submit button
+back-to-login link
+
+Keep responsive behavior identical to login page
+
+
+RESET PASSWORD PAGE
+
+Use same layout structure:
+
+left branding panel
+right reset-password card
+
+Include:
+
+new password field
+confirm password field
+eye toggle icons inside inputs
+submit button
+
+
+DASHBOARD PAGE
+
+Create modern ERP dashboard layout:
+
+Sidebar navigation (left)
+
+Top navbar (top)
+
+Main content area (center)
+
+
+Highlight active page
+
+Use icons with menu labels
+
+Collapsible sidebar support optional
+
+
+TOP NAVBAR DESIGN
+
+Include:
+
+page title
+user avatar placeholder
+logout button
+
+Use clean spacing and subtle shadow
+
+
+DASHBOARD CONTENT
+
+Add summary cards:
+
+Total Users
+Total Products
+Total Orders
+
+Add placeholder recent activity section
+
+Use card layout consistent with login styling
+
+
+INTERNAL PAGE STYLE STANDARD
+
+All pages must follow:
+
+light background
+white content cards
+consistent spacing
+same typography scale
+same button style
+same input style
+same card shadow style
+
+
+PASSWORD INPUTS
+
+Ensure all password fields across:
+
+login
+forgot password
+reset password
+
+include eye icon toggle inside input field
+
+
+RESPONSIVE BEHAVIOR
+
+Mobile:
+
+hide sidebar
+show hamburger menu
+
+Tablet/Desktop:
+
+show sidebar normally
+
+
+PROJECT STRUCTURE IMPROVEMENT
+
+Organize frontend like:
+
+/components/layout
+Sidebar.jsx
+Navbar.jsx
+
+/components/ui
+Input.jsx
+Button.jsx
+Card.jsx
+
+/pages
+Dashboard.jsx
+ForgotPassword.jsx
+ResetPassword.jsx
+
+
+IMPORTANT
+
+Do NOT modify:
+
+authentication API logic
+backend endpoints
+database models
+
+Update frontend UI only.
+
+Return updated reusable layout components and styled pages.
