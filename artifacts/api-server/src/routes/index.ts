@@ -6,6 +6,11 @@ import lookupsRouter from "./lookups";
 import materialsRouter from "./materials";
 import fabricsRouter from "./fabrics";
 import ordersRouter from "./orders";
+import clientsRouter from "./clients";
+import vendorsRouter from "./vendors";
+import styleCategoriesRouter from "./styleCategories";
+import swatchesRouter from "./swatches";
+import stylesRouter from "./styles";
 
 const router: IRouter = Router();
 
@@ -16,5 +21,10 @@ router.use(lookupsRouter);
 router.use(materialsRouter);
 router.use(fabricsRouter);
 router.use(ordersRouter);
+router.use(clientsRouter);
+router.use(vendorsRouter);
+router.use(styleCategoriesRouter);
+router.use(swatchesRouter);
+router.use(stylesRouter);
 
 export default router;

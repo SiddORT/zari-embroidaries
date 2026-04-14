@@ -14,6 +14,11 @@ import MaterialsMaster from "@/pages/MaterialsMaster";
 import FabricMaster from "@/pages/FabricMaster";
 import Orders from "@/pages/Orders";
 import OrderDetails from "@/pages/OrderDetails";
+import ClientMaster from "@/pages/ClientMaster";
+import VendorMaster from "@/pages/VendorMaster";
+import StyleCategoryMaster from "@/pages/StyleCategoryMaster";
+import SwatchMaster from "@/pages/SwatchMaster";
+import StyleMaster from "@/pages/StyleMaster";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +56,11 @@ function Router() {
       <Route path="/masters/hsn" component={HSNMaster} />
       <Route path="/masters/materials" component={MaterialsMaster} />
       <Route path="/masters/fabric" component={FabricMaster} />
+      <Route path="/masters/clients" component={ClientMaster} />
+      <Route path="/masters/vendors" component={VendorMaster} />
+      <Route path="/masters/style-categories" component={StyleCategoryMaster} />
+      <Route path="/masters/swatches" component={SwatchMaster} />
+      <Route path="/masters/styles" component={StyleMaster} />
       <Route path="/orders" component={Orders} />
       <Route path="/orders/:id" component={OrderDetails} />
       <Route component={NotFound} />

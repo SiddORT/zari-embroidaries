@@ -4,3 +4,8 @@ export * from "./lookups";
 export * from "./materials";
 export * from "./fabrics";
 export * from "./orders";
+export * from "./clients";
+export * from "./vendors";
+export * from "./styleCategories";
+export * from "./swatches";
+export * from "./styles";

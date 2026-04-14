@@ -1,0 +1,60 @@
+import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { z } from "zod/v4";
+
+export const vendorsTable = pgTable("vendors", {
+  id: serial("id").primaryKey(),
+  vendorCode: text("vendor_code").notNull().unique(),
+  brandName: text("brand_name").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email"),
+  altEmail: text("alt_email"),
+  contactNo: text("contact_no"),
+  altContactNo: text("alt_contact_no"),
+  hasGst: boolean("has_gst").notNull().default(false),
+  gstNo: text("gst_no"),
+  bankName: text("bank_name"),
+  accountNo: text("account_no"),
+  ifscCode: text("ifsc_code"),
+  address1: text("address1"),
+  address2: text("address2"),
+  country: text("country"),
+  state: text("state"),
+  city: text("city"),
+  pincode: text("pincode"),
+  isActive: boolean("is_active").notNull().default(true),
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+export type VendorRecord = typeof vendorsTable.$inferSelect;
+
+export const insertVendorSchema = z.object({
+  brandName: z.string().min(1, "Brand Name is required"),
+  contactName: z.string().min(1, "Contact Name is required"),
+  email: z.email("Valid email").optional().or(z.literal("")),
+  altEmail: z.email("Valid email").optional().or(z.literal("")),
+  contactNo: z.string().optional(),
+  altContactNo: z.string().optional(),
+  hasGst: z.boolean().default(false),
+  gstNo: z.string().optional(),
+  bankName: z.string().optional(),
+  accountNo: z.string().optional(),
+  ifscCode: z.string().optional(),
+  address1: z.string().optional(),
+  address2: z.string().optional(),
+  country: z.string().optional(),
+  state: z.string().optional(),
+  city: z.string().optional(),
+  pincode: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const updateVendorSchema = insertVendorSchema.partial().extend({
+  updatedBy: z.string().optional(),
+});
+
+export type InsertVendor = z.infer<typeof insertVendorSchema>;
+export type UpdateVendor = z.infer<typeof updateVendorSchema>;

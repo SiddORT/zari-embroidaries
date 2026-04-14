@@ -1,0 +1,273 @@
+Create the following ERP Master Modules for ZARI ERP using React + Tailwind CSS.
+
+Use existing reusable master components:
+
+MasterLayout
+MasterHeader
+MasterTable
+MasterFormModal
+StatusToggle
+SearchBar
+ExportExcelButton
+PrimaryButton
+InputField
+SelectField
+TextareaField
+
+Follow same UI behavior as HSN Master.
+
+
+COMMON MASTER RULES
+
+Each master must include:
+
+status toggle
+is_deleted flag
+
+audit fields:
+
+created_by
+created_at
+updated_by
+updated_at
+
+datatable features:
+
+search
+pagination
+latest records first sorting
+excel export
+Sr No column
+edit action
+soft delete action
+delete confirmation popup
+
+Primary button style:
+
+black background
+gold text
+
+
+NAVIGATION STRUCTURE
+
+Masters dropdown menu:
+
+Clients
+Vendors
+Style Categories
+Swatch Master
+Style Master
+
+
+
+CLIENT MASTER MODULE
+
+Create page:
+
+/pages/ClientMaster.jsx
+
+Fields:
+
+Client Code (auto generated)
+Brand Name (required)
+Contact Name (required)
+Email Address (required)
+Alternate Email Address
+Contact No (required)
+Alternate Contact No
+Country Of Origin (required)
+GST (Yes/No)
+GST No
+Address Line 1 (required)
+Address Line 2
+Country
+State
+City
+Pincode
+
+Validation:
+
+unique client code
+valid email format
+
+
+VENDOR MASTER MODULE
+
+Create page:
+
+/pages/VendorMaster.jsx
+
+Fields:
+
+Vendor Code (auto generated)
+Brand Name (required)
+Contact Name (required)
+Email Address
+Alternate Email Address
+Contact No
+Alternate Contact No
+GST (Yes/No)
+GST No
+
+Bank Name
+Account Number
+IFSC Code
+
+Address Line 1
+Address Line 2
+Country
+State
+City
+Pincode
+
+Upload Payment Attachments
+
+
+STYLE CATEGORY MASTER MODULE
+
+Create page:
+
+/pages/StyleCategoryMaster.jsx
+
+Fields:
+
+Category Name (required)
+
+Examples:
+
+Fabric
+Accessories
+Panels
+Appliques
+Pattern
+Trims & Borders
+
+Prevent duplicate category names
+
+
+SWATCH MASTER MODULE
+
+Create page:
+
+/pages/SwatchMaster.jsx
+
+Fields:
+
+Swatch Code (auto generated)
+
+Swatch Name (required)
+
+Fabric dropdown (from Fabric Master)
+
+Color Name
+
+Hex Code (auto populated)
+
+Width
+
+Unit Type dropdown
+
+Finish Type dropdown
+
+GSM
+
+Client dropdown optional
+
+Upload Swatch Image
+
+Upload Lab Dip Reference
+
+Approval Status dropdown:
+
+Pending
+Approved
+Rejected
+
+Remarks
+
+
+STYLE MASTER MODULE
+
+Create page:
+
+/pages/StyleMaster.jsx
+
+Fields:
+
+Client dropdown (required)
+
+Style No (required)
+
+Invoice No optional
+
+Description (Style Name)
+
+Attach Link
+
+Place Of Issue dropdown:
+
+In-house
+Outsource
+
+Vendor PO No
+
+Shipping Date
+
+Attach Images
+
+Style Category dropdown (required)
+
+Reference Swatch dropdown optional
+
+Validation:
+
+unique style number per client
+
+
+DATATABLE COLUMN STRUCTURE
+
+Each master table must include:
+
+Sr No
+Code
+Name
+Primary Identifier
+Status
+Created By
+Created At
+Updated By
+Updated At
+Actions
+
+
+DELETE BEHAVIOR
+
+Delete action must:
+
+set
+
+is_deleted = true
+
+instead of permanent delete
+
+
+FILTER SUPPORT
+
+Add filter:
+
+Status:
+
+All
+Active
+Inactive
+
+
+IMPORTANT
+
+Reuse existing reusable ERP components
+
+Do not duplicate master table logic
+
+Follow constrained ERP UI structure
+
+Return clean implementation for all master pages

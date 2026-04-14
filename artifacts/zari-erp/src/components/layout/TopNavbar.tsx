@@ -10,15 +10,19 @@ interface TopNavbarProps {
 }
 
 const MASTERS_ITEMS = [
-  { label: "HSN",       href: "/masters/hsn" },
-  { label: "Materials", href: "/masters/materials" },
-  { label: "Fabric",    href: "/masters/fabric" },
+  { label: "HSN",              href: "/masters/hsn" },
+  { label: "Materials",        href: "/masters/materials" },
+  { label: "Fabric",           href: "/masters/fabric" },
+  { label: "Clients",          href: "/masters/clients" },
+  { label: "Vendors",          href: "/masters/vendors" },
+  { label: "Style Categories", href: "/masters/style-categories" },
+  { label: "Swatch Master",    href: "/masters/swatches" },
+  { label: "Style Master",     href: "/masters/styles" },
 ];
 
 const TOP_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Orders",    href: "/orders" },
-  { label: "Vendors",   href: "/vendors" },
   { label: "Settings",  href: "/settings" },
 ];
 
