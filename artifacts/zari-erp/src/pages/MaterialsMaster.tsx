@@ -58,7 +58,7 @@ const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "All Status" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" },
 ];
 
-const LOCATION_OPTIONS = ["In-house", "Outhouse"];
+const LOCATION_OPTIONS = ["In-house", "Out-house"];
 
 export default function MaterialsMaster() {
   const [, setLocation] = useLocation();

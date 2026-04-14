@@ -51,7 +51,7 @@ const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "All Status" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" },
 ];
 
-const LOCATION_OPTIONS = ["In-house", "Outhouse"];
+const LOCATION_OPTIONS = ["In-house", "Out-house"];
 
 function formatDate(val: string | null | undefined) {
   if (!val) return "—";
