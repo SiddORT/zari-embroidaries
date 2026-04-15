@@ -107,10 +107,16 @@ router.get("/po/:swatchOrderId", requireAuth, async (req, res) => {
 
 router.post("/po", requireAuth, async (req, res) => {
   const user = (req as any).user;
-  const { swatchOrderId, vendorId, notes, bomRowIds } = req.body as { swatchOrderId: number; vendorId: number; notes?: string; bomRowIds?: number[] };
+  const { swatchOrderId, vendorId, notes, bomItems } = req.body as {
+    swatchOrderId: number;
+    vendorId: number;
+    notes?: string;
+    bomItems?: { bomRowId: number; materialCode: string; materialName: string; unitType: string; targetPrice: string; quantity: string }[];
+  };
   const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId));
   if (!vendor) { res.status(404).json({ error: "Vendor not found" }); return; }
   const poNumber = await nextPoNumber();
+  const items = bomItems ?? [];
   const [row] = await db.insert(purchaseOrdersTable).values({
     poNumber,
     swatchOrderId: Number(swatchOrderId),
@@ -118,7 +124,8 @@ router.post("/po", requireAuth, async (req, res) => {
     vendorName: vendor.brandName,
     status: "Draft",
     notes: notes ?? null,
-    bomRowIds: bomRowIds ?? [],
+    bomRowIds: items.map(i => i.bomRowId),
+    bomItems: items,
     createdBy: user.email,
   }).returning();
   res.status(201).json({ data: row });

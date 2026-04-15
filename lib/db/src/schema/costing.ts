@@ -28,6 +28,15 @@ export const swatchBomTable = pgTable("swatch_bom", {
 
 export type SwatchBomRecord = typeof swatchBomTable.$inferSelect;
 
+export interface PoLineItem {
+  bomRowId: number;
+  materialCode: string;
+  materialName: string;
+  unitType: string;
+  targetPrice: string;
+  quantity: string;
+}
+
 export const purchaseOrdersTable = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   poNumber: text("po_number").notNull().unique(),
@@ -38,6 +47,7 @@ export const purchaseOrdersTable = pgTable("purchase_orders", {
   status: text("status").notNull().default("Draft"),
   notes: text("notes"),
   bomRowIds: jsonb("bom_row_ids").$type<number[]>().default([]),
+  bomItems: jsonb("bom_items").$type<PoLineItem[]>().default([]),
   approvedBy: text("approved_by"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   createdBy: text("created_by").notNull(),

@@ -28,6 +28,15 @@ export interface BomRecord {
   createdAt: string;
 }
 
+export interface PoLineItem {
+  bomRowId: number;
+  materialCode: string;
+  materialName: string;
+  unitType: string;
+  targetPrice: string;
+  quantity: string;
+}
+
 export interface PurchaseOrderRecord {
   id: number;
   poNumber: string;
@@ -38,6 +47,7 @@ export interface PurchaseOrderRecord {
   status: string;
   notes: string | null;
   bomRowIds: number[];
+  bomItems: PoLineItem[];
   approvedBy: string | null;
   approvedAt: string | null;
   createdAt: string;

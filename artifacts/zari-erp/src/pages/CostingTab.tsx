@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
-  ArrowRight, Paperclip,
+  ArrowRight, Paperclip, Package,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
@@ -13,7 +13,8 @@ import {
   useSwatchPOs, useCreatePO, useUpdatePO, useDeletePO,
   useSwatchPRs, useCreatePR, useDeletePR,
   usePrPayments, useAddPayment, useDeletePayment,
-  type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord, type PrPaymentRecord,
+  type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord,
+  type PrPaymentRecord, type PoLineItem,
 } from "@/hooks/useCosting";
 
 const PO_STATUSES = ["Draft", "Pending Approval", "Approved", "In Process", "Closed"];
@@ -428,6 +429,173 @@ function PrAccordion({ pr, swatchOrderId }: { pr: PurchaseReceiptRecord; swatchO
   );
 }
 
+// ─── Create PO Modal ──────────────────────────────────────────────────────────
+function CreatePoModal({
+  swatchOrderId, bomRows, vendors, onClose, onCreate,
+}: {
+  swatchOrderId: number;
+  bomRows: BomRecord[];
+  vendors: { id: number; brandName: string }[];
+  onClose: () => void;
+  onCreate: (payload: Record<string, unknown>) => Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [vendorId, setVendorId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  type Override = { checked: boolean; targetPrice: string; quantity: string };
+  const [overrides, setOverrides] = useState<Record<number, Override>>(() =>
+    Object.fromEntries(bomRows.map(r => [r.id, { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty }]))
+  );
+
+  const toggleRow = (id: number) =>
+    setOverrides(prev => ({ ...prev, [id]: { ...prev[id], checked: !prev[id].checked } }));
+  const setField = (id: number, field: "targetPrice" | "quantity", val: string) =>
+    setOverrides(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
+
+  const selectedItems = bomRows.filter(r => overrides[r.id]?.checked);
+  const totalTarget = selectedItems.reduce((s, r) => {
+    const ov = overrides[r.id];
+    return s + (parseFloat(ov.targetPrice) || 0) * (parseFloat(ov.quantity) || 0);
+  }, 0);
+
+  async function handleSubmit() {
+    if (!vendorId) { toast({ title: "Select a vendor", variant: "destructive" }); return; }
+    if (selectedItems.length === 0) { toast({ title: "Select at least one BOM item", variant: "destructive" }); return; }
+    const bomItems: PoLineItem[] = selectedItems.map(r => ({
+      bomRowId: r.id,
+      materialCode: r.materialCode,
+      materialName: r.materialName,
+      unitType: r.unitType,
+      targetPrice: overrides[r.id].targetPrice,
+      quantity: overrides[r.id].quantity,
+    }));
+    setIsPending(true);
+    try {
+      await onCreate({ swatchOrderId, vendorId: Number(vendorId), notes: notes || undefined, bomItems });
+      onClose();
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h4 className="text-sm font-bold text-gray-900">Create Purchase Order</h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Vendor *</label>
+              <select value={vendorId} onChange={e => setVendorId(e.target.value)}
+                className="w-full mt-1 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
+                <option value="">Select vendor…</option>
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Notes (optional)</label>
+              <input value={notes} onChange={e => setNotes(e.target.value)}
+                className="w-full mt-1 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                placeholder="Add notes…" />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide mb-2">
+              Select BOM Items <span className="text-gray-400 normal-case">(check items to include in this PO)</span>
+            </p>
+            {bomRows.length === 0 ? (
+              <p className="text-xs text-gray-400 italic py-3 text-center">No BOM rows yet. Add materials to BOM first.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="w-8 px-3 py-2"></th>
+                      <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Code</th>
+                      <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Item</th>
+                      <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">BOM Qty</th>
+                      <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Target Price (₹)</th>
+                      <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Order Qty</th>
+                      <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2">Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bomRows.map(r => {
+                      const ov = overrides[r.id] ?? { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty };
+                      const lineTotal = (parseFloat(ov.targetPrice) || 0) * (parseFloat(ov.quantity) || 0);
+                      return (
+                        <tr key={r.id} className={`border-b border-gray-50 transition-colors ${ov.checked ? "bg-amber-50/50" : "hover:bg-gray-50/50"}`}>
+                          <td className="px-3 py-2.5 text-center">
+                            <input type="checkbox" checked={ov.checked} onChange={() => toggleRow(r.id)}
+                              className="w-3.5 h-3.5 rounded accent-gray-900 cursor-pointer" />
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[9px] px-1 py-0.5 rounded font-bold shrink-0 ${r.materialType === "fabric" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                                {r.materialType === "fabric" ? "FAB" : "MAT"}
+                              </span>
+                              <span className="text-gray-800">{r.materialName}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-500">{r.requiredQty} {r.unitType}</td>
+                          <td className="px-3 py-2.5">
+                            <input type="number" min="0" step="any" value={ov.targetPrice}
+                              disabled={!ov.checked}
+                              onChange={e => setField(r.id, "targetPrice", e.target.value)}
+                              className={`w-24 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-900/20 ${!ov.checked ? "opacity-30 cursor-not-allowed" : ""}`} />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <input type="number" min="0" step="any" value={ov.quantity}
+                              disabled={!ov.checked}
+                              onChange={e => setField(r.id, "quantity", e.target.value)}
+                              className={`w-20 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-900/20 ${!ov.checked ? "opacity-30 cursor-not-allowed" : ""}`} />
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-gray-700">
+                            {ov.checked ? `₹${lineTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {selectedItems.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-gray-50 border-t border-gray-200">
+                        <td colSpan={6} className="px-3 py-2 text-right text-xs font-semibold text-gray-500">
+                          {selectedItems.length} item{selectedItems.length > 1 ? "s" : ""} selected · Target Total
+                        </td>
+                        <td className="px-3 py-2 text-right font-bold text-gray-900">₹{totalTarget.toFixed(2)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-2 items-center">
+          <button onClick={handleSubmit} disabled={isPending}
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            Create PO
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-xs text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
+          {selectedItems.length > 0 && (
+            <span className="ml-auto text-[11px] text-gray-400">{selectedItems.length} item{selectedItems.length > 1 ? "s" : ""} · ₹{totalTarget.toFixed(2)}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PO Card ─────────────────────────────────────────────────────────────────
 function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; swatchOrderId: number; onCreatePR: (poId: number, vendorName: string) => void }) {
   const { toast } = useToast();
@@ -436,6 +604,7 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
   const deletePO = useDeletePO();
   const { data: prs = [] } = useSwatchPRs(open ? swatchOrderId : -1);
   const poPrs = prs.filter(p => p.poId === po.id);
+  const items: PoLineItem[] = po.bomItems ?? [];
 
   const canAdvance = po.status !== "Closed";
   const nextStatus = PO_STATUSES[PO_STATUSES.indexOf(po.status) + 1];
@@ -454,6 +623,11 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-mono font-bold text-gray-700">{po.poNumber}</span>
             <StatusBadge status={po.status} map={PO_STATUS_COLORS} />
+            {items.length > 0 && (
+              <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                <Package className="h-3 w-3" />{items.length} item{items.length > 1 ? "s" : ""}
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{po.vendorName} · {new Date(po.poDate).toLocaleDateString()}</p>
           {po.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{po.notes}</p>}
@@ -483,10 +657,45 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
       </div>
 
       {open && (
-        <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50/40">
-          {poPrs.length === 0
-            ? <p className="text-xs text-gray-400 italic text-center py-2">No purchase receipts yet. {canCreatePR ? 'Use "Create PR" above.' : `Advance PO to Approved first.`}</p>
-            : poPrs.map(pr => <PrAccordion key={pr.id} pr={pr} swatchOrderId={swatchOrderId} />)}
+        <div className="border-t border-gray-100 bg-gray-50/40">
+          {items.length > 0 && (
+            <div className="p-4 border-b border-gray-100">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Ordered Items</p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    {["Code", "Item", "Qty", "Target Price", "Line Total"].map(h => (
+                      <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-2 py-1.5">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="px-2 py-2 font-mono text-[10px] text-gray-500">{item.materialCode}</td>
+                      <td className="px-2 py-2 text-gray-800">{item.materialName}</td>
+                      <td className="px-2 py-2 text-gray-600">{item.quantity} {item.unitType}</td>
+                      <td className="px-2 py-2 text-gray-600">₹{parseFloat(item.targetPrice).toFixed(2)}</td>
+                      <td className="px-2 py-2 font-semibold text-gray-900">
+                        ₹{((parseFloat(item.targetPrice) || 0) * (parseFloat(item.quantity) || 0)).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50">
+                    <td colSpan={4} className="px-2 py-1.5 text-right text-[10px] font-semibold text-gray-500">Total Target</td>
+                    <td className="px-2 py-1.5 font-bold text-gray-900">
+                      ₹{items.reduce((s, i) => s + (parseFloat(i.targetPrice) || 0) * (parseFloat(i.quantity) || 0), 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="p-4 space-y-3">
+            {poPrs.length === 0
+              ? <p className="text-xs text-gray-400 italic text-center py-2">No purchase receipts yet. {canCreatePR ? 'Use "Create PR" above.' : `Advance PO to Approved first.`}</p>
+              : poPrs.map(pr => <PrAccordion key={pr.id} pr={pr} swatchOrderId={swatchOrderId} />)}
+          </div>
         </div>
       )}
     </div>
@@ -497,22 +706,17 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
 function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { toast } = useToast();
   const { data: pos = [], isLoading } = useSwatchPOs(swatchOrderId);
-  const { data: allPrs = [] } = useSwatchPRs(swatchOrderId);
+  const { data: bomRows = [] } = useSwatchBom(swatchOrderId);
   const { data: vendors = [] } = useAllVendors();
   const createPO = useCreatePO();
   const createPR = useCreatePR();
 
-  const [showPoForm, setShowPoForm] = useState(false);
-  const [poForm, setPoForm] = useState({ vendorId: "", notes: "" });
-
+  const [showPoModal, setShowPoModal] = useState(false);
   const [prModal, setPrModal] = useState<{ poId: number; vendorName: string } | null>(null);
   const [prForm, setPrForm] = useState({ receivedQty: "", actualPrice: "", warehouseLocation: "" });
 
-  async function handleCreatePO() {
-    if (!poForm.vendorId) { toast({ title: "Select a vendor", variant: "destructive" }); return; }
-    await createPO.mutateAsync({ swatchOrderId, vendorId: Number(poForm.vendorId), notes: poForm.notes || undefined });
-    setPoForm({ vendorId: "", notes: "" });
-    setShowPoForm(false);
+  async function handleCreatePO(payload: Record<string, unknown>) {
+    await createPO.mutateAsync(payload);
     toast({ title: "Purchase Order created" });
   }
 
@@ -529,39 +733,11 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<ShoppingCart className="h-4 w-4" />} title="Purchase Orders">
-        <button onClick={() => setShowPoForm(v => !v)}
+        <button onClick={() => setShowPoModal(true)}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
           <Plus className="h-3.5 w-3.5" /> Create PO
         </button>
       </SectionHeader>
-
-      {showPoForm && (
-        <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-gray-500 font-medium">Vendor *</label>
-              <select value={poForm.vendorId} onChange={e => setPoForm(f => ({ ...f, vendorId: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
-                <option value="">Select vendor…</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] text-gray-500 font-medium">Notes (optional)</label>
-              <input value={poForm.notes} onChange={e => setPoForm(f => ({ ...f, notes: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                placeholder="Add notes…" />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleCreatePO} disabled={createPO.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">
-              {createPO.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Create PO
-            </button>
-            <button onClick={() => setShowPoForm(false)} className="px-4 py-2 rounded-xl text-xs text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
-          </div>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="py-6 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" /></div>
@@ -574,6 +750,16 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
               onCreatePR={(poId, vendorName) => setPrModal({ poId, vendorName })} />
           ))}
         </div>
+      )}
+
+      {showPoModal && (
+        <CreatePoModal
+          swatchOrderId={swatchOrderId}
+          bomRows={bomRows}
+          vendors={vendors}
+          onClose={() => setShowPoModal(false)}
+          onCreate={handleCreatePO}
+        />
       )}
 
       {prModal && (
