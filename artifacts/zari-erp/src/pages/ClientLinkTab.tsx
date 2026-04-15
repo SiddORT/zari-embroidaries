@@ -3,11 +3,11 @@ import {
   Link2, Copy, Check, ExternalLink, Eye, EyeOff, RefreshCw,
   Globe, GlobeLock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Loader2, Send, Paperclip, X, CheckCheck, LockKeyhole, UnlockKeyhole,
-  MessageSquare,
+  MessageSquare, RotateCcw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useClientLink, useClientMessages, useUpdateClientLink,
+  useClientLink, useClientMessages, useClientFeedback, useUpdateClientLink,
   useRegenerateLink, useSendTeamMessage, useToggleThread,
   type ClientMessageRecord,
 } from "@/hooks/useClientLink";
@@ -72,10 +72,11 @@ function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
   );
 }
 
-function ArtworkAccordion({ aw, messages, isClosed, linkId, swatchOrderId, onLightbox }: {
+function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrderId, onLightbox }: {
   aw: { id: number; artworkCode: string; artworkName: string; wipImages: FileAttachment[]; finalImages: FileAttachment[] };
   messages: ClientMessageRecord[];
   isClosed: boolean;
+  decision: "Approve" | "Rework" | null;
   linkId: number;
   swatchOrderId: number;
   onLightbox: (artworkId: number, type: "wip" | "final", idx: number) => void;
@@ -130,11 +131,19 @@ function ArtworkAccordion({ aw, messages, isClosed, linkId, swatchOrderId, onLig
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-gray-400 shrink-0">{aw.artworkCode}</span>
           <span className={`text-sm font-semibold truncate ${isClosed ? "text-gray-400" : "text-gray-900"}`}>{aw.artworkName}</span>
-          {isClosed && (
+          {isClosed ? (
             <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-              <CheckCheck className="h-3 w-3" /> Done
+              <CheckCheck className="h-3 w-3" /> Approved
             </span>
-          )}
+          ) : decision === "Rework" ? (
+            <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+              <RotateCcw className="h-3 w-3" /> Rework Requested
+            </span>
+          ) : decision === "Approve" ? (
+            <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+              <CheckCheck className="h-3 w-3" /> Approved
+            </span>
+          ) : null}
           {!isClosed && unread > 0 && (
             <span className="shrink-0 flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-orange-500 text-white text-[10px] font-bold">
               {unread}
@@ -261,6 +270,7 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
   const { data: link, isLoading: linkLoading } = useClientLink(swatchOrderId);
   const { data: artworks, isLoading: artworksLoading } = useArtworkList(swatchOrderId);
   const { data: messages } = useClientMessages(link?.id ?? null);
+  const { data: feedbackList } = useClientFeedback(link?.id ?? null);
 
   const updateLink = useUpdateClientLink();
   const regenLink = useRegenerateLink();
@@ -470,17 +480,22 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
           </div>
         ) : (
           <div className="space-y-2">
-            {sortedArtworks.map(aw => (
-              <ArtworkAccordion
-                key={aw.id}
-                aw={aw}
-                messages={(messages ?? []).filter(m => m.artworkId === aw.id)}
-                isClosed={closedThreads.includes(aw.id)}
-                linkId={link!.id}
-                swatchOrderId={swatchOrderId}
-                onLightbox={(artworkId, type, idx) => setLightbox({ artworkId, type, idx })}
-              />
-            ))}
+            {sortedArtworks.map(aw => {
+              const awFeedback = (feedbackList ?? []).filter(f => f.artworkId === aw.id);
+              const latestDecision = awFeedback[awFeedback.length - 1]?.decision ?? null;
+              return (
+                <ArtworkAccordion
+                  key={aw.id}
+                  aw={aw}
+                  messages={(messages ?? []).filter(m => m.artworkId === aw.id)}
+                  isClosed={closedThreads.includes(aw.id)}
+                  decision={latestDecision as "Approve" | "Rework" | null}
+                  linkId={link!.id}
+                  swatchOrderId={swatchOrderId}
+                  onLightbox={(artworkId, type, idx) => setLightbox({ artworkId, type, idx })}
+                />
+              );
+            })}
           </div>
         )}
       </div>

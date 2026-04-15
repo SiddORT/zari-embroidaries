@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, ZoomIn, Package, User, Layers,
   Send, Paperclip, X, CheckCheck, LockKeyhole, Loader2,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, CheckCircle, RotateCcw,
 } from "lucide-react";
 
 interface FileAttachment { name: string; type: string; data: string; size: number }
@@ -26,6 +26,7 @@ interface PortalArtwork {
   wipImages: FileAttachment[];
   finalImages: FileAttachment[];
   isClosed: boolean;
+  decision: "Approve" | "Rework" | null;
 }
 
 interface PortalOrder {
@@ -122,7 +123,7 @@ function ChatBubble({ msg }: { msg: PortalMessage }) {
         </p>
       </div>
       {!isTeam && (
-        <div className="h-7 w-7 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-white">You</div>
+        <div className="h-7 w-7 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white">YOU</div>
       )}
     </div>
   );
@@ -137,51 +138,61 @@ function ArtworkThread({ artwork, messages, token, onRefetch }: {
   const [open, setOpen] = useState(!artwork.isClosed);
   const [text, setText] = useState("");
   const [attachFile, setAttachFile] = useState<FileAttachment | null>(null);
+  const [decisionPick, setDecisionPick] = useState<"Approve" | "Rework" | null>(null);
+  const [decisionComment, setDecisionComment] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const hasImages = artwork.wipImages.length > 0 || artwork.finalImages.length > 0;
 
-  const send = useMutation({
+  const sendMsg = useMutation({
     mutationFn: async () => {
       const r = await fetch(`/api/client-portal/${token}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          artworkId: artwork.id,
-          artworkName: artwork.artworkName,
-          message: text.trim() || undefined,
-          attachment: attachFile ?? undefined,
-        }),
+        body: JSON.stringify({ artworkId: artwork.id, artworkName: artwork.artworkName, message: text.trim() || undefined, attachment: attachFile ?? undefined }),
       });
       if (!r.ok) { const j = await r.json() as { error?: string }; throw new Error(j.error ?? "Failed"); }
     },
-    onSuccess: () => {
-      setText("");
-      setAttachFile(null);
-      onRefetch();
+    onSuccess: () => { setText(""); setAttachFile(null); onRefetch(); },
+  });
+
+  const submitDecision = useMutation({
+    mutationFn: async (decision: "Approve" | "Rework") => {
+      const r = await fetch(`/api/client-portal/${token}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artworkId: artwork.id, artworkName: artwork.artworkName, decision, comment: decisionComment.trim() || undefined }),
+      });
+      if (!r.ok) { const j = await r.json() as { error?: string }; throw new Error(j.error ?? "Failed"); }
     },
+    onSuccess: () => { setDecisionPick(null); setDecisionComment(""); onRefetch(); },
   });
 
   function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
-      setAttachFile({ name: file.name, type: file.type, data: ev.target?.result as string, size: file.size });
-    };
+    reader.onload = ev => setAttachFile({ name: file.name, type: file.type, data: ev.target?.result as string, size: file.size });
     reader.readAsDataURL(file);
   }
 
+  const decisionBadge = artwork.isClosed
+    ? { label: "Approved", cls: "bg-green-100 text-green-700" }
+    : artwork.decision === "Rework"
+    ? { label: "Rework Requested", cls: "bg-orange-100 text-orange-700" }
+    : null;
+
   return (
     <div className={`rounded-2xl border overflow-hidden shadow-sm ${artwork.isClosed ? "border-gray-100 bg-gray-50/50" : "bg-white border-gray-200"}`}>
-      {/* Artwork header */}
+      {/* Header */}
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50/50 transition-colors">
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-gray-400 shrink-0">{artwork.artworkCode}</span>
           <h3 className={`text-sm font-semibold truncate ${artwork.isClosed ? "text-gray-400" : "text-gray-900"}`}>{artwork.artworkName}</h3>
-          {artwork.isClosed && (
-            <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-              <CheckCheck className="h-3 w-3" /> Done
+          {decisionBadge && (
+            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1 ${decisionBadge.cls}`}>
+              {artwork.isClosed ? <CheckCheck className="h-3 w-3" /> : <RotateCcw className="h-3 w-3" />}
+              {decisionBadge.label}
             </span>
           )}
         </div>
@@ -199,51 +210,119 @@ function ArtworkThread({ artwork, messages, token, onRefetch }: {
             </div>
           )}
 
-          {/* Chat messages */}
+          {/* Chat thread */}
           <div className="px-5 py-4 space-y-3 min-h-[60px]">
-            {messages.length === 0 && (
-              <p className="text-sm text-gray-400 italic text-center py-2">No messages yet. Start the conversation below.</p>
+            {messages.length === 0 && !artwork.isClosed && (
+              <p className="text-sm text-gray-400 italic text-center py-2">No messages yet. Use the chat below or submit your decision.</p>
             )}
             {messages.map(m => <ChatBubble key={m.id} msg={m} />)}
           </div>
 
-          {/* Input */}
           {artwork.isClosed ? (
+            /* Thread closed — Approved */
             <div className="mx-5 mb-4 flex items-center gap-2 px-4 py-3 rounded-xl bg-green-50 border border-green-200">
-              <LockKeyhole className="h-4 w-4 text-green-600 shrink-0" />
-              <p className="text-xs text-green-700 font-medium">Thread closed — the team has reviewed this artwork.</p>
+              <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+              <p className="text-sm font-semibold text-green-700">You approved this artwork.</p>
             </div>
           ) : (
-            <div className="px-5 pb-4 space-y-2">
-              {attachFile && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
-                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate flex-1">{attachFile.name}</span>
-                  <button onClick={() => setAttachFile(null)} className="shrink-0 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
+            <div className="px-5 pb-5 space-y-4">
+              {/* ── Chat input ── */}
+              <div className="space-y-2">
+                {attachFile && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate flex-1">{attachFile.name}</span>
+                    <button onClick={() => setAttachFile(null)} className="shrink-0 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                )}
+                <div className="flex gap-2 items-end">
+                  <textarea
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg.mutate(); } }}
+                    placeholder="Type a message or comment…"
+                    rows={2}
+                    className="flex-1 text-sm text-gray-900 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
+                  />
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <button onClick={() => fileRef.current?.click()}
+                      className="flex items-center justify-center h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+                      <Paperclip className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => sendMsg.mutate()}
+                      disabled={sendMsg.isPending || (!text.trim() && !attachFile)}
+                      className="flex items-center justify-center h-9 w-9 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors disabled:opacity-50">
+                      {sendMsg.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <input ref={fileRef} type="file" className="hidden" onChange={pickFile} />
                 </div>
-              )}
-              <div className="flex gap-2 items-end">
-                <textarea
-                  value={text}
-                  onChange={e => setText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.mutate(); } }}
-                  placeholder="Type a message…"
-                  rows={2}
-                  className="flex-1 text-sm text-gray-900 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
-                />
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  <button onClick={() => fileRef.current?.click()}
-                    className="flex items-center justify-center h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
-                    <Paperclip className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => send.mutate()}
-                    disabled={send.isPending || (!text.trim() && !attachFile)}
-                    className="flex items-center justify-center h-9 w-9 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors disabled:opacity-50">
-                    {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </button>
-                </div>
-                <input ref={fileRef} type="file" className="hidden" onChange={pickFile} />
+              </div>
+
+              {/* ── Decision section ── */}
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submit Decision</p>
+
+                {/* Decision buttons */}
+                {decisionPick === null ? (
+                  <div className="flex gap-3">
+                    <button onClick={() => setDecisionPick("Approve")}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 text-sm font-semibold hover:bg-green-100 hover:border-green-400 transition-all">
+                      <CheckCircle className="h-4 w-4" /> Approve
+                    </button>
+                    <button onClick={() => setDecisionPick("Rework")}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold hover:bg-orange-100 hover:border-orange-400 transition-all">
+                      <RotateCcw className="h-4 w-4" /> Request Rework
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${decisionPick === "Approve" ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"}`}>
+                      {decisionPick === "Approve"
+                        ? <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                        : <RotateCcw className="h-4 w-4 text-orange-600 shrink-0" />}
+                      <span className={`text-sm font-semibold ${decisionPick === "Approve" ? "text-green-700" : "text-orange-700"}`}>
+                        {decisionPick === "Approve" ? "Approve this artwork" : "Request Rework"}
+                      </span>
+                      <button onClick={() => setDecisionPick(null)} className="ml-auto text-gray-400 hover:text-gray-600">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <textarea
+                      value={decisionComment}
+                      onChange={e => setDecisionComment(e.target.value)}
+                      placeholder={decisionPick === "Rework" ? "Describe what changes are needed…" : "Add a note (optional)…"}
+                      rows={3}
+                      className="w-full text-sm text-gray-900 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
+                    />
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => submitDecision.mutate(decisionPick)}
+                        disabled={submitDecision.isPending}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 shadow-sm ${
+                          decisionPick === "Approve"
+                            ? "bg-green-600 text-white hover:bg-green-700"
+                            : "bg-orange-500 text-white hover:bg-orange-600"}`}>
+                        {submitDecision.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : decisionPick === "Approve" ? <CheckCircle className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+                        {submitDecision.isPending ? "Submitting…" : `Confirm ${decisionPick === "Approve" ? "Approval" : "Rework Request"}`}
+                      </button>
+                      <button onClick={() => { setDecisionPick(null); setDecisionComment(""); }}
+                        className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                    {decisionPick === "Approve" && (
+                      <p className="text-xs text-gray-400">Approving will close this thread and lock further messages.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Current decision status */}
+                {artwork.decision === "Rework" && decisionPick === null && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-100 text-xs text-orange-700">
+                    <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                    <span>Rework requested — continue chatting or approve when ready.</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -303,10 +382,10 @@ export default function ClientPortal() {
   if (!data) return null;
 
   const { order, artworks, messages = [] } = data;
-
   const openArtworks = artworks.filter(a => !a.isClosed);
   const closedArtworks = artworks.filter(a => a.isClosed);
   const sortedArtworks = [...openArtworks, ...closedArtworks];
+  const pendingCount = openArtworks.filter(a => !a.decision).length;
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
@@ -384,11 +463,14 @@ export default function ClientPortal() {
           </div>
         )}
 
-        {/* Artworks */}
+        {/* Artworks header */}
         <div className="flex items-center gap-2 px-1">
           <Layers className="h-3.5 w-3.5 text-gray-400" />
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex-1">Artworks</p>
-          <p className="text-xs text-gray-400">{closedArtworks.length}/{artworks.length} done</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex-1">Artworks for Review</p>
+          {pendingCount > 0
+            ? <span className="text-xs font-semibold text-orange-500">{pendingCount} awaiting decision</span>
+            : <span className="text-xs text-gray-400">{closedArtworks.length}/{artworks.length} approved</span>
+          }
         </div>
 
         {artworks.length === 0 ? (
