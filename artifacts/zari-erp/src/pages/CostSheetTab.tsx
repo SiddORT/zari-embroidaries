@@ -1,5 +1,6 @@
-import { useRef } from "react";
-import { Printer, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Printer, Loader2, RefreshCw } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useSwatchBom, useSwatchPOs, useSwatchPRs,
   useSwatchConsumptionLog, useArtisanTimesheets,
@@ -93,6 +94,20 @@ export default function CostSheetTab({
   clientName?: string;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await qc.invalidateQueries({ queryKey: ["swatch-bom", swatchOrderId] });
+    await qc.invalidateQueries({ queryKey: ["swatch-pos", swatchOrderId] });
+    await qc.invalidateQueries({ queryKey: ["swatch-prs", swatchOrderId] });
+    await qc.invalidateQueries({ queryKey: ["consumption-log", swatchOrderId] });
+    await qc.invalidateQueries({ queryKey: ["artisan-timesheets", swatchOrderId] });
+    await qc.invalidateQueries({ queryKey: ["outsource-jobs", swatchOrderId] });
+    await qc.invalidateQueries({ queryKey: ["custom-charges", swatchOrderId] });
+    setRefreshing(false);
+  }
 
   const { data: bomRows = [], isLoading: loadingBom } = useSwatchBom(swatchOrderId);
   const { data: pos = [], isLoading: loadingPos } = useSwatchPOs(swatchOrderId);
@@ -146,10 +161,17 @@ export default function CostSheetTab({
           <h2 className="text-sm font-bold text-gray-900">Cost Sheet</h2>
           <p className="text-xs text-gray-400">Consolidated cost summary for this order</p>
         </div>
-        <button onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors">
-          <Printer className="h-3.5 w-3.5" /> Print / Save PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { void handleRefresh(); }} disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          <button onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors">
+            <Printer className="h-3.5 w-3.5" /> Print / Save PDF
+          </button>
+        </div>
       </div>
 
       {/* Printable cost sheet */}
