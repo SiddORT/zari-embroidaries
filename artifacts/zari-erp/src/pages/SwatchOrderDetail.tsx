@@ -66,10 +66,10 @@ const TABS = [
   { label: "Basic Info",   icon: "🗂" },
   { label: "References",   icon: "🔗" },
   { label: "Artworks",     icon: "🎨" },
+  { label: "Client Link",  icon: "🔗" },
   { label: "Estimate",     icon: "📊" },
   { label: "Costing",      icon: "💰" },
   { label: "Cost Sheet",   icon: "📋" },
-  { label: "Client Link",  icon: "🔗" },
   { label: "Invoice",      icon: "🧾" },
 ];
 
@@ -1050,8 +1050,13 @@ export default function SwatchOrderDetail() {
           )}
         </div>} {/* ── end Tab 2 ── */}
 
-        {/* ══ TAB 3: Estimate ══ */}
-        {activeTab === 3 && (
+        {/* ══ TAB 3: Client Link ══ */}
+        {activeTab === 3 && numId && (
+          <ClientLinkTab swatchOrderId={numId} />
+        )}
+
+        {/* ══ TAB 4: Estimate ══ */}
+        {activeTab === 4 && (
           <div className="space-y-5">
 
             {/* Estimate Items Input */}
@@ -1214,8 +1219,8 @@ export default function SwatchOrderDetail() {
           </div>
         )}
 
-        {/* ══ TAB 4: Costing ══ */}
-        {activeTab === 4 && numId && (
+        {/* ══ TAB 5: Costing ══ */}
+        {activeTab === 5 && numId && (
           <CostingTab
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
@@ -1224,19 +1229,14 @@ export default function SwatchOrderDetail() {
           />
         )}
 
-        {/* ══ TAB 5: Cost Sheet ══ */}
-        {activeTab === 5 && numId && (
+        {/* ══ TAB 6: Cost Sheet ══ */}
+        {activeTab === 6 && numId && (
           <CostSheetTab
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
             swatchName={orderData?.data?.swatchName ?? undefined}
             clientName={orderData?.data?.clientName ?? undefined}
           />
-        )}
-
-        {/* ══ TAB 6: Client Link ══ */}
-        {activeTab === 6 && numId && (
-          <ClientLinkTab swatchOrderId={numId} />
         )}
 
         {/* ══ TAB 7: Invoice ══ */}

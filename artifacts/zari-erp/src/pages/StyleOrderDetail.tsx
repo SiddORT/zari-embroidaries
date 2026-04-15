@@ -19,6 +19,7 @@ import ProductsTab from "./ProductsTab";
 import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 import StyleCostingTab from "./StyleCostingTab";
 import StyleCostSheetTab from "./StyleCostSheetTab";
+import StyleClientLinkTab from "./StyleClientLinkTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -61,7 +62,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TABS = [
   "Basic Info", "References", "Products", "Artworks",
-  "Estimate", "Costing", "Cost Sheet", "Client Link", "Invoice",
+  "Client Link", "Estimate", "Costing", "Cost Sheet", "Invoice",
 ];
 
 // ── Form ──────────────────────────────────────────────────────────────────────
@@ -751,8 +752,14 @@ export default function StyleOrderDetail() {
             <StyleOrderArtworksTab styleOrderId={numId} isNew={isNew} />
           )}
 
-          {/* ══ TAB 4: Estimate ════════════════════════════════════════════ */}
-          {activeTab === 4 && (
+          {/* ══ TAB 4: Client Link ═════════════════════════════════════════ */}
+          {activeTab === 4 && isNew && <PlaceholderTab icon="🔗" label="Client Link (save order first)" />}
+          {activeTab === 4 && !isNew && numId && (
+            <StyleClientLinkTab styleOrderId={numId} />
+          )}
+
+          {/* ══ TAB 5: Estimate ════════════════════════════════════════════ */}
+          {activeTab === 5 && (
             <div className="space-y-5">
 
               {/* Estimate Items */}
@@ -913,8 +920,8 @@ export default function StyleOrderDetail() {
             </div>
           )}
 
-          {/* ══ TAB 5: Costing ═════════════════════════════════════════════ */}
-          {activeTab === 5 && !isNew && (
+          {/* ══ TAB 6: Costing ═════════════════════════════════════════════ */}
+          {activeTab === 6 && !isNew && (
             <StyleCostingTab
               styleOrderId={numId}
               orderCode={orderData?.data?.orderCode}
@@ -922,11 +929,11 @@ export default function StyleOrderDetail() {
               clientName={form.clientName}
             />
           )}
-          {activeTab === 5 && isNew && <PlaceholderTab icon="💰" label="Costing (save order first)" />}
+          {activeTab === 6 && isNew && <PlaceholderTab icon="💰" label="Costing (save order first)" />}
 
-          {/* ══ TAB 6: Cost Sheet ══════════════════════════════════════════ */}
-          {activeTab === 6 && isNew && <PlaceholderTab icon="📋" label="Cost Sheet (save order first)" />}
-          {activeTab === 6 && !isNew && numId && (
+          {/* ══ TAB 7: Cost Sheet ══════════════════════════════════════════ */}
+          {activeTab === 7 && isNew && <PlaceholderTab icon="📋" label="Cost Sheet (save order first)" />}
+          {activeTab === 7 && !isNew && numId && (
             <StyleCostSheetTab
               styleOrderId={numId}
               orderCode={orderData?.data?.orderCode}
@@ -934,9 +941,6 @@ export default function StyleOrderDetail() {
               clientName={form.clientName}
             />
           )}
-
-          {/* ══ TAB 7: Client Link ═════════════════════════════════════════ */}
-          {activeTab === 7 && <PlaceholderTab icon="🔗" label="Client Link" />}
 
           {/* ══ TAB 8: Invoice ═════════════════════════════════════════════ */}
           {activeTab === 8 && <PlaceholderTab icon="🧾" label="Invoice" />}

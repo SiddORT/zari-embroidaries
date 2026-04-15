@@ -9,7 +9,8 @@ export interface HiddenImage {
 
 export interface ClientLinkRecord {
   id: number;
-  swatchOrderId: number;
+  swatchOrderId: number | null;
+  styleOrderId: number | null;
   token: string;
   isPublished: boolean;
   hiddenImages: HiddenImage[];
@@ -192,6 +193,85 @@ export function useToggleThread() {
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["client-link", data.swatchOrderId] });
+    },
+  });
+}
+
+// ─── Style Order Client Link ──────────────────────────────────────────────────
+
+export function useStyleClientLink(styleOrderId: number | null) {
+  return useQuery<ClientLinkRecord>({
+    queryKey: ["style-client-link", styleOrderId],
+    enabled: !!styleOrderId,
+    queryFn: async () => {
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/style/${styleOrderId}`
+      );
+      return result.data;
+    },
+  });
+}
+
+export function useUpdateStyleClientLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: Partial<Pick<ClientLinkRecord, "isPublished" | "hiddenImages" | "portalTitle" | "closedThreads">>;
+    }) => {
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/${id}`,
+        { method: "PATCH", body: JSON.stringify(data) }
+      );
+      return result.data;
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["style-client-link", data.styleOrderId] });
+    },
+  });
+}
+
+export function useRegenerateStyleLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, styleOrderId }: { id: number; styleOrderId: number }) => {
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/${id}/regenerate`,
+        { method: "POST" }
+      );
+      return { ...result.data, styleOrderId };
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["style-client-link", data.styleOrderId] });
+    },
+  });
+}
+
+export function useToggleStyleThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      linkId,
+      styleOrderId,
+      artworkId,
+      closed,
+    }: {
+      linkId: number;
+      styleOrderId: number;
+      artworkId: number;
+      closed: boolean;
+    }) => {
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/${linkId}/threads/toggle`,
+        { method: "PATCH", body: JSON.stringify({ artworkId, closed }) }
+      );
+      return { ...result.data, styleOrderId };
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["style-client-link", data.styleOrderId] });
     },
   });
 }

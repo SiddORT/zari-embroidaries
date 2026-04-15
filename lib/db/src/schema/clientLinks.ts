@@ -3,7 +3,8 @@ import { z } from "zod/v4";
 
 export const clientLinksTable = pgTable("client_links", {
   id: serial("id").primaryKey(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
   token: text("token").notNull().unique(),
   isPublished: boolean("is_published").notNull().default(false),
   hiddenImages: jsonb("hidden_images").default([]),

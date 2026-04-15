@@ -19,6 +19,19 @@ router.get("/client-links/swatch/:swatchOrderId", requireAuth, async (req, res):
   res.json({ data: link });
 });
 
+router.get("/client-links/style/:styleOrderId", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.styleOrderId);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  let [link] = await db.select().from(clientLinksTable).where(eq(clientLinksTable.styleOrderId, id));
+  if (!link) {
+    const token = randomBytes(16).toString("hex");
+    const [created] = await db.insert(clientLinksTable).values({ styleOrderId: id, token }).returning();
+    link = created;
+  }
+  res.json({ data: link });
+});
+
 router.patch("/client-links/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
