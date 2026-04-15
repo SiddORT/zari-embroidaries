@@ -422,6 +422,28 @@ export default function ArtworkDetail() {
 
                 {form.artworkCreated === "Outsource" && (
                   <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Work Hours" hint="Hours spent on this artwork">
+                        <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                          type="number" min="0" step="0.5" placeholder="e.g. 8" readOnly={isViewMode}
+                          value={form.workHours}
+                          onChange={e => {
+                            set("workHours", e.target.value);
+                            const computed = computeTotalCost(form.hourlyRate, e.target.value);
+                            if (computed) set("totalCost", computed);
+                          }} />
+                      </Field>
+                      <Field label="Hourly Rate" hint="Cost per hour">
+                        <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                          type="number" min="0" step="0.01" placeholder="e.g. 250" readOnly={isViewMode}
+                          value={form.hourlyRate}
+                          onChange={e => {
+                            set("hourlyRate", e.target.value);
+                            const computed = computeTotalCost(e.target.value, form.workHours);
+                            if (computed) set("totalCost", computed);
+                          }} />
+                      </Field>
+                    </div>
                     <Field label="Vendor">
                       <AddableSelect
                         options={vendorOptions}

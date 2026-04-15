@@ -35,6 +35,7 @@ export const styleOrdersTable = pgTable("style_orders", {
   swatchReferences: jsonb("swatch_references").default([]),
   refDocs: jsonb("ref_docs").default([]),
   refImages: jsonb("ref_images").default([]),
+  estimate: jsonb("estimate").default([]),
 
   actualStartDate: text("actual_start_date"),
   actualStartTime: text("actual_start_time"),
@@ -79,6 +80,7 @@ export const insertStyleOrderSchema = z.object({
   swatchReferences: z.array(z.any()).optional(),
   refDocs: z.array(z.any()).optional(),
   refImages: z.array(z.any()).optional(),
+  estimate: z.array(z.any()).optional(),
   actualStartDate: z.string().optional(),
   actualStartTime: z.string().optional(),
   tentativeDeliveryDate: z.string().optional(),

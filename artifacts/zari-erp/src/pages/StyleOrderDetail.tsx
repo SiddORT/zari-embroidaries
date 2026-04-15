@@ -20,6 +20,23 @@ import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
+
+const STANDARD_ESTIMATE_ITEMS = [
+  "Sampling", "Artwork", "Material", "Embroidery",
+  "Fabric", "QC", "Travel", "Overheads",
+];
+
+interface EstimateItem {
+  id: string;
+  label: string;
+  rate: string;
+  isCustom: boolean;
+}
+
+function makeDefaultEstimate(): EstimateItem[] {
+  return STANDARD_ESTIMATE_ITEMS.map(label => ({ id: label.toLowerCase(), label, rate: "", isCustom: false }));
+}
+
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -71,6 +88,7 @@ type FormState = {
   swatchReferences: ReferenceItem[];
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  estimate: EstimateItem[];
   actualStartDate: string;
   actualStartTime: string;
   tentativeDeliveryDate: string;
@@ -89,6 +107,7 @@ const EMPTY_FORM: FormState = {
   internalNotes: "", clientInstructions: "", isChargeable: false,
   styleReferences: [], swatchReferences: [],
   refDocs: [], refImages: [],
+  estimate: makeDefaultEstimate(),
   actualStartDate: "", actualStartTime: "",
   tentativeDeliveryDate: "", actualCompletionDate: "",
   actualCompletionTime: "", delayReason: "", approvalDate: "",
@@ -279,6 +298,16 @@ export default function StyleOrderDetail() {
         swatchReferences: o.swatchReferences ?? [],
         refDocs: o.refDocs ?? [],
         refImages: o.refImages ?? [],
+        estimate: (() => {
+          const saved = (o.estimate ?? []) as EstimateItem[];
+          const defaults = makeDefaultEstimate();
+          const merged = defaults.map(def => {
+            const found = saved.find(s => s.id === def.id && !s.isCustom);
+            return found ? { ...def, rate: found.rate ?? "" } : def;
+          });
+          const custom = saved.filter(s => s.isCustom);
+          return [...merged, ...custom];
+        })(),
         actualStartDate: o.actualStartDate ?? "",
         actualStartTime: o.actualStartTime ?? "",
         tentativeDeliveryDate: o.tentativeDeliveryDate ?? "",
@@ -721,7 +750,166 @@ export default function StyleOrderDetail() {
           )}
 
           {/* ══ TAB 4: Estimate ════════════════════════════════════════════ */}
-          {activeTab === 4 && <PlaceholderTab icon="📊" label="Estimate" />}
+          {activeTab === 4 && (
+            <div className="space-y-5">
+
+              {/* Estimate Items */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-gray-900">
+                    <span className="text-sm">📊</span>
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-sm font-semibold text-gray-900">Estimate Items</h2>
+                    <p className="text-xs text-gray-400">Enter rates for each cost component</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="text-left text-xs font-semibold text-gray-500 px-6 py-3 w-full">Item</th>
+                        <th className="text-right text-xs font-semibold text-gray-500 px-6 py-3 whitespace-nowrap">Rate (₹)</th>
+                        <th className="px-4 py-3 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {form.estimate.map((item, idx) => (
+                        <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
+                          <td className="px-6 py-3">
+                            {item.isCustom ? (
+                              <input
+                                className="w-full text-sm text-gray-900 bg-transparent border-b border-dashed border-gray-300 focus:border-gray-900 focus:outline-none py-0.5 placeholder:text-gray-400"
+                                placeholder="Service name…"
+                                value={item.label}
+                                onChange={e => {
+                                  const updated = [...form.estimate];
+                                  updated[idx] = { ...updated[idx], label: e.target.value };
+                                  set("estimate", updated);
+                                }}
+                              />
+                            ) : (
+                              <span className="text-sm font-medium text-gray-800">{item.label}</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-xs text-gray-400">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                className="w-32 text-right text-sm text-gray-900 border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-300 bg-white"
+                                value={item.rate}
+                                onChange={e => {
+                                  const updated = [...form.estimate];
+                                  updated[idx] = { ...updated[idx], rate: e.target.value };
+                                  set("estimate", updated);
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {item.isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => set("estimate", form.estimate.filter((_, i) => i !== idx))}
+                                title="Remove"
+                                className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const customId = `custom_${Date.now()}`;
+                      set("estimate", [...form.estimate, { id: customId, label: "", rate: "", isCustom: true }]);
+                    }}
+                    className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">
+                    <Plus className="h-4 w-4" />
+                    Add Custom Service
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {(() => {
+                const lineItems = form.estimate.filter(it => {
+                  const r = parseFloat(it.rate);
+                  return !isNaN(r) && r > 0 && it.label.trim();
+                });
+                const total = lineItems.reduce((sum, it) => sum + parseFloat(it.rate), 0);
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                      <div className="flex items-center justify-center h-8 w-8 rounded-xl bg-gray-900">
+                        <span className="text-sm">💰</span>
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-semibold text-gray-900">Summary</h2>
+                        <p className="text-xs text-gray-400">
+                          {lineItems.length > 0
+                            ? `${lineItems.length} item${lineItems.length !== 1 ? "s" : ""} · Total ₹ ${total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+                            : "No rates entered yet"}
+                        </p>
+                      </div>
+                    </div>
+                    {lineItems.length === 0 ? (
+                      <div className="px-6 py-10 text-center text-sm text-gray-400 italic">
+                        Enter rates above to see the summary
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="text-left text-xs font-semibold text-gray-500 px-6 py-3 w-full">Item</th>
+                              <th className="text-right text-xs font-semibold text-gray-500 px-6 py-3 whitespace-nowrap">Amount (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {lineItems.map((it, i) => (
+                              <tr key={i} className="hover:bg-gray-50/50">
+                                <td className="px-6 py-3 text-sm text-gray-700">{it.label}</td>
+                                <td className="px-6 py-3 text-sm text-right text-gray-900 font-medium tabular-nums">
+                                  ₹ {parseFloat(it.rate).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-gray-200 bg-gray-900">
+                              <td className="px-6 py-3.5 text-sm font-semibold text-[#C9B45C]">Grand Total</td>
+                              <td className="px-6 py-3.5 text-sm font-bold text-right text-[#C9B45C] tabular-nums">
+                                ₹ {total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Save */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => { void handleSave(); }} disabled={saving}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {saving ? "Saving…" : "Save Estimate"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ══ TAB 5: Costing ═════════════════════════════════════════════ */}
           {activeTab === 5 && <PlaceholderTab icon="💰" label="Costing" />}
