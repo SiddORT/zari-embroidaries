@@ -25,6 +25,7 @@ export interface BomRecord {
   warehouseLocation: string;
   requiredQty: string;
   estimatedAmount: string;
+  consumedQty: string;
   createdAt: string;
 }
 
@@ -101,6 +102,15 @@ export function useAddBomRow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => customFetch<{ data: BomRecord }>("/api/costing/bom", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["swatch-bom"] }); },
+  });
+}
+
+export function useUpdateBomRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; consumedQty?: string }) =>
+      customFetch<{ data: BomRecord }>(`/api/costing/bom/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["swatch-bom"] }); },
   });
 }

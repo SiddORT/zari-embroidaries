@@ -75,6 +75,15 @@ router.post("/bom", requireAuth, async (req, res) => {
   res.status(201).json({ data: row });
 });
 
+router.patch("/bom/:id", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { consumedQty } = req.body as { consumedQty?: string };
+  const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
+  if (consumedQty !== undefined) updates.consumedQty = consumedQty;
+  const [row] = await db.update(swatchBomTable).set(updates).where(eq(swatchBomTable.id, Number(req.params.id))).returning();
+  res.json({ data: row });
+});
+
 router.delete("/bom/:id", requireAuth, async (req, res) => {
   await db.delete(swatchBomTable).where(eq(swatchBomTable.id, Number(req.params.id)));
   res.json({ success: true });

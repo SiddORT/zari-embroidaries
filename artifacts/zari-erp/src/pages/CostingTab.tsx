@@ -1,15 +1,16 @@
 import { useState, useRef } from "react";
+import * as XLSX from "xlsx";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
-  ArrowRight, Paperclip, Package,
+  ArrowRight, Paperclip, Package, Info, Download, Filter,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useAllMaterials } from "@/hooks/useMaterials";
 import { useAllFabrics } from "@/hooks/useFabrics";
 import {
-  useSwatchBom, useAddBomRow, useDeleteBomRow,
+  useSwatchBom, useAddBomRow, useUpdateBomRow, useDeleteBomRow,
   useSwatchPOs, useCreatePO, useUpdatePO, useDeletePO,
   useSwatchPRs, useCreatePR, useDeletePR,
   usePrPayments, useAddPayment, useDeletePayment,
@@ -55,46 +56,53 @@ function StatusBadge({ status, map }: { status: string; map: Record<string, stri
 
 
 // ─── BOM Section ─────────────────────────────────────────────────────────────
-function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
+function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
+  swatchOrderId: number;
+  orderCode?: string;
+  swatchName?: string;
+  clientName?: string;
+}) {
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useSwatchBom(swatchOrderId);
+  const { data: pos = [] } = useSwatchPOs(swatchOrderId);
+  const { data: prs = [] } = useSwatchPRs(swatchOrderId);
   const addRow = useAddBomRow();
+  const updateRow = useUpdateBomRow();
   const deleteRow = useDeleteBomRow();
   const { data: allMaterials = [] } = useAllMaterials();
   const { data: allFabrics = [] } = useAllFabrics();
+
   const [showForm, setShowForm] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<"all" | "material" | "fabric">("all");
+  const [localConsumed, setLocalConsumed] = useState<Record<number, string>>({});
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
     currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "",
   });
 
   const estimatedAmount = (parseFloat(form.requiredQty) || 0) * (parseFloat(form.avgUnitPrice) || 0);
+  const selectedMaterialId = form.materialType === "material" ? String(form.materialId) : "";
+  const selectedFabricId = form.materialType === "fabric" ? String(form.materialId) : "";
 
   function onMaterialChange(id: string) {
     if (!id) { setForm(f => ({ ...f, materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "" })); return; }
     const m = allMaterials.find(m => String(m.id) === id);
     if (!m) return;
     setForm(f => ({
-      ...f,
-      materialType: "material", materialId: m.id,
-      materialCode: m.materialCode,
+      ...f, materialType: "material", materialId: m.id, materialCode: m.materialCode,
       materialName: [m.itemType, m.quality].filter(Boolean).join(" – "),
-      currentStock: m.currentStock, avgUnitPrice: m.unitPrice,
-      unitType: m.unitType, warehouseLocation: m.location ?? "",
+      currentStock: m.currentStock, avgUnitPrice: m.unitPrice, unitType: m.unitType, warehouseLocation: m.location ?? "",
     }));
   }
 
   function onFabricChange(id: string) {
     if (!id) { setForm(f => ({ ...f, materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "" })); return; }
-    const f = allFabrics.find(f => String(f.id) === id);
-    if (!f) return;
+    const fab = allFabrics.find(f => String(f.id) === id);
+    if (!fab) return;
     setForm(prev => ({
-      ...prev,
-      materialType: "fabric", materialId: f.id,
-      materialCode: f.fabricCode,
-      materialName: [f.fabricType, f.quality].filter(Boolean).join(" – "),
-      currentStock: f.currentStock, avgUnitPrice: f.pricePerMeter,
-      unitType: f.unitType, warehouseLocation: f.location ?? "",
+      ...prev, materialType: "fabric", materialId: fab.id, materialCode: fab.fabricCode,
+      materialName: [fab.fabricType, fab.quality].filter(Boolean).join(" – "),
+      currentStock: fab.currentStock, avgUnitPrice: fab.pricePerMeter, unitType: fab.unitType, warehouseLocation: fab.location ?? "",
     }));
   }
 
@@ -107,18 +115,85 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
     toast({ title: "BOM row added" });
   }
 
-  const totalEstimated = rows.reduce((s, r) => s + parseFloat(r.estimatedAmount || "0"), 0);
+  function getRowMetrics(r: BomRecord) {
+    const poLineItems = pos.flatMap(po => po.bomItems ?? []).filter(item => item.bomRowId === r.id);
+    const posWithRow = pos.filter(po => (po.bomItems ?? []).some(item => item.bomRowId === r.id));
+    const prsForRow = prs.filter(pr => posWithRow.some(po => po.id === pr.poId));
 
-  const selectedMaterialId = form.materialType === "material" ? String(form.materialId) : "";
-  const selectedFabricId = form.materialType === "fabric" ? String(form.materialId) : "";
+    const poTargetPrice = poLineItems.length > 0 ? parseFloat(poLineItems[poLineItems.length - 1].targetPrice || "0") : 0;
+    const poQty = poLineItems.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0);
+    const prQty = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+    const prTotal = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
+
+    const stockNum = parseFloat(r.currentStock || "0");
+    const avgPriceNum = parseFloat(r.avgUnitPrice || "0");
+    const weightedAvg = (stockNum + prQty) > 0 ? (stockNum * avgPriceNum + prTotal) / (stockNum + prQty) : avgPriceNum;
+
+    const consumedQtyNum = parseFloat(localConsumed[r.id] ?? r.consumedQty ?? "0");
+    const consumedTotal = consumedQtyNum * weightedAvg;
+
+    return { poTargetPrice, poQty, prQty, prTotal, weightedAvg, consumedQtyNum, consumedTotal };
+  }
+
+  const filteredRows = typeFilter === "all" ? rows : rows.filter(r => r.materialType === typeFilter);
+
+  function exportToExcel() {
+    const today = new Date().toLocaleDateString("en-IN");
+    const header = [
+      ["ZARI EMBROIDERIES – Bill of Materials"],
+      ["Order:", orderCode ?? "—", "Swatch:", swatchName ?? "—", "Client:", clientName ?? "—", "Date:", today],
+      [],
+      ["Code", "Material/Fabric", "Type", "Stock", "Avg Price (₹)", "Req Qty", "PO Target Price (₹)", "PO Qty", "PR Qty", "PR Total (₹)", "Consumed Qty", "Consumed Total (₹)"],
+    ];
+    const dataRows = filteredRows.map(r => {
+      const m = getRowMetrics(r);
+      return [
+        r.materialCode,
+        r.materialName,
+        r.materialType === "fabric" ? "Fabric" : "Material",
+        r.currentStock,
+        parseFloat(r.avgUnitPrice).toFixed(2),
+        r.requiredQty,
+        m.poTargetPrice > 0 ? m.poTargetPrice.toFixed(2) : "—",
+        m.poQty > 0 ? m.poQty : "—",
+        m.prQty > 0 ? m.prQty : "—",
+        m.prTotal > 0 ? m.prTotal.toFixed(2) : "—",
+        m.consumedQtyNum > 0 ? m.consumedQtyNum : "—",
+        m.consumedTotal > 0 ? m.consumedTotal.toFixed(2) : "—",
+      ];
+    });
+    const aoa = [...header, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [12, 28, 10, 10, 14, 10, 18, 10, 10, 14, 14, 18].map(w => ({ wch: w }));
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "BOM");
+    XLSX.writeFile(wb, `BOM_${orderCode ?? swatchOrderId}_${today.replace(/\//g, "-")}.xlsx`);
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<FileText className="h-4 w-4" />} title="Bill of Materials (BOM)">
-        <button onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
-          <Plus className="h-3.5 w-3.5" /> Add Material
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden text-[11px]">
+            {(["all", "material", "fabric"] as const).map(f => (
+              <button key={f} onClick={() => setTypeFilter(f)}
+                className={`px-2.5 py-1.5 font-medium transition-colors ${typeFilter === f ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+                {f === "all" ? "All" : f === "material" ? "MAT" : "FAB"}
+              </button>
+            ))}
+          </div>
+          {rows.length > 0 && (
+            <button onClick={exportToExcel}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+          )}
+          <button onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+            <Plus className="h-3.5 w-3.5" /> Add Material
+          </button>
+        </div>
       </SectionHeader>
 
       {showForm && (
@@ -129,17 +204,12 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
                 Select Material
                 {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
               </label>
-              <select
-                value={selectedMaterialId}
-                disabled={form.materialType === "fabric"}
-                onChange={e => { onMaterialChange(e.target.value); }}
-                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "fabric" ? "opacity-40 cursor-not-allowed" : ""}`}
-              >
+              <select value={selectedMaterialId} disabled={form.materialType === "fabric"}
+                onChange={e => onMaterialChange(e.target.value)}
+                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "fabric" ? "opacity-40 cursor-not-allowed" : ""}`}>
                 <option value="">— Select material —</option>
                 {allMaterials.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {[m.itemType, m.quality].filter(Boolean).join(" – ")} ({m.materialCode})
-                  </option>
+                  <option key={m.id} value={m.id}>{[m.itemType, m.quality].filter(Boolean).join(" – ")} ({m.materialCode})</option>
                 ))}
               </select>
             </div>
@@ -148,17 +218,12 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
                 Select Fabric
                 {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
               </label>
-              <select
-                value={selectedFabricId}
-                disabled={form.materialType === "material"}
-                onChange={e => { onFabricChange(e.target.value); }}
-                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "material" ? "opacity-40 cursor-not-allowed" : ""}`}
-              >
+              <select value={selectedFabricId} disabled={form.materialType === "material"}
+                onChange={e => onFabricChange(e.target.value)}
+                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "material" ? "opacity-40 cursor-not-allowed" : ""}`}>
                 <option value="">— Select fabric —</option>
                 {allFabrics.map(f => (
-                  <option key={f.id} value={f.id}>
-                    {[f.fabricType, f.quality].filter(Boolean).join(" – ")} ({f.fabricCode})
-                  </option>
+                  <option key={f.id} value={f.id}>{[f.fabricType, f.quality].filter(Boolean).join(" – ")} ({f.fabricCode})</option>
                 ))}
               </select>
             </div>
@@ -186,8 +251,7 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
           <div className="flex gap-2 items-end">
             <div className="flex-1">
               <label className="text-[10px] text-gray-500 font-medium">Required Qty</label>
-              <input type="number" min="0" step="any"
-                value={form.requiredQty}
+              <input type="number" min="0" step="any" value={form.requiredQty}
                 onChange={e => setForm(f => ({ ...f, requiredQty: e.target.value }))}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                 placeholder="0" />
@@ -210,48 +274,107 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs min-w-[1100px]">
           <thead>
-            <tr className="border-b border-gray-100">
-              {["Code", "Material / Fabric", "Stock", "Avg Price", "Unit", "Location", "Req Qty", "Est. Amount", ""].map(h => (
-                <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">{h}</th>
-              ))}
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Code</th>
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Material / Fabric</th>
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Stock</th>
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                <span className="flex items-center gap-1">
+                  Avg Price
+                  <span title="Weighted average of current stock price and all PR actual prices received" className="cursor-help text-gray-300 hover:text-gray-500">
+                    <Info className="h-3 w-3" />
+                  </span>
+                </span>
+              </th>
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Req Qty</th>
+              <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Target ₹</th>
+              <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Qty</th>
+              <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">PR Qty</th>
+              <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">PR Total</th>
+              <th className="text-left text-[10px] font-semibold text-green-600 px-3 py-2 whitespace-nowrap">Consumed Qty</th>
+              <th className="text-left text-[10px] font-semibold text-green-600 px-3 py-2 whitespace-nowrap">Consumed Total</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={9} className="px-4 py-6 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></td></tr>
-            ) : rows.length === 0 ? (
-              <EmptyRow text="No BOM rows yet. Add a material above." />
-            ) : rows.map(r => (
-              <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
-                <td className="px-3 py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[9px] px-1 py-0.5 rounded font-bold shrink-0 ${r.materialType === "fabric" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                      {r.materialType === "fabric" ? "FAB" : "MAT"}
-                    </span>
-                    <span className="text-gray-800 font-medium">{r.materialName}</span>
-                  </div>
+              <tr><td colSpan={12} className="px-4 py-6 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></td></tr>
+            ) : filteredRows.length === 0 ? (
+              <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
+            ) : filteredRows.map(r => {
+              const m = getRowMetrics(r);
+              const localVal = localConsumed[r.id] ?? r.consumedQty ?? "0";
+              return (
+                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] px-1 py-0.5 rounded font-bold shrink-0 ${r.materialType === "fabric" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                        {r.materialType === "fabric" ? "FAB" : "MAT"}
+                      </span>
+                      <span className="text-gray-800 font-medium">{r.materialName}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.currentStock} {r.unitType}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">₹{m.weightedAvg.toFixed(2)}</td>
+                  <td className="px-3 py-2.5 font-semibold text-gray-800">{r.requiredQty}</td>
+                  <td className="px-3 py-2.5 font-semibold text-amber-700">
+                    {m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-amber-700">
+                    {m.poQty > 0 ? m.poQty : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-blue-700">
+                    {m.prQty > 0 ? m.prQty : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 font-semibold text-blue-700">
+                    {m.prTotal > 0 ? `₹${m.prTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number" min="0" step="any"
+                      value={localVal}
+                      onChange={e => setLocalConsumed(prev => ({ ...prev, [r.id]: e.target.value }))}
+                      onBlur={e => {
+                        const val = e.target.value;
+                        if (val !== r.consumedQty) {
+                          updateRow.mutate({ id: r.id, consumedQty: val });
+                        }
+                      }}
+                      className="w-20 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-300"
+                    />
+                  </td>
+                  <td className="px-3 py-2.5 font-semibold text-green-700">
+                    {m.consumedTotal > 0 ? `₹${m.consumedTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
+                      className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {filteredRows.length > 0 && (
+              <tr className="bg-gray-50 border-t border-gray-200">
+                <td colSpan={4} className="px-3 py-2 text-[10px] font-semibold text-gray-400">{filteredRows.length} item{filteredRows.length > 1 ? "s" : ""}</td>
+                <td className="px-3 py-2 font-bold text-gray-700 text-xs">
+                  {filteredRows.reduce((s, r) => s + (parseFloat(r.requiredQty) || 0), 0)}
                 </td>
-                <td className="px-3 py-2.5 text-gray-600">{r.currentStock}</td>
-                <td className="px-3 py-2.5 text-gray-600">₹{r.avgUnitPrice}</td>
-                <td className="px-3 py-2.5 text-gray-500">{r.unitType}</td>
-                <td className="px-3 py-2.5 text-gray-500 max-w-[100px] truncate">{r.warehouseLocation || "—"}</td>
-                <td className="px-3 py-2.5 font-semibold text-gray-800">{r.requiredQty}</td>
-                <td className="px-3 py-2.5 font-semibold text-gray-900">₹{parseFloat(r.estimatedAmount).toFixed(2)}</td>
-                <td className="px-3 py-2.5">
-                  <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
-                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                <td colSpan={2} className="px-3 py-2"></td>
+                <td className="px-3 py-2 font-bold text-blue-700 text-xs">
+                  {filteredRows.reduce((s, r) => s + getRowMetrics(r).prQty, 0).toFixed(0)}
                 </td>
-              </tr>
-            ))}
-            {rows.length > 0 && (
-              <tr className="bg-gray-50">
-                <td colSpan={7} className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Total Estimated</td>
-                <td className="px-3 py-2 font-bold text-gray-900 text-sm">₹{totalEstimated.toFixed(2)}</td>
+                <td className="px-3 py-2 font-bold text-blue-700 text-xs">
+                  ₹{filteredRows.reduce((s, r) => s + getRowMetrics(r).prTotal, 0).toFixed(2)}
+                </td>
+                <td className="px-3 py-2"></td>
+                <td className="px-3 py-2 font-bold text-green-700 text-xs">
+                  ₹{filteredRows.reduce((s, r) => s + getRowMetrics(r).consumedTotal, 0).toFixed(2)}
+                </td>
                 <td />
               </tr>
             )}
@@ -809,10 +932,17 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
 }
 
 // ─── Main Costing Tab ─────────────────────────────────────────────────────────
-export default function CostingTab({ swatchOrderId }: { swatchOrderId: number }) {
+export default function CostingTab({
+  swatchOrderId, orderCode, swatchName, clientName,
+}: {
+  swatchOrderId: number;
+  orderCode?: string;
+  swatchName?: string;
+  clientName?: string;
+}) {
   return (
     <div className="space-y-5">
-      <BomSection swatchOrderId={swatchOrderId} />
+      <BomSection swatchOrderId={swatchOrderId} orderCode={orderCode} swatchName={swatchName} clientName={clientName} />
       <PoSection swatchOrderId={swatchOrderId} />
     </div>
   );

@@ -1213,7 +1213,12 @@ export default function SwatchOrderDetail() {
 
         {/* ══ TAB 4: Costing ══ */}
         {activeTab === 4 && numId && (
-          <CostingTab swatchOrderId={numId} />
+          <CostingTab
+            swatchOrderId={numId}
+            orderCode={orderData?.data?.orderCode ?? undefined}
+            swatchName={orderData?.data?.swatchName ?? undefined}
+            clientName={orderData?.data?.clientName ?? undefined}
+          />
         )}
 
         {/* ══ TAB 5: Client Link ══ */}

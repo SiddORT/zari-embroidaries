@@ -20,6 +20,7 @@ export const swatchBomTable = pgTable("swatch_bom", {
   warehouseLocation: text("warehouse_location").notNull().default(""),
   requiredQty: text("required_qty").notNull(),
   estimatedAmount: text("estimated_amount").notNull().default("0"),
+  consumedQty: text("consumed_qty").notNull().default("0"),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text("updated_by"),
