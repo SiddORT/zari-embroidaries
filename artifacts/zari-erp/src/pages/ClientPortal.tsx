@@ -185,7 +185,7 @@ function ArtworkCard({ artwork, existingFeedback, token, onFeedbackSubmitted }: 
                 onChange={e => setComment(e.target.value)}
                 placeholder="Add comments or rework instructions (optional)…"
                 rows={3}
-                className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400" />
+                className="w-full text-sm text-gray-900 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400" />
               <button
                 disabled={!decision || submit.isPending}
                 onClick={() => submit.mutate()}
