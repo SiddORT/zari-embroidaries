@@ -195,8 +195,11 @@ export default function InvoiceTab({
   function updateItem(id: string, field: keyof InvoiceLineItem, raw: string | number) {
     setItems(p => p.map(i => {
       if (i.id !== id) return i;
-      const u = { ...i, [field]: field === "description" || field === "category" ? raw : (pf(raw)) };
-      u.total = parseFloat((u.quantity * u.unitPrice).toFixed(2));
+      const u = { ...i, [field]: field === "description" || field === "category" ? raw : pf(raw) };
+      // Auto-compute total only when qty or unitPrice changed; leave total alone when editing it directly
+      if (field === "quantity" || field === "unitPrice") {
+        u.total = parseFloat((u.quantity * u.unitPrice).toFixed(2));
+      }
       return u;
     }));
     setDirty(true);
@@ -421,7 +424,11 @@ export default function InvoiceTab({
                         className="w-full px-2 py-1 text-xs text-right text-gray-800 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
                         value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", e.target.value)} />
                     </td>
-                    <td className="px-3 py-2 text-right font-medium text-gray-800 border-b border-gray-100">{rupee(item.total)}</td>
+                    <td className="px-2 py-1 border-b border-gray-100">
+                      <input type="number" min="0" step="0.01"
+                        className="w-full px-2 py-1 text-xs text-right font-semibold text-gray-900 border border-transparent rounded-lg focus:border-[#C9B45C] focus:ring-1 focus:ring-[#C9B45C]/30 focus:outline-none bg-transparent hover:bg-amber-50/40 focus:bg-amber-50/40 transition-colors"
+                        value={item.total} onChange={e => updateItem(item.id, "total", e.target.value)} />
+                    </td>
                     <td className="px-1 py-1 border-b border-gray-100 no-print">
                       <button onClick={() => removeItem(item.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors rounded">
                         <Trash2 className="h-3.5 w-3.5" />
