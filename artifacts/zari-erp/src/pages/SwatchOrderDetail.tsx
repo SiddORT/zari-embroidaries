@@ -21,6 +21,7 @@ import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
 import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 import ClientLinkTab from "@/pages/ClientLinkTab";
 import CostingTab from "@/pages/CostingTab";
+import CostSheetTab from "@/pages/CostSheetTab";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -66,6 +67,7 @@ const TABS = [
   { label: "Artworks",     icon: "🎨" },
   { label: "Estimate",     icon: "📊" },
   { label: "Costing",      icon: "💰" },
+  { label: "Cost Sheet",   icon: "📋" },
   { label: "Client Link",  icon: "🔗" },
   { label: "Invoice",      icon: "🧾" },
 ];
@@ -510,7 +512,7 @@ export default function SwatchOrderDetail() {
                   activeTab === i
                     ? "border-gray-900 text-gray-900"
                     : "border-transparent text-gray-400 hover:text-gray-600"
-                } ${i === 6 ? "opacity-60" : ""}`}
+                } ${i === 7 ? "opacity-60" : ""}`}
               >
                 {tab.label}
               </button>
@@ -1221,13 +1223,23 @@ export default function SwatchOrderDetail() {
           />
         )}
 
-        {/* ══ TAB 5: Client Link ══ */}
+        {/* ══ TAB 5: Cost Sheet ══ */}
         {activeTab === 5 && numId && (
+          <CostSheetTab
+            swatchOrderId={numId}
+            orderCode={orderData?.data?.orderCode ?? undefined}
+            swatchName={orderData?.data?.swatchName ?? undefined}
+            clientName={orderData?.data?.clientName ?? undefined}
+          />
+        )}
+
+        {/* ══ TAB 6: Client Link ══ */}
+        {activeTab === 6 && numId && (
           <ClientLinkTab swatchOrderId={numId} />
         )}
 
-        {/* ══ TAB 6: Invoice — Coming Soon ══ */}
-        {activeTab === 6 && (
+        {/* ══ TAB 7: Invoice — Coming Soon ══ */}
+        {activeTab === 7 && (
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">
               {TABS[activeTab].icon}
