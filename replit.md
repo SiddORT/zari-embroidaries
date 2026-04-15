@@ -84,6 +84,12 @@ Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
 - `DELETE /api/fabrics/:id` — Soft delete
 - `GET /api/lookups/:type` — List lookup records (item-types, unit-types, width-unit-types)
 - `POST /api/lookups/:type` — Create lookup record
+- `GET /api/swatch-orders` — List swatch orders (search, status, priority, page, limit; filter is_deleted=false; sorted created_at DESC)
+- `GET /api/swatch-orders/:id` — Get single swatch order
+- `POST /api/swatch-orders` — Create swatch order (auto-generates SWO-YYYY-NNN code)
+- `PUT /api/swatch-orders/:id` — Full update
+- `PATCH /api/swatch-orders/:id/status` — Patch orderStatus / priority
+- `DELETE /api/swatch-orders/:id` — Soft delete
 - `GET /api/orders` — List orders (search, status, orderType, page, limit; filter is_deleted=false; sorted created_at DESC)
 - `GET /api/orders/:id` — Get single order by ID
 - `POST /api/orders` — Create order (auto-generates ORD0001... code)

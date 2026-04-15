@@ -23,11 +23,12 @@ const MASTERS_ITEMS = [
 ];
 
 const TOP_LINKS = [
-  { label: "Dashboard",  href: "/dashboard" },
-  { label: "Orders",     href: "/orders" },
-  { label: "Accounts",   href: "/accounts" },
-  { label: "Quotation",  href: "/quotation" },
-  { label: "Shipping",   href: "/shipping" },
+  { label: "Dashboard",      href: "/dashboard" },
+  { label: "Orders",         href: "/orders" },
+  { label: "Swatch Orders",  href: "/swatch-orders" },
+  { label: "Accounts",       href: "/accounts" },
+  { label: "Quotation",      href: "/quotation" },
+  { label: "Shipping",       href: "/shipping" },
 ];
 
 export default function TopNavbar({ username, role, onLogout, isLoggingOut }: TopNavbarProps) {

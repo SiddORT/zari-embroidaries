@@ -1,0 +1,281 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, Eye, Trash2, ChevronLeft, ChevronRight, Palette, Calendar, User, Hash } from "lucide-react";
+import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
+import AppLayout from "@/components/layout/AppLayout";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useSwatchOrderList, useDeleteSwatchOrder, type SwatchOrderRecord } from "@/hooks/useSwatchOrders";
+
+const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
+const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
+
+const STATUS_COLORS: Record<string, string> = {
+  Draft: "bg-gray-100 text-gray-600 border-gray-200",
+  Issued: "bg-blue-50 text-blue-700 border-blue-200",
+  "In Sampling": "bg-amber-50 text-amber-700 border-amber-200",
+  "In Artwork": "bg-purple-50 text-purple-700 border-purple-200",
+  "Pending Approval": "bg-orange-50 text-orange-700 border-orange-200",
+  Completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Rejected: "bg-red-50 text-red-700 border-red-200",
+  Cancelled: "bg-gray-50 text-gray-500 border-gray-200",
+};
+
+const STATUS_BAR: Record<string, string> = {
+  Draft: "bg-gray-300",
+  Issued: "bg-blue-400",
+  "In Sampling": "bg-amber-400",
+  "In Artwork": "bg-purple-500",
+  "Pending Approval": "bg-orange-400",
+  Completed: "bg-emerald-500",
+  Rejected: "bg-red-400",
+  Cancelled: "bg-gray-300",
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  Low: "bg-gray-100 text-gray-500",
+  Medium: "bg-sky-100 text-sky-700",
+  High: "bg-orange-100 text-orange-700",
+  Urgent: "bg-red-100 text-red-700",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+      {status}
+    </span>
+  );
+}
+
+function PriorityDot({ priority }: { priority: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[priority] ?? "bg-gray-100 text-gray-600"}`}>
+      {priority}
+    </span>
+  );
+}
+
+function OrderCard({ order, onView, onDelete }: {
+  order: SwatchOrderRecord;
+  onView: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
+      <div className={`h-1 w-full ${STATUS_BAR[order.orderStatus] ?? "bg-gray-200"}`} />
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{order.orderCode}</span>
+              <PriorityDot priority={order.priority} />
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900 truncate">{order.swatchName}</h3>
+            {order.clientName && (
+              <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                <User className="h-3 w-3" />{order.clientName}
+              </p>
+            )}
+          </div>
+          <StatusBadge status={order.orderStatus} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4">
+          {order.deliveryDate && (
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3 w-3 shrink-0" />
+              <span>Due {order.deliveryDate}</span>
+            </div>
+          )}
+          {order.quantity && (
+            <div className="flex items-center gap-1.5">
+              <Hash className="h-3 w-3 shrink-0" />
+              <span>Qty: {order.quantity}</span>
+            </div>
+          )}
+          {order.fabricName && (
+            <div className="flex items-center gap-1.5 col-span-2">
+              <Palette className="h-3 w-3 shrink-0" />
+              <span className="truncate">{order.fabricName}</span>
+            </div>
+          )}
+        </div>
+
+        {order.isChargeable && (
+          <div className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-2.5 py-1 mb-3 inline-flex items-center gap-1">
+            <span>⚡</span> Chargeable
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+          <button onClick={onView}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+            <Eye className="h-3.5 w-3.5" /> View / Edit
+          </button>
+          <button onClick={onDelete}
+            className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-200">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SwatchOrders() {
+  const [, setLocation] = useLocation();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const token = localStorage.getItem("zarierp_token");
+  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const logoutMutation = useLogout();
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useSwatchOrderList({ search, status: statusFilter, priority: priorityFilter, page, limit: 24 });
+  const deleteOrder = useDeleteSwatchOrder();
+
+  const orders = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / 24);
+
+  function handleLogout() {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        localStorage.removeItem("zarierp_token");
+        qc.removeQueries({ queryKey: getGetMeQueryKey() });
+        setLocation("/login");
+      },
+    });
+  }
+
+  async function handleDelete() {
+    if (!deleteId) return;
+    try {
+      await deleteOrder.mutateAsync(deleteId);
+      toast({ title: "Swatch order deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
+    } finally {
+      setDeleteId(null);
+    }
+  }
+
+  if (loadingUser) return null;
+  if (!user) { setLocation("/login"); return null; }
+
+  return (
+    <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+      <div className="max-w-screen-xl mx-auto space-y-5">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Swatch Orders</h1>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {total} order{total !== 1 ? "s" : ""} total
+            </p>
+          </div>
+          <button
+            onClick={() => setLocation("/swatch-orders/new")}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors shadow-sm"
+          >
+            <Plus className="h-4 w-4" /> New Swatch Order
+          </button>
+        </div>
+
+        {/* Status pills quick filter */}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => { setStatusFilter("all"); setPage(1); }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${statusFilter === "all" ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}>
+            All
+          </button>
+          {ORDER_STATUSES.map(s => (
+            <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${statusFilter === s ? `${STATUS_COLORS[s]} font-semibold` : "border-gray-200 text-gray-600 hover:border-gray-400"}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* Search + Priority */}
+        <div className="flex flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search swatch name, client…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+            />
+          </div>
+          <select value={priorityFilter} onChange={e => { setPriorityFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10">
+            <option value="all">All Priorities</option>
+            {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+
+        {/* Grid */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 h-48 animate-pulse" />
+            ))}
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+            <Palette className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm font-medium text-gray-500">No swatch orders found</p>
+            <p className="text-xs text-gray-400 mt-1">Create your first swatch order to get started</p>
+            <button onClick={() => setLocation("/swatch-orders/new")}
+              className="mt-4 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors">
+              + New Swatch Order
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {orders.map(order => (
+              <OrderCard key={order.id} order={order}
+                onView={() => setLocation(`/swatch-orders/${order.id}`)}
+                onDelete={() => setDeleteId(order.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex gap-2">
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
+                className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={deleteId !== null}
+        title="Delete Swatch Order"
+        message="This swatch order will be permanently deleted. Are you sure?"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => { void handleDelete(); }}
+      />
+    </AppLayout>
+  );
+}

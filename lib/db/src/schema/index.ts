@@ -11,3 +11,4 @@ export * from "./swatches";
 export * from "./styles";
 export * from "./packagingMaterials";
 export * from "./roles";
+export * from "./swatchOrders";

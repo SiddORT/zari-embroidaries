@@ -23,6 +23,8 @@ import StyleMaster from "@/pages/StyleMaster";
 import PackagingMaterialsMaster from "@/pages/PackagingMaterialsMaster";
 import UserManagement from "@/pages/UserManagement";
 import AcceptInvite from "@/pages/AcceptInvite";
+import SwatchOrders from "@/pages/SwatchOrders";
+import SwatchOrderDetail from "@/pages/SwatchOrderDetail";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +71,8 @@ function Router() {
       <Route path="/masters/packaging-materials" component={PackagingMaterialsMaster} />
       <Route path="/orders" component={Orders} />
       <Route path="/orders/:id" component={OrderDetails} />
+      <Route path="/swatch-orders" component={SwatchOrders} />
+      <Route path="/swatch-orders/:id" component={SwatchOrderDetail} />
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route component={NotFound} />
