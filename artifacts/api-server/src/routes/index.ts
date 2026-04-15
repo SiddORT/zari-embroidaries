@@ -19,6 +19,7 @@ import artworksRouter from "./artworks";
 import clientLinksRouter from "./clientLinks";
 import clientPortalRouter from "./clientPortal";
 import costingRouter from "./costing";
+import invoicesRouter from "./invoices";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(artworksRouter);
 router.use(clientLinksRouter);
 router.use(clientPortalRouter);
 router.use("/costing", costingRouter);
+router.use(invoicesRouter);
 
 export default router;

@@ -22,6 +22,7 @@ import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 import ClientLinkTab from "@/pages/ClientLinkTab";
 import CostingTab from "@/pages/CostingTab";
 import CostSheetTab from "@/pages/CostSheetTab";
+import InvoiceTab from "@/pages/InvoiceTab";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -512,7 +513,7 @@ export default function SwatchOrderDetail() {
                   activeTab === i
                     ? "border-gray-900 text-gray-900"
                     : "border-transparent text-gray-400 hover:text-gray-600"
-                } ${i === 7 ? "opacity-60" : ""}`}
+                }`}
               >
                 {tab.label}
               </button>
@@ -1238,18 +1239,14 @@ export default function SwatchOrderDetail() {
           <ClientLinkTab swatchOrderId={numId} />
         )}
 
-        {/* ══ TAB 7: Invoice — Coming Soon ══ */}
-        {activeTab === 7 && (
-          <div className="flex flex-col items-center gap-4 py-20 text-center">
-            <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">
-              {TABS[activeTab].icon}
-            </div>
-            <h3 className="text-base font-semibold text-gray-700">{TABS[activeTab].label}</h3>
-            <p className="text-sm text-gray-400 max-w-xs">
-              This section is coming soon. You'll be able to manage {TABS[activeTab].label.toLowerCase()} details here once it's ready.
-            </p>
-            <span className="text-xs px-3 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 font-medium">Coming Soon</span>
-          </div>
+        {/* ══ TAB 7: Invoice ══ */}
+        {activeTab === 7 && numId && (
+          <InvoiceTab
+            swatchOrderId={numId}
+            orderCode={orderData?.data?.orderCode ?? undefined}
+            swatchName={orderData?.data?.swatchName ?? undefined}
+            clientName={orderData?.data?.clientName ?? undefined}
+          />
         )}
 
         </div> {/* ── end outer mt-5 ── */}
