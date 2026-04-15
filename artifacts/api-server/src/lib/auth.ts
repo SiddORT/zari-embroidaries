@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "fallback-dev-secret-change-in-prod";
-const JWT_EXPIRES_IN = "24h";
+const JWT_EXPIRES_IN = "7d";
 
 export function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
