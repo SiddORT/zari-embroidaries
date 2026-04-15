@@ -3,20 +3,19 @@ import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Loader2, ChevronDown,
-  User, CalendarDays, MessageSquare, CheckCircle2, Layers,
+  User, CalendarDays, MessageSquare, CheckCircle2,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAllClients } from "@/hooks/useClients";
 import AddableSelect from "@/components/ui/AddableSelect";
-import SearchableSelect from "@/components/ui/SearchableSelect";
+import { useDepartments, useCreateDepartment } from "@/hooks/useLookups";
 import { useStyleOrder, useCreateStyleOrder, useUpdateStyleOrder } from "@/hooks/useStyleOrders";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
-const DEPARTMENTS = ["Design", "Production", "Sampling", "Artwork", "Quality", "Finishing"];
 
 const PRIORITY_STYLES: Record<string, string> = {
   Low:    "bg-gray-900 text-[#C9B45C] ring-gray-900",
@@ -70,7 +69,6 @@ type FormState = {
   actualCompletionTime: string;
   delayReason: string;
   approvalDate: string;
-  revisionCount: number;
 };
 
 const EMPTY_FORM: FormState = {
@@ -83,7 +81,6 @@ const EMPTY_FORM: FormState = {
   actualStartDate: "", actualStartTime: "",
   tentativeDeliveryDate: "", actualCompletionDate: "",
   actualCompletionTime: "", delayReason: "", approvalDate: "",
-  revisionCount: 0,
 };
 
 // ── Shared helpers (defined outside component to avoid re-render focus loss) ─
@@ -151,6 +148,13 @@ export default function StyleOrderDetail() {
   const { data: clientsData } = useAllClients();
   const clients = clientsData?.data ?? [];
 
+  const { data: deptData } = useDepartments();
+  const createDept = useCreateDepartment();
+  const departments = deptData ?? [];
+  const [addDeptOpen, setAddDeptOpen] = useState(false);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [deptError, setDeptError] = useState("");
+
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const t = parseInt(params.get("tab") ?? "0", 10);
@@ -190,7 +194,6 @@ export default function StyleOrderDetail() {
         actualCompletionTime: o.actualCompletionTime ?? "",
         delayReason: o.delayReason ?? "",
         approvalDate: o.approvalDate ?? "",
-        revisionCount: o.revisionCount ?? 0,
       });
     }
   }, [orderData]);
@@ -204,6 +207,23 @@ export default function StyleOrderDetail() {
   }));
   const selectedClient = clients.find((c: { id: number }) => String(c.id) === form.clientId) as
     { id: number; brandName: string; contactName: string; email: string; contactNo: string; country?: string } | undefined;
+
+  const deptOptions = departments.map((d: { id: number; name: string }) => ({
+    value: String(d.id), label: d.name,
+  }));
+
+  async function handleAddDept() {
+    if (!newDeptName.trim()) { setDeptError("Name is required"); return; }
+    try {
+      const result = await createDept.mutateAsync({ name: newDeptName.trim(), isActive: true });
+      set("department", String((result as { id: number }).id));
+      setAddDeptOpen(false);
+      setNewDeptName("");
+      setDeptError("");
+    } catch {
+      setDeptError("Already exists or failed to create");
+    }
+  }
 
   async function handleSave() {
     if (!form.styleName.trim()) {
@@ -382,12 +402,12 @@ export default function StyleOrderDetail() {
                       value={form.targetHours} onChange={e => set("targetHours", e.target.value)} />
                   </Field>
                   <Field label="Department">
-                    <SearchableSelect
+                    <AddableSelect
                       value={form.department}
                       onChange={v => set("department", v)}
-                      options={DEPARTMENTS}
+                      onAdd={() => { setNewDeptName(""); setDeptError(""); setAddDeptOpen(true); }}
+                      options={deptOptions}
                       placeholder="— Select department —"
-                      clearable
                     />
                   </Field>
                   <Field label="Issued To">
@@ -439,20 +459,6 @@ export default function StyleOrderDetail() {
                         <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
                       </Field>
                     </div>
-                    <Field label="Revision Count" hint="Number of revisions this order has gone through">
-                      <div className="flex items-center gap-3">
-                        <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
-                          className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
-                        <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
-                        <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
-                          className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
-                        {form.revisionCount > 0 && (
-                          <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                            {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </div>
-                    </Field>
                     <Field label="Delay Reason" hint="Explain if order was delayed beyond delivery date">
                       <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
                         value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
@@ -502,6 +508,36 @@ export default function StyleOrderDetail() {
 
         </div>
       </div>
+
+      {/* ── Add Department Modal ─────────────────────────────────────────── */}
+      {addDeptOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Add Department</h3>
+            <input
+              autoFocus
+              className={inputCls}
+              placeholder="Department name…"
+              value={newDeptName}
+              onChange={e => { setNewDeptName(e.target.value); setDeptError(""); }}
+              onKeyDown={e => { if (e.key === "Enter") void handleAddDept(); }}
+            />
+            {deptError && <p className="text-xs text-red-500 mt-1">{deptError}</p>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setAddDeptOpen(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => { void handleAddDept(); }} disabled={createDept.isPending}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60">
+                {createDept.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </AppLayout>
   );
 }

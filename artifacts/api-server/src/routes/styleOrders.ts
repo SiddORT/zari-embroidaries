@@ -22,7 +22,7 @@ async function generateOrderCode(): Promise<string> {
 }
 
 // List
-router.get("/api/style-orders", requireAuth, async (req, res) => {
+router.get("/style-orders", requireAuth, async (req, res) => {
   const { search = "", status = "all", priority = "all", page = "1", limit = "24" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page));
   const limitNum = Math.min(100, parseInt(limit));
@@ -54,7 +54,7 @@ router.get("/api/style-orders", requireAuth, async (req, res) => {
 });
 
 // Get one
-router.get("/api/style-orders/:id", requireAuth, async (req, res) => {
+router.get("/style-orders/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [row] = await db.select().from(styleOrdersTable).where(eq(styleOrdersTable.id, id));
@@ -63,7 +63,7 @@ router.get("/api/style-orders/:id", requireAuth, async (req, res) => {
 });
 
 // Create
-router.post("/api/style-orders", requireAuth, async (req, res) => {
+router.post("/style-orders", requireAuth, async (req, res) => {
   const parsed = insertStyleOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
 
@@ -80,7 +80,7 @@ router.post("/api/style-orders", requireAuth, async (req, res) => {
 });
 
 // Update
-router.put("/api/style-orders/:id", requireAuth, async (req, res) => {
+router.put("/style-orders/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
@@ -99,7 +99,7 @@ router.put("/api/style-orders/:id", requireAuth, async (req, res) => {
 });
 
 // Delete (soft)
-router.delete("/api/style-orders/:id", requireAuth, async (req, res) => {
+router.delete("/style-orders/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.update(styleOrdersTable).set({ isDeleted: true }).where(eq(styleOrdersTable.id, id));

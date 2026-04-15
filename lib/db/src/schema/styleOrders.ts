@@ -70,6 +70,13 @@ export const insertStyleOrderSchema = z.object({
   internalNotes: z.string().optional(),
   clientInstructions: z.string().optional(),
   isChargeable: z.boolean().default(false),
+  actualStartDate: z.string().optional(),
+  actualStartTime: z.string().optional(),
+  tentativeDeliveryDate: z.string().optional(),
+  actualCompletionDate: z.string().optional(),
+  actualCompletionTime: z.string().optional(),
+  delayReason: z.string().optional(),
+  approvalDate: z.string().optional(),
 });
 
 export const updateStyleOrderSchema = insertStyleOrderSchema.partial().extend({
