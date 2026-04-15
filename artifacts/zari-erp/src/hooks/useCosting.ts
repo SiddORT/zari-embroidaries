@@ -58,6 +58,7 @@ export interface PurchaseReceiptRecord {
   id: number;
   prNumber: string;
   poId: number;
+  bomRowId: number | null;
   swatchOrderId: number;
   vendorName: string;
   receivedDate: string;

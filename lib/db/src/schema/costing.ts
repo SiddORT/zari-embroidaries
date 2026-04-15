@@ -63,6 +63,7 @@ export const purchaseReceiptsTable = pgTable("purchase_receipts", {
   id: serial("id").primaryKey(),
   prNumber: text("pr_number").notNull().unique(),
   poId: integer("po_id").notNull(),
+  bomRowId: integer("bom_row_id"),
   swatchOrderId: integer("swatch_order_id").notNull(),
   vendorName: text("vendor_name").notNull(),
   receivedDate: timestamp("received_date", { withTimezone: true }).notNull().defaultNow(),

@@ -166,13 +166,14 @@ router.get("/pr/:swatchOrderId", requireAuth, async (req, res) => {
 
 router.post("/pr", requireAuth, async (req, res) => {
   const user = (req as any).user;
-  const { poId, swatchOrderId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number>;
+  const { poId, swatchOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
   const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
   const prNumber = await nextPrNumber();
   const [row] = await db.insert(purchaseReceiptsTable).values({
     prNumber,
     poId: Number(poId),
+    bomRowId: bomRowId != null ? Number(bomRowId) : null,
     swatchOrderId: Number(swatchOrderId),
     vendorName: po.vendorName,
     receivedQty: String(receivedQty),

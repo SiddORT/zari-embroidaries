@@ -34,7 +34,10 @@ const PR_STATUS_COLORS: Record<string, string> = {
 function computeRowMetrics(r: BomRecord, pos: PurchaseOrderRecord[], prs: PurchaseReceiptRecord[]) {
   const poLineItems = pos.flatMap(po => po.bomItems ?? []).filter(item => item.bomRowId === r.id);
   const posWithRow = pos.filter(po => (po.bomItems ?? []).some(item => item.bomRowId === r.id));
-  const prsForRow = prs.filter(pr => posWithRow.some(po => po.id === pr.poId));
+  const prsForRow = prs.filter(pr => {
+    if (pr.bomRowId != null) return pr.bomRowId === r.id;
+    return posWithRow.some(po => po.id === pr.poId);
+  });
   const poTargetPrice = poLineItems.length > 0 ? parseFloat(poLineItems[poLineItems.length - 1].targetPrice || "0") : 0;
   const poQty = poLineItems.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0);
   const prQty = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
@@ -877,7 +880,7 @@ function CreatePoModal({
 }
 
 // ─── PO Card ─────────────────────────────────────────────────────────────────
-function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; swatchOrderId: number; onCreatePR: (poId: number, vendorName: string) => void }) {
+function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; swatchOrderId: number; onCreatePR: (poId: number, vendorName: string, bomItems: PoLineItem[]) => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const updatePO = useUpdatePO();
@@ -919,7 +922,7 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
             </button>
           )}
           {canCreatePR && (
-            <button onClick={() => onCreatePR(po.id, po.vendorName)}
+            <button onClick={() => onCreatePR(po.id, po.vendorName, po.bomItems ?? [])}
               className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-medium hover:bg-blue-100 transition-colors">
               <Plus className="h-3 w-3" /> Create PR
             </button>
@@ -981,8 +984,8 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
   const createPR = useCreatePR();
 
   const [showPoModal, setShowPoModal] = useState(false);
-  const [prModal, setPrModal] = useState<{ poId: number; vendorName: string } | null>(null);
-  const [prForm, setPrForm] = useState({ receivedQty: "", actualPrice: "", warehouseLocation: "" });
+  const [prModal, setPrModal] = useState<{ poId: number; vendorName: string; bomItems: PoLineItem[] } | null>(null);
+  const [prForm, setPrForm] = useState({ bomRowId: "" as string, receivedQty: "", actualPrice: "", warehouseLocation: "" });
 
   async function handleCreatePO(payload: Record<string, unknown>) {
     await createPO.mutateAsync(payload);
@@ -991,10 +994,12 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
 
   async function handleCreatePR() {
     if (!prModal) return;
+    if (prModal.bomItems.length > 1 && !prForm.bomRowId) { toast({ title: "Select an item for this PR", variant: "destructive" }); return; }
     if (!prForm.receivedQty || parseFloat(prForm.receivedQty) <= 0) { toast({ title: "Enter received quantity", variant: "destructive" }); return; }
     if (!prForm.actualPrice || parseFloat(prForm.actualPrice) <= 0) { toast({ title: "Enter actual price", variant: "destructive" }); return; }
-    await createPR.mutateAsync({ poId: prModal.poId, swatchOrderId, ...prForm });
-    setPrForm({ receivedQty: "", actualPrice: "", warehouseLocation: "" });
+    const bomRowId = prForm.bomRowId ? Number(prForm.bomRowId) : (prModal.bomItems.length === 1 ? prModal.bomItems[0].bomRowId : null);
+    await createPR.mutateAsync({ poId: prModal.poId, swatchOrderId, bomRowId, receivedQty: prForm.receivedQty, actualPrice: prForm.actualPrice, warehouseLocation: prForm.warehouseLocation });
+    setPrForm({ bomRowId: "", receivedQty: "", actualPrice: "", warehouseLocation: "" });
     setPrModal(null);
     toast({ title: "Purchase Receipt created" });
   }
@@ -1016,7 +1021,11 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
         <div className="space-y-2">
           {pos.map(po => (
             <PoCard key={po.id} po={po} swatchOrderId={swatchOrderId}
-              onCreatePR={(poId, vendorName) => setPrModal({ poId, vendorName })} />
+              onCreatePR={(poId, vendorName, bomItems) => {
+                const singleItem = bomItems.length === 1 ? String(bomItems[0].bomRowId) : "";
+                setPrForm({ bomRowId: singleItem, receivedQty: "", actualPrice: "", warehouseLocation: "" });
+                setPrModal({ poId, vendorName, bomItems });
+              }} />
           ))}
         </div>
       )}
@@ -1040,6 +1049,27 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
             </div>
             <p className="text-xs text-gray-500">Vendor: <span className="font-semibold text-gray-700">{prModal.vendorName}</span></p>
             <div className="space-y-3">
+              {prModal.bomItems.length > 1 && (
+                <div>
+                  <label className="text-[10px] text-gray-500 font-medium">Item *</label>
+                  <select value={prForm.bomRowId} onChange={e => setPrForm(f => ({ ...f, bomRowId: e.target.value }))}
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
+                    <option value="">— Select item —</option>
+                    {prModal.bomItems.map(item => (
+                      <option key={item.bomRowId} value={String(item.bomRowId)}>
+                        [{item.materialCode}] {item.materialName} · {item.quantity} {item.unitType}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {prModal.bomItems.length === 1 && (
+                <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5">
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Item</p>
+                  <p className="text-xs font-semibold text-gray-800">[{prModal.bomItems[0].materialCode}] {prModal.bomItems[0].materialName}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Ordered: {prModal.bomItems[0].quantity} {prModal.bomItems[0].unitType} @ ₹{parseFloat(prModal.bomItems[0].targetPrice).toFixed(2)}</p>
+                </div>
+              )}
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Received Quantity *</label>
                 <input type="number" min="0" step="any" value={prForm.receivedQty}
@@ -1091,9 +1121,13 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
   const filteredPrs = prs.filter(pr => {
     if (filterPoId !== "all" && String(pr.poId) !== filterPoId) return false;
     if (filterBomRowId !== "all") {
-      const poForPr = pos.find(p => p.id === pr.poId);
-      const hasItem = (poForPr?.bomItems ?? []).some(item => String(item.bomRowId) === filterBomRowId);
-      if (!hasItem) return false;
+      if (pr.bomRowId != null) {
+        if (String(pr.bomRowId) !== filterBomRowId) return false;
+      } else {
+        const poForPr = pos.find(p => p.id === pr.poId);
+        const hasItem = (poForPr?.bomItems ?? []).some(item => String(item.bomRowId) === filterBomRowId);
+        if (!hasItem) return false;
+      }
     }
     return true;
   });
