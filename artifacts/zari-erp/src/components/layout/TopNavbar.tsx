@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, User, Users, ShoppingBag } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, User, Users } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -157,8 +157,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                 }`}
               >
-                <ShoppingBag className="h-3.5 w-3.5" />
-                Other Orders
+                Orders
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${ordersOpen ? "rotate-180" : ""}`} />
               </button>
 
@@ -320,7 +319,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   ordersActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                <span className="flex items-center gap-2"><ShoppingBag className="h-4 w-4" /> Other Orders</span>
+                <span>Orders</span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${mobileOrdersOpen ? "rotate-180" : ""}`} />
               </button>
               {mobileOrdersOpen && (

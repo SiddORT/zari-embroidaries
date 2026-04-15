@@ -23,10 +23,10 @@ const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending
 const DEPARTMENTS = ["Design", "Production", "Sampling", "Artwork", "Quality", "Finishing"];
 
 const PRIORITY_STYLES: Record<string, string> = {
-  Low: "bg-gray-100 text-gray-600 ring-gray-300",
-  Medium: "bg-sky-100 text-sky-700 ring-sky-300",
-  High: "bg-orange-100 text-orange-700 ring-orange-300",
-  Urgent: "bg-red-100 text-red-700 ring-red-300",
+  Low: "bg-gray-900 text-[#C9B45C] ring-gray-900",
+  Medium: "bg-gray-900 text-[#C9B45C] ring-gray-900",
+  High: "bg-gray-900 text-[#C9B45C] ring-gray-900",
+  Urgent: "bg-gray-900 text-[#C9B45C] ring-gray-900",
 };
 
 const STATUS_COLORS: Record<string, string> = {
