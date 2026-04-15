@@ -12,6 +12,7 @@ import { useAllClients } from "@/hooks/useClients";
 import AddableSelect from "@/components/ui/AddableSelect";
 import { useDepartments, useCreateDepartment } from "@/hooks/useLookups";
 import { useStyleOrder, useCreateStyleOrder, useUpdateStyleOrder } from "@/hooks/useStyleOrders";
+import ProductsTab from "./ProductsTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -486,7 +487,9 @@ export default function StyleOrderDetail() {
           {activeTab === 1 && <PlaceholderTab icon="🔗" label="References" />}
 
           {/* ══ TAB 2: Products ════════════════════════════════════════════ */}
-          {activeTab === 2 && <PlaceholderTab icon="📦" label="Products" />}
+          {activeTab === 2 && (
+            <ProductsTab styleOrderId={numId} isNew={isNew} />
+          )}
 
           {/* ══ TAB 3: Artworks ════════════════════════════════════════════ */}
           {activeTab === 3 && <PlaceholderTab icon="🎨" label="Artworks" />}

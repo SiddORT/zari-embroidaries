@@ -21,6 +21,7 @@ import clientPortalRouter from "./clientPortal";
 import costingRouter from "./costing";
 import invoicesRouter from "./invoices";
 import styleOrdersRouter from "./styleOrders";
+import styleOrderProductsRouter from "./styleOrderProducts";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(clientPortalRouter);
 router.use("/costing", costingRouter);
 router.use(invoicesRouter);
 router.use(styleOrdersRouter);
+router.use(styleOrderProductsRouter);
 
 export default router;

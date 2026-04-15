@@ -17,3 +17,4 @@ export * from "./clientLinks";
 export * from "./costing";
 export * from "./invoices";
 export * from "./styleOrders";
+export * from "./styleOrderProducts";
