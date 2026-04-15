@@ -22,6 +22,7 @@ import costingRouter from "./costing";
 import invoicesRouter from "./invoices";
 import styleOrdersRouter from "./styleOrders";
 import styleOrderProductsRouter from "./styleOrderProducts";
+import styleOrderArtworksRouter from "./styleOrderArtworks";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use("/costing", costingRouter);
 router.use(invoicesRouter);
 router.use(styleOrdersRouter);
 router.use(styleOrderProductsRouter);
+router.use(styleOrderArtworksRouter);
 
 export default router;

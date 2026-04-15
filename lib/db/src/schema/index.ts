@@ -18,3 +18,4 @@ export * from "./costing";
 export * from "./invoices";
 export * from "./styleOrders";
 export * from "./styleOrderProducts";
+export * from "./styleOrderArtworks";
