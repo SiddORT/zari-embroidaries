@@ -3,6 +3,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 import {
   ArrowLeft, Save, Info, Upload, X, FileText, Image as ImageIcon,
   Palette, Ruler, Settings2, MessageSquare, Loader2, CheckCircle2, Package,
+  Scissors, Layout,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
@@ -147,6 +148,16 @@ type FormState = {
   outsourcePaymentDate: string; outsourcePaymentAmount: string;
   outsourcePaymentMode: string; outsourceTransactionId: string;
   outsourcePaymentStatus: string;
+  toileMakingCost: string;
+  toileVendorId: string; toileVendorName: string;
+  toileCost: string; toilePaymentDate: string;
+  toilePaymentMode: string; toilePaymentStatus: string;
+  toileTransactionId: string;
+  toileImages: FileAttachment[];
+  patternType: "Inhouse" | "Outhouse" | "";
+  patternMakingCost: string;
+  patternDoc: FileAttachment[];
+  patternOuthouseDoc: FileAttachment[];
   feedbackStatus: string;
   files: FileAttachment[]; refImages: FileAttachment[];
   wipImages: FileAttachment[]; finalImages: FileAttachment[];
@@ -158,7 +169,12 @@ const EMPTY_FORM: FormState = {
   artworkCreated: "Inhouse", workHours: "", hourlyRate: "", totalCost: "",
   outsourceVendorId: "", outsourceVendorName: "", outsourcePaymentDate: "",
   outsourcePaymentAmount: "", outsourcePaymentMode: "", outsourceTransactionId: "",
-  outsourcePaymentStatus: "Pending", feedbackStatus: "Pending",
+  outsourcePaymentStatus: "Pending",
+  toileMakingCost: "", toileVendorId: "", toileVendorName: "",
+  toileCost: "", toilePaymentDate: "", toilePaymentMode: "",
+  toilePaymentStatus: "Pending", toileTransactionId: "", toileImages: [],
+  patternType: "", patternMakingCost: "", patternDoc: [], patternOuthouseDoc: [],
+  feedbackStatus: "Pending",
   files: [], refImages: [], wipImages: [], finalImages: [],
 };
 
@@ -227,6 +243,19 @@ export default function StyleOrderArtworkDetail() {
         outsourcePaymentMode:  a.outsourcePaymentMode ?? "",
         outsourceTransactionId:a.outsourceTransactionId ?? "",
         outsourcePaymentStatus:a.outsourcePaymentStatus ?? "Pending",
+        toileMakingCost:       a.toileMakingCost ?? "",
+        toileVendorId:         a.toileVendorId ?? "",
+        toileVendorName:       a.toileVendorName ?? "",
+        toileCost:             a.toileCost ?? "",
+        toilePaymentDate:      a.toilePaymentDate ?? "",
+        toilePaymentMode:      a.toilePaymentMode ?? "",
+        toilePaymentStatus:    a.toilePaymentStatus ?? "Pending",
+        toileTransactionId:    a.toileTransactionId ?? "",
+        toileImages:           (a.toileImages ?? []) as FileAttachment[],
+        patternType:           (a.patternType ?? "") as "Inhouse" | "Outhouse" | "",
+        patternMakingCost:     a.patternMakingCost ?? "",
+        patternDoc:            (a.patternDoc ?? []) as FileAttachment[],
+        patternOuthouseDoc:    (a.patternOuthouseDoc ?? []) as FileAttachment[],
         feedbackStatus:        a.feedbackStatus ?? "Pending",
         files:                 (a.files ?? []) as FileAttachment[],
         refImages:             (a.refImages ?? []) as FileAttachment[],
@@ -536,6 +565,141 @@ export default function StyleOrderArtworkDetail() {
               </div>
             </SectionCard>
           </div>
+
+          {/* Toile */}
+          <SectionCard icon={<Scissors className="h-4 w-4 text-[#C9B45C]" />}
+            title="Toile" subtitle="Toile making cost and payment details">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Toile Making Cost">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                    <input type="number" min="0" step="0.01" placeholder="0.00"
+                      className={`${inputCls} pl-7 ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                      readOnly={isViewMode} value={form.toileMakingCost}
+                      onChange={e => set("toileMakingCost", e.target.value)} />
+                  </div>
+                </Field>
+                <Field label="Vendor">
+                  <AddableSelect options={vendorOptions} value={form.toileVendorId}
+                    onChange={v => {
+                      const vd = vendors.find(x => String(x.id) === v);
+                      set("toileVendorId", v ?? "");
+                      set("toileVendorName", vd?.brandName ?? "");
+                    }}
+                    placeholder="Select vendor…" disabled={isViewMode} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Cost">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                    <input type="number" min="0" step="0.01" placeholder="0.00"
+                      className={`${inputCls} pl-7 ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                      readOnly={isViewMode} value={form.toileCost}
+                      onChange={e => set("toileCost", e.target.value)} />
+                  </div>
+                </Field>
+                <Field label="Payment Date">
+                  <input type="date" className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                    readOnly={isViewMode} value={form.toilePaymentDate}
+                    onChange={e => set("toilePaymentDate", e.target.value)} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Payment Mode">
+                  <select className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                    disabled={isViewMode} value={form.toilePaymentMode}
+                    onChange={e => set("toilePaymentMode", e.target.value)}>
+                    <option value="">Select mode…</option>
+                    {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </Field>
+                <Field label="Transaction ID">
+                  <input type="text" placeholder="e.g. TXN123"
+                    className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                    readOnly={isViewMode} value={form.toileTransactionId}
+                    onChange={e => set("toileTransactionId", e.target.value)} />
+                </Field>
+              </div>
+              <Field label="Payment Status">
+                <div className="flex gap-2 mt-1">
+                  {PAYMENT_STATUSES.map(s => (
+                    <button key={s} type="button"
+                      onClick={() => { if (!isViewMode) set("toilePaymentStatus", s); }}
+                      disabled={isViewMode}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold ring-1 transition-all ${
+                        form.toilePaymentStatus === s
+                          ? s === "Paid" ? "bg-green-600 text-white ring-green-600"
+                            : s === "Partial" ? "bg-amber-500 text-white ring-amber-500"
+                            : "bg-red-500 text-white ring-red-500"
+                          : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
+                      } ${isViewMode ? "opacity-70 cursor-default" : ""}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Toile Making Images">
+                <FileUploadZone files={form.toileImages} onChange={f => set("toileImages", f)}
+                  accept="image/*" icon={<ImageIcon className="h-5 w-5" />} label="Upload Toile Images"
+                  readOnly={isViewMode}
+                  onImageClick={i => setLightbox({ images: form.toileImages, index: i })} />
+              </Field>
+            </div>
+          </SectionCard>
+
+          {/* Pattern */}
+          <SectionCard icon={<Layout className="h-4 w-4 text-[#C9B45C]" />}
+            title="Pattern" subtitle="Pattern making details and documents">
+            <div className="space-y-4">
+              <Field label="Pattern Making">
+                <div className="flex gap-2 mt-1">
+                  {(["Inhouse", "Outhouse"] as const).map(opt => (
+                    <button key={opt} type="button"
+                      onClick={() => { if (!isViewMode) set("patternType", opt); }}
+                      disabled={isViewMode}
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold ring-1 transition-all ${
+                        form.patternType === opt
+                          ? "bg-gray-900 text-[#C9B45C] ring-gray-900"
+                          : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
+                      } ${isViewMode ? "opacity-70 cursor-default" : ""}`}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              {form.patternType === "Inhouse" && (
+                <>
+                  <Field label="Pattern Making Cost">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                      <input type="number" min="0" step="0.01" placeholder="0.00"
+                        className={`${inputCls} pl-7 ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                        readOnly={isViewMode} value={form.patternMakingCost}
+                        onChange={e => set("patternMakingCost", e.target.value)} />
+                    </div>
+                  </Field>
+                  <Field label="Pattern Document">
+                    <FileUploadZone files={form.patternDoc} onChange={f => set("patternDoc", f)}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,image/*"
+                      icon={<FileText className="h-5 w-5" />} label="Upload Pattern Doc"
+                      readOnly={isViewMode} />
+                  </Field>
+                </>
+              )}
+
+              {form.patternType === "Outhouse" && (
+                <Field label="Upload Document">
+                  <FileUploadZone files={form.patternOuthouseDoc} onChange={f => set("patternOuthouseDoc", f)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,image/*"
+                    icon={<FileText className="h-5 w-5" />} label="Upload Document"
+                    readOnly={isViewMode} />
+                </Field>
+              )}
+            </div>
+          </SectionCard>
 
           {/* Feedback */}
           <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />}
