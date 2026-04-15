@@ -124,11 +124,15 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
         <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Select Material</label>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                Select Material
+                {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
+              </label>
               <select
                 value={selectedMaterialId}
+                disabled={form.materialType === "fabric"}
                 onChange={e => { onMaterialChange(e.target.value); }}
-                className="w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
+                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "fabric" ? "opacity-40 cursor-not-allowed" : ""}`}
               >
                 <option value="">— Select material —</option>
                 {allMaterials.map(m => (
@@ -139,11 +143,15 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Select Fabric</label>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                Select Fabric
+                {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
+              </label>
               <select
                 value={selectedFabricId}
+                disabled={form.materialType === "material"}
                 onChange={e => { onFabricChange(e.target.value); }}
-                className="w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
+                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "material" ? "opacity-40 cursor-not-allowed" : ""}`}
               >
                 <option value="">— Select fabric —</option>
                 {allFabrics.map(f => (
@@ -180,7 +188,7 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
               <input type="number" min="0" step="any"
                 value={form.requiredQty}
                 onChange={e => setForm(f => ({ ...f, requiredQty: e.target.value }))}
-                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                 placeholder="0" />
             </div>
             <div className="flex-1">
@@ -349,37 +357,37 @@ function PrAccordion({ pr, swatchOrderId }: { pr: PurchaseReceiptRecord; swatchO
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Type</label>
                   <select value={payForm.paymentType} onChange={e => setPayForm(f => ({ ...f, paymentType: e.target.value }))}
-                    className="w-full mt-0.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none bg-white">
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
                     {["Advance", "Partial", "Full"].map(v => <option key={v}>{v}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Mode</label>
                   <input value={payForm.paymentMode} onChange={e => setPayForm(f => ({ ...f, paymentMode: e.target.value }))}
-                    className="w-full mt-0.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
                     placeholder="Bank / UPI / Cash…" />
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Amount (₹)</label>
                   <input type="number" min="0" step="any" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
-                    className="w-full mt-0.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
                     placeholder="0.00" />
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Date</label>
                   <input type="date" value={payForm.paymentDate} onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
-                    className="w-full mt-0.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none" />
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Transaction Status</label>
                   <input value={payForm.transactionStatus} onChange={e => setPayForm(f => ({ ...f, transactionStatus: e.target.value }))}
-                    className="w-full mt-0.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
                     placeholder="e.g. TXN123456" />
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Payment Status</label>
                   <select value={payForm.paymentStatus} onChange={e => setPayForm(f => ({ ...f, paymentStatus: e.target.value }))}
-                    className="w-full mt-0.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none bg-white">
+                    className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
                     {["Pending", "Processing", "Completed", "Failed"].map(v => <option key={v}>{v}</option>)}
                   </select>
                 </div>
@@ -533,7 +541,7 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Vendor *</label>
               <select value={poForm.vendorId} onChange={e => setPoForm(f => ({ ...f, vendorId: e.target.value }))}
-                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white">
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
                 <option value="">Select vendor…</option>
                 {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
               </select>
@@ -541,7 +549,7 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Notes (optional)</label>
               <input value={poForm.notes} onChange={e => setPoForm(f => ({ ...f, notes: e.target.value }))}
-                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                 placeholder="Add notes…" />
             </div>
           </div>
@@ -581,21 +589,21 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <label className="text-[10px] text-gray-500 font-medium">Received Quantity *</label>
                 <input type="number" min="0" step="any" value={prForm.receivedQty}
                   onChange={e => setPrForm(f => ({ ...f, receivedQty: e.target.value }))}
-                  className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                   placeholder="0" />
               </div>
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Actual Price (₹) *</label>
                 <input type="number" min="0" step="any" value={prForm.actualPrice}
                   onChange={e => setPrForm(f => ({ ...f, actualPrice: e.target.value }))}
-                  className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                   placeholder="0.00" />
               </div>
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Warehouse Location</label>
                 <input value={prForm.warehouseLocation}
                   onChange={e => setPrForm(f => ({ ...f, warehouseLocation: e.target.value }))}
-                  className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                   placeholder="e.g. Rack A-3" />
               </div>
             </div>
