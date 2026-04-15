@@ -82,6 +82,13 @@ export function useMaterialList(params: MaterialFilters) {
   });
 }
 
+export function useAllMaterials() {
+  return useQuery<MaterialRecord[]>({
+    queryKey: ["materials", "all"],
+    queryFn: () => customFetch<MaterialRecord[]>("/api/materials/all"),
+  });
+}
+
 export function useCreateMaterial() {
   const qc = useQueryClient();
   return useMutation({

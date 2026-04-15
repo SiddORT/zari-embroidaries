@@ -1,13 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
-  Plus, Trash2, ChevronDown, ChevronUp, Loader2, Search,
+  Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
   ArrowRight, Paperclip,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
+import { useAllMaterials } from "@/hooks/useMaterials";
+import { useAllFabrics } from "@/hooks/useFabrics";
 import {
-  useMaterialSearch, useSwatchBom, useAddBomRow, useDeleteBomRow,
+  useSwatchBom, useAddBomRow, useDeleteBomRow,
   useSwatchPOs, useCreatePO, useUpdatePO, useDeletePO,
   useSwatchPRs, useCreatePR, useDeletePR,
   usePrPayments, useAddPayment, useDeletePayment,
@@ -50,51 +52,6 @@ function StatusBadge({ status, map }: { status: string; map: Record<string, stri
   return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>{status}</span>;
 }
 
-// ─── Material Search Input ────────────────────────────────────────────────────
-function MaterialSearchInput({ onSelect }: { onSelect: (m: { id: number; type: string; code: string; name: string; currentStock: string; avgUnitPrice: string; unitType: string; warehouseLocation: string }) => void }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { data: results = [], isFetching } = useMaterialSearch(q);
-
-  useEffect(() => {
-    function handle(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
-
-  return (
-    <div className="relative" ref={ref}>
-      <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white">
-        <Search className="h-3.5 w-3.5 text-gray-400 ml-3 shrink-0" />
-        <input
-          value={q}
-          onChange={e => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder="Search material / fabric…"
-          className="flex-1 text-xs text-gray-900 px-2 py-2 focus:outline-none placeholder:text-gray-400 bg-transparent"
-        />
-        {isFetching && <Loader2 className="h-3 w-3 text-gray-400 animate-spin mr-2" />}
-      </div>
-      {open && q.length >= 1 && (
-        <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-          {results.length === 0 && !isFetching && <p className="px-3 py-3 text-xs text-gray-400 italic">No results</p>}
-          {results.map(r => (
-            <button key={`${r.type}-${r.id}`}
-              className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 text-left transition-colors"
-              onClick={() => { onSelect(r); setQ(r.name); setOpen(false); }}>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0 ${r.type === "fabric" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                {r.type === "fabric" ? "FAB" : "MAT"}
-              </span>
-              <span className="text-xs text-gray-900 truncate flex-1">{r.name}</span>
-              <span className="text-[10px] text-gray-400 font-mono shrink-0">{r.code}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── BOM Section ─────────────────────────────────────────────────────────────
 function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
@@ -102,6 +59,8 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { data: rows = [], isLoading } = useSwatchBom(swatchOrderId);
   const addRow = useAddBomRow();
   const deleteRow = useDeleteBomRow();
+  const { data: allMaterials = [] } = useAllMaterials();
+  const { data: allFabrics = [] } = useAllFabrics();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
@@ -110,12 +69,36 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
 
   const estimatedAmount = (parseFloat(form.requiredQty) || 0) * (parseFloat(form.avgUnitPrice) || 0);
 
-  function onMaterialSelect(m: typeof form & { id: number; type: string; code: string; name: string }) {
-    setForm(f => ({ ...f, materialType: m.type, materialId: m.id, materialCode: m.code, materialName: m.name, currentStock: m.currentStock, avgUnitPrice: m.avgUnitPrice, unitType: m.unitType, warehouseLocation: m.warehouseLocation }));
+  function onMaterialChange(id: string) {
+    if (!id) { setForm(f => ({ ...f, materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "" })); return; }
+    const m = allMaterials.find(m => String(m.id) === id);
+    if (!m) return;
+    setForm(f => ({
+      ...f,
+      materialType: "material", materialId: m.id,
+      materialCode: m.materialCode,
+      materialName: [m.itemType, m.quality].filter(Boolean).join(" – "),
+      currentStock: m.currentStock, avgUnitPrice: m.unitPrice,
+      unitType: m.unitType, warehouseLocation: m.location ?? "",
+    }));
+  }
+
+  function onFabricChange(id: string) {
+    if (!id) { setForm(f => ({ ...f, materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "" })); return; }
+    const f = allFabrics.find(f => String(f.id) === id);
+    if (!f) return;
+    setForm(prev => ({
+      ...prev,
+      materialType: "fabric", materialId: f.id,
+      materialCode: f.fabricCode,
+      materialName: [f.fabricType, f.quality].filter(Boolean).join(" – "),
+      currentStock: f.currentStock, avgUnitPrice: f.pricePerMeter,
+      unitType: f.unitType, warehouseLocation: f.location ?? "",
+    }));
   }
 
   async function handleAdd() {
-    if (!form.materialId) { toast({ title: "Select a material first", variant: "destructive" }); return; }
+    if (!form.materialId) { toast({ title: "Select a material or fabric first", variant: "destructive" }); return; }
     if (!form.requiredQty || parseFloat(form.requiredQty) <= 0) { toast({ title: "Required quantity must be > 0", variant: "destructive" }); return; }
     await addRow.mutateAsync({ ...form, swatchOrderId, estimatedAmount: estimatedAmount.toFixed(2) });
     setForm({ materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "" });
@@ -124,6 +107,9 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
   }
 
   const totalEstimated = rows.reduce((s, r) => s + parseFloat(r.estimatedAmount || "0"), 0);
+
+  const selectedMaterialId = form.materialType === "material" ? String(form.materialId) : "";
+  const selectedFabricId = form.materialType === "fabric" ? String(form.materialId) : "";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -136,7 +122,38 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
 
       {showForm && (
         <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-          <MaterialSearchInput onSelect={onMaterialSelect as any} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Select Material</label>
+              <select
+                value={selectedMaterialId}
+                onChange={e => { onMaterialChange(e.target.value); }}
+                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
+              >
+                <option value="">— Select material —</option>
+                {allMaterials.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {[m.itemType, m.quality].filter(Boolean).join(" – ")} ({m.materialCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Select Fabric</label>
+              <select
+                value={selectedFabricId}
+                onChange={e => { onFabricChange(e.target.value); }}
+                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
+              >
+                <option value="">— Select fabric —</option>
+                {allFabrics.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {[f.fabricType, f.quality].filter(Boolean).join(" – ")} ({f.fabricCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           {form.materialId > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">

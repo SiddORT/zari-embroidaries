@@ -9,6 +9,15 @@ import type { Request } from "express";
 const router: IRouter = Router();
 type AuthRequest = Request & { user?: { userId: number; email: string; role: string } };
 
+router.get("/materials/all", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(materialsTable)
+    .where(and(eq(materialsTable.isDeleted, false), eq(materialsTable.isActive, true)))
+    .orderBy(materialsTable.itemType, materialsTable.quality);
+  res.json(rows);
+});
+
 router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
