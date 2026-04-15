@@ -13,11 +13,6 @@ export async function seedAdminUser(): Promise<void> {
     .where(eq(usersTable.email, ADMIN_EMAIL));
 
   if (existing) {
-    await db
-      .update(usersTable)
-      .set({ hashedPassword: hashPassword(ADMIN_PASSWORD), isActive: true })
-      .where(eq(usersTable.email, ADMIN_EMAIL));
-    logger.info("Admin user password synced on startup");
     return;
   }
 
