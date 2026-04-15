@@ -4,13 +4,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Plus, Trash2, Info, Upload, X, FileText, Image as ImageIcon,
   User, Layers, Scissors, CalendarDays, MessageSquare, Paperclip, CheckCircle2,
-  ChevronDown, Loader2, Palette, ExternalLink,
+  ChevronDown, Loader2, Palette, ExternalLink, Pencil,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useSwatchOrder, useCreateSwatchOrder, useUpdateSwatchOrder, type ReferenceItem, type FileAttachment } from "@/hooks/useSwatchOrders";
-import { useArtworkList, type ArtworkRecord } from "@/hooks/useArtworks";
+import { useArtworkList, useDeleteArtwork, useUpdateArtwork, type ArtworkRecord, type FileAttachment as ArtFileAttachment } from "@/hooks/useArtworks";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 import { useAllFabrics, type FabricRecord } from "@/hooks/useFabrics";
 import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
@@ -259,6 +259,13 @@ export default function SwatchOrderDetail() {
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [unitTypeError, setUnitTypeError] = useState("");
 
+  const [artworkToDelete, setArtworkToDelete] = useState<number | null>(null);
+  const [imgUploadTarget, setImgUploadTarget] = useState<{ artId: number; type: "wip" | "final" } | null>(null);
+  const artImgInputRef = useRef<HTMLInputElement>(null);
+
+  const deleteArtwork = useDeleteArtwork();
+  const updateArtwork = useUpdateArtwork();
+
   useEffect(() => {
     if (orderData?.data) {
       const o = orderData.data;
@@ -366,6 +373,51 @@ export default function SwatchOrderDetail() {
         qc.removeQueries({ queryKey: getGetMeQueryKey() });
         setLocation("/login");
       },
+    });
+  }
+
+  function handleArtworkImageFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!imgUploadTarget || !e.target.files) return;
+    const { artId, type } = imgUploadTarget;
+    const art = (artworksData?.data ?? []).find((a: ArtworkRecord) => a.id === artId);
+    if (!art) return;
+    const files = Array.from(e.target.files);
+    const readers = files.map(file =>
+      new Promise<ArtFileAttachment>(resolve => {
+        const reader = new FileReader();
+        reader.onload = ev => resolve({
+          name: file.name, type: file.type,
+          data: ev.target!.result as string,
+          size: file.size,
+        });
+        reader.readAsDataURL(file);
+      })
+    );
+    Promise.all(readers).then(newFiles => {
+      const existing = type === "wip" ? (art.wipImages ?? []) : (art.finalImages ?? []);
+      const merged = [...existing, ...newFiles];
+      updateArtwork.mutate({
+        id: artId,
+        data: {
+          swatchOrderId: art.swatchOrderId,
+          artworkName: art.artworkName,
+          artworkCreated: art.artworkCreated,
+          feedbackStatus: art.feedbackStatus,
+          wipImages: type === "wip" ? merged : (art.wipImages ?? []),
+          finalImages: type === "final" ? merged : (art.finalImages ?? []),
+          files: art.files ?? [],
+          refImages: art.refImages ?? [],
+        },
+      });
+    });
+    e.target.value = "";
+    setImgUploadTarget(null);
+  }
+
+  function handleDeleteArtworkConfirm() {
+    if (artworkToDelete === null) return;
+    deleteArtwork.mutate(artworkToDelete, {
+      onSuccess: () => setArtworkToDelete(null),
     });
   }
 
@@ -828,34 +880,103 @@ export default function SwatchOrderDetail() {
                 ) : (
                   <div className="space-y-2">
                     {(artworksData?.data ?? []).map((art: ArtworkRecord) => (
-                      <div key={art.id}
-                        onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
-                        className="flex items-center gap-4 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-300 hover:bg-white cursor-pointer transition-all group">
-                        <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
-                          <Palette className="h-4 w-4 text-[#C9B45C]" />
+                      <div key={art.id} className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
+                        {/* ── Row 1: Identity + status + actions ── */}
+                        <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+                          <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                            <Palette className="h-4 w-4 text-[#C9B45C]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{art.artworkName}</p>
+                            <p className="text-xs text-gray-400 font-mono">{art.artworkCode}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                              art.feedbackStatus === "Approved"
+                                ? "bg-gray-900 text-[#C9B45C] border-gray-900"
+                                : art.feedbackStatus === "Revision Required"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : art.feedbackStatus === "Rejected"
+                                ? "bg-red-50 text-red-700 border-red-200"
+                                : art.feedbackStatus === "In Review"
+                                ? "bg-sky-50 text-sky-700 border-sky-200"
+                                : "bg-gray-100 text-gray-600 border-gray-200"
+                            }`}>{art.feedbackStatus}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{art.artworkCreated}</span>
+                            {art.totalCost && (
+                              <span className="text-xs font-medium text-gray-700">₹ {Number(art.totalCost).toLocaleString()}</span>
+                            )}
+                          </div>
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-1 ml-1 shrink-0">
+                            <button
+                              onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
+                              title="Edit artwork"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setArtworkToDelete(art.id)}
+                              title="Delete artwork"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{art.artworkName}</p>
-                          <p className="text-xs text-gray-400 font-mono">{art.artworkCode}</p>
+
+                        {/* ── Row 2: WIP + Final image strips ── */}
+                        <div className="flex items-start gap-4 px-4 pb-3 border-t border-gray-100 pt-2 mt-0.5">
+                          {/* WIP Images */}
+                          <div className="flex-1">
+                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">WIP Images</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {(art.wipImages ?? []).map((img, idx) => (
+                                <img key={idx} src={img.data} alt={img.name}
+                                  className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                                  title={img.name}
+                                  onClick={() => window.open(img.data, "_blank")}
+                                />
+                              ))}
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setImgUploadTarget({ artId: art.id, type: "wip" });
+                                  setTimeout(() => artImgInputRef.current?.click(), 0);
+                                }}
+                                title="Add WIP image"
+                                className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0">
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Divider */}
+                          <div className="w-px bg-gray-200 self-stretch" />
+
+                          {/* Final Images */}
+                          <div className="flex-1">
+                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Final Images</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {(art.finalImages ?? []).map((img, idx) => (
+                                <img key={idx} src={img.data} alt={img.name}
+                                  className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                                  title={img.name}
+                                  onClick={() => window.open(img.data, "_blank")}
+                                />
+                              ))}
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setImgUploadTarget({ artId: art.id, type: "final" });
+                                  setTimeout(() => artImgInputRef.current?.click(), 0);
+                                }}
+                                title="Add final image"
+                                className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0">
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                            art.feedbackStatus === "Approved"
-                              ? "bg-gray-900 text-[#C9B45C] border-gray-900"
-                              : art.feedbackStatus === "Revision Required"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : art.feedbackStatus === "Rejected"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : art.feedbackStatus === "In Review"
-                              ? "bg-sky-50 text-sky-700 border-sky-200"
-                              : "bg-gray-100 text-gray-600 border-gray-200"
-                          }`}>{art.feedbackStatus}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{art.artworkCreated}</span>
-                          {art.totalCost && (
-                            <span className="text-xs font-medium text-gray-700">₹ {Number(art.totalCost).toLocaleString()}</span>
-                          )}
-                        </div>
-                        <ExternalLink className="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-700 transition-colors shrink-0" />
                       </div>
                     ))}
                   </div>
@@ -885,6 +1006,43 @@ export default function SwatchOrderDetail() {
         )}
 
         </div> {/* ── end outer mt-5 ── */}
+
+        {/* Hidden file input for artwork WIP/Final image upload */}
+        <input
+          ref={artImgInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleArtworkImageFiles}
+        />
+
+        {/* Delete Artwork Confirmation Modal */}
+        {artworkToDelete !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                  <Trash2 className="h-5 w-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Delete Artwork?</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">This artwork will be permanently deleted. This action cannot be undone.</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setArtworkToDelete(null)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleDeleteArtworkConfirm} disabled={deleteArtwork.isPending}
+                  className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-60">
+                  {deleteArtwork.isPending ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Unit Type Modal */}
         {addUnitTypeOpen && (
