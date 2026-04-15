@@ -24,6 +24,14 @@ export type StyleOrderRecord = {
   internalNotes: string | null;
   clientInstructions: string | null;
   isChargeable: boolean;
+  actualStartDate: string | null;
+  actualStartTime: string | null;
+  tentativeDeliveryDate: string | null;
+  actualCompletionDate: string | null;
+  actualCompletionTime: string | null;
+  delayReason: string | null;
+  approvalDate: string | null;
+  revisionCount: number;
   isDeleted: boolean;
   createdBy: string;
   createdAt: string;

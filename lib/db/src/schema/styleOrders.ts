@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const styleOrdersTable = pgTable("style_orders", {
@@ -30,6 +30,16 @@ export const styleOrdersTable = pgTable("style_orders", {
   clientInstructions: text("client_instructions"),
 
   isChargeable: boolean("is_chargeable").notNull().default(false),
+
+  actualStartDate: text("actual_start_date"),
+  actualStartTime: text("actual_start_time"),
+  tentativeDeliveryDate: text("tentative_delivery_date"),
+  actualCompletionDate: text("actual_completion_date"),
+  actualCompletionTime: text("actual_completion_time"),
+  delayReason: text("delay_reason"),
+  approvalDate: text("approval_date"),
+  revisionCount: integer("revision_count").notNull().default(0),
+
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
