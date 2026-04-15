@@ -14,6 +14,7 @@ import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 import { useAllFabrics, type FabricRecord } from "@/hooks/useFabrics";
 import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
 import AddableSelect from "@/components/ui/AddableSelect";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
 import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 
@@ -225,6 +226,10 @@ export default function SwatchOrderDetail() {
   const swatches: SwatchRecord[] = swatchesData?.data ?? [];
 
   const unitTypeOptions = unitTypes.filter(t => t.isActive).map(t => ({ value: t.name, label: t.name }));
+  const clientOptions = clients.map(c => ({ value: String(c.id), label: c.brandName }));
+  const fabricOptions = fabrics.map(f => ({ value: String(f.id), label: `${f.fabricCode} — ${f.fabricType} ${f.quality}` }));
+  const styleOptions = styles.map(s => ({ value: String(s.id), label: `${s.styleNo} – ${s.client}` }));
+  const swatchOptions = swatches.map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
@@ -398,15 +403,16 @@ export default function SwatchOrderDetail() {
               </Field>
 
               <Field label="Client">
-                <select className={selectCls} value={form.clientId}
-                  onChange={e => {
-                    const c = clients.find(c => String(c.id) === e.target.value);
-                    set("clientId", e.target.value);
+                <AddableSelect
+                  value={form.clientId}
+                  onChange={v => {
+                    const c = clients.find(c => String(c.id) === v);
+                    set("clientId", v);
                     set("clientName", c?.brandName ?? "");
-                  }}>
-                  <option value="">— Select client —</option>
-                  {clients.map(c => <option key={c.id} value={String(c.id)}>{c.brandName}</option>)}
-                </select>
+                  }}
+                  options={clientOptions}
+                  placeholder="— Select client —"
+                />
               </Field>
 
               {selectedClient && (
@@ -464,15 +470,16 @@ export default function SwatchOrderDetail() {
               title="Material" subtitle="Fabric specifications and unit sizing">
               <div className="space-y-4">
                 <Field label="Fabric">
-                  <select className={selectCls} value={form.fabricId}
-                    onChange={e => {
-                      const f = fabrics.find(f => String(f.id) === e.target.value);
-                      set("fabricId", e.target.value);
+                  <AddableSelect
+                    value={form.fabricId}
+                    onChange={v => {
+                      const f = fabrics.find(f => String(f.id) === v);
+                      set("fabricId", v);
                       set("fabricName", f ? `${f.fabricType} – ${f.quality}` : "");
-                    }}>
-                    <option value="">— Select fabric —</option>
-                    {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
-                  </select>
+                    }}
+                    options={fabricOptions}
+                    placeholder="— Select fabric —"
+                  />
                 </Field>
 
                 <div className="grid grid-cols-2 gap-3 items-end">
@@ -488,18 +495,17 @@ export default function SwatchOrderDetail() {
                     </div>
                   </Field>
                   <Field label="Lining Fabric">
-                    <select
-                      className={`${selectCls} ${!form.hasLining ? "opacity-40 cursor-not-allowed" : ""}`}
+                    <AddableSelect
                       value={form.liningFabricId}
                       disabled={!form.hasLining}
-                      onChange={e => {
-                        const f = fabrics.find(f => String(f.id) === e.target.value);
-                        set("liningFabricId", e.target.value);
+                      onChange={v => {
+                        const f = fabrics.find(f => String(f.id) === v);
+                        set("liningFabricId", v);
                         set("liningFabricName", f ? `${f.fabricType} – ${f.quality}` : "");
-                      }}>
-                      <option value="">— Select fabric —</option>
-                      {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
-                    </select>
+                      }}
+                      options={fabricOptions}
+                      placeholder="— Select fabric —"
+                    />
                   </Field>
                 </div>
 
@@ -543,10 +549,13 @@ export default function SwatchOrderDetail() {
                       value={form.targetHours} onChange={e => set("targetHours", e.target.value)} />
                   </Field>
                   <Field label="Department">
-                    <select className={selectCls} value={form.department} onChange={e => set("department", e.target.value)}>
-                      <option value="">— Select department —</option>
-                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={form.department}
+                      onChange={v => set("department", v)}
+                      options={DEPARTMENTS}
+                      placeholder="— Select department —"
+                      clearable
+                    />
                   </Field>
                 </div>
                 <Field label="Issued To">
@@ -577,15 +586,16 @@ export default function SwatchOrderDetail() {
                     {form.styleReferences.map((ref, i) => (
                       <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
                         <div className="flex-1 space-y-2">
-                          <select className={selectCls} value={ref.id}
-                            onChange={e => {
-                              const s = styles.find(s => String(s.id) === e.target.value);
-                              updateRef("style", i, "id", e.target.value);
+                          <AddableSelect
+                            value={ref.id}
+                            onChange={v => {
+                              const s = styles.find(s => String(s.id) === v);
+                              updateRef("style", i, "id", v);
                               updateRef("style", i, "label", s ? `${s.styleNo} – ${s.client}` : "");
-                            }}>
-                            <option value="">— Select style —</option>
-                            {styles.map(s => <option key={s.id} value={String(s.id)}>{s.styleNo} – {s.client}</option>)}
-                          </select>
+                            }}
+                            options={styleOptions}
+                            placeholder="— Select style —"
+                          />
                           <input className={inputCls} placeholder="Remark…" value={ref.remark}
                             onChange={e => updateRef("style", i, "remark", e.target.value)} />
                         </div>
@@ -614,15 +624,16 @@ export default function SwatchOrderDetail() {
                     {form.swatchReferences.map((ref, i) => (
                       <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
                         <div className="flex-1 space-y-2">
-                          <select className={selectCls} value={ref.id}
-                            onChange={e => {
-                              const s = swatches.find(s => String(s.id) === e.target.value);
-                              updateRef("swatch", i, "id", e.target.value);
+                          <AddableSelect
+                            value={ref.id}
+                            onChange={v => {
+                              const s = swatches.find(s => String(s.id) === v);
+                              updateRef("swatch", i, "id", v);
                               updateRef("swatch", i, "label", s?.swatchName ?? "");
-                            }}>
-                            <option value="">— Select swatch —</option>
-                            {swatches.map(s => <option key={s.id} value={String(s.id)}>{s.swatchCode} – {s.swatchName}</option>)}
-                          </select>
+                            }}
+                            options={swatchOptions}
+                            placeholder="— Select swatch —"
+                          />
                           <input className={inputCls} placeholder="Remark…" value={ref.remark}
                             onChange={e => updateRef("swatch", i, "remark", e.target.value)} />
                         </div>

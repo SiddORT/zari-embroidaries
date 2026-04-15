@@ -8,7 +8,7 @@ interface Option {
 }
 
 interface AddableSelectProps {
-  label: string;
+  label?: string;
   required?: boolean;
   value: string;
   onChange: (value: string) => void;
@@ -99,10 +99,12 @@ export default function AddableSelect({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
+      {label && (
+        <label className="text-sm font-medium text-gray-700">
+          {label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+      )}
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1" ref={containerRef}>
