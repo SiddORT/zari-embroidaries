@@ -178,12 +178,21 @@ function FileUploadZone({ files, onChange, accept, icon, label }: {
           onChange={e => { void handleFiles(e.target.files); e.target.value = ""; }} />
       </div>
       {files.length > 0 && (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2 space-y-2">
           {files.map((f, i) => (
-            <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 text-xs text-gray-700">
-              <span className="flex-1 truncate">{f.name}</span>
-              <span className="text-gray-400 shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
-              <button onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 transition-colors">
+            <div key={i} className="flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
+              {f.type.startsWith("image/") && (
+                <img
+                  src={f.data}
+                  alt={f.name}
+                  className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                <span className="text-xs font-medium text-gray-700 truncate">{f.name}</span>
+                <span className="text-xs text-gray-400">{(f.size / 1024).toFixed(0)} KB</span>
+              </div>
+              <button onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 transition-colors mt-1 shrink-0">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -394,7 +403,7 @@ export default function SwatchOrderDetail() {
         <div className="mt-5 space-y-5">
 
           {/* ── Section 1: Identity — full width ── */}
-          <SectionCard icon={<User className="h-4 w-4 text-white" />} accentColor="bg-violet-500"
+          <SectionCard icon={<User className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="Identity" subtitle="Core details of this swatch order">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Swatch Name *">
@@ -434,10 +443,10 @@ export default function SwatchOrderDetail() {
               <Field label="Chargeable Swatch" hint="Enable if this swatch requires a client invoice">
                 <div className="flex items-center gap-3 pt-1.5">
                   <button type="button" onClick={() => set("isChargeable", !form.isChargeable)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.isChargeable ? "bg-emerald-500" : "bg-gray-200"}`}>
-                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isChargeable ? "translate-x-6" : "translate-x-1"}`} />
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.isChargeable ? "bg-gray-900" : "bg-gray-200"}`}>
+                    <span className={`inline-block h-4 w-4 rounded-full shadow transform transition-transform ${form.isChargeable ? "translate-x-6 bg-[#C9B45C]" : "translate-x-1 bg-white"}`} />
                   </button>
-                  <span className={`text-sm font-medium ${form.isChargeable ? "text-emerald-600" : "text-gray-400"}`}>
+                  <span className={`text-sm font-medium ${form.isChargeable ? "text-gray-900" : "text-gray-400"}`}>
                     {form.isChargeable ? "Yes — Invoice will be generated" : "No — Non-billable"}
                   </span>
                 </div>
@@ -466,7 +475,7 @@ export default function SwatchOrderDetail() {
           <div className="grid grid-cols-2 gap-5">
 
             {/* ── Section 3: Material ── */}
-            <SectionCard icon={<Scissors className="h-4 w-4 text-white" />} accentColor="bg-emerald-500"
+            <SectionCard icon={<Scissors className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
               title="Material" subtitle="Fabric specifications and unit sizing">
               <div className="space-y-4">
                 <Field label="Fabric">
@@ -486,10 +495,10 @@ export default function SwatchOrderDetail() {
                   <Field label="Lining">
                     <div className="flex items-center gap-3 pt-1.5">
                       <button type="button" onClick={() => set("hasLining", !form.hasLining)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.hasLining ? "bg-emerald-500" : "bg-gray-200"}`}>
-                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.hasLining ? "translate-x-6" : "translate-x-1"}`} />
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.hasLining ? "bg-gray-900" : "bg-gray-200"}`}>
+                        <span className={`inline-block h-4 w-4 rounded-full shadow transform transition-transform ${form.hasLining ? "translate-x-6 bg-[#C9B45C]" : "translate-x-1 bg-white"}`} />
                       </button>
-                      <span className={`text-sm font-medium ${form.hasLining ? "text-emerald-600" : "text-gray-400"}`}>
+                      <span className={`text-sm font-medium ${form.hasLining ? "text-gray-900" : "text-gray-400"}`}>
                         {form.hasLining ? "Yes" : "No"}
                       </span>
                     </div>
@@ -532,7 +541,7 @@ export default function SwatchOrderDetail() {
             </SectionCard>
 
             {/* ── Section 4: Planning ── */}
-            <SectionCard icon={<CalendarDays className="h-4 w-4 text-white" />} accentColor="bg-orange-500"
+            <SectionCard icon={<CalendarDays className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
               title="Planning" subtitle="Dates, timing and assignment details">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -567,7 +576,7 @@ export default function SwatchOrderDetail() {
           </div>
 
           {/* ── Section 2: References — full width ── */}
-          <SectionCard icon={<Layers className="h-4 w-4 text-white" />} accentColor="bg-blue-500"
+          <SectionCard icon={<Layers className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="References" subtitle="Link related styles and swatches, add remarks for each">
             <div className="grid grid-cols-2 gap-6">
               {/* Style References */}
@@ -652,7 +661,7 @@ export default function SwatchOrderDetail() {
           <div className="grid grid-cols-2 gap-5 items-start">
 
             {/* ── Section 5: Notes ── */}
-            <SectionCard icon={<MessageSquare className="h-4 w-4 text-white" />} accentColor="bg-indigo-500"
+            <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
               title="Notes" subtitle="Description, internal remarks and client instructions">
               <div className="space-y-4">
                 <Field label="Description">
@@ -671,7 +680,7 @@ export default function SwatchOrderDetail() {
             </SectionCard>
 
             {/* ── Section 7: Completion Tracking ── */}
-            <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-white" />} accentColor="bg-rose-500"
+            <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
               title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -713,7 +722,7 @@ export default function SwatchOrderDetail() {
           </div>
 
           {/* ── Section 6: Attachments — full width ── */}
-          <SectionCard icon={<Paperclip className="h-4 w-4 text-white" />} accentColor="bg-teal-500"
+          <SectionCard icon={<Paperclip className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="Attachments" subtitle="Upload reference documents and images">
             <div className="grid grid-cols-2 gap-6">
               <Field label="Reference Documents">

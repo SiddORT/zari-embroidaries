@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { Check, Plus, Search } from "lucide-react";
 
@@ -31,6 +31,9 @@ export default function AddableSelect({
   error,
   disabled,
 }: AddableSelectProps) {
+  const uid = useId();
+  const portalId = `addable-select-${uid.replace(/:/g, "")}`;
+
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [dropdownStyle, setDropdownStyle] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
@@ -48,7 +51,7 @@ export default function AddableSelect({
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (containerRef.current && !containerRef.current.contains(target)) {
-        const dropdown = document.getElementById("addable-select-dropdown");
+        const dropdown = document.getElementById(portalId);
         if (!dropdown || !dropdown.contains(target)) {
           setOpen(false);
           setQuery("");
@@ -57,14 +60,14 @@ export default function AddableSelect({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  }, [open, portalId]);
 
   useEffect(() => {
     if (!open) return;
     const update = () => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      setDropdownStyle({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+      setDropdownStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     };
     update();
     window.addEventListener("scroll", update, true);
@@ -79,7 +82,7 @@ export default function AddableSelect({
     if (disabled) return;
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    setDropdownStyle({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    setDropdownStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     setOpen(true);
     setQuery("");
     setTimeout(() => inputRef.current?.focus(), 10);
@@ -134,7 +137,7 @@ export default function AddableSelect({
               </span>
               {selected && (
                 <span
-                  onClick={(e) => { e.stopPropagation(); handleClear(); }}
+                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(); }}
                   className="ml-2 text-gray-400 hover:text-gray-600 text-xs leading-none cursor-pointer"
                 >✕</span>
               )}
@@ -159,7 +162,7 @@ export default function AddableSelect({
 
       {open && createPortal(
         <div
-          id="addable-select-dropdown"
+          id={portalId}
           style={{ position: "fixed", top: dropdownStyle.top, left: dropdownStyle.left, width: dropdownStyle.width, zIndex: 9999 }}
           className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
         >
@@ -171,7 +174,7 @@ export default function AddableSelect({
               <li key={opt.value}>
                 <button
                   type="button"
-                  onClick={() => handleSelect(opt)}
+                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleSelect(opt); }}
                   className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors
                     ${value === opt.value ? "bg-gray-50 text-gray-900 font-medium" : "text-gray-700 hover:bg-gray-50"}`}
                 >

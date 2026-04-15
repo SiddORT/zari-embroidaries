@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, User, Users } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, User, Users, ShoppingBag } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -18,29 +18,35 @@ const MASTERS_ITEMS = [
   { label: "Style Categories",  href: "/masters/style-categories" },
   { label: "Swatch Categories", href: "/masters/swatch-categories" },
   { label: "Swatch",            href: "/masters/swatches" },
-  { label: "Style",                href: "/masters/styles" },
-  { label: "Item Master",  href: "/masters/packaging-materials" },
+  { label: "Style",             href: "/masters/styles" },
+  { label: "Item Master",       href: "/masters/packaging-materials" },
+];
+
+const OTHER_ORDERS_ITEMS = [
+  { label: "Swatch Orders", href: "/swatch-orders" },
 ];
 
 const TOP_LINKS = [
-  { label: "Dashboard",      href: "/dashboard" },
-  { label: "Orders",         href: "/orders" },
-  { label: "Swatch Orders",  href: "/swatch-orders" },
-  { label: "Accounts",       href: "/accounts" },
-  { label: "Quotation",      href: "/quotation" },
-  { label: "Shipping",       href: "/shipping" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Accounts",  href: "/accounts" },
+  { label: "Quotation", href: "/quotation" },
+  { label: "Shipping",  href: "/shipping" },
 ];
 
 export default function TopNavbar({ username, role, onLogout, isLoggingOut }: TopNavbarProps) {
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);
+  const [ordersOpen, setOrdersOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
+  const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const mastersRef = useRef<HTMLDivElement>(null);
+  const ordersRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const mastersActive = location.startsWith("/masters");
+  const ordersActive = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
 
   const initials = username
     .split(" ")
@@ -52,20 +58,25 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   useEffect(() => {
     if (!mastersOpen) return;
     const handle = (e: MouseEvent) => {
-      if (mastersRef.current && !mastersRef.current.contains(e.target as Node)) {
-        setMastersOpen(false);
-      }
+      if (mastersRef.current && !mastersRef.current.contains(e.target as Node)) setMastersOpen(false);
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [mastersOpen]);
 
   useEffect(() => {
+    if (!ordersOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (ordersRef.current && !ordersRef.current.contains(e.target as Node)) setOrdersOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [ordersOpen]);
+
+  useEffect(() => {
     if (!profileOpen) return;
     const handle = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileOpen(false);
-      }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -136,6 +147,44 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               )}
             </div>
 
+            {/* Other Orders dropdown */}
+            <div className="relative" ref={ordersRef}>
+              <button
+                onClick={() => setOrdersOpen((v) => !v)}
+                className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  ordersActive
+                    ? "bg-gray-900 text-[#C9B45C]"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                Other Orders
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${ordersOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {ordersOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                  {OTHER_ORDERS_ITEMS.map(({ label, href }) => {
+                    const active = location === href || location.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setOrdersOpen(false)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          active
+                            ? "text-gray-900 bg-gray-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Other top links */}
             {TOP_LINKS.filter((l) => l.href !== "/dashboard").map(({ label, href }) => {
               const active = location === href || location.startsWith(href + "/");
@@ -177,12 +226,10 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
 
               {profileOpen && (
                 <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                  {/* User info header */}
                   <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
                     <p className="text-sm font-semibold text-gray-900 truncate">{username}</p>
                     <p className="text-xs text-gray-400 capitalize">{role}</p>
                   </div>
-
                   <div className="p-1">
                     <button
                       onClick={() => { setProfileOpen(false); navigate("/profile"); }}
@@ -191,7 +238,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                       <User className="h-4 w-4 text-gray-400 shrink-0" />
                       Profile
                     </button>
-
                     <button
                       onClick={() => { setProfileOpen(false); navigate("/user-management"); }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
@@ -199,9 +245,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                       <Users className="h-4 w-4 text-gray-400 shrink-0" />
                       User Management
                     </button>
-
                     <div className="my-1 border-t border-gray-100" />
-
                     <button
                       onClick={() => { setProfileOpen(false); onLogout(); }}
                       disabled={isLoggingOut}
@@ -242,6 +286,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 Dashboard
               </Link>
 
+              {/* Mobile Masters */}
               <button
                 onClick={() => setMobileMastersOpen((v) => !v)}
                 className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
@@ -254,6 +299,33 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileMastersOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {MASTERS_ITEMS.map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Mobile Other Orders */}
+              <button
+                onClick={() => setMobileOrdersOpen((v) => !v)}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                  ordersActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <span className="flex items-center gap-2"><ShoppingBag className="h-4 w-4" /> Other Orders</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileOrdersOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileOrdersOpen && (
+                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                  {OTHER_ORDERS_ITEMS.map(({ label, href }) => (
                     <Link
                       key={href}
                       href={href}
