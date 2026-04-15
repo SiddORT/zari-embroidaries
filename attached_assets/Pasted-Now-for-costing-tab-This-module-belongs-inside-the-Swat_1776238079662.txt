@@ -1,0 +1,102 @@
+Now for costing tab
+This module belongs inside the Swatch Order workflow and must support BOM creation, PO generation, PR tracking, payment recording, and consumption tracking.
+Follow the structure exactly as defined below.
+
+MODULE NAME
+Swatch Costing Sheet
+Each costing sheet belongs to one Swatch Order.
+Relationship:
+Swatch Order → BOM → Purchase Order (PO) → Purchase Receipt (PR) → Payment → Consumption
+
+SECTION 1 — BOM (Bill of Materials)
+User can add multiple BOM rows.
+Each row must include:
+Material (searchable dropdown from Item Master)
+System must auto-display:
+Current Stock Average Unit Price Unit Type Warehouse Location
+User enters:
+Required Quantity Consumption Quantity
+System calculates:
+Estimated Amount = Required Quantity × Average Unit Price
+Save all rows into Swatch_BOM table linked with:
+Swatch ID Material ID Required Quantity Consumption Quantity Average Unit Price Estimated Amount Warehouse Location
+Show BOM entries in a table below input.
+
+SECTION 2 — PURCHASE ORDER (PO)
+User can create PO from selected BOM entries.
+Fields:
+PO Number (auto-generated) PO Date (auto-filled) Swatch ID Vendor (searchable dropdown) Quantity
+PO Status flow:
+Draft Pending Approval Approved In Process Closed
+Workflow:
+Create PO Send approval email After approval:
+Status becomes "In Process"
+Enable:
+Download PO PDF button Create PR button
+Store:
+Approved By Approval Timestamp
+Allow multiple PO records per Swatch.
+
+SECTION 3 — PURCHASE RECEIPT (PR)
+Allow multiple PR records against one PO.
+Each PR must include:
+PR Number (auto-generated) PO Number Vendor Name Received Date Received Quantity Actual Price Warehouse Location PR Status
+PR Status values:
+Open Closed
+Store each PR record linked with:
+Swatch ID PO ID
+
+SECTION 4 — PAYMENT RECORDING
+Each PR supports payment tracking.
+Fields:
+Payment Type dropdown:
+Advance Partial Full
+Payment Date Payment Mode Amount Transaction Status Payment Status dropdown:
+Pending Processing Completed Failed
+Attachment upload support
+Each payment must link with PR ID.
+
+SECTION 5 — CONSUMPTION SECTION
+User can create consumption entry using received materials.
+Fields:
+Material Current Stock (auto display) Average Price (auto display) Consumed Quantity
+System calculates:
+Consumed Total = Consumed Quantity × Average Price
+Store consumption records linked with:
+Swatch ID Material ID Consumed Quantity Average Price Consumed Total
+Display consumption table below.
+
+SECTION 6 — UI STRUCTURE
+Tabs layout:
+Swatch Order Artwork Costing Client Centre Invoice
+Inside Costing tab show sections:
+Create Estimation BOM Purchase Order Purchase Receipt Consumption Artisan Time Sheet Outsource Job Custom Charges
+Each section must support:
+Add button Edit button Delete button Table display
+
+SECTION 7 — DATABASE RELATIONSHIPS
+Tables required:
+Swatch_Order Swatch_BOM Purchase_Order Purchase_Receipt PR_Payments Consumption Artisan_Timesheet Outsource_Jobs Custom_Charges
+Relationships:
+Swatch_Order.id → Swatch_BOM.swatch_id Swatch_Order.id → Purchase_Order.swatch_id Purchase_Order.id → Purchase_Receipt.po_id Purchase_Receipt.id → PR_Payments.pr_id Swatch_Order.id → Consumption.swatch_id
+
+SECTION 8 — AUTO FEATURES REQUIRED
+Auto-generate:
+Swatch ID format:
+SW10003
+PO Number PR Number
+Auto-fetch:
+Stock Average Price Unit Type Warehouse Location
+Auto-calculate:
+Estimated Amount Consumed Total
+
+SECTION 9 — VALIDATION RULES
+Required validations:
+Material must be selected before BOM save
+Vendor must be selected before PO creation
+Received Quantity cannot exceed PO Quantity
+Consumed Quantity cannot exceed Available Stock
+Payment amount cannot exceed PR total value
+
+END OF MODULE REQUIREMENTS
+Build backend + frontend logic accordingly.
