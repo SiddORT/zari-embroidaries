@@ -486,7 +486,7 @@ export default function InvoiceTab({
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <input type="number" min="0" step="0.01"
-                            className="w-20 px-2 py-1 text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900/20 text-xs"
+                            className="w-20 px-2 py-1 text-right text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900/20 text-xs"
                             value={form.discountValue} onChange={e => setField("discountValue", e.target.value)} />
                           {discountAmt > 0 && <span className="text-red-400 text-[10px] whitespace-nowrap">− {rupee(discountAmt)}</span>}
                         </div>
@@ -499,7 +499,7 @@ export default function InvoiceTab({
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <input type="number" min="0" max="100" step="0.5"
-                            className="w-16 px-2 py-1 text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900/20 text-xs"
+                            className="w-16 px-2 py-1 text-right text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900/20 text-xs"
                             value={form.cgstRate} onChange={e => setField("cgstRate", e.target.value)} />
                           <span className="text-gray-400 text-[10px] whitespace-nowrap">= {rupee(cgstAmt)}</span>
                         </div>
@@ -512,7 +512,7 @@ export default function InvoiceTab({
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <input type="number" min="0" max="100" step="0.5"
-                            className="w-16 px-2 py-1 text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900/20 text-xs"
+                            className="w-16 px-2 py-1 text-right text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900/20 text-xs"
                             value={form.sgstRate} onChange={e => setField("sgstRate", e.target.value)} />
                           <span className="text-gray-400 text-[10px] whitespace-nowrap">= {rupee(sgstAmt)}</span>
                         </div>
