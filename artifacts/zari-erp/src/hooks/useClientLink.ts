@@ -36,10 +36,10 @@ export function useClientLink(swatchOrderId: number | null) {
     queryKey: ["client-link", swatchOrderId],
     enabled: !!swatchOrderId,
     queryFn: async () => {
-      const r = await customFetch(`/api/client-links/swatch/${swatchOrderId}`);
-      if (!r.ok) throw new Error("Failed to load client link");
-      const json = await r.json() as { data: ClientLinkRecord };
-      return json.data;
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/swatch/${swatchOrderId}`
+      );
+      return result.data;
     },
   });
 }
@@ -49,10 +49,10 @@ export function useClientFeedback(linkId: number | null) {
     queryKey: ["client-feedback", linkId],
     enabled: !!linkId,
     queryFn: async () => {
-      const r = await customFetch(`/api/client-links/${linkId}/feedback`);
-      if (!r.ok) throw new Error("Failed to load feedback");
-      const json = await r.json() as { data: ClientFeedbackRecord[] };
-      return json.data;
+      const result = await customFetch<{ data: ClientFeedbackRecord[] }>(
+        `/api/client-links/${linkId}/feedback`
+      );
+      return result.data;
     },
   });
 }
@@ -60,11 +60,18 @@ export function useClientFeedback(linkId: number | null) {
 export function useUpdateClientLink() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Pick<ClientLinkRecord, "isPublished" | "hiddenImages" | "portalTitle">> }) => {
-      const r = await customFetch(`/api/client-links/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-      if (!r.ok) throw new Error("Failed to update client link");
-      const json = await r.json() as { data: ClientLinkRecord };
-      return json.data;
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: Partial<Pick<ClientLinkRecord, "isPublished" | "hiddenImages" | "portalTitle">>;
+    }) => {
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/${id}`,
+        { method: "PATCH", body: JSON.stringify(data) }
+      );
+      return result.data;
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["client-link", data.swatchOrderId] });
@@ -76,10 +83,11 @@ export function useRegenerateLink() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, swatchOrderId }: { id: number; swatchOrderId: number }) => {
-      const r = await customFetch(`/api/client-links/${id}/regenerate`, { method: "POST" });
-      if (!r.ok) throw new Error("Failed to regenerate link");
-      const json = await r.json() as { data: ClientLinkRecord };
-      return { ...json.data, swatchOrderId };
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/${id}/regenerate`,
+        { method: "POST" }
+      );
+      return { ...result.data, swatchOrderId };
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["client-link", data.swatchOrderId] });
@@ -90,11 +98,18 @@ export function useRegenerateLink() {
 export function useUpdateFeedback() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: { isResolved?: boolean; internalNote?: string } }) => {
-      const r = await customFetch(`/api/client-links/feedback/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-      if (!r.ok) throw new Error("Failed to update feedback");
-      const json = await r.json() as { data: ClientFeedbackRecord };
-      return json.data;
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: { isResolved?: boolean; internalNote?: string };
+    }) => {
+      const result = await customFetch<{ data: ClientFeedbackRecord }>(
+        `/api/client-links/feedback/${id}`,
+        { method: "PATCH", body: JSON.stringify(data) }
+      );
+      return result.data;
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["client-feedback", data.clientLinkId] });
