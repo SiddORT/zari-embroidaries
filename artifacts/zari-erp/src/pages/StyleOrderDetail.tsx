@@ -17,6 +17,7 @@ import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
 import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 import ProductsTab from "./ProductsTab";
 import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
+import StyleCostingTab from "./StyleCostingTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -912,7 +913,15 @@ export default function StyleOrderDetail() {
           )}
 
           {/* ══ TAB 5: Costing ═════════════════════════════════════════════ */}
-          {activeTab === 5 && <PlaceholderTab icon="💰" label="Costing" />}
+          {activeTab === 5 && !isNew && (
+            <StyleCostingTab
+              styleOrderId={numId}
+              orderCode={orderData?.data?.orderCode}
+              styleName={orderData?.data?.styleName}
+              clientName={form.clientName}
+            />
+          )}
+          {activeTab === 5 && isNew && <PlaceholderTab icon="💰" label="Costing (save order first)" />}
 
           {/* ══ TAB 6: Cost Sheet ══════════════════════════════════════════ */}
           {activeTab === 6 && <PlaceholderTab icon="📋" label="Cost Sheet" />}

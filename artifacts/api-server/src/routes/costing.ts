@@ -493,4 +493,304 @@ router.delete("/custom-charges/:id", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// STYLE ORDER COSTING ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Style BOM ───────────────────────────────────────────────────────────────
+router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(swatchBomTable)
+    .where(eq(swatchBomTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(swatchBomTable.createdAt);
+  res.json({ data: rows });
+});
+
+router.post("/style-bom", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { styleOrderId, materialType, materialId, materialCode, materialName, currentStock, avgUnitPrice, unitType, warehouseLocation, requiredQty } = req.body as Record<string, string>;
+  const reqQty = parseFloat(requiredQty) || 0;
+  const price = parseFloat(avgUnitPrice) || 0;
+  const estimatedAmount = (reqQty * price).toFixed(2);
+  const [row] = await db.insert(swatchBomTable).values({
+    styleOrderId: Number(styleOrderId),
+    materialType,
+    materialId: Number(materialId),
+    materialCode,
+    materialName,
+    currentStock,
+    avgUnitPrice,
+    unitType,
+    warehouseLocation,
+    requiredQty,
+    estimatedAmount,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+// ─── Style PO ─────────────────────────────────────────────────────────────────
+router.get("/style-po/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(purchaseOrdersTable)
+    .where(eq(purchaseOrdersTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(purchaseOrdersTable.createdAt);
+  res.json({ data: rows });
+});
+
+router.post("/style-po", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { styleOrderId, vendorId, notes, bomItems } = req.body as {
+    styleOrderId: number;
+    vendorId: number;
+    notes?: string;
+    bomItems?: { bomRowId: number; materialCode: string; materialName: string; unitType: string; targetPrice: string; quantity: string }[];
+  };
+  const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId));
+  if (!vendor) { res.status(404).json({ error: "Vendor not found" }); return; }
+  const poNumber = await nextPoNumber();
+  const items = bomItems ?? [];
+  const [row] = await db.insert(purchaseOrdersTable).values({
+    poNumber,
+    styleOrderId: Number(styleOrderId),
+    vendorId,
+    vendorName: vendor.brandName,
+    status: "Draft",
+    notes: notes ?? null,
+    bomRowIds: items.map(i => i.bomRowId),
+    bomItems: items,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+// ─── Style PR ─────────────────────────────────────────────────────────────────
+router.get("/style-pr/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(purchaseReceiptsTable)
+    .where(eq(purchaseReceiptsTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(purchaseReceiptsTable.createdAt);
+  res.json({ data: rows });
+});
+
+router.post("/style-pr", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { poId, styleOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
+  const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
+  if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+
+  const newQty = parseFloat(String(receivedQty)) || 0;
+  const resolvedBomRowId = bomRowId != null ? Number(bomRowId) : null;
+  const bomItems = po.bomItems ?? [];
+  const isSingleItem = bomItems.length === 1;
+
+  let orderedQty = 0;
+  if (resolvedBomRowId != null) {
+    const item = bomItems.find(i => i.bomRowId === resolvedBomRowId);
+    orderedQty = parseFloat(item?.quantity ?? "0") || 0;
+  } else if (isSingleItem) {
+    orderedQty = parseFloat(bomItems[0]?.quantity ?? "0") || 0;
+  }
+
+  const existingPrs = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.poId, Number(poId)));
+  const relevantPrs = resolvedBomRowId != null
+    ? existingPrs.filter(pr => pr.bomRowId === resolvedBomRowId)
+    : (isSingleItem ? existingPrs : existingPrs.filter(pr => pr.bomRowId == null));
+  const alreadyReceived = relevantPrs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+
+  if (orderedQty > 0) {
+    if (alreadyReceived >= orderedQty) {
+      res.status(400).json({ error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.` });
+      return;
+    }
+    const remaining = orderedQty - alreadyReceived;
+    if (newQty > remaining) {
+      res.status(400).json({ error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}` });
+      return;
+    }
+  }
+
+  const prNumber = await nextPrNumber();
+  const [row] = await db.insert(purchaseReceiptsTable).values({
+    prNumber,
+    poId: Number(poId),
+    bomRowId: resolvedBomRowId,
+    styleOrderId: Number(styleOrderId),
+    vendorName: po.vendorName,
+    receivedQty: String(receivedQty),
+    actualPrice: String(actualPrice),
+    warehouseLocation: String(warehouseLocation ?? ""),
+    status: "Open",
+    createdBy: user.email,
+  }).returning();
+
+  if (po.status !== "Closed" && bomItems.length > 0) {
+    const allPoPrs = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.poId, Number(poId)));
+    const allCovered = bomItems.every(item => {
+      const relevant = allPoPrs.filter(pr =>
+        pr.bomRowId === item.bomRowId ||
+        (pr.bomRowId == null && bomItems.length === 1)
+      );
+      const received = relevant.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+      const ordered = parseFloat(item.quantity) || 0;
+      return ordered > 0 && received >= ordered;
+    });
+    if (allCovered) {
+      await db.update(purchaseOrdersTable).set({ status: "Closed", updatedBy: user.email, updatedAt: new Date() }).where(eq(purchaseOrdersTable.id, Number(poId)));
+    }
+  }
+
+  res.status(201).json({ data: row });
+});
+
+// ─── Style Consumption ────────────────────────────────────────────────────────
+router.get("/style-consumption/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(consumptionLogTable)
+    .where(eq(consumptionLogTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(consumptionLogTable.consumedAt);
+  res.json({ data: rows });
+});
+
+router.post("/style-consumption", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { styleOrderId, styleOrderProductId, styleOrderProductName, bomRowId, materialCode, materialName, materialType, unitType, consumedQty, notes } = req.body as Record<string, string | number>;
+
+  const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, Number(bomRowId)));
+  if (!bomRow) { res.status(404).json({ error: "BOM item not found" }); return; }
+  const currentStock = parseFloat(bomRow.currentStock || "0");
+  const existingConsumed = parseFloat(bomRow.consumedQty || "0");
+  const newConsumedQty = parseFloat(String(consumedQty)) || 0;
+  const allPrsForRow = await db.select().from(purchaseReceiptsTable)
+    .where(eq(purchaseReceiptsTable.bomRowId, Number(bomRowId)));
+  const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+  const liveStock = currentStock + totalPrReceived;
+  const available = liveStock - existingConsumed;
+  if (newConsumedQty > available) {
+    res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available (Base stock: ${currentStock}, PR received: ${totalPrReceived}, Already consumed: ${existingConsumed}).` });
+    return;
+  }
+
+  const [entry] = await db.insert(consumptionLogTable).values({
+    styleOrderId: Number(styleOrderId),
+    styleOrderProductId: styleOrderProductId ? Number(styleOrderProductId) : null,
+    styleOrderProductName: styleOrderProductName ? String(styleOrderProductName) : null,
+    bomRowId: Number(bomRowId),
+    materialCode: String(materialCode),
+    materialName: String(materialName),
+    materialType: String(materialType),
+    unitType: String(unitType ?? ""),
+    consumedQty: String(consumedQty),
+    consumedBy: user.email,
+    notes: notes ? String(notes) : null,
+  }).returning();
+
+  const allEntries = await db.select().from(consumptionLogTable)
+    .where(eq(consumptionLogTable.bomRowId, Number(bomRowId)));
+  const totalConsumed = allEntries.reduce((s, e) => s + (parseFloat(e.consumedQty) || 0), 0);
+  await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
+    .where(eq(swatchBomTable.id, Number(bomRowId)));
+
+  res.status(201).json({ data: entry });
+});
+
+// ─── Style Artisan Timesheets ─────────────────────────────────────────────────
+router.get("/style-artisan-timesheets/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(artisanTimesheetsTable)
+    .where(eq(artisanTimesheetsTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(desc(artisanTimesheetsTable.createdAt));
+  res.json({ data: rows });
+});
+
+router.post("/style-artisan-timesheets", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { styleOrderId, styleOrderProductId, styleOrderProductName, noOfArtisans, startDate, endDate, shiftType, totalHours, hourlyRate, notes } = req.body;
+  if (!styleOrderId || !startDate || !endDate || !shiftType) {
+    res.status(400).json({ error: "styleOrderId, startDate, endDate and shiftType are required" }); return;
+  }
+  const totalHoursNum = parseFloat(totalHours) || 0;
+  const hourlyRateNum = parseFloat(hourlyRate) || 0;
+  const noOfArtisansNum = parseInt(noOfArtisans) || 1;
+  const totalRate = (totalHoursNum * hourlyRateNum * noOfArtisansNum).toFixed(2);
+  const [row] = await db.insert(artisanTimesheetsTable).values({
+    styleOrderId: Number(styleOrderId),
+    styleOrderProductId: styleOrderProductId ? Number(styleOrderProductId) : null,
+    styleOrderProductName: styleOrderProductName ? String(styleOrderProductName) : null,
+    noOfArtisans: noOfArtisansNum,
+    startDate: String(startDate),
+    endDate: String(endDate),
+    shiftType: String(shiftType),
+    totalHours: String(totalHoursNum),
+    hourlyRate: String(hourlyRateNum),
+    totalRate,
+    notes: notes ? String(notes) : null,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+// ─── Style Outsource Jobs ─────────────────────────────────────────────────────
+router.get("/style-outsource-jobs/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(outsourceJobsTable)
+    .where(eq(outsourceJobsTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(desc(outsourceJobsTable.createdAt));
+  res.json({ data: rows });
+});
+
+router.post("/style-outsource-jobs", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { styleOrderId, styleOrderProductId, styleOrderProductName, vendorId, vendorName, hsnId, hsnCode, gstPercentage, issueDate, targetDate, deliveryDate, totalCost, notes } = req.body;
+  if (!styleOrderId || !vendorId || !hsnId || !issueDate) {
+    res.status(400).json({ error: "styleOrderId, vendorId, hsnId and issueDate are required" }); return;
+  }
+  const [row] = await db.insert(outsourceJobsTable).values({
+    styleOrderId: Number(styleOrderId),
+    styleOrderProductId: styleOrderProductId ? Number(styleOrderProductId) : null,
+    styleOrderProductName: styleOrderProductName ? String(styleOrderProductName) : null,
+    vendorId: Number(vendorId),
+    vendorName: String(vendorName),
+    hsnId: Number(hsnId),
+    hsnCode: String(hsnCode),
+    gstPercentage: String(gstPercentage || "5"),
+    issueDate: String(issueDate),
+    targetDate: targetDate ? String(targetDate) : null,
+    deliveryDate: deliveryDate ? String(deliveryDate) : null,
+    totalCost: String(parseFloat(totalCost) || 0),
+    notes: notes ? String(notes) : null,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+// ─── Style Custom Charges ─────────────────────────────────────────────────────
+router.get("/style-custom-charges/:styleOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(customChargesTable)
+    .where(eq(customChargesTable.styleOrderId, Number(req.params.styleOrderId)))
+    .orderBy(desc(customChargesTable.createdAt));
+  res.json({ data: rows });
+});
+
+router.post("/style-custom-charges", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { styleOrderId, styleOrderProductId, styleOrderProductName, vendorId, vendorName, hsnId, hsnCode, gstPercentage, description, unitPrice, quantity } = req.body;
+  if (!styleOrderId || !vendorId || !hsnId || !description) {
+    res.status(400).json({ error: "styleOrderId, vendorId, hsnId and description are required" }); return;
+  }
+  const unitPriceNum = parseFloat(unitPrice) || 0;
+  const quantityNum = parseFloat(quantity) || 1;
+  const totalAmount = (unitPriceNum * quantityNum).toFixed(2);
+  const [row] = await db.insert(customChargesTable).values({
+    styleOrderId: Number(styleOrderId),
+    styleOrderProductId: styleOrderProductId ? Number(styleOrderProductId) : null,
+    styleOrderProductName: styleOrderProductName ? String(styleOrderProductName) : null,
+    vendorId: Number(vendorId),
+    vendorName: String(vendorName),
+    hsnId: Number(hsnId),
+    hsnCode: String(hsnCode),
+    gstPercentage: String(gstPercentage || "5"),
+    description: String(description),
+    unitPrice: String(unitPriceNum),
+    quantity: String(quantityNum),
+    totalAmount,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
 export default router;

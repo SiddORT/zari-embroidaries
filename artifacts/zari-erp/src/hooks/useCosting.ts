@@ -414,3 +414,235 @@ export function useDeleteCustomCharge() {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["custom-charges"] }); },
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STYLE ORDER COSTING HOOKS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function useStyleBom(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-bom", styleOrderId],
+    queryFn: () => customFetch<{ data: BomRecord[] }>(`/api/costing/style-bom/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useAddStyleBomRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: BomRecord }>("/api/costing/style-bom", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-bom"] }); },
+  });
+}
+
+export function useUpdateStyleBomRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; consumedQty?: string }) =>
+      customFetch<{ data: BomRecord }>(`/api/costing/bom/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-bom"] }); },
+  });
+}
+
+export function useDeleteStyleBomRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/bom/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-bom"] }); },
+  });
+}
+
+export function useStylePOs(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-pos", styleOrderId],
+    queryFn: () => customFetch<{ data: PurchaseOrderRecord[] }>(`/api/costing/style-po/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useCreateStylePO() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: PurchaseOrderRecord }>("/api/costing/style-po", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-pos"] }); },
+  });
+}
+
+export function useUpdateStylePO() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; status?: string; notes?: string }) =>
+      customFetch<{ data: PurchaseOrderRecord }>(`/api/costing/po/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-pos"] }); },
+  });
+}
+
+export function useDeleteStylePO() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/po/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-pos"] }); },
+  });
+}
+
+export function useStylePRs(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-prs", styleOrderId],
+    queryFn: () => customFetch<{ data: PurchaseReceiptRecord[] }>(`/api/costing/style-pr/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useCreateStylePR() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: PurchaseReceiptRecord }>("/api/costing/style-pr", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["style-prs"] });
+      void qc.invalidateQueries({ queryKey: ["style-pos"] });
+    },
+  });
+}
+
+export function useUpdateStylePR() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; status?: string }) =>
+      customFetch<{ data: PurchaseReceiptRecord }>(`/api/costing/pr/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-prs"] }); },
+  });
+}
+
+export function useDeleteStylePR() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/pr/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-prs"] }); },
+  });
+}
+
+export interface StyleConsumptionLogRecord extends ConsumptionLogRecord {
+  styleOrderId: number | null;
+  styleOrderProductId: number | null;
+  styleOrderProductName: string | null;
+}
+
+export function useStyleConsumptionLog(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-consumption-log", styleOrderId],
+    queryFn: () => customFetch<{ data: StyleConsumptionLogRecord[] }>(`/api/costing/style-consumption/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useAddStyleConsumptionEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleConsumptionLogRecord }>("/api/costing/style-consumption", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["style-consumption-log"] });
+      void qc.invalidateQueries({ queryKey: ["style-bom"] });
+    },
+  });
+}
+
+export function useDeleteStyleConsumptionEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/consumption/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["style-consumption-log"] });
+      void qc.invalidateQueries({ queryKey: ["style-bom"] });
+    },
+  });
+}
+
+export interface StyleArtisanTimesheetRecord extends ArtisanTimesheetRecord {
+  styleOrderId: number | null;
+  styleOrderProductId: number | null;
+  styleOrderProductName: string | null;
+}
+
+export function useStyleArtisanTimesheets(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-artisan-timesheets", styleOrderId],
+    queryFn: () => customFetch<{ data: StyleArtisanTimesheetRecord[] }>(`/api/costing/style-artisan-timesheets/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useCreateStyleArtisanTimesheet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleArtisanTimesheetRecord }>("/api/costing/style-artisan-timesheets", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-artisan-timesheets"] }); },
+  });
+}
+
+export function useDeleteStyleArtisanTimesheet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/artisan-timesheets/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-artisan-timesheets"] }); },
+  });
+}
+
+export interface StyleOutsourceJobRecord extends OutsourceJobRecord {
+  styleOrderId: number | null;
+  styleOrderProductId: number | null;
+  styleOrderProductName: string | null;
+}
+
+export function useStyleOutsourceJobs(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-outsource-jobs", styleOrderId],
+    queryFn: () => customFetch<{ data: StyleOutsourceJobRecord[] }>(`/api/costing/style-outsource-jobs/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useCreateStyleOutsourceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleOutsourceJobRecord }>("/api/costing/style-outsource-jobs", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-outsource-jobs"] }); },
+  });
+}
+
+export function useDeleteStyleOutsourceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/outsource-jobs/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-outsource-jobs"] }); },
+  });
+}
+
+export interface StyleCustomChargeRecord extends CustomChargeRecord {
+  styleOrderId: number | null;
+  styleOrderProductId: number | null;
+  styleOrderProductName: string | null;
+}
+
+export function useStyleCustomCharges(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["style-custom-charges", styleOrderId],
+    queryFn: () => customFetch<{ data: StyleCustomChargeRecord[] }>(`/api/costing/style-custom-charges/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
+export function useCreateStyleCustomCharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleCustomChargeRecord }>("/api/costing/style-custom-charges", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-custom-charges"] }); },
+  });
+}
+
+export function useDeleteStyleCustomCharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/custom-charges/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-custom-charges"] }); },
+  });
+}

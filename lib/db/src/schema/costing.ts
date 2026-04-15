@@ -9,7 +9,8 @@ export interface PaymentAttachmentFile {
 
 export const swatchBomTable = pgTable("swatch_bom", {
   id: serial("id").primaryKey(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
   materialType: text("material_type").notNull(),
   materialId: integer("material_id").notNull(),
   materialCode: text("material_code").notNull(),
@@ -41,7 +42,8 @@ export interface PoLineItem {
 export const purchaseOrdersTable = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   poNumber: text("po_number").notNull().unique(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
   vendorId: integer("vendor_id").notNull(),
   vendorName: text("vendor_name").notNull(),
   poDate: timestamp("po_date", { withTimezone: true }).notNull().defaultNow(),
@@ -64,7 +66,8 @@ export const purchaseReceiptsTable = pgTable("purchase_receipts", {
   prNumber: text("pr_number").notNull().unique(),
   poId: integer("po_id").notNull(),
   bomRowId: integer("bom_row_id"),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
   vendorName: text("vendor_name").notNull(),
   receivedDate: timestamp("received_date", { withTimezone: true }).notNull().defaultNow(),
   receivedQty: text("received_qty").notNull(),
@@ -99,7 +102,10 @@ export type PrPaymentRecord = typeof prPaymentsTable.$inferSelect;
 
 export const consumptionLogTable = pgTable("consumption_log", {
   id: serial("id").primaryKey(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
+  styleOrderProductId: integer("style_order_product_id"),
+  styleOrderProductName: text("style_order_product_name"),
   bomRowId: integer("bom_row_id").notNull(),
   materialCode: text("material_code").notNull(),
   materialName: text("material_name").notNull(),
@@ -117,7 +123,10 @@ export type ConsumptionLogRecord = typeof consumptionLogTable.$inferSelect;
 // ─── Artisan Timesheet ───────────────────────────────────────────────────────
 export const artisanTimesheetsTable = pgTable("artisan_timesheets", {
   id: serial("id").primaryKey(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
+  styleOrderProductId: integer("style_order_product_id"),
+  styleOrderProductName: text("style_order_product_name"),
   noOfArtisans: integer("no_of_artisans").notNull().default(1),
   startDate: text("start_date").notNull(),
   endDate: text("end_date").notNull(),
@@ -135,7 +144,10 @@ export type ArtisanTimesheetRecord = typeof artisanTimesheetsTable.$inferSelect;
 // ─── Outsource Jobs ──────────────────────────────────────────────────────────
 export const outsourceJobsTable = pgTable("outsource_jobs", {
   id: serial("id").primaryKey(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
+  styleOrderProductId: integer("style_order_product_id"),
+  styleOrderProductName: text("style_order_product_name"),
   vendorId: integer("vendor_id").notNull(),
   vendorName: text("vendor_name").notNull(),
   hsnId: integer("hsn_id").notNull(),
@@ -155,7 +167,10 @@ export type OutsourceJobRecord = typeof outsourceJobsTable.$inferSelect;
 // ─── Custom Charges ───────────────────────────────────────────────────────────
 export const customChargesTable = pgTable("custom_charges", {
   id: serial("id").primaryKey(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
+  styleOrderProductId: integer("style_order_product_id"),
+  styleOrderProductName: text("style_order_product_name"),
   vendorId: integer("vendor_id").notNull(),
   vendorName: text("vendor_name").notNull(),
   hsnId: integer("hsn_id").notNull(),
