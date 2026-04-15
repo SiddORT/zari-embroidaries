@@ -983,6 +983,7 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
 function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { toast } = useToast();
   const { data: pos = [], isLoading } = useSwatchPOs(swatchOrderId);
+  const { data: prs = [] } = useSwatchPRs(swatchOrderId);
   const { data: bomRows = [] } = useSwatchBom(swatchOrderId);
   const { data: vendors = [] } = useAllVendors();
   const createPO = useCreatePO();
@@ -992,21 +993,46 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
   const [prModal, setPrModal] = useState<{ poId: number; vendorName: string; bomItems: PoLineItem[] } | null>(null);
   const [prForm, setPrForm] = useState({ bomRowId: "" as string, receivedQty: "", actualPrice: "", warehouseLocation: "" });
 
-  async function handleCreatePO(payload: Record<string, unknown>) {
-    await createPO.mutateAsync(payload);
-    toast({ title: "Purchase Order created" });
+  // Compute remaining qty for the item currently selected in the PR modal
+  const prItemStats = (() => {
+    if (!prModal) return null;
+    const selectedBomRowId = prForm.bomRowId ? Number(prForm.bomRowId) : (prModal.bomItems.length === 1 ? prModal.bomItems[0].bomRowId : null);
+    if (selectedBomRowId == null) return null;
+    const item = prModal.bomItems.find(i => i.bomRowId === selectedBomRowId);
+    if (!item) return null;
+    const poPrs = prs.filter(pr => pr.poId === prModal.poId);
+    const alreadyReceived = poPrs
+      .filter(pr => pr.bomRowId === selectedBomRowId || (pr.bomRowId == null && prModal.bomItems.length === 1))
+      .reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+    const ordered = parseFloat(item.quantity) || 0;
+    return { ordered, alreadyReceived, remaining: Math.max(0, ordered - alreadyReceived), unitType: item.unitType };
+  })();
+
+  function handleCreatePO(payload: Record<string, unknown>) {
+    createPO.mutate(payload, {
+      onSuccess: () => toast({ title: "Purchase Order created" }),
+      onError: (err: any) => toast({ title: err?.message ?? "Failed to create PO", variant: "destructive" }),
+    });
   }
 
-  async function handleCreatePR() {
+  function handleCreatePR() {
     if (!prModal) return;
     if (prModal.bomItems.length > 1 && !prForm.bomRowId) { toast({ title: "Select an item for this PR", variant: "destructive" }); return; }
     if (!prForm.receivedQty || parseFloat(prForm.receivedQty) <= 0) { toast({ title: "Enter received quantity", variant: "destructive" }); return; }
     if (!prForm.actualPrice || parseFloat(prForm.actualPrice) <= 0) { toast({ title: "Enter actual price", variant: "destructive" }); return; }
+    if (prItemStats && prItemStats.remaining <= 0) { toast({ title: "This item is already fully received. No further PR allowed.", variant: "destructive" }); return; }
+    if (prItemStats && parseFloat(prForm.receivedQty) > prItemStats.remaining) {
+      toast({ title: `Received qty exceeds remaining. Max allowed: ${prItemStats.remaining.toFixed(4)} ${prItemStats.unitType}`, variant: "destructive" }); return;
+    }
     const bomRowId = prForm.bomRowId ? Number(prForm.bomRowId) : (prModal.bomItems.length === 1 ? prModal.bomItems[0].bomRowId : null);
-    await createPR.mutateAsync({ poId: prModal.poId, swatchOrderId, bomRowId, receivedQty: prForm.receivedQty, actualPrice: prForm.actualPrice, warehouseLocation: prForm.warehouseLocation });
-    setPrForm({ bomRowId: "", receivedQty: "", actualPrice: "", warehouseLocation: "" });
-    setPrModal(null);
-    toast({ title: "Purchase Receipt created" });
+    createPR.mutate({ poId: prModal.poId, swatchOrderId, bomRowId, receivedQty: prForm.receivedQty, actualPrice: prForm.actualPrice, warehouseLocation: prForm.warehouseLocation }, {
+      onSuccess: () => {
+        setPrForm({ bomRowId: "", receivedQty: "", actualPrice: "", warehouseLocation: "" });
+        setPrModal(null);
+        toast({ title: "Purchase Receipt created" });
+      },
+      onError: (err: any) => toast({ title: err?.message ?? "Failed to create PR", variant: "destructive" }),
+    });
   }
 
   return (
@@ -1075,12 +1101,30 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
                   <p className="text-[10px] text-gray-500 mt-0.5">Ordered: {prModal.bomItems[0].quantity} {prModal.bomItems[0].unitType} @ ₹{parseFloat(prModal.bomItems[0].targetPrice).toFixed(2)}</p>
                 </div>
               )}
+              {prItemStats && (
+                <div className={`rounded-xl px-3 py-2 text-xs flex items-center gap-3 ${prItemStats.remaining <= 0 ? "bg-red-50 border border-red-200" : "bg-amber-50 border border-amber-200"}`}>
+                  <div className="flex-1">
+                    <span className="text-gray-500">Already received: </span>
+                    <span className="font-semibold text-gray-800">{prItemStats.alreadyReceived.toFixed(4)} {prItemStats.unitType}</span>
+                    <span className="mx-2 text-gray-300">|</span>
+                    <span className="text-gray-500">Remaining: </span>
+                    <span className={`font-bold ${prItemStats.remaining <= 0 ? "text-red-600" : "text-green-700"}`}>
+                      {prItemStats.remaining.toFixed(4)} {prItemStats.unitType}
+                    </span>
+                  </div>
+                  {prItemStats.remaining <= 0 && <span className="text-[10px] font-semibold text-red-600">FULLY RECEIVED</span>}
+                </div>
+              )}
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Received Quantity *</label>
                 <input type="number" min="0" step="any" value={prForm.receivedQty}
                   onChange={e => setPrForm(f => ({ ...f, receivedQty: e.target.value }))}
                   className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                  placeholder="0" />
+                  placeholder="0"
+                  max={prItemStats ? prItemStats.remaining : undefined} />
+                {prItemStats && prItemStats.remaining > 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1">Max: {prItemStats.remaining.toFixed(4)} {prItemStats.unitType}</p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Actual Price (₹) *</label>
@@ -1249,19 +1293,32 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     setShowAddModal(true);
   }
 
-  async function handleAddConsumption() {
+  // Compute available stock for the item currently selected in the add modal
+  const selectedRow = bomRows.find(r => String(r.id) === addForm.bomRowId);
+  const availableStock = selectedRow
+    ? Math.max(0, parseFloat(selectedRow.currentStock || "0") - parseFloat(selectedRow.consumedQty || "0"))
+    : null;
+
+  function handleAddConsumption() {
     if (!addForm.bomRowId) { toast({ title: "Select a material/fabric", variant: "destructive" }); return; }
     if (!addForm.consumedQty || parseFloat(addForm.consumedQty) <= 0) { toast({ title: "Enter consumed quantity > 0", variant: "destructive" }); return; }
     const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
     if (!row) return;
-    await addEntry.mutateAsync({
+    if (availableStock !== null && parseFloat(addForm.consumedQty) > availableStock) {
+      toast({ title: `Cannot consume more than available stock (${availableStock.toFixed(4)} ${row.unitType})`, variant: "destructive" }); return;
+    }
+    addEntry.mutate({
       swatchOrderId, bomRowId: Number(addForm.bomRowId),
       materialCode: row.materialCode, materialName: row.materialName,
       materialType: row.materialType, unitType: row.unitType,
       consumedQty: addForm.consumedQty, notes: addForm.notes || null,
+    }, {
+      onSuccess: () => {
+        setShowAddModal(false);
+        toast({ title: "Consumption recorded" });
+      },
+      onError: (err: any) => toast({ title: err?.message ?? "Failed to record consumption", variant: "destructive" }),
     });
-    setShowAddModal(false);
-    toast({ title: "Consumption recorded" });
   }
 
   return (
@@ -1380,16 +1437,33 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                   ))}
                 </select>
               </div>
+              {selectedRow && (
+                <div className={`rounded-xl px-3 py-2 text-xs flex items-center gap-3 ${availableStock !== null && availableStock <= 0 ? "bg-red-50 border border-red-200" : "bg-blue-50 border border-blue-100"}`}>
+                  <div className="flex-1">
+                    <span className="text-gray-500">Current stock: </span>
+                    <span className="font-semibold text-gray-800">{parseFloat(selectedRow.currentStock || "0").toFixed(4)}</span>
+                    <span className="mx-2 text-gray-300">|</span>
+                    <span className="text-gray-500">Already consumed: </span>
+                    <span className="font-semibold text-amber-700">{parseFloat(selectedRow.consumedQty || "0").toFixed(4)}</span>
+                    <span className="mx-2 text-gray-300">|</span>
+                    <span className="text-gray-500">Available: </span>
+                    <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-green-700"}`}>
+                      {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
+                    </span>
+                  </div>
+                  {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600">NO STOCK</span>}
+                </div>
+              )}
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Consumed Quantity *</label>
                 <input type="number" min="0" step="any" value={addForm.consumedQty}
                   onChange={e => setAddForm(f => ({ ...f, consumedQty: e.target.value }))}
                   className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                  placeholder="0" />
-                {addForm.bomRowId && (() => {
-                  const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
-                  return row ? <p className="text-[10px] text-gray-400 mt-1">Unit: {row.unitType}</p> : null;
-                })()}
+                  placeholder="0"
+                  max={availableStock !== null ? availableStock : undefined} />
+                {selectedRow && availableStock !== null && availableStock > 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1">Max: {availableStock.toFixed(4)} {selectedRow.unitType}</p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Notes</label>

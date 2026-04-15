@@ -170,11 +170,45 @@ router.post("/pr", requireAuth, async (req, res) => {
   const { poId, swatchOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
   const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+
+  const newQty = parseFloat(String(receivedQty)) || 0;
+  const resolvedBomRowId = bomRowId != null ? Number(bomRowId) : null;
+  const bomItems = po.bomItems ?? [];
+  const isSingleItem = bomItems.length === 1;
+
+  // Find the relevant BOM item for this PR
+  let orderedQty = 0;
+  if (resolvedBomRowId != null) {
+    const item = bomItems.find(i => i.bomRowId === resolvedBomRowId);
+    orderedQty = parseFloat(item?.quantity ?? "0") || 0;
+  } else if (isSingleItem) {
+    orderedQty = parseFloat(bomItems[0]?.quantity ?? "0") || 0;
+  }
+
+  // Get existing PRs for this specific item to check remaining qty
+  const existingPrs = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.poId, Number(poId)));
+  const relevantPrs = resolvedBomRowId != null
+    ? existingPrs.filter(pr => pr.bomRowId === resolvedBomRowId)
+    : (isSingleItem ? existingPrs : existingPrs.filter(pr => pr.bomRowId == null));
+  const alreadyReceived = relevantPrs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+
+  if (orderedQty > 0) {
+    if (alreadyReceived >= orderedQty) {
+      res.status(400).json({ error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.` });
+      return;
+    }
+    const remaining = orderedQty - alreadyReceived;
+    if (newQty > remaining) {
+      res.status(400).json({ error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}` });
+      return;
+    }
+  }
+
   const prNumber = await nextPrNumber();
   const [row] = await db.insert(purchaseReceiptsTable).values({
     prNumber,
     poId: Number(poId),
-    bomRowId: bomRowId != null ? Number(bomRowId) : null,
+    bomRowId: resolvedBomRowId,
     swatchOrderId: Number(swatchOrderId),
     vendorName: po.vendorName,
     receivedQty: String(receivedQty),
@@ -184,14 +218,18 @@ router.post("/pr", requireAuth, async (req, res) => {
     createdBy: user.email,
   }).returning();
 
-  // Auto-close PO when all items are fully received
-  if (po.status !== "Closed") {
+  // Auto-close PO when ALL items are fully received
+  if (po.status !== "Closed" && bomItems.length > 0) {
     const allPoPrs = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.poId, Number(poId)));
-    const bomItems = po.bomItems ?? [];
-    const allCovered = bomItems.length > 0 && bomItems.every(item => {
-      const relevant = allPoPrs.filter(pr => pr.bomRowId === item.bomRowId || pr.bomRowId == null);
+    const allCovered = bomItems.every(item => {
+      // Use exact bomRowId match; for single-item POs with legacy PRs (no bomRowId), sum all PRs
+      const relevant = allPoPrs.filter(pr =>
+        pr.bomRowId === item.bomRowId ||
+        (pr.bomRowId == null && bomItems.length === 1)
+      );
       const received = relevant.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
-      return (parseFloat(item.quantity) || 0) > 0 && received >= (parseFloat(item.quantity) || 0);
+      const ordered = parseFloat(item.quantity) || 0;
+      return ordered > 0 && received >= ordered;
     });
     if (allCovered) {
       await db.update(purchaseOrdersTable).set({ status: "Closed", updatedBy: user.email, updatedAt: new Date() }).where(eq(purchaseOrdersTable.id, Number(poId)));
@@ -256,6 +294,19 @@ router.get("/consumption/:swatchOrderId", requireAuth, async (req, res) => {
 router.post("/consumption", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, bomRowId, materialCode, materialName, materialType, unitType, consumedQty, notes } = req.body as Record<string, string | number>;
+
+  // Validate: consumed qty must not exceed current stock of the BOM row
+  const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, Number(bomRowId)));
+  if (!bomRow) { res.status(404).json({ error: "BOM item not found" }); return; }
+  const currentStock = parseFloat(bomRow.currentStock || "0");
+  const existingConsumed = parseFloat(bomRow.consumedQty || "0");
+  const newConsumedQty = parseFloat(String(consumedQty)) || 0;
+  const available = currentStock - existingConsumed;
+  if (newConsumedQty > available) {
+    res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available (Stock: ${currentStock}, Already consumed: ${existingConsumed}).` });
+    return;
+  }
+
   const [entry] = await db.insert(consumptionLogTable).values({
     swatchOrderId: Number(swatchOrderId),
     bomRowId: Number(bomRowId),

@@ -169,7 +169,10 @@ export function useCreatePR() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => customFetch<{ data: PurchaseReceiptRecord }>("/api/costing/pr", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["swatch-prs"] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["swatch-prs"] });
+      void qc.invalidateQueries({ queryKey: ["swatch-pos"] });
+    },
   });
 }
 
