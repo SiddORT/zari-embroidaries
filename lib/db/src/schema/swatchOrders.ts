@@ -46,6 +46,7 @@ export const swatchOrdersTable = pgTable("swatch_orders", {
   delayReason: text("delay_reason"),
   approvalDate: text("approval_date"),
   revisionCount: integer("revision_count").notNull().default(0),
+  estimate: jsonb("estimate").default([]),
 
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -98,6 +99,7 @@ export const insertSwatchOrderSchema = z.object({
   delayReason: z.string().optional(),
   approvalDate: z.string().optional(),
   revisionCount: z.number().default(0),
+  estimate: z.array(z.record(z.unknown())).optional().default([]),
 });
 
 export const updateSwatchOrderSchema = insertSwatchOrderSchema.partial().extend({
