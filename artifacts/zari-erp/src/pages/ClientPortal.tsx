@@ -138,8 +138,6 @@ function ArtworkThread({ artwork, messages, token, onRefetch }: {
   const [open, setOpen] = useState(!artwork.isClosed);
   const [text, setText] = useState("");
   const [attachFile, setAttachFile] = useState<FileAttachment | null>(null);
-  const [decisionPick, setDecisionPick] = useState<"Approve" | "Rework" | null>(null);
-  const [decisionComment, setDecisionComment] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const hasImages = artwork.wipImages.length > 0 || artwork.finalImages.length > 0;
 
@@ -160,11 +158,11 @@ function ArtworkThread({ artwork, messages, token, onRefetch }: {
       const r = await fetch(`/api/client-portal/${token}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ artworkId: artwork.id, artworkName: artwork.artworkName, decision, comment: decisionComment.trim() || undefined }),
+        body: JSON.stringify({ artworkId: artwork.id, artworkName: artwork.artworkName, decision }),
       });
       if (!r.ok) { const j = await r.json() as { error?: string }; throw new Error(j.error ?? "Failed"); }
     },
-    onSuccess: () => { setDecisionPick(null); setDecisionComment(""); onRefetch(); },
+    onSuccess: () => { onRefetch(); },
   });
 
   function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -263,61 +261,27 @@ function ArtworkThread({ artwork, messages, token, onRefetch }: {
               {/* ── Decision section ── */}
               <div className="border-t border-gray-100 pt-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submit Decision</p>
-
-                {/* Decision buttons */}
-                {decisionPick === null ? (
-                  <div className="flex gap-3">
-                    <button onClick={() => setDecisionPick("Approve")}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 text-sm font-semibold hover:bg-green-100 hover:border-green-400 transition-all">
-                      <CheckCircle className="h-4 w-4" /> Approve
-                    </button>
-                    <button onClick={() => setDecisionPick("Rework")}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold hover:bg-orange-100 hover:border-orange-400 transition-all">
-                      <RotateCcw className="h-4 w-4" /> Request Rework
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${decisionPick === "Approve" ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"}`}>
-                      {decisionPick === "Approve"
-                        ? <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                        : <RotateCcw className="h-4 w-4 text-orange-600 shrink-0" />}
-                      <span className={`text-sm font-semibold ${decisionPick === "Approve" ? "text-green-700" : "text-orange-700"}`}>
-                        {decisionPick === "Approve" ? "Approve this artwork" : "Request Rework"}
-                      </span>
-                      <button onClick={() => setDecisionPick(null)} className="ml-auto text-gray-400 hover:text-gray-600">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <textarea
-                      value={decisionComment}
-                      onChange={e => setDecisionComment(e.target.value)}
-                      placeholder={decisionPick === "Rework" ? "Describe what changes are needed…" : "Add a note (optional)…"}
-                      rows={3}
-                      className="w-full text-sm text-gray-900 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
-                    />
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => submitDecision.mutate(decisionPick)}
-                        disabled={submitDecision.isPending}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 shadow-sm ${
-                          decisionPick === "Approve"
-                            ? "bg-green-600 text-white hover:bg-green-700"
-                            : "bg-orange-500 text-white hover:bg-orange-600"}`}>
-                        {submitDecision.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : decisionPick === "Approve" ? <CheckCircle className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-                        {submitDecision.isPending ? "Submitting…" : `Confirm ${decisionPick === "Approve" ? "Approval" : "Rework Request"}`}
-                      </button>
-                      <button onClick={() => { setDecisionPick(null); setDecisionComment(""); }}
-                        className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
-                    </div>
-                    {decisionPick === "Approve" && (
-                      <p className="text-xs text-gray-400">Approving will close this thread and lock further messages.</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Current decision status */}
-                {artwork.decision === "Rework" && decisionPick === null && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => submitDecision.mutate("Approve")}
+                    disabled={submitDecision.isPending}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 text-sm font-semibold hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-60">
+                    {submitDecision.isPending && submitDecision.variables === "Approve"
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <CheckCircle className="h-4 w-4" />}
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => submitDecision.mutate("Rework")}
+                    disabled={submitDecision.isPending}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold hover:bg-orange-100 hover:border-orange-400 transition-all disabled:opacity-60">
+                    {submitDecision.isPending && submitDecision.variables === "Rework"
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <RotateCcw className="h-4 w-4" />}
+                    Request Rework
+                  </button>
+                </div>
+                {artwork.decision === "Rework" && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-100 text-xs text-orange-700">
                     <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                     <span>Rework requested — continue chatting or approve when ready.</span>
