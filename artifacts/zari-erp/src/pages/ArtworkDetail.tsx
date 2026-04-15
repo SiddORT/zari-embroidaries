@@ -211,6 +211,8 @@ export default function ArtworkDetail() {
     setAddUnitTypeOpen(false);
   }
 
+  const isViewMode = !isNew && artworkData?.data?.feedbackStatus === "Approved";
+
   async function handleSave() {
     if (!form.artworkName.trim()) {
       toast({ title: "Artwork Name is required", variant: "destructive" });
@@ -218,12 +220,29 @@ export default function ArtworkDetail() {
     }
     setSaving(true);
     try {
-      const payload = { ...form, swatchOrderId: swatchOrderIdNum };
       if (isNew) {
-        const result = await createArtwork.mutateAsync(payload);
+        const payload = { ...form, swatchOrderId: swatchOrderIdNum };
+        await createArtwork.mutateAsync(payload);
         toast({ title: "Artwork created" });
-        setLocation(`/swatch-orders/${swatchOrderId}/artworks/${result.data.id}`);
+        setLocation(`/swatch-orders/${swatchOrderId}?tab=2`);
+      } else if (isViewMode) {
+        await updateArtwork.mutateAsync({
+          id: numericId!,
+          data: {
+            swatchOrderId: swatchOrderIdNum,
+            artworkName: form.artworkName,
+            artworkCreated: form.artworkCreated,
+            feedbackStatus: form.feedbackStatus,
+            files: form.files,
+            refImages: form.refImages,
+            wipImages: form.wipImages,
+            finalImages: form.finalImages,
+            totalCost: form.totalCost,
+          },
+        });
+        toast({ title: "Artwork updated" });
       } else {
+        const payload = { ...form, swatchOrderId: swatchOrderIdNum };
         await updateArtwork.mutateAsync({ id: numericId!, data: payload });
         toast({ title: "Artwork saved" });
       }
@@ -253,7 +272,7 @@ export default function ArtworkDetail() {
         {/* Sticky header */}
         <div className="sticky top-0 z-20 -mx-6 px-6 py-3 bg-[#f8f9fb]/95 backdrop-blur border-b border-gray-200">
           <div className="max-w-5xl mx-auto flex items-center gap-4">
-            <button onClick={() => setLocation(`/swatch-orders/${swatchOrderId}`)}
+            <button onClick={() => setLocation(`/swatch-orders/${swatchOrderId}?tab=2`)}
               className="p-2 rounded-xl hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -263,12 +282,17 @@ export default function ArtworkDetail() {
                   {artworkCode}
                 </span>
                 <span className="text-xs text-gray-400">→ Swatch Order #{swatchOrderId}</span>
+                {isViewMode && (
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-900 text-[#C9B45C] border border-gray-900">
+                    View Only — Approved
+                  </span>
+                )}
               </div>
             </div>
             <button onClick={() => { void handleSave(); }} disabled={saving}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : "Save"}
+              {saving ? "Saving…" : isViewMode ? "Save Changes" : "Save"}
             </button>
           </div>
         </div>
@@ -279,7 +303,8 @@ export default function ArtworkDetail() {
           <SectionCard icon={<Palette className="h-4 w-4 text-[#C9B45C]" />}
             title="Identity" subtitle="Artwork name and basic details">
             <Field label="Artwork Name *">
-              <input className={inputCls} placeholder="e.g. Floral Border Pattern"
+              <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                placeholder="e.g. Floral Border Pattern" readOnly={isViewMode}
                 value={form.artworkName} onChange={e => set("artworkName", e.target.value)} />
             </Field>
           </SectionCard>
@@ -293,11 +318,13 @@ export default function ArtworkDetail() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Length">
-                    <input className={inputCls} type="number" min="0" placeholder="Length"
+                    <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                      type="number" min="0" placeholder="Length" readOnly={isViewMode}
                       value={form.unitLength} onChange={e => set("unitLength", e.target.value)} />
                   </Field>
                   <Field label="Width">
-                    <input className={inputCls} type="number" min="0" placeholder="Width"
+                    <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                      type="number" min="0" placeholder="Width" readOnly={isViewMode}
                       value={form.unitWidth} onChange={e => set("unitWidth", e.target.value)} />
                   </Field>
                 </div>
@@ -308,6 +335,7 @@ export default function ArtworkDetail() {
                   onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
                   options={unitTypeOptions}
                   placeholder="Select unit type"
+                  disabled={isViewMode}
                 />
               </div>
             </SectionCard>
@@ -319,12 +347,14 @@ export default function ArtworkDetail() {
                 <Field label="Artwork Created">
                   <div className="flex gap-2 mt-1">
                     {(["Inhouse", "Outsource"] as const).map(opt => (
-                      <button key={opt} type="button" onClick={() => set("artworkCreated", opt)}
+                      <button key={opt} type="button"
+                        onClick={() => { if (!isViewMode) set("artworkCreated", opt); }}
+                        disabled={isViewMode}
                         className={`flex-1 py-2 rounded-xl text-sm font-semibold ring-1 transition-all ${
                           form.artworkCreated === opt
                             ? "bg-gray-900 text-[#C9B45C] ring-gray-900"
                             : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
-                        }`}>
+                        } ${isViewMode ? "opacity-70 cursor-default" : ""}`}>
                         {opt}
                       </button>
                     ))}
@@ -334,7 +364,8 @@ export default function ArtworkDetail() {
                 {form.artworkCreated === "Inhouse" && (
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Work Hours" hint="Hours spent on this artwork">
-                      <input className={inputCls} type="number" min="0" step="0.5" placeholder="e.g. 8"
+                      <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                        type="number" min="0" step="0.5" placeholder="e.g. 8" readOnly={isViewMode}
                         value={form.workHours}
                         onChange={e => {
                           set("workHours", e.target.value);
@@ -343,7 +374,8 @@ export default function ArtworkDetail() {
                         }} />
                     </Field>
                     <Field label="House Hourly Rate" hint="Cost per hour for in-house work">
-                      <input className={inputCls} type="number" min="0" step="0.01" placeholder="e.g. 250"
+                      <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                        type="number" min="0" step="0.01" placeholder="e.g. 250" readOnly={isViewMode}
                         value={form.hourlyRate}
                         onChange={e => {
                           set("hourlyRate", e.target.value);
@@ -371,12 +403,14 @@ export default function ArtworkDetail() {
             <Field label="Feedback Status">
               <div className="flex flex-wrap gap-2 mt-1">
                 {FEEDBACK_STATUSES.map(s => (
-                  <button key={s} type="button" onClick={() => set("feedbackStatus", s)}
+                  <button key={s} type="button"
+                    onClick={() => { if (!isViewMode) set("feedbackStatus", s); }}
+                    disabled={isViewMode}
                     className={`px-4 py-2 rounded-xl text-xs font-semibold ring-1 transition-all ${
                       form.feedbackStatus === s
                         ? `${FEEDBACK_COLORS[s]} ring-2`
                         : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
-                    }`}>
+                    } ${isViewMode ? "opacity-70 cursor-default" : ""}`}>
                     {s}
                   </button>
                 ))}
@@ -387,35 +421,67 @@ export default function ArtworkDetail() {
           {/* Files & Images (2-col) */}
           <SectionCard icon={<Upload className="h-4 w-4 text-[#C9B45C]" />}
             title="Files & Images" subtitle="General reference files and images">
-            <div className="grid grid-cols-2 gap-6">
-              <Field label="Reference Files">
-                <FileUploadZone
-                  files={form.files} onChange={f => set("files", f)}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
-                  icon={<FileText className="h-5 w-5" />}
-                  label="Upload Files"
-                />
-              </Field>
-              <Field label="Reference Images">
-                <FileUploadZone
-                  files={form.refImages} onChange={f => set("refImages", f)}
-                  accept="image/*"
-                  icon={<ImageIcon className="h-5 w-5" />}
-                  label="Upload Images"
-                />
-              </Field>
-            </div>
+            {isViewMode ? (
+              <div className="grid grid-cols-2 gap-6 text-xs text-gray-400">
+                <div>
+                  <p className="font-medium text-gray-600 mb-2">Reference Files ({form.files.length})</p>
+                  {form.files.length === 0 ? <p className="italic">None</p> : form.files.map((f, i) => <p key={i} className="truncate">{f.name}</p>)}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-600 mb-2">Reference Images ({form.refImages.length})</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.refImages.length === 0 ? <p className="italic text-gray-400">None</p> : form.refImages.map((img, i) => (
+                      <img key={i} src={img.data} alt={img.name} title={img.name}
+                        className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => window.open(img.data, "_blank")} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-6">
+                <Field label="Reference Files">
+                  <FileUploadZone
+                    files={form.files} onChange={f => set("files", f)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    icon={<FileText className="h-5 w-5" />}
+                    label="Upload Files"
+                  />
+                </Field>
+                <Field label="Reference Images">
+                  <FileUploadZone
+                    files={form.refImages} onChange={f => set("refImages", f)}
+                    accept="image/*"
+                    icon={<ImageIcon className="h-5 w-5" />}
+                    label="Upload Images"
+                  />
+                </Field>
+              </div>
+            )}
           </SectionCard>
 
           {/* WIP Images */}
           <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />}
             title="WIP Images" subtitle="Work-in-progress photos for this artwork">
-            <FileUploadZone
-              files={form.wipImages} onChange={f => set("wipImages", f)}
-              accept="image/*"
-              icon={<ImageIcon className="h-5 w-5" />}
-              label="Upload WIP Images"
-            />
+            {isViewMode ? (
+              <div className="flex flex-wrap gap-2">
+                {(form.wipImages ?? []).length === 0
+                  ? <p className="text-xs text-gray-400 italic">No WIP images uploaded</p>
+                  : form.wipImages.map((img, i) => (
+                    <img key={i} src={img.data} alt={img.name} title={img.name}
+                      className="h-16 w-16 rounded-xl object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() => window.open(img.data, "_blank")} />
+                  ))
+                }
+              </div>
+            ) : (
+              <FileUploadZone
+                files={form.wipImages} onChange={f => set("wipImages", f)}
+                accept="image/*"
+                icon={<ImageIcon className="h-5 w-5" />}
+                label="Upload WIP Images"
+              />
+            )}
           </SectionCard>
 
           {/* Final Images */}

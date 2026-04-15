@@ -251,7 +251,11 @@ export default function SwatchOrderDetail() {
   const styleOptions = styles.map(s => ({ value: String(s.id), label: `${s.styleNo} – ${s.client}` }));
   const swatchOptions = swatches.map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
 
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = parseInt(params.get("tab") ?? "0", 10);
+    return !isNaN(t) && t >= 0 && t < TABS.length ? t : 0;
+  });
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
   const [saving, setSaving] = useState(false);
@@ -883,9 +887,19 @@ export default function SwatchOrderDetail() {
                       <div key={art.id} className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
                         {/* ── Row 1: Identity + status + actions ── */}
                         <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-                          <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
-                            <Palette className="h-4 w-4 text-[#C9B45C]" />
-                          </div>
+                          {/* Thumbnail (finalImage if Approved, else palette icon) */}
+                          {art.feedbackStatus === "Approved" && (art.finalImages ?? []).length > 0 ? (
+                            <img
+                              src={art.finalImages[0].data}
+                              alt="Final"
+                              className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                              onClick={() => window.open(art.finalImages[0].data, "_blank")}
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                              <Palette className="h-4 w-4 text-[#C9B45C]" />
+                            </div>
+                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{art.artworkName}</p>
                             <p className="text-xs text-gray-400 font-mono">{art.artworkCode}</p>
@@ -909,16 +923,26 @@ export default function SwatchOrderDetail() {
                           </div>
                           {/* Action buttons */}
                           <div className="flex items-center gap-1 ml-1 shrink-0">
-                            <button
-                              onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
-                              title="Edit artwork"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
+                            {art.feedbackStatus === "Approved" ? (
+                              <button
+                                onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
+                                title="View artwork (read-only)"
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">
+                                <ExternalLink className="h-3 w-3" /> View
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
+                                title="Edit artwork"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => setArtworkToDelete(art.id)}
-                              title="Delete artwork"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                              title={art.feedbackStatus === "Approved" ? "Cannot delete an approved artwork" : "Delete artwork"}
+                              disabled={art.feedbackStatus === "Approved"}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400">
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
