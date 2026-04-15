@@ -65,7 +65,6 @@ const TABS = [
   { label: "References",   icon: "🔗" },
   { label: "Artworks",     icon: "🎨" },
   { label: "Estimate",     icon: "📊" },
-  { label: "Revisions",    icon: "🔄" },
   { label: "Costing",      icon: "💰" },
   { label: "Client Link",  icon: "🔗" },
   { label: "Invoice",      icon: "🧾" },
@@ -511,7 +510,7 @@ export default function SwatchOrderDetail() {
                   activeTab === i
                     ? "border-gray-900 text-gray-900"
                     : "border-transparent text-gray-400 hover:text-gray-600"
-                } ${i >= 3 ? "opacity-60" : ""}`}
+                } ${i === 6 ? "opacity-60" : ""}`}
               >
                 {tab.label}
               </button>
@@ -1212,18 +1211,18 @@ export default function SwatchOrderDetail() {
           </div>
         )}
 
-        {/* ══ TAB 5: Costing ══ */}
-        {activeTab === 5 && numId && (
+        {/* ══ TAB 4: Costing ══ */}
+        {activeTab === 4 && numId && (
           <CostingTab swatchOrderId={numId} />
         )}
 
-        {/* ══ TAB 6: Client Link ══ */}
-        {activeTab === 6 && numId && (
+        {/* ══ TAB 5: Client Link ══ */}
+        {activeTab === 5 && numId && (
           <ClientLinkTab swatchOrderId={numId} />
         )}
 
-        {/* ══ TABS 4, 7: Coming Soon placeholders ══ */}
-        {(activeTab === 4 || activeTab === 7) && (
+        {/* ══ TAB 6: Invoice — Coming Soon ══ */}
+        {activeTab === 6 && (
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">
               {TABS[activeTab].icon}
