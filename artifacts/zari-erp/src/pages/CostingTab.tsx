@@ -522,7 +522,7 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
 }
 
 // ─── PR Table Row (flat table view) ───────────────────────────────────────────
-function PrTableRow({ pr, poNumber }: { pr: PurchaseReceiptRecord; poNumber: string }) {
+function PrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord; poNumber: string; bomItems: PoLineItem[] }) {
   const [open, setOpen] = useState(false);
   const deletePR = useDeletePR();
   const total = (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0);
@@ -537,7 +537,23 @@ function PrTableRow({ pr, poNumber }: { pr: PurchaseReceiptRecord; poNumber: str
         <td className="px-3 py-2.5 font-semibold text-gray-800 text-xs">{pr.receivedQty}</td>
         <td className="px-3 py-2.5 text-gray-700 text-xs">₹{parseFloat(pr.actualPrice).toFixed(2)}</td>
         <td className="px-3 py-2.5 font-semibold text-blue-700 text-xs">₹{total.toFixed(2)}</td>
-        <td className="px-3 py-2.5 text-gray-500 text-xs">{pr.warehouseLocation || <span className="text-gray-300">—</span>}</td>
+        <td className="px-3 py-2.5 max-w-[200px]">
+          {bomItems.length === 0 ? (
+            <span className="text-gray-300 text-xs">—</span>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {bomItems.slice(0, 2).map((item, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  <span className="text-[9px] px-1 py-0.5 rounded font-bold shrink-0 bg-gray-100 text-gray-500 font-mono">{item.materialCode}</span>
+                  <span className="text-[10px] text-gray-700 truncate">{item.materialName}</span>
+                </div>
+              ))}
+              {bomItems.length > 2 && (
+                <span className="text-[10px] text-gray-400">+{bomItems.length - 2} more</span>
+              )}
+            </div>
+          )}
+        </td>
         <td className="px-3 py-2.5"><StatusBadge status={pr.status} map={PR_STATUS_COLORS} /></td>
         <td className="px-3 py-2.5">
           <div className="flex items-center gap-1">
@@ -1082,6 +1098,7 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { data: prs = [], isLoading } = useSwatchPRs(swatchOrderId);
   const { data: pos = [] } = useSwatchPOs(swatchOrderId);
   const poMap = Object.fromEntries(pos.map(p => [p.id, p.poNumber]));
+  const poItemsMap = Object.fromEntries(pos.map(p => [p.id, p.bomItems ?? []]));
 
   const totalValue = prs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
 
@@ -1113,14 +1130,14 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Rcv Qty</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Actual Price</th>
                 <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Total Value</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Location</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Status</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {prs.map(pr => (
-                <PrTableRow key={pr.id} pr={pr} poNumber={poMap[pr.poId] ?? "—"} />
+                <PrTableRow key={pr.id} pr={pr} poNumber={poMap[pr.poId] ?? "—"} bomItems={poItemsMap[pr.poId] ?? []} />
               ))}
             </tbody>
             <tfoot>
