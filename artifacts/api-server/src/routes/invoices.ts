@@ -20,13 +20,11 @@ async function getNextInvoiceNo(): Promise<string> {
   return `${prefix}${seq.toString().padStart(4, "0")}`;
 }
 
-// GET /api/invoices/next-number
 router.get("/invoices/next-number", requireAuth, async (_req, res) => {
   const invoiceNo = await getNextInvoiceNo();
   res.json({ data: invoiceNo });
 });
 
-// GET /api/invoices/swatch/:swatchOrderId
 router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
   const id = parseInt(req.params.swatchOrderId);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -34,58 +32,69 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
   res.json({ data: rows[0] ?? null });
 });
 
-// POST /api/invoices
 router.post("/invoices", requireAuth, async (req, res) => {
-  const body = req.body;
-  const invoiceNo = body.invoiceNo ?? (await getNextInvoiceNo());
+  const b = req.body;
+  const invoiceNo = b.invoiceNo ?? (await getNextInvoiceNo());
   const [row] = await db.insert(invoicesTable).values({
     invoiceNo,
-    swatchOrderId: Number(body.swatchOrderId),
-    invoiceDate: body.invoiceDate ?? new Date().toISOString().slice(0, 10),
-    dueDate: body.dueDate ?? "",
-    clientName: body.clientName ?? "",
-    clientAddress: body.clientAddress ?? "",
-    clientGstin: body.clientGstin ?? "",
-    clientEmail: body.clientEmail ?? "",
-    items: body.items ?? [],
-    discountType: body.discountType ?? "flat",
-    discountValue: String(body.discountValue ?? "0"),
-    taxLabel: body.taxLabel ?? "GST",
-    taxRate: String(body.taxRate ?? "0"),
-    notes: body.notes ?? "",
-    paymentTerms: body.paymentTerms ?? "",
-    status: body.status ?? "Draft",
+    swatchOrderId: Number(b.swatchOrderId),
+    invoiceDate: b.invoiceDate ?? new Date().toISOString().slice(0, 10),
+    dueDate: b.dueDate ?? "",
+    clientName: b.clientName ?? "",
+    clientAddress: b.clientAddress ?? "",
+    clientGstin: b.clientGstin ?? "",
+    clientEmail: b.clientEmail ?? "",
+    clientPhone: b.clientPhone ?? "",
+    clientState: b.clientState ?? "",
+    items: b.items ?? [],
+    discountType: b.discountType ?? "flat",
+    discountValue: String(b.discountValue ?? "0"),
+    cgstRate: String(b.cgstRate ?? "0"),
+    sgstRate: String(b.sgstRate ?? "0"),
+    bankName: b.bankName ?? "",
+    bankAccount: b.bankAccount ?? "",
+    bankIfsc: b.bankIfsc ?? "",
+    bankBranch: b.bankBranch ?? "",
+    bankUpi: b.bankUpi ?? "",
+    notes: b.notes ?? "",
+    paymentTerms: b.paymentTerms ?? "",
+    status: b.status ?? "Draft",
   }).returning();
   res.status(201).json({ data: row });
 });
 
-// PUT /api/invoices/:id
 router.put("/invoices/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-  const body = req.body;
+  const b = req.body;
   const [row] = await db.update(invoicesTable).set({
-    invoiceDate: body.invoiceDate,
-    dueDate: body.dueDate ?? "",
-    clientName: body.clientName ?? "",
-    clientAddress: body.clientAddress ?? "",
-    clientGstin: body.clientGstin ?? "",
-    clientEmail: body.clientEmail ?? "",
-    items: body.items ?? [],
-    discountType: body.discountType ?? "flat",
-    discountValue: String(body.discountValue ?? "0"),
-    taxLabel: body.taxLabel ?? "GST",
-    taxRate: String(body.taxRate ?? "0"),
-    notes: body.notes ?? "",
-    paymentTerms: body.paymentTerms ?? "",
-    status: body.status ?? "Draft",
+    invoiceDate: b.invoiceDate,
+    dueDate: b.dueDate ?? "",
+    clientName: b.clientName ?? "",
+    clientAddress: b.clientAddress ?? "",
+    clientGstin: b.clientGstin ?? "",
+    clientEmail: b.clientEmail ?? "",
+    clientPhone: b.clientPhone ?? "",
+    clientState: b.clientState ?? "",
+    items: b.items ?? [],
+    discountType: b.discountType ?? "flat",
+    discountValue: String(b.discountValue ?? "0"),
+    cgstRate: String(b.cgstRate ?? "0"),
+    sgstRate: String(b.sgstRate ?? "0"),
+    bankName: b.bankName ?? "",
+    bankAccount: b.bankAccount ?? "",
+    bankIfsc: b.bankIfsc ?? "",
+    bankBranch: b.bankBranch ?? "",
+    bankUpi: b.bankUpi ?? "",
+    notes: b.notes ?? "",
+    paymentTerms: b.paymentTerms ?? "",
+    status: b.status ?? "Draft",
     updatedAt: new Date(),
   }).where(eq(invoicesTable.id, id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   res.json({ data: row });
 });
 
-// DELETE /api/invoices/:id
 router.delete("/invoices/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
