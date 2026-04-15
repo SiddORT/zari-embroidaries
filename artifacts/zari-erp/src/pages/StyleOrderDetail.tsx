@@ -44,10 +44,10 @@ function makeDefaultEstimate(): EstimateItem[] {
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 
 const PRIORITY_STYLES: Record<string, string> = {
-  Low:    "bg-gray-900 text-[#C9B45C] ring-gray-900",
-  Medium: "bg-gray-900 text-[#C9B45C] ring-gray-900",
-  High:   "bg-gray-900 text-[#C9B45C] ring-gray-900",
-  Urgent: "bg-gray-900 text-[#C9B45C] ring-gray-900",
+  Low:    "bg-slate-100 text-slate-700 ring-slate-300",
+  Medium: "bg-blue-600 text-white ring-blue-600",
+  High:   "bg-amber-500 text-white ring-amber-500",
+  Urgent: "bg-red-600 text-white ring-red-600",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -118,7 +118,7 @@ const EMPTY_FORM: FormState = {
 };
 
 // ── Shared helpers (defined outside component to avoid re-render focus loss) ─
-const inputCls = "w-full px-3 py-2.5 text-sm text-gray-900 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-400";
+const inputCls = "w-full px-3 py-2.5 text-sm text-gray-900 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#C9B45C]/25 focus:border-[#C9B45C]/50 placeholder:text-gray-400 transition-colors";
 
 function fileToAttachment(file: File): Promise<FileAttachment> {
   return new Promise((resolve, reject) => {
@@ -194,15 +194,16 @@ function SectionCard({ icon, title, subtitle, accentColor, children }: {
   icon: React.ReactNode; title: string; subtitle: string; accentColor: string; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-        <div className={`flex items-center justify-center h-8 w-8 rounded-xl ${accentColor}`}>
+    <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className={`flex items-center justify-center h-8 w-8 rounded-xl ${accentColor} shadow-sm`}>
           {icon}
         </div>
         <div>
           <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
           <p className="text-xs text-gray-400">{subtitle}</p>
         </div>
+        <div className="ml-auto h-1 w-8 rounded-full bg-gradient-to-r from-[#C9B45C]/40 to-transparent" />
       </div>
       <div className="px-6 py-5">{children}</div>
     </div>
@@ -223,10 +224,12 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function PlaceholderTab({ icon, label }: { icon: string; label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-dashed border-gray-200 text-center">
-      <span className="text-4xl mb-3">{icon}</span>
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="text-xs text-gray-400 mt-1">This tab will be built next.</p>
+    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-dashed border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] text-center">
+      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
+        <span className="text-2xl">{icon}</span>
+      </div>
+      <p className="text-sm font-semibold text-gray-700">{label}</p>
+      <p className="text-xs text-gray-400 mt-1.5">Save the order first to unlock this tab.</p>
     </div>
   );
 }
@@ -414,25 +417,28 @@ export default function StyleOrderDetail() {
       <div className="max-w-6xl mx-auto pb-12">
 
         {/* ── Sticky Header ─────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-20 -mx-6 bg-[#f8f9fb]/95 backdrop-blur border-b border-gray-200">
+        <div className="sticky top-0 z-20 -mx-6 bg-white/98 backdrop-blur-sm border-b border-gray-200 shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
+          {/* Gold accent bar */}
+          <div className="h-0.5 bg-gradient-to-r from-gray-900 via-[#C9B45C] to-gray-900" />
+
           <div className="px-6 py-3 max-w-6xl mx-auto flex items-center gap-4">
             <button onClick={() => setLocation("/style-orders")}
-              className="p-2 rounded-xl hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
+              className="p-2 rounded-xl hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <span className="text-sm font-mono font-bold text-gray-700 bg-white border border-gray-200 px-3 py-1 rounded-lg shrink-0">
+            <span className="text-sm font-mono font-bold text-gray-800 bg-gray-50 border border-gray-200 shadow-sm px-3 py-1.5 rounded-xl shrink-0">
               {orderCode}
             </span>
             <div className="flex-1" />
             <div className="relative shrink-0">
               <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
-                className={`pl-3 pr-7 py-1.5 text-xs font-medium rounded-full border cursor-pointer appearance-none focus:outline-none ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                className={`pl-3 pr-7 py-1.5 text-xs font-semibold rounded-full border cursor-pointer appearance-none focus:outline-none shadow-sm ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
                 {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-60" />
             </div>
             <button onClick={() => { void handleSave(); }} disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-semibold hover:bg-black transition-all disabled:opacity-60 shadow-md shrink-0">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Saving…" : "Save"}
             </button>
@@ -442,10 +448,10 @@ export default function StyleOrderDetail() {
           <div className="px-6 flex items-end gap-0 overflow-x-auto scrollbar-none">
             {TABS.map((tab, i) => (
               <button key={tab} onClick={() => setActiveTab(i)}
-                className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-all ${
                   activeTab === i
-                    ? "border-gray-900 text-gray-900"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
+                    ? "border-[#C9B45C] text-gray-900 font-semibold"
+                    : "border-transparent text-gray-400 hover:text-gray-700 hover:border-gray-300"
                 }`}>
                 {tab}
               </button>
@@ -483,12 +489,16 @@ export default function StyleOrderDetail() {
                   </Field>
 
                   {selectedClient && (
-                    <div className="col-span-2 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 rounded-xl p-4">
+                    <div className="col-span-2 bg-gradient-to-br from-[#C9B45C]/8 via-amber-50/60 to-white border border-[#C9B45C]/20 rounded-xl p-4 shadow-[inset_0_1px_0_rgba(201,180,92,0.15)]">
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <div className="h-1 w-3 rounded-full bg-[#C9B45C]" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#C9B45C]">Client Details</span>
+                      </div>
                       <div className="grid grid-cols-3 gap-3 text-xs">
-                        <div><p className="text-gray-400 mb-0.5">Contact</p><p className="font-medium text-gray-800">{selectedClient.contactName}</p></div>
-                        <div><p className="text-gray-400 mb-0.5">Email</p><p className="font-medium text-gray-800">{selectedClient.email}</p></div>
-                        <div><p className="text-gray-400 mb-0.5">Phone</p><p className="font-medium text-gray-800">{selectedClient.contactNo}</p></div>
-                        {selectedClient.country && <div><p className="text-gray-400 mb-0.5">Country</p><p className="font-medium text-gray-800">{selectedClient.country}</p></div>}
+                        <div><p className="text-gray-400 mb-0.5">Contact</p><p className="font-semibold text-gray-800">{selectedClient.contactName}</p></div>
+                        <div><p className="text-gray-400 mb-0.5">Email</p><p className="font-semibold text-gray-800">{selectedClient.email}</p></div>
+                        <div><p className="text-gray-400 mb-0.5">Phone</p><p className="font-semibold text-gray-800">{selectedClient.contactNo}</p></div>
+                        {selectedClient.country && <div><p className="text-gray-400 mb-0.5">Country</p><p className="font-semibold text-gray-800">{selectedClient.country}</p></div>}
                       </div>
                     </div>
                   )}
