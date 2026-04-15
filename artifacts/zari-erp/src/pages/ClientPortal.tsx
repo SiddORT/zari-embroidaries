@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  CheckCircle, RotateCcw, Send, ChevronLeft, ChevronRight,
-  ZoomIn, Package, User, CalendarDays, Layers,
+  ChevronLeft, ChevronRight, ZoomIn, Package, User, Layers,
+  Send, Paperclip, X, CheckCheck, LockKeyhole, Loader2,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 
 interface FileAttachment { name: string; type: string; data: string; size: number }
+
+interface PortalMessage {
+  id: number;
+  artworkId: number;
+  sender: "client" | "team";
+  message: string | null;
+  attachment: FileAttachment | null;
+  createdAt: string;
+}
 
 interface PortalArtwork {
   id: number;
@@ -15,6 +25,7 @@ interface PortalArtwork {
   feedbackStatus: string;
   wipImages: FileAttachment[];
   finalImages: FileAttachment[];
+  isClosed: boolean;
 }
 
 interface PortalOrder {
@@ -36,11 +47,7 @@ interface PortalData {
   link: { id: number; token: string; portalTitle: string | null };
   order: PortalOrder;
   artworks: PortalArtwork[];
-  existingFeedback: Array<{
-    id: number; artworkId: number; artworkName: string;
-    decision: string; comment: string | null; createdAt: string;
-    internalNote: string | null;
-  }>;
+  messages: PortalMessage[];
 }
 
 function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; startIndex: number; onClose: () => void }) {
@@ -50,15 +57,13 @@ function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; s
     <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={onClose}>
       <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
         {idx > 0 && (
-          <button onClick={() => setIdx(i => i - 1)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors z-10">
+          <button onClick={() => setIdx(i => i - 1)} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 rounded-full p-3 z-10">
             <ChevronLeft className="h-6 w-6 text-white" />
           </button>
         )}
         <img src={img.data} alt={img.name} className="max-h-[85vh] max-w-[85vw] object-contain rounded-lg shadow-2xl" />
         {idx < images.length - 1 && (
-          <button onClick={() => setIdx(i => i + 1)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors z-10">
+          <button onClick={() => setIdx(i => i + 1)} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 rounded-full p-3 z-10">
             <ChevronRight className="h-6 w-6 text-white" />
           </button>
         )}
@@ -78,7 +83,7 @@ function ImageStrip({ images, label }: { images: FileAttachment[]; label: string
       <div className="flex flex-wrap gap-2">
         {images.map((img, i) => (
           <button key={i} onClick={() => setLightbox(i)}
-            className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[#C9B45C] transition-colors group shadow-sm">
+            className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[#C9B45C] transition-colors group shadow-sm">
             <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
               <ZoomIn className="h-5 w-5 text-white drop-shadow" />
@@ -91,128 +96,159 @@ function ImageStrip({ images, label }: { images: FileAttachment[]; label: string
   );
 }
 
-function ArtworkCard({ artwork, existingFeedback, token, onFeedbackSubmitted }: {
-  artwork: PortalArtwork;
-  existingFeedback: PortalData["existingFeedback"];
-  token: string;
-  onFeedbackSubmitted: () => void;
-}) {
-  const prevFb = existingFeedback.find(f => f.artworkId === artwork.id);
-  const [decision, setDecision] = useState<"Approve" | "Rework" | null>(null);
-  const [comment, setComment] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+function ChatBubble({ msg }: { msg: PortalMessage }) {
+  const isTeam = msg.sender === "team";
+  return (
+    <div className={`flex gap-2 ${isTeam ? "justify-start" : "justify-end"}`}>
+      {isTeam && (
+        <div className="h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-[#C9B45C]">Z</div>
+      )}
+      <div className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 space-y-1.5 ${isTeam ? "bg-gray-100 text-gray-900 rounded-tl-sm" : "bg-gray-900 text-white rounded-tr-sm"}`}>
+        {msg.message && <p className="text-sm leading-snug">{msg.message}</p>}
+        {msg.attachment && (
+          <div className={`rounded-xl overflow-hidden border ${isTeam ? "border-gray-200" : "border-white/10"}`}>
+            {msg.attachment.type.startsWith("image/") ? (
+              <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[180px] object-cover" />
+            ) : (
+              <a href={msg.attachment.data} download={msg.attachment.name}
+                className={`flex items-center gap-2 px-3 py-2 text-xs hover:underline ${isTeam ? "text-blue-600" : "text-[#C9B45C]"}`}>
+                <Paperclip className="h-3.5 w-3.5" />{msg.attachment.name}
+              </a>
+            )}
+          </div>
+        )}
+        <p className={`text-[10px] ${isTeam ? "text-gray-400" : "text-white/40 text-right"}`}>
+          {isTeam ? "ZARI Team" : "You"} · {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </p>
+      </div>
+      {!isTeam && (
+        <div className="h-7 w-7 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-white">You</div>
+      )}
+    </div>
+  );
+}
 
-  const submit = useMutation({
+function ArtworkThread({ artwork, messages, token, onRefetch }: {
+  artwork: PortalArtwork;
+  messages: PortalMessage[];
+  token: string;
+  onRefetch: () => void;
+}) {
+  const [open, setOpen] = useState(!artwork.isClosed);
+  const [text, setText] = useState("");
+  const [attachFile, setAttachFile] = useState<FileAttachment | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const hasImages = artwork.wipImages.length > 0 || artwork.finalImages.length > 0;
+
+  const send = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`/api/client-portal/${token}/feedback`, {
+      const r = await fetch(`/api/client-portal/${token}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ artworkId: artwork.id, artworkName: artwork.artworkName, decision, comment }),
+        body: JSON.stringify({
+          artworkId: artwork.id,
+          artworkName: artwork.artworkName,
+          message: text.trim() || undefined,
+          attachment: attachFile ?? undefined,
+        }),
       });
-      if (!r.ok) throw new Error("Failed");
+      if (!r.ok) { const j = await r.json() as { error?: string }; throw new Error(j.error ?? "Failed"); }
     },
     onSuccess: () => {
-      setSubmitted(true);
-      onFeedbackSubmitted();
+      setText("");
+      setAttachFile(null);
+      onRefetch();
     },
   });
 
-  const hasImages = artwork.wipImages.length > 0 || artwork.finalImages.length > 0;
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setAttachFile({ name: file.name, type: file.type, data: ev.target?.result as string, size: file.size });
+    };
+    reader.readAsDataURL(file);
+  }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+    <div className={`rounded-2xl border overflow-hidden shadow-sm ${artwork.isClosed ? "border-gray-100 bg-gray-50/50" : "bg-white border-gray-200"}`}>
       {/* Artwork header */}
-      <div className="flex items-center gap-3 px-5 py-4 bg-gray-50 border-b border-gray-100">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono text-gray-400">{artwork.artworkCode}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              artwork.feedbackStatus === "Approved" ? "bg-green-100 text-green-700" :
-              artwork.feedbackStatus === "Rework" ? "bg-orange-100 text-orange-700" :
-              "bg-blue-100 text-blue-700"}`}>
-              {artwork.feedbackStatus}
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50/50 transition-colors">
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <span className="text-xs font-mono text-gray-400 shrink-0">{artwork.artworkCode}</span>
+          <h3 className={`text-sm font-semibold truncate ${artwork.isClosed ? "text-gray-400" : "text-gray-900"}`}>{artwork.artworkName}</h3>
+          {artwork.isClosed && (
+            <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+              <CheckCheck className="h-3 w-3" /> Done
             </span>
-          </div>
-          <h3 className="text-sm font-semibold text-gray-900 mt-0.5">{artwork.artworkName}</h3>
+          )}
         </div>
-      </div>
+        <span className="text-xs text-gray-400 shrink-0">{messages.length} msg{messages.length !== 1 ? "s" : ""}</span>
+        {open ? <ChevronUp className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />}
+      </button>
 
-      <div className="px-5 py-4 space-y-4">
-        {/* Images */}
-        {hasImages ? (
-          <>
-            <ImageStrip images={artwork.wipImages} label="Work in Progress" />
-            <ImageStrip images={artwork.finalImages} label="Final" />
-          </>
-        ) : (
-          <p className="text-sm text-gray-400 italic text-center py-4">No images shared yet for this artwork.</p>
-        )}
-
-        {/* Feedback section */}
-        <div className="pt-3 border-t border-gray-100">
-          {prevFb ? (
-            <div className="space-y-2">
-              {/* Client's own feedback */}
-              <div className={`flex items-start gap-3 p-4 rounded-xl ${prevFb.decision === "Approve" ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"}`}>
-                {prevFb.decision === "Approve"
-                  ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                  : <RotateCcw className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />}
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">
-                    You marked: <span className={prevFb.decision === "Approve" ? "text-green-700" : "text-orange-700"}>{prevFb.decision}</span>
-                  </p>
-                  {prevFb.comment && <p className="text-sm text-gray-600 mt-0.5">"{prevFb.comment}"</p>}
-                  <p className="text-xs text-gray-400 mt-1">Submitted {new Date(prevFb.createdAt).toLocaleDateString()}</p>
-                </div>
-              </div>
-              {/* Team reply */}
-              {prevFb.internalNote && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-200 ml-4">
-                  <div className="h-6 w-6 rounded-full bg-gray-900 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-[10px] font-bold text-[#C9B45C]">Z</span>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-blue-700 mb-0.5">Reply from ZARI Team</p>
-                    <p className="text-sm text-gray-700">{prevFb.internalNote}</p>
-                  </div>
-                </div>
-              )}
+      {open && (
+        <div className="border-t border-gray-100">
+          {/* Images */}
+          {hasImages && (
+            <div className="px-5 py-4 space-y-3 border-b border-gray-50">
+              <ImageStrip images={artwork.wipImages} label="Work in Progress" />
+              <ImageStrip images={artwork.finalImages} label="Final" />
             </div>
-          ) : submitted ? (
-            <div className="flex items-center gap-2 p-4 rounded-xl bg-green-50 border border-green-200">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <p className="text-sm font-semibold text-green-700">Feedback submitted!</p>
+          )}
+
+          {/* Chat messages */}
+          <div className="px-5 py-4 space-y-3 min-h-[60px]">
+            {messages.length === 0 && (
+              <p className="text-sm text-gray-400 italic text-center py-2">No messages yet. Start the conversation below.</p>
+            )}
+            {messages.map(m => <ChatBubble key={m.id} msg={m} />)}
+          </div>
+
+          {/* Input */}
+          {artwork.isClosed ? (
+            <div className="mx-5 mb-4 flex items-center gap-2 px-4 py-3 rounded-xl bg-green-50 border border-green-200">
+              <LockKeyhole className="h-4 w-4 text-green-600 shrink-0" />
+              <p className="text-xs text-green-700 font-medium">Thread closed — the team has reviewed this artwork.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Feedback</p>
-              <div className="flex gap-3">
-                <button onClick={() => setDecision("Approve")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${decision === "Approve" ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-green-300"}`}>
-                  <CheckCircle className="h-4 w-4" /> Approve
-                </button>
-                <button onClick={() => setDecision("Rework")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${decision === "Rework" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-600 hover:border-orange-300"}`}>
-                  <RotateCcw className="h-4 w-4" /> Request Rework
-                </button>
+            <div className="px-5 pb-4 space-y-2">
+              {attachFile && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate flex-1">{attachFile.name}</span>
+                  <button onClick={() => setAttachFile(null)} className="shrink-0 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
+              <div className="flex gap-2 items-end">
+                <textarea
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.mutate(); } }}
+                  placeholder="Type a message…"
+                  rows={2}
+                  className="flex-1 text-sm text-gray-900 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
+                />
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <button onClick={() => fileRef.current?.click()}
+                    className="flex items-center justify-center h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+                    <Paperclip className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => send.mutate()}
+                    disabled={send.isPending || (!text.trim() && !attachFile)}
+                    className="flex items-center justify-center h-9 w-9 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors disabled:opacity-50">
+                    {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </div>
+                <input ref={fileRef} type="file" className="hidden" onChange={pickFile} />
               </div>
-              <textarea
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder="Add comments or rework instructions (optional)…"
-                rows={3}
-                className="w-full text-sm text-gray-900 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400" />
-              <button
-                disabled={!decision || submit.isPending}
-                onClick={() => submit.mutate()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-50 shadow-sm">
-                <Send className="h-4 w-4" />
-                {submit.isPending ? "Submitting…" : "Submit Feedback"}
-              </button>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -227,18 +263,13 @@ export default function ClientPortal() {
     enabled: !!token,
     queryFn: async () => {
       const r = await fetch(`/api/client-portal/${token}`);
-      if (!r.ok) {
-        const json = await r.json() as { error?: string };
-        throw new Error(json.error ?? "Failed");
-      }
-      const json = await r.json() as { data: PortalData };
-      return json.data;
+      if (!r.ok) { const j = await r.json() as { error?: string }; throw new Error(j.error ?? "Failed"); }
+      const j = await r.json() as { data: PortalData };
+      return j.data;
     },
   });
 
-  function refetchFeedback() {
-    void qc.invalidateQueries({ queryKey: ["client-portal", token] });
-  }
+  function refetch() { void qc.invalidateQueries({ queryKey: ["client-portal", token] }); }
 
   if (!token) return null;
 
@@ -260,13 +291,9 @@ export default function ClientPortal() {
       <div className="min-h-screen bg-[#f8f9fb] flex items-center justify-center px-4">
         <div className="text-center max-w-sm">
           <div className="text-5xl mb-4">{notPublished ? "⏳" : "🔒"}</div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            {notPublished ? "Not Yet Active" : "Link Not Found"}
-          </h1>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">{notPublished ? "Not Yet Active" : "Link Not Found"}</h1>
           <p className="text-sm text-gray-500">
-            {notPublished
-              ? "This review link hasn't been published yet. Please contact the team."
-              : "This link may be invalid or has expired. Please contact the team for a new link."}
+            {notPublished ? "This review link hasn't been published yet. Please contact the team." : "This link may be invalid or has expired."}
           </p>
         </div>
       </div>
@@ -275,9 +302,11 @@ export default function ClientPortal() {
 
   if (!data) return null;
 
-  const { order, artworks, existingFeedback } = data;
-  const totalFeedback = existingFeedback.length;
-  const pendingCount = artworks.filter(aw => !existingFeedback.find(f => f.artworkId === aw.id)).length;
+  const { order, artworks, messages = [] } = data;
+
+  const openArtworks = artworks.filter(a => !a.isClosed);
+  const closedArtworks = artworks.filter(a => a.isClosed);
+  const sortedArtworks = [...openArtworks, ...closedArtworks];
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
@@ -290,9 +319,7 @@ export default function ClientPortal() {
             </div>
             <div>
               <p className="text-[10px] text-gray-400 leading-none">Client Review Portal</p>
-              <p className="text-xs font-semibold text-white leading-tight mt-0.5">
-                {data.link.portalTitle ?? "ZARI Embroideries"}
-              </p>
+              <p className="text-xs font-semibold text-white leading-tight mt-0.5">{data.link.portalTitle ?? "ZARI Embroideries"}</p>
             </div>
           </div>
           <div className="text-right">
@@ -304,7 +331,7 @@ export default function ClientPortal() {
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
-        {/* ── Swatch Name + Status ── */}
+        {/* Swatch name + status */}
         <div className="bg-white rounded-2xl border border-gray-200 px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -315,15 +342,12 @@ export default function ClientPortal() {
               order.orderStatus === "Completed" ? "bg-green-100 text-green-700" :
               order.orderStatus === "In Artwork" ? "bg-blue-100 text-blue-700" :
               order.orderStatus === "Pending Approval" ? "bg-amber-100 text-amber-700" :
-              "bg-gray-100 text-gray-600"
-            }`}>{order.orderStatus}</span>
+              "bg-gray-100 text-gray-600"}`}>{order.orderStatus}</span>
           </div>
         </div>
 
-        {/* ── Client Details + Swatch Details side-by-side ── */}
+        {/* Client + Swatch details */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* Client Details */}
           <div className="bg-white rounded-2xl border border-gray-200 px-5 py-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <div className="h-7 w-7 rounded-lg bg-gray-900 flex items-center justify-center">
@@ -332,24 +356,11 @@ export default function ClientPortal() {
               <p className="text-xs font-semibold text-gray-700">Client Details</p>
             </div>
             <div className="space-y-2">
-              <div>
-                <p className="text-[10px] text-gray-400">Client</p>
-                <p className="text-sm font-semibold text-gray-900">{order.clientName ?? "—"}</p>
-              </div>
-              {order.department && (
-                <div>
-                  <p className="text-[10px] text-gray-400">Department</p>
-                  <p className="text-sm text-gray-700">{order.department}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-[10px] text-gray-400">Chargeable</p>
-                <p className="text-sm text-gray-700">{order.isChargeable ? "Yes" : "No"}</p>
-              </div>
+              <div><p className="text-[10px] text-gray-400">Client</p><p className="text-sm font-semibold text-gray-900">{order.clientName ?? "—"}</p></div>
+              {order.department && <div><p className="text-[10px] text-gray-400">Department</p><p className="text-sm text-gray-700">{order.department}</p></div>}
+              <div><p className="text-[10px] text-gray-400">Chargeable</p><p className="text-sm text-gray-700">{order.isChargeable ? "Yes" : "No"}</p></div>
             </div>
           </div>
-
-          {/* Swatch Details */}
           <div className="bg-white rounded-2xl border border-gray-200 px-5 py-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <div className="h-7 w-7 rounded-lg bg-gray-900 flex items-center justify-center">
@@ -358,35 +369,14 @@ export default function ClientPortal() {
               <p className="text-xs font-semibold text-gray-700">Swatch Details</p>
             </div>
             <div className="space-y-2">
-              {order.fabricName && (
-                <div>
-                  <p className="text-[10px] text-gray-400">Fabric</p>
-                  <p className="text-sm text-gray-700">{order.fabricName}</p>
-                </div>
-              )}
-              {order.quantity && (
-                <div>
-                  <p className="text-[10px] text-gray-400">Quantity</p>
-                  <p className="text-sm text-gray-700">{order.quantity}</p>
-                </div>
-              )}
-              {order.deliveryDate && (
-                <div>
-                  <p className="text-[10px] text-gray-400">Delivery Date</p>
-                  <p className="text-sm text-gray-700">{new Date(order.deliveryDate).toLocaleDateString()}</p>
-                </div>
-              )}
-              {order.priority && (
-                <div>
-                  <p className="text-[10px] text-gray-400">Priority</p>
-                  <p className="text-sm text-gray-700">{order.priority}</p>
-                </div>
-              )}
+              {order.fabricName && <div><p className="text-[10px] text-gray-400">Fabric</p><p className="text-sm text-gray-700">{order.fabricName}</p></div>}
+              {order.quantity && <div><p className="text-[10px] text-gray-400">Quantity</p><p className="text-sm text-gray-700">{order.quantity}</p></div>}
+              {order.deliveryDate && <div><p className="text-[10px] text-gray-400">Delivery</p><p className="text-sm text-gray-700">{new Date(order.deliveryDate).toLocaleDateString()}</p></div>}
+              {order.priority && <div><p className="text-[10px] text-gray-400">Priority</p><p className="text-sm text-gray-700">{order.priority}</p></div>}
             </div>
           </div>
         </div>
 
-        {/* Description */}
         {order.description && (
           <div className="bg-white rounded-2xl border border-gray-200 px-5 py-4 shadow-sm">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Description</p>
@@ -394,18 +384,11 @@ export default function ClientPortal() {
           </div>
         )}
 
-        {/* ── Artworks ── */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5" />
-              Artworks for Review
-            </p>
-            <p className="text-xs text-gray-400">
-              {totalFeedback}/{artworks.length} reviewed
-              {pendingCount > 0 && <span className="ml-1.5 text-orange-500 font-semibold">{pendingCount} pending</span>}
-            </p>
-          </div>
+        {/* Artworks */}
+        <div className="flex items-center gap-2 px-1">
+          <Layers className="h-3.5 w-3.5 text-gray-400" />
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex-1">Artworks</p>
+          <p className="text-xs text-gray-400">{closedArtworks.length}/{artworks.length} done</p>
         </div>
 
         {artworks.length === 0 ? (
@@ -413,20 +396,18 @@ export default function ClientPortal() {
             <p className="text-sm text-gray-400 italic">No artworks shared yet.</p>
           </div>
         ) : (
-          artworks.map(aw => (
-            <ArtworkCard
+          sortedArtworks.map(aw => (
+            <ArtworkThread
               key={aw.id}
               artwork={aw}
-              existingFeedback={existingFeedback}
+              messages={messages.filter(m => m.artworkId === aw.id)}
               token={token}
-              onFeedbackSubmitted={refetchFeedback}
+              onRefetch={refetch}
             />
           ))
         )}
 
-        <p className="text-center text-xs text-gray-400 py-4">
-          Powered by ZARI ERP · Zari Embroideries
-        </p>
+        <p className="text-center text-xs text-gray-400 py-4">Powered by ZARI ERP · Zari Embroideries</p>
       </div>
     </div>
   );

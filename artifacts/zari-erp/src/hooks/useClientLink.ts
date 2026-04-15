@@ -14,6 +14,7 @@ export interface ClientLinkRecord {
   isPublished: boolean;
   hiddenImages: HiddenImage[];
   portalTitle: string | null;
+  closedThreads: number[];
   createdAt: string;
   updatedAt: string | null;
 }
@@ -28,6 +29,17 @@ export interface ClientFeedbackRecord {
   isResolved: boolean;
   internalNote: string | null;
   resolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface ClientMessageRecord {
+  id: number;
+  clientLinkId: number;
+  artworkId: number;
+  artworkName: string;
+  sender: "client" | "team";
+  message: string | null;
+  attachment: { name: string; type: string; data: string; size: number } | null;
   createdAt: string;
 }
 
@@ -57,6 +69,19 @@ export function useClientFeedback(linkId: number | null) {
   });
 }
 
+export function useClientMessages(linkId: number | null) {
+  return useQuery<ClientMessageRecord[]>({
+    queryKey: ["client-messages", linkId],
+    enabled: !!linkId,
+    queryFn: async () => {
+      const result = await customFetch<{ data: ClientMessageRecord[] }>(
+        `/api/client-links/${linkId}/messages`
+      );
+      return result.data;
+    },
+  });
+}
+
 export function useUpdateClientLink() {
   const qc = useQueryClient();
   return useMutation({
@@ -65,7 +90,7 @@ export function useUpdateClientLink() {
       data,
     }: {
       id: number;
-      data: Partial<Pick<ClientLinkRecord, "isPublished" | "hiddenImages" | "portalTitle">>;
+      data: Partial<Pick<ClientLinkRecord, "isPublished" | "hiddenImages" | "portalTitle" | "closedThreads">>;
     }) => {
       const result = await customFetch<{ data: ClientLinkRecord }>(
         `/api/client-links/${id}`,
@@ -113,6 +138,60 @@ export function useUpdateFeedback() {
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["client-feedback", data.clientLinkId] });
+    },
+  });
+}
+
+export function useSendTeamMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      linkId,
+      artworkId,
+      artworkName,
+      message,
+      attachment,
+    }: {
+      linkId: number;
+      artworkId: number;
+      artworkName: string;
+      message?: string;
+      attachment?: { name: string; type: string; data: string; size: number };
+    }) => {
+      const result = await customFetch<{ data: ClientMessageRecord }>(
+        `/api/client-links/${linkId}/messages`,
+        { method: "POST", body: JSON.stringify({ artworkId, artworkName, message, attachment }) }
+      );
+      return result.data;
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["client-messages", data.clientLinkId] });
+    },
+  });
+}
+
+export function useToggleThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      linkId,
+      swatchOrderId,
+      artworkId,
+      closed,
+    }: {
+      linkId: number;
+      swatchOrderId: number;
+      artworkId: number;
+      closed: boolean;
+    }) => {
+      const result = await customFetch<{ data: ClientLinkRecord }>(
+        `/api/client-links/${linkId}/threads/toggle`,
+        { method: "PATCH", body: JSON.stringify({ artworkId, closed }) }
+      );
+      return { ...result.data, swatchOrderId };
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["client-link", data.swatchOrderId] });
     },
   });
 }

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, clientLinksTable, clientFeedbackTable, artworksTable, swatchOrdersTable } from "@workspace/db";
+import { eq, and, asc } from "drizzle-orm";
+import { db, clientLinksTable, clientMessagesTable, artworksTable, swatchOrdersTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -20,6 +20,7 @@ router.get("/client-portal/:token", async (req, res): Promise<void> => {
     .where(and(eq(artworksTable.swatchOrderId, link.swatchOrderId), eq(artworksTable.isDeleted, false)));
 
   const hidden = (link.hiddenImages as Array<{ artworkId: number; imageType: string; imageIndex: number }>) || [];
+  const closedThreads = (link.closedThreads as number[]) || [];
 
   const filteredArtworks = artworks.map(aw => {
     const wipImages = ((aw.wipImages as Array<unknown>) || []).filter((_img, idx) =>
@@ -35,13 +36,15 @@ router.get("/client-portal/:token", async (req, res): Promise<void> => {
       feedbackStatus: aw.feedbackStatus,
       wipImages,
       finalImages,
+      isClosed: closedThreads.includes(aw.id),
     };
   });
 
-  const existingFeedback = await db
+  const messages = await db
     .select()
-    .from(clientFeedbackTable)
-    .where(eq(clientFeedbackTable.clientLinkId, link.id));
+    .from(clientMessagesTable)
+    .where(eq(clientMessagesTable.clientLinkId, link.id))
+    .orderBy(asc(clientMessagesTable.createdAt));
 
   res.json({
     data: {
@@ -61,31 +64,39 @@ router.get("/client-portal/:token", async (req, res): Promise<void> => {
         department: order.department,
       },
       artworks: filteredArtworks,
-      existingFeedback,
+      messages,
     },
   });
 });
 
-router.post("/client-portal/:token/feedback", async (req, res): Promise<void> => {
+router.post("/client-portal/:token/message", async (req, res): Promise<void> => {
   const { token } = req.params;
 
   const [link] = await db.select().from(clientLinksTable).where(eq(clientLinksTable.token, token));
   if (!link) { res.status(404).json({ error: "Link not found" }); return; }
   if (!link.isPublished) { res.status(403).json({ error: "Link not published" }); return; }
 
-  const { artworkId, artworkName, decision, comment } = req.body as {
+  const { artworkId, artworkName, message, attachment } = req.body as {
     artworkId: number;
     artworkName: string;
-    decision: "Approve" | "Rework";
-    comment?: string;
+    message?: string;
+    attachment?: { name: string; type: string; data: string; size: number };
   };
 
-  if (!artworkId || !decision) { res.status(400).json({ error: "artworkId and decision are required" }); return; }
-  if (!["Approve", "Rework"].includes(decision)) { res.status(400).json({ error: "decision must be Approve or Rework" }); return; }
+  if (!artworkId || (!message && !attachment)) {
+    res.status(400).json({ error: "artworkId and message or attachment required" });
+    return;
+  }
+
+  const closedThreads = (link.closedThreads as number[]) || [];
+  if (closedThreads.includes(artworkId)) {
+    res.status(403).json({ error: "This thread has been closed" });
+    return;
+  }
 
   const [created] = await db
-    .insert(clientFeedbackTable)
-    .values({ clientLinkId: link.id, artworkId, artworkName, decision, comment: comment ?? null })
+    .insert(clientMessagesTable)
+    .values({ clientLinkId: link.id, artworkId, artworkName, sender: "client", message: message ?? null, attachment: attachment ?? null })
     .returning();
 
   res.status(201).json({ data: created });

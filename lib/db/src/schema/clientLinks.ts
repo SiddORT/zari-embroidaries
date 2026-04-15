@@ -8,6 +8,7 @@ export const clientLinksTable = pgTable("client_links", {
   isPublished: boolean("is_published").notNull().default(false),
   hiddenImages: jsonb("hidden_images").default([]),
   portalTitle: text("portal_title"),
+  closedThreads: jsonb("closed_threads").default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
 });
@@ -25,6 +26,17 @@ export const clientFeedbackTable = pgTable("client_feedback", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const clientMessagesTable = pgTable("client_messages", {
+  id: serial("id").primaryKey(),
+  clientLinkId: integer("client_link_id").notNull(),
+  artworkId: integer("artwork_id").notNull(),
+  artworkName: text("artwork_name").notNull(),
+  sender: text("sender").notNull(),
+  message: text("message"),
+  attachment: jsonb("attachment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const insertClientLinkSchema = z.object({
   swatchOrderId: z.number(),
   token: z.string(),
@@ -35,6 +47,7 @@ export const insertClientLinkSchema = z.object({
     imageIndex: z.number(),
   })).optional(),
   portalTitle: z.string().optional().nullable(),
+  closedThreads: z.array(z.number()).optional(),
 });
 
 export const insertClientFeedbackSchema = z.object({
@@ -43,4 +56,18 @@ export const insertClientFeedbackSchema = z.object({
   artworkName: z.string(),
   decision: z.enum(["Approve", "Rework"]),
   comment: z.string().optional().nullable(),
+});
+
+export const insertClientMessageSchema = z.object({
+  clientLinkId: z.number(),
+  artworkId: z.number(),
+  artworkName: z.string(),
+  sender: z.enum(["client", "team"]),
+  message: z.string().optional().nullable(),
+  attachment: z.object({
+    name: z.string(),
+    type: z.string(),
+    data: z.string(),
+    size: z.number(),
+  }).optional().nullable(),
 });
