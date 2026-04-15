@@ -18,6 +18,14 @@ export const artworksTable = pgTable("artworks", {
   hourlyRate: text("hourly_rate"),
   totalCost: text("total_cost"),
 
+  outsourceVendorId: text("outsource_vendor_id"),
+  outsourceVendorName: text("outsource_vendor_name"),
+  outsourcePaymentDate: text("outsource_payment_date"),
+  outsourcePaymentAmount: text("outsource_payment_amount"),
+  outsourcePaymentMode: text("outsource_payment_mode"),
+  outsourceTransactionId: text("outsource_transaction_id"),
+  outsourcePaymentStatus: text("outsource_payment_status"),
+
   feedbackStatus: text("feedback_status").notNull().default("Pending"),
 
   files: jsonb("files").default([]),
@@ -44,6 +52,13 @@ export const insertArtworkSchema = z.object({
   workHours: z.string().optional(),
   hourlyRate: z.string().optional(),
   totalCost: z.string().optional(),
+  outsourceVendorId: z.string().optional().nullable(),
+  outsourceVendorName: z.string().optional().nullable(),
+  outsourcePaymentDate: z.string().optional().nullable(),
+  outsourcePaymentAmount: z.string().optional().nullable(),
+  outsourcePaymentMode: z.string().optional().nullable(),
+  outsourceTransactionId: z.string().optional().nullable(),
+  outsourcePaymentStatus: z.string().optional().nullable(),
   feedbackStatus: z.string().default("Pending"),
   files: z.array(z.record(z.unknown())).optional().default([]),
   refImages: z.array(z.record(z.unknown())).optional().default([]),

@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useArtwork, useCreateArtwork, useUpdateArtwork, type FileAttachment } from "@/hooks/useArtworks";
 import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
+import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 import AddableSelect from "@/components/ui/AddableSelect";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 
@@ -131,6 +132,9 @@ function FileUploadZone({ files, onChange, accept, icon, label, onImageClick }: 
   );
 }
 
+const PAYMENT_MODES = ["Cash", "Bank Transfer", "Cheque", "UPI", "NEFT", "RTGS", "Other"];
+const PAYMENT_STATUSES = ["Pending", "Partial", "Paid"];
+
 type FormState = {
   artworkName: string;
   unitLength: string;
@@ -140,6 +144,13 @@ type FormState = {
   workHours: string;
   hourlyRate: string;
   totalCost: string;
+  outsourceVendorId: string;
+  outsourceVendorName: string;
+  outsourcePaymentDate: string;
+  outsourcePaymentAmount: string;
+  outsourcePaymentMode: string;
+  outsourceTransactionId: string;
+  outsourcePaymentStatus: string;
   feedbackStatus: string;
   files: FileAttachment[];
   refImages: FileAttachment[];
@@ -150,6 +161,9 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   artworkName: "", unitLength: "", unitWidth: "", unitType: "",
   artworkCreated: "Inhouse", workHours: "", hourlyRate: "", totalCost: "",
+  outsourceVendorId: "", outsourceVendorName: "", outsourcePaymentDate: "",
+  outsourcePaymentAmount: "", outsourcePaymentMode: "", outsourceTransactionId: "",
+  outsourcePaymentStatus: "Pending",
   feedbackStatus: "Pending",
   files: [], refImages: [], wipImages: [], finalImages: [],
 };
@@ -171,6 +185,10 @@ export default function ArtworkDetail() {
   const unitTypes: LookupRecord[] = unitTypeData ?? [];
   const unitTypeOptions = unitTypes.map(u => ({ value: u.name, label: u.name }));
 
+  const { data: vendorData } = useAllVendors();
+  const vendors: VendorRecord[] = (vendorData as VendorRecord[] | undefined) ?? [];
+  const vendorOptions = vendors.map(v => ({ value: String(v.id), label: v.brandName }));
+
   const createUnitType = useCreateUnitType();
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
@@ -191,6 +209,13 @@ export default function ArtworkDetail() {
         workHours: a.workHours ?? "",
         hourlyRate: a.hourlyRate ?? "",
         totalCost: a.totalCost ?? "",
+        outsourceVendorId: a.outsourceVendorId ?? "",
+        outsourceVendorName: a.outsourceVendorName ?? "",
+        outsourcePaymentDate: a.outsourcePaymentDate ?? "",
+        outsourcePaymentAmount: a.outsourcePaymentAmount ?? "",
+        outsourcePaymentMode: a.outsourcePaymentMode ?? "",
+        outsourceTransactionId: a.outsourceTransactionId ?? "",
+        outsourcePaymentStatus: a.outsourcePaymentStatus ?? "Pending",
         feedbackStatus: a.feedbackStatus ?? "Pending",
         files: (a.files ?? []) as FileAttachment[],
         refImages: (a.refImages ?? []) as FileAttachment[],
@@ -382,7 +407,7 @@ export default function ArtworkDetail() {
                           if (computed) set("totalCost", computed);
                         }} />
                     </Field>
-                    <Field label="House Hourly Rate" hint="Cost per hour for in-house work">
+                    <Field label="Hourly Rate" hint="Cost per hour for in-house work">
                       <input className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
                         type="number" min="0" step="0.01" placeholder="e.g. 250" readOnly={isViewMode}
                         value={form.hourlyRate}
@@ -395,10 +420,94 @@ export default function ArtworkDetail() {
                   </div>
                 )}
 
-                <Field label="Total Cost" hint={form.artworkCreated === "Inhouse" ? "Auto-computed from hourly rate × work hours" : "Vendor quoted price"}>
+                {form.artworkCreated === "Outsource" && (
+                  <div className="space-y-3">
+                    <Field label="Vendor">
+                      <AddableSelect
+                        options={vendorOptions}
+                        value={form.outsourceVendorId}
+                        onChange={v => {
+                          const vendor = vendors.find(vnd => String(vnd.id) === v);
+                          set("outsourceVendorId", v ?? "");
+                          set("outsourceVendorName", vendor?.brandName ?? "");
+                        }}
+                        placeholder="Select vendor…"
+                        disabled={isViewMode}
+                      />
+                    </Field>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Payment Date">
+                        <input
+                          type="date"
+                          className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                          readOnly={isViewMode}
+                          value={form.outsourcePaymentDate}
+                          onChange={e => set("outsourcePaymentDate", e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Payment Amount">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                          <input
+                            type="number" min="0" step="0.01" placeholder="0.00"
+                            className={`${inputCls} pl-7 ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                            readOnly={isViewMode}
+                            value={form.outsourcePaymentAmount}
+                            onChange={e => set("outsourcePaymentAmount", e.target.value)}
+                          />
+                        </div>
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Payment Mode">
+                        <select
+                          className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                          disabled={isViewMode}
+                          value={form.outsourcePaymentMode}
+                          onChange={e => set("outsourcePaymentMode", e.target.value)}>
+                          <option value="">Select mode…</option>
+                          {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Transaction / Cheque ID">
+                        <input
+                          type="text" placeholder="e.g. TXN123456"
+                          className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                          readOnly={isViewMode}
+                          value={form.outsourceTransactionId}
+                          onChange={e => set("outsourceTransactionId", e.target.value)}
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="Payment Status">
+                      <div className="flex gap-2 mt-1">
+                        {PAYMENT_STATUSES.map(s => (
+                          <button key={s} type="button"
+                            onClick={() => { if (!isViewMode) set("outsourcePaymentStatus", s); }}
+                            disabled={isViewMode}
+                            className={`flex-1 py-2 rounded-xl text-xs font-semibold ring-1 transition-all ${
+                              form.outsourcePaymentStatus === s
+                                ? s === "Paid" ? "bg-green-600 text-white ring-green-600"
+                                  : s === "Partial" ? "bg-amber-500 text-white ring-amber-500"
+                                  : "bg-red-500 text-white ring-red-500"
+                                : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
+                            } ${isViewMode ? "opacity-70 cursor-default" : ""}`}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                  </div>
+                )}
+
+                <Field label="Total Cost" hint={form.artworkCreated === "Inhouse" ? "Auto-computed from hourly rate × work hours" : "Vendor quoted / invoiced amount"}>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-                    <input className={`${inputCls} pl-7`} type="number" min="0" step="0.01" placeholder="0.00"
+                    <input className={`${inputCls} pl-7 ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                      type="number" min="0" step="0.01" placeholder="0.00" readOnly={isViewMode}
                       value={form.totalCost} onChange={e => set("totalCost", e.target.value)} />
                   </div>
                 </Field>

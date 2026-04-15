@@ -15,6 +15,13 @@ export type ArtworkRecord = {
   workHours: string | null;
   hourlyRate: string | null;
   totalCost: string | null;
+  outsourceVendorId: string | null;
+  outsourceVendorName: string | null;
+  outsourcePaymentDate: string | null;
+  outsourcePaymentAmount: string | null;
+  outsourcePaymentMode: string | null;
+  outsourceTransactionId: string | null;
+  outsourcePaymentStatus: string | null;
   feedbackStatus: string;
   files: FileAttachment[];
   refImages: FileAttachment[];
