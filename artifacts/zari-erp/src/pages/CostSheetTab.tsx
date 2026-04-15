@@ -109,8 +109,6 @@ export default function CostSheetTab({
 
   // ── Totals ──────────────────────────────────────────────────────────────────
   const bomConsumedTotal = bomWithMetrics.reduce((s, { m }) => s + m.consumedTotal, 0);
-  const poTargetTotal    = bomWithMetrics.reduce((s, { m }) => s + m.poTargetTotal, 0);
-  const prTotal          = prs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
   const artisanTotal     = artisanTimesheets.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
   const outsourceTotal   = outsourceJobs.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
   const customTotal      = customCharges.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
@@ -189,72 +187,7 @@ export default function CostSheetTab({
           </div>
         </div>
 
-        {/* ── 1. Bill of Materials ────────────────────────────────────────── */}
-        <SheetSection title="Bill of Materials">
-          <SheetTable
-            headers={["#", "Code", "Material / Fabric", "Type", "Req Qty", "Live Stock", "PO Rate ₹", "Avg Price ₹", "Consumed Qty", "Consumed Total ₹"]}
-            rows={bomWithMetrics.map(({ r, m }, i) => [
-              i + 1,
-              r.materialCode,
-              r.materialName,
-              r.materialType === "fabric" ? "Fabric" : "Material",
-              `${parseFloat(r.requiredQty).toFixed(2)} ${r.unitType}`,
-              `${fmt(m.liveStock)} ${r.unitType}`,
-              rupee(m.poTargetPrice),
-              rupee(m.weightedAvg),
-              `${fmt(m.consumedQtyNum)} ${r.unitType}`,
-              rupee(m.consumedTotal),
-            ])}
-            footer={bomWithMetrics.length > 0 ? [
-              "", "", "", "Total", "", "", "", "",
-              `${fmt(bomWithMetrics.reduce((s, { m }) => s + m.consumedQtyNum, 0))}`,
-              rupee(bomConsumedTotal),
-            ] : undefined}
-          />
-        </SheetSection>
-
-        {/* ── 2. Purchase Orders ──────────────────────────────────────────── */}
-        <SheetSection title="Purchase Orders">
-          <SheetTable
-            headers={["PO No.", "Vendor", "Date", "Status", "Items", "PO Value ₹"]}
-            rows={pos.map(po => {
-              const poVal = (po.bomItems ?? []).reduce((s, i) => s + (parseFloat(i.targetPrice) || 0) * (parseFloat(i.quantity) || 0), 0);
-              return [
-                po.poNumber,
-                po.vendorName,
-                new Date(po.poDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-                po.status,
-                (po.bomItems ?? []).length,
-                rupee(poVal),
-              ];
-            })}
-            footer={pos.length > 0 ? [
-              "", "", "", "", "Total",
-              rupee(poTargetTotal),
-            ] : undefined}
-          />
-        </SheetSection>
-
-        {/* ── 3. Purchase Receipts ────────────────────────────────────────── */}
-        <SheetSection title="Purchase Receipts (GRN)">
-          <SheetTable
-            headers={["PR No.", "Vendor", "Received Date", "Received Qty", "Unit Price ₹", "PR Total ₹"]}
-            rows={prs.map(pr => [
-              pr.prNumber,
-              pr.vendorName,
-              new Date(pr.receivedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-              `${parseFloat(pr.receivedQty).toFixed(2)}`,
-              rupee(parseFloat(pr.actualPrice)),
-              rupee((parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0)),
-            ])}
-            footer={prs.length > 0 ? [
-              "", "", "", "", "Total",
-              rupee(prTotal),
-            ] : undefined}
-          />
-        </SheetSection>
-
-        {/* ── 4. Consumption Log ──────────────────────────────────────────── */}
+        {/* ── 1. Consumption Log ──────────────────────────────────────────── */}
         <SheetSection title="Material Consumption">
           <SheetTable
             headers={["Code", "Material / Fabric", "Type", "Consumed Qty", "Avg Price ₹", "Consumed Total ₹", "Consumed By"]}
@@ -279,7 +212,7 @@ export default function CostSheetTab({
           />
         </SheetSection>
 
-        {/* ── 5. Artisan Time Sheet ───────────────────────────────────────── */}
+        {/* ── 2. Artisan Time Sheet ───────────────────────────────────────── */}
         <SheetSection title="Artisan Time Sheet">
           <SheetTable
             headers={["Start Date", "End Date", "Shift Type", "# Artisans", "Total Hours", "Rate / Hr ₹", "Total Rate ₹"]}
@@ -299,7 +232,7 @@ export default function CostSheetTab({
           />
         </SheetSection>
 
-        {/* ── 6. Outsource Jobs ───────────────────────────────────────────── */}
+        {/* ── 3. Outsource Jobs ───────────────────────────────────────────── */}
         <SheetSection title="Outsource Jobs">
           <SheetTable
             headers={["Vendor", "HSN", "GST%", "Issue Date", "Target Date", "Delivery Date", "Total Cost ₹"]}
@@ -319,7 +252,7 @@ export default function CostSheetTab({
           />
         </SheetSection>
 
-        {/* ── 7. Custom Charges ───────────────────────────────────────────── */}
+        {/* ── 4. Custom Charges ───────────────────────────────────────────── */}
         <SheetSection title="Custom Charges">
           <SheetTable
             headers={["Vendor", "HSN", "GST%", "Description", "Unit Price ₹", "Qty", "Total ₹"]}
