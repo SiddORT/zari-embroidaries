@@ -48,12 +48,13 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const mastersActive = location.startsWith("/masters");
   const ordersActive = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
 
-  const initials = username
+  const initials = (username ?? "")
     .split(" ")
     .map((w) => w[0])
+    .filter(Boolean)
     .join("")
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || "…";
 
   useEffect(() => {
     if (!mastersOpen) return;
