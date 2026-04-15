@@ -189,7 +189,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           )}
           <button onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Add Material
+            <Plus className="h-3.5 w-3.5" /> Add Material/Fabric
           </button>
         </div>
       </SectionHeader>
