@@ -375,9 +375,19 @@ export default function SwatchOrderDetail() {
                 <div className="flex items-center gap-1 text-xs">
                   {FLOW_STEPS.map((step, i) => (
                     <div key={step} className="flex items-center gap-1">
-                      <span className={`px-2.5 py-1 rounded-full font-medium ${
-                        i === 0 ? "bg-gray-900 text-[#C9B45C]" : "bg-gray-100 text-gray-400"
-                      }`}>{step}</span>
+                      {step === "Artwork" && !isNew ? (
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById("artworks-section")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                          className="px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-900 hover:text-[#C9B45C] transition-colors"
+                        >
+                          {step}
+                        </button>
+                      ) : (
+                        <span className={`px-2.5 py-1 rounded-full font-medium ${
+                          i === 0 ? "bg-gray-900 text-[#C9B45C]" : "bg-gray-100 text-gray-400"
+                        }`}>{step}</span>
+                      )}
                       {i < FLOW_STEPS.length - 1 && <span className="text-gray-300 mx-0.5">›</span>}
                     </div>
                   ))}
@@ -747,6 +757,7 @@ export default function SwatchOrderDetail() {
           </SectionCard>
 
           {/* ── Artworks Section ── */}
+          <div id="artworks-section" className="scroll-mt-4">
           <SectionCard icon={<Palette className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="Artworks" subtitle="Manage artworks linked to this swatch order">
             {isNew ? (
@@ -801,6 +812,7 @@ export default function SwatchOrderDetail() {
               </div>
             )}
           </SectionCard>
+          </div>
 
           {/* Bottom Save */}
           <div className="flex justify-end gap-3 pt-2">
