@@ -287,6 +287,14 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   </span>
                 </span>
               </th>
+              <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">
+                <span className="flex items-center gap-1">
+                  PO Rate ₹
+                  <span title="Target unit price agreed in the Purchase Order" className="cursor-help text-gray-300 hover:text-gray-500">
+                    <Info className="h-3 w-3" />
+                  </span>
+                </span>
+              </th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Req Qty</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Total ₹</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Qty</th>
@@ -299,11 +307,12 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={12} className="px-4 py-6 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></td></tr>
+              <tr><td colSpan={13} className="px-4 py-6 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></td></tr>
             ) : filteredRows.length === 0 ? (
               <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
             ) : filteredRows.map(r => {
               const m = computeRowMetrics(r, pos, prs);
+              const liveStock = m.stockNum + m.prQty;
               return (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -315,8 +324,17 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                       <span className="text-gray-800 font-medium">{r.materialName}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.currentStock} {r.unitType}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <span className="font-semibold text-gray-800">{liveStock.toFixed(2)}</span>
+                    <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
+                    {m.prQty > 0 && (
+                      <span title={`Base: ${m.stockNum} + PR: ${m.prQty.toFixed(2)}`} className="ml-1 text-[9px] text-blue-500 cursor-help">+PR</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">₹{m.weightedAvg.toFixed(2)}</td>
+                  <td className="px-3 py-2.5 text-amber-700 whitespace-nowrap">
+                    {m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.requiredQty}</td>
                   <td className="px-3 py-2.5 font-semibold text-amber-700">
                     {m.poTargetTotal > 0 ? `₹${m.poTargetTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
@@ -347,7 +365,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
             })}
             {filteredRows.length > 0 && (
               <tr className="bg-gray-50 border-t border-gray-200">
-                <td colSpan={4} className="px-3 py-2 text-[10px] font-semibold text-gray-400">{filteredRows.length} item{filteredRows.length > 1 ? "s" : ""}</td>
+                <td colSpan={5} className="px-3 py-2 text-[10px] font-semibold text-gray-400">{filteredRows.length} item{filteredRows.length > 1 ? "s" : ""}</td>
                 <td className="px-3 py-2 font-bold text-gray-700 text-xs">
                   {filteredRows.reduce((s, r) => s + (parseFloat(r.requiredQty) || 0), 0)}
                 </td>
@@ -1293,10 +1311,11 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     setShowAddModal(true);
   }
 
-  // Compute available stock for the item currently selected in the add modal
+  // Compute available stock for the item currently selected in the add modal (includes PR received)
   const selectedRow = bomRows.find(r => String(r.id) === addForm.bomRowId);
-  const availableStock = selectedRow
-    ? Math.max(0, parseFloat(selectedRow.currentStock || "0") - parseFloat(selectedRow.consumedQty || "0"))
+  const selectedRowMetrics = selectedRow ? computeRowMetrics(selectedRow, pos, prs) : null;
+  const availableStock = selectedRowMetrics
+    ? Math.max(0, selectedRowMetrics.stockNum + selectedRowMetrics.prQty - selectedRowMetrics.consumedQtyNum)
     : null;
 
   function handleAddConsumption() {
@@ -1360,20 +1379,25 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Code</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Current Stock</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">PR Rcv</th>
-                <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Stock incl. PR</th>
+                <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">
+                  <span className="flex items-center gap-1">
+                    Live Stock
+                    <span title="Base stock + all PR received quantities" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span>
+                  </span>
+                </th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Avg Price (₹)</th>
                 <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Consumed Qty</th>
                 <th className="text-left text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Consumed Total (₹)</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Last Consumed</th>
                 <th className="px-3 py-2 whitespace-nowrap text-[10px] font-semibold text-gray-400">Log</th>
               </tr>
             </thead>
             <tbody>
               {displayRows.map(r => {
                 const m = computeRowMetrics(r, pos, prs);
-                const stockInclPr = m.stockNum + m.prQty;
-                const logCount = consumptionLog.filter(e => e.bomRowId === r.id).length;
+                const liveStock = m.stockNum + m.prQty;
+                const rowLogs = consumptionLog.filter(e => e.bomRowId === r.id);
+                const lastEntry = rowLogs.length > 0 ? rowLogs.reduce((a, b) => new Date(a.consumedAt) > new Date(b.consumedAt) ? a : b) : null;
                 return (
                   <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
                     <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -1385,17 +1409,29 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-gray-600">{parseFloat(r.currentStock || "0").toFixed(2)} {r.unitType}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{m.prQty.toFixed(2)}</td>
-                    <td className="px-3 py-2.5 font-semibold text-blue-700">{stockInclPr.toFixed(2)} {r.unitType}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="font-semibold text-blue-700">{liveStock.toFixed(2)}</span>
+                      <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
+                      {m.prQty > 0 && (
+                        <span title={`Base: ${m.stockNum} + PR received: ${m.prQty.toFixed(2)}`} className="ml-1 text-[9px] text-blue-400 cursor-help">+PR</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-gray-700">₹{m.weightedAvg.toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-amber-700 font-medium">{m.consumedQtyNum.toFixed(2)} {r.unitType}</td>
                     <td className="px-3 py-2.5 font-semibold text-red-700">₹{m.consumedTotal.toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap text-[10px]">
+                      {lastEntry ? (
+                        <span title={new Date(lastEntry.consumedAt).toLocaleString("en-IN")}>
+                          {new Date(lastEntry.consumedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                          {" "}{new Date(lastEntry.consumedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      ) : <span className="text-gray-200">—</span>}
+                    </td>
                     <td className="px-3 py-2.5">
-                      {logCount > 0 && (
+                      {rowLogs.length > 0 && (
                         <button onClick={() => { setFilterBomRowId(String(r.id)); setShowLogModal(true); }}
                           className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
-                          {logCount} {logCount === 1 ? "entry" : "entries"}
+                          {rowLogs.length} {rowLogs.length === 1 ? "entry" : "entries"}
                         </button>
                       )}
                     </td>
@@ -1406,12 +1442,12 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
             {displayRows.length > 1 && (
               <tfoot>
                 <tr className="bg-gray-50 border-t border-gray-200">
-                  <td colSpan={4} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
+                  <td colSpan={2} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
                   <td className="px-3 py-2 font-bold text-blue-700">{totals.stockInclPr.toFixed(2)}</td>
                   <td className="px-3 py-2" />
                   <td className="px-3 py-2 font-bold text-amber-700">{totals.consumedQty.toFixed(2)}</td>
                   <td className="px-3 py-2 font-bold text-red-700">₹{totals.consumedTotal.toFixed(2)}</td>
-                  <td className="px-3 py-2" />
+                  <td colSpan={2} className="px-3 py-2" />
                 </tr>
               </tfoot>
             )}
@@ -1437,21 +1473,30 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                   ))}
                 </select>
               </div>
-              {selectedRow && (
-                <div className={`rounded-xl px-3 py-2 text-xs flex items-center gap-3 ${availableStock !== null && availableStock <= 0 ? "bg-red-50 border border-red-200" : "bg-blue-50 border border-blue-100"}`}>
-                  <div className="flex-1">
-                    <span className="text-gray-500">Current stock: </span>
-                    <span className="font-semibold text-gray-800">{parseFloat(selectedRow.currentStock || "0").toFixed(4)}</span>
-                    <span className="mx-2 text-gray-300">|</span>
+              {selectedRow && selectedRowMetrics && (
+                <div className={`rounded-xl px-3 py-2 text-xs space-y-1.5 ${availableStock !== null && availableStock <= 0 ? "bg-red-50 border border-red-200" : "bg-blue-50 border border-blue-100"}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-gray-500">Base stock: </span>
+                    <span className="font-semibold text-gray-800">{selectedRowMetrics.stockNum.toFixed(2)}</span>
+                    {selectedRowMetrics.prQty > 0 && (
+                      <>
+                        <span className="text-blue-400">+</span>
+                        <span className="text-blue-600 font-semibold">PR received: {selectedRowMetrics.prQty.toFixed(2)}</span>
+                        <span className="text-gray-400">=</span>
+                        <span className="font-bold text-gray-900">Live stock: {(selectedRowMetrics.stockNum + selectedRowMetrics.prQty).toFixed(2)}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-gray-500">Already consumed: </span>
-                    <span className="font-semibold text-amber-700">{parseFloat(selectedRow.consumedQty || "0").toFixed(4)}</span>
-                    <span className="mx-2 text-gray-300">|</span>
+                    <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(4)}</span>
+                    <span className="mx-1 text-gray-300">|</span>
                     <span className="text-gray-500">Available: </span>
                     <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-green-700"}`}>
                       {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
                     </span>
+                    {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600 ml-1">NO STOCK</span>}
                   </div>
-                  {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600">NO STOCK</span>}
                 </div>
               )}
               <div>

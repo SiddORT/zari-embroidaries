@@ -295,15 +295,20 @@ router.post("/consumption", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, bomRowId, materialCode, materialName, materialType, unitType, consumedQty, notes } = req.body as Record<string, string | number>;
 
-  // Validate: consumed qty must not exceed current stock of the BOM row
+  // Validate: consumed qty must not exceed available stock (initial stock + PR received - already consumed)
   const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, Number(bomRowId)));
   if (!bomRow) { res.status(404).json({ error: "BOM item not found" }); return; }
   const currentStock = parseFloat(bomRow.currentStock || "0");
   const existingConsumed = parseFloat(bomRow.consumedQty || "0");
   const newConsumedQty = parseFloat(String(consumedQty)) || 0;
-  const available = currentStock - existingConsumed;
+  // Include all PR received qty for this BOM row in the available stock calculation
+  const allPrsForRow = await db.select().from(purchaseReceiptsTable)
+    .where(eq(purchaseReceiptsTable.bomRowId, Number(bomRowId)));
+  const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+  const liveStock = currentStock + totalPrReceived;
+  const available = liveStock - existingConsumed;
   if (newConsumedQty > available) {
-    res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available (Stock: ${currentStock}, Already consumed: ${existingConsumed}).` });
+    res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available (Base stock: ${currentStock}, PR received: ${totalPrReceived}, Already consumed: ${existingConsumed}).` });
     return;
   }
 
