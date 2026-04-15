@@ -30,8 +30,8 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled: "bg-red-50 text-red-600 border-red-300",
 };
 
-const inputCls = "w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/20 bg-white placeholder:text-gray-300";
-const printInputCls = "w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/20 bg-white placeholder:text-gray-300 print:border-transparent print:bg-transparent print:px-0 print:py-0";
+const inputCls = "w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 bg-white placeholder:text-gray-300";
+const printInputCls = "w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20 bg-white placeholder:text-gray-300 print:border-transparent print:bg-transparent print:px-0 print:py-0";
 
 function blankItem(): InvoiceLineItem {
   return { id: uid(), description: "", category: "Other", quantity: 1, unitPrice: 0, total: 0 };
@@ -403,7 +403,7 @@ export default function InvoiceTab({
                     <td className="px-3 py-2 text-gray-400 border-b border-gray-100">{idx + 1}</td>
                     <td className="px-2 py-1 border-b border-gray-100">
                       <input
-                        className="w-full px-2 py-1 text-xs text-gray-800 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
+                        className="w-full px-2 py-1 text-xs text-gray-900 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
                         value={item.description} placeholder="Description…"
                         onChange={e => updateItem(item.id, "description", e.target.value)}
                       />
@@ -416,12 +416,12 @@ export default function InvoiceTab({
                     </td>
                     <td className="px-2 py-1 border-b border-gray-100">
                       <input type="number" min="0" step="0.001"
-                        className="w-full px-2 py-1 text-xs text-right text-gray-800 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
+                        className="w-full px-2 py-1 text-xs text-right text-gray-900 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
                         value={item.quantity} onChange={e => updateItem(item.id, "quantity", e.target.value)} />
                     </td>
                     <td className="px-2 py-1 border-b border-gray-100">
                       <input type="number" min="0" step="0.01"
-                        className="w-full px-2 py-1 text-xs text-right text-gray-800 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
+                        className="w-full px-2 py-1 text-xs text-right text-gray-900 border border-transparent rounded-lg focus:border-gray-300 focus:outline-none bg-transparent hover:bg-white focus:bg-white transition-colors"
                         value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", e.target.value)} />
                     </td>
                     <td className="px-2 py-1 border-b border-gray-100">
@@ -465,7 +465,7 @@ export default function InvoiceTab({
                     {/* Subtotal */}
                     <tr className="border-b border-gray-100">
                       <td className="px-4 py-2.5 text-gray-500 font-medium">Subtotal</td>
-                      <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{rupee(subtotal)}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{rupee(subtotal)}</td>
                     </tr>
 
                     {/* Discount */}
