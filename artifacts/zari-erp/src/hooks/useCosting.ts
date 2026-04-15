@@ -213,3 +213,48 @@ export function useDeletePayment() {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["pr-payments"] }); },
   });
 }
+
+export interface ConsumptionLogRecord {
+  id: number;
+  swatchOrderId: number;
+  bomRowId: number;
+  materialCode: string;
+  materialName: string;
+  materialType: string;
+  unitType: string;
+  consumedQty: string;
+  consumedBy: string;
+  consumedAt: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+export function useSwatchConsumptionLog(swatchOrderId: number) {
+  return useQuery({
+    queryKey: ["consumption-log", swatchOrderId],
+    queryFn: () => customFetch<{ data: ConsumptionLogRecord[] }>(`/api/costing/consumption/${swatchOrderId}`).then(r => r.data),
+    enabled: !!swatchOrderId,
+  });
+}
+
+export function useAddConsumptionEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: ConsumptionLogRecord }>("/api/costing/consumption", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["consumption-log"] });
+      void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+    },
+  });
+}
+
+export function useDeleteConsumptionEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/consumption/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["consumption-log"] });
+      void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+    },
+  });
+}

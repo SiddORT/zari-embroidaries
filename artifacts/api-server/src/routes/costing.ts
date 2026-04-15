@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
+  consumptionLogTable,
   materialsTable, fabricsTable, vendorsTable,
 } from "@workspace/db/schema";
 import { eq, ilike, or } from "drizzle-orm";
@@ -182,6 +183,21 @@ router.post("/pr", requireAuth, async (req, res) => {
     status: "Open",
     createdBy: user.email,
   }).returning();
+
+  // Auto-close PO when all items are fully received
+  if (po.status !== "Closed") {
+    const allPoPrs = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.poId, Number(poId)));
+    const bomItems = po.bomItems ?? [];
+    const allCovered = bomItems.length > 0 && bomItems.every(item => {
+      const relevant = allPoPrs.filter(pr => pr.bomRowId === item.bomRowId || pr.bomRowId == null);
+      const received = relevant.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+      return (parseFloat(item.quantity) || 0) > 0 && received >= (parseFloat(item.quantity) || 0);
+    });
+    if (allCovered) {
+      await db.update(purchaseOrdersTable).set({ status: "Closed", updatedBy: user.email, updatedAt: new Date() }).where(eq(purchaseOrdersTable.id, Number(poId)));
+    }
+  }
+
   res.status(201).json({ data: row });
 });
 
@@ -226,6 +242,54 @@ router.post("/payments", requireAuth, async (req, res) => {
 
 router.delete("/payments/:id", requireAuth, async (req, res) => {
   await db.delete(prPaymentsTable).where(eq(prPaymentsTable.id, Number(req.params.id)));
+  res.json({ success: true });
+});
+
+// ─── Consumption Log ───────────────────────────────────────────────────────────
+router.get("/consumption/:swatchOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(consumptionLogTable)
+    .where(eq(consumptionLogTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .orderBy(consumptionLogTable.consumedAt);
+  res.json({ data: rows });
+});
+
+router.post("/consumption", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { swatchOrderId, bomRowId, materialCode, materialName, materialType, unitType, consumedQty, notes } = req.body as Record<string, string | number>;
+  const [entry] = await db.insert(consumptionLogTable).values({
+    swatchOrderId: Number(swatchOrderId),
+    bomRowId: Number(bomRowId),
+    materialCode: String(materialCode),
+    materialName: String(materialName),
+    materialType: String(materialType),
+    unitType: String(unitType ?? ""),
+    consumedQty: String(consumedQty),
+    consumedBy: user.email,
+    notes: notes ? String(notes) : null,
+  }).returning();
+
+  // Recompute total consumed qty for this BOM row and update it
+  const allEntries = await db.select().from(consumptionLogTable)
+    .where(eq(consumptionLogTable.bomRowId, Number(bomRowId)));
+  const totalConsumed = allEntries.reduce((s, e) => s + (parseFloat(e.consumedQty) || 0), 0);
+  await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
+    .where(eq(swatchBomTable.id, Number(bomRowId)));
+
+  res.status(201).json({ data: entry });
+});
+
+router.delete("/consumption/:id", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const [entry] = await db.select().from(consumptionLogTable).where(eq(consumptionLogTable.id, Number(req.params.id)));
+  if (!entry) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(consumptionLogTable).where(eq(consumptionLogTable.id, Number(req.params.id)));
+
+  // Recompute and update BOM consumed qty
+  const remaining = await db.select().from(consumptionLogTable).where(eq(consumptionLogTable.bomRowId, entry.bomRowId));
+  const totalConsumed = remaining.reduce((s, e) => s + (parseFloat(e.consumedQty) || 0), 0);
+  await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
+    .where(eq(swatchBomTable.id, entry.bomRowId));
+
   res.json({ success: true });
 });
 

@@ -14,8 +14,9 @@ import {
   useSwatchPOs, useCreatePO, useUpdatePO, useDeletePO,
   useSwatchPRs, useCreatePR, useDeletePR,
   usePrPayments, useAddPayment, useDeletePayment,
+  useSwatchConsumptionLog, useAddConsumptionEntry, useDeleteConsumptionEntry,
   type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord,
-  type PrPaymentRecord, type PoLineItem,
+  type PrPaymentRecord, type PoLineItem, type ConsumptionLogRecord,
 } from "@/hooks/useCosting";
 
 const PO_STATUSES = ["Draft", "Pending Approval", "Approved", "In Process", "Closed"];
@@ -40,6 +41,7 @@ function computeRowMetrics(r: BomRecord, pos: PurchaseOrderRecord[], prs: Purcha
   });
   const poTargetPrice = poLineItems.length > 0 ? parseFloat(poLineItems[poLineItems.length - 1].targetPrice || "0") : 0;
   const poQty = poLineItems.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0);
+  const poTargetTotal = poLineItems.reduce((s, i) => s + (parseFloat(i.targetPrice) || 0) * (parseFloat(i.quantity) || 0), 0);
   const prQty = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
   const prTotal = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
   const stockNum = parseFloat(r.currentStock || "0");
@@ -47,7 +49,7 @@ function computeRowMetrics(r: BomRecord, pos: PurchaseOrderRecord[], prs: Purcha
   const weightedAvg = (stockNum + prQty) > 0 ? (stockNum * avgPriceNum + prTotal) / (stockNum + prQty) : avgPriceNum;
   const consumedQtyNum = parseFloat(r.consumedQty ?? "0");
   const consumedTotal = consumedQtyNum * weightedAvg;
-  return { poTargetPrice, poQty, prQty, prTotal, weightedAvg, consumedQtyNum, consumedTotal, stockNum };
+  return { poTargetPrice, poQty, poTargetTotal, prQty, prTotal, weightedAvg, consumedQtyNum, consumedTotal, stockNum };
 }
 
 function SectionHeader({ icon, title, children }: { icon: React.ReactNode; title: string; children?: React.ReactNode }) {
@@ -286,7 +288,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                 </span>
               </th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Req Qty</th>
-              <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Target ₹</th>
+              <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Total ₹</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Qty</th>
               <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">PR Qty</th>
               <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">PR Total</th>
@@ -317,7 +319,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">₹{m.weightedAvg.toFixed(2)}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.requiredQty}</td>
                   <td className="px-3 py-2.5 font-semibold text-amber-700">
-                    {m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                    {m.poTargetTotal > 0 ? `₹${m.poTargetTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5 text-amber-700">
                     {m.poQty > 0 ? m.poQty : <span className="text-gray-300">—</span>}
@@ -349,7 +351,10 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                 <td className="px-3 py-2 font-bold text-gray-700 text-xs">
                   {filteredRows.reduce((s, r) => s + (parseFloat(r.requiredQty) || 0), 0)}
                 </td>
-                <td colSpan={2} className="px-3 py-2"></td>
+                <td className="px-3 py-2 font-bold text-amber-700 text-xs">
+                  ₹{filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).poTargetTotal, 0).toFixed(2)}
+                </td>
+                <td className="px-3 py-2"></td>
                 <td className="px-3 py-2 font-bold text-blue-700 text-xs">
                   {filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).prQty, 0).toFixed(0)}
                 </td>
@@ -1214,12 +1219,21 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
 
 // ─── Consumption Section ──────────────────────────────────────────────────────
 function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
+  const { toast } = useToast();
   const { data: bomRows = [], isLoading } = useSwatchBom(swatchOrderId);
   const { data: pos = [] } = useSwatchPOs(swatchOrderId);
   const { data: prs = [] } = useSwatchPRs(swatchOrderId);
+  const { data: consumptionLog = [] } = useSwatchConsumptionLog(swatchOrderId);
+  const addEntry = useAddConsumptionEntry();
+  const deleteEntry = useDeleteConsumptionEntry();
+
   const [filterBomRowId, setFilterBomRowId] = useState<string>("all");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [addForm, setAddForm] = useState({ bomRowId: "", consumedQty: "", notes: "" });
 
   const displayRows = filterBomRowId === "all" ? bomRows : bomRows.filter(r => String(r.id) === filterBomRowId);
+  const logForDisplay = filterBomRowId === "all" ? consumptionLog : consumptionLog.filter(e => String(e.bomRowId) === filterBomRowId);
 
   const totals = displayRows.reduce((acc, r) => {
     const m = computeRowMetrics(r, pos, prs);
@@ -1229,20 +1243,53 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     return acc;
   }, { stockInclPr: 0, consumedQty: 0, consumedTotal: 0 });
 
+  function openAddModal() {
+    const preselect = filterBomRowId !== "all" ? filterBomRowId : (bomRows.length === 1 ? String(bomRows[0].id) : "");
+    setAddForm({ bomRowId: preselect, consumedQty: "", notes: "" });
+    setShowAddModal(true);
+  }
+
+  async function handleAddConsumption() {
+    if (!addForm.bomRowId) { toast({ title: "Select a material/fabric", variant: "destructive" }); return; }
+    if (!addForm.consumedQty || parseFloat(addForm.consumedQty) <= 0) { toast({ title: "Enter consumed quantity > 0", variant: "destructive" }); return; }
+    const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
+    if (!row) return;
+    await addEntry.mutateAsync({
+      swatchOrderId, bomRowId: Number(addForm.bomRowId),
+      materialCode: row.materialCode, materialName: row.materialName,
+      materialType: row.materialType, unitType: row.unitType,
+      consumedQty: addForm.consumedQty, notes: addForm.notes || null,
+    });
+    setShowAddModal(false);
+    toast({ title: "Consumption recorded" });
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<Package className="h-4 w-4" />} title="Consumption">
-        {bomRows.length > 0 && (
-          <select value={filterBomRowId} onChange={e => setFilterBomRowId(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300">
-            <option value="all">All Materials/Fabrics</option>
-            {bomRows.map(r => (
-              <option key={r.id} value={String(r.id)}>
-                [{r.materialCode}] {r.materialName}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {bomRows.length > 0 && (
+            <select value={filterBomRowId} onChange={e => setFilterBomRowId(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300">
+              <option value="all">All Materials/Fabrics</option>
+              {bomRows.map(r => (
+                <option key={r.id} value={String(r.id)}>[{r.materialCode}] {r.materialName}</option>
+              ))}
+            </select>
+          )}
+          {bomRows.length > 0 && (
+            <button onClick={openAddModal}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+              <Plus className="h-3.5 w-3.5" /> Add Consumption
+            </button>
+          )}
+          {consumptionLog.length > 0 && (
+            <button onClick={() => setShowLogModal(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              <FileText className="h-3.5 w-3.5" /> View Log ({consumptionLog.length})
+            </button>
+          )}
+        </div>
       </SectionHeader>
 
       {isLoading ? (
@@ -1262,12 +1309,14 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Avg Price (₹)</th>
                 <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Consumed Qty</th>
                 <th className="text-left text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Consumed Total (₹)</th>
+                <th className="px-3 py-2 whitespace-nowrap text-[10px] font-semibold text-gray-400">Log</th>
               </tr>
             </thead>
             <tbody>
               {displayRows.map(r => {
                 const m = computeRowMetrics(r, pos, prs);
                 const stockInclPr = m.stockNum + m.prQty;
+                const logCount = consumptionLog.filter(e => e.bomRowId === r.id).length;
                 return (
                   <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
                     <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -1285,6 +1334,14 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <td className="px-3 py-2.5 text-gray-700">₹{m.weightedAvg.toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-amber-700 font-medium">{m.consumedQtyNum.toFixed(2)} {r.unitType}</td>
                     <td className="px-3 py-2.5 font-semibold text-red-700">₹{m.consumedTotal.toFixed(2)}</td>
+                    <td className="px-3 py-2.5">
+                      {logCount > 0 && (
+                        <button onClick={() => { setFilterBomRowId(String(r.id)); setShowLogModal(true); }}
+                          className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+                          {logCount} {logCount === 1 ? "entry" : "entries"}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -1297,10 +1354,141 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                   <td className="px-3 py-2" />
                   <td className="px-3 py-2 font-bold text-amber-700">{totals.consumedQty.toFixed(2)}</td>
                   <td className="px-3 py-2 font-bold text-red-700">₹{totals.consumedTotal.toFixed(2)}</td>
+                  <td className="px-3 py-2" />
                 </tr>
               </tfoot>
             )}
           </table>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-gray-900">Add Consumption</h4>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] text-gray-500 font-medium">Material / Fabric *</label>
+                <select value={addForm.bomRowId} onChange={e => setAddForm(f => ({ ...f, bomRowId: e.target.value }))}
+                  className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
+                  <option value="">— Select item —</option>
+                  {bomRows.map(r => (
+                    <option key={r.id} value={String(r.id)}>[{r.materialCode}] {r.materialName} ({r.materialType === "fabric" ? "Fabric" : "Material"})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 font-medium">Consumed Quantity *</label>
+                <input type="number" min="0" step="any" value={addForm.consumedQty}
+                  onChange={e => setAddForm(f => ({ ...f, consumedQty: e.target.value }))}
+                  className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  placeholder="0" />
+                {addForm.bomRowId && (() => {
+                  const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
+                  return row ? <p className="text-[10px] text-gray-400 mt-1">Unit: {row.unitType}</p> : null;
+                })()}
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 font-medium">Notes</label>
+                <input value={addForm.notes}
+                  onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  placeholder="Optional notes..." />
+              </div>
+              <p className="text-[10px] text-gray-400">Consumed by and timestamp will be recorded automatically.</p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={handleAddConsumption} disabled={addEntry.isPending}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">
+                {addEntry.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Record Consumption
+              </button>
+              <button onClick={() => setShowAddModal(false)}
+                className="px-4 py-2.5 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">Consumption Log</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5">{logForDisplay.length} entr{logForDisplay.length === 1 ? "y" : "ies"}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select value={filterBomRowId} onChange={e => setFilterBomRowId(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300">
+                  <option value="all">All Items</option>
+                  {bomRows.map(r => <option key={r.id} value={String(r.id)}>[{r.materialCode}] {r.materialName}</option>)}
+                </select>
+                <button onClick={() => setShowLogModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="overflow-auto flex-1 px-4 py-3">
+              {logForDisplay.length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-8">No consumption entries{filterBomRowId !== "all" ? " for this item" : ""}.</p>
+              ) : (
+                <table className="w-full text-xs min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                      {["Date & Time", "Code", "Item", "Qty", "Consumed By", "Notes", ""].map(h => (
+                        <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logForDisplay.map(entry => (
+                      <tr key={entry.id} className="border-b border-gray-50 hover:bg-gray-50/40">
+                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                          {new Date(entry.consumedAt).toLocaleDateString("en-IN")} {new Date(entry.consumedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{entry.materialCode}</td>
+                        <td className="px-3 py-2.5 text-gray-800">
+                          <div className="flex items-center gap-1">
+                            {entry.materialName}
+                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ${entry.materialType === "fabric" ? "bg-purple-100 text-purple-600" : "bg-green-100 text-green-700"}`}>
+                              {entry.materialType === "fabric" ? "FAB" : "MAT"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 font-semibold text-amber-700">{parseFloat(entry.consumedQty).toFixed(2)} {entry.unitType}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{entry.consumedBy}</td>
+                        <td className="px-3 py-2.5 text-gray-400">{entry.notes || "—"}</td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => deleteEntry.mutate(entry.id)} disabled={deleteEntry.isPending}
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t border-gray-200">
+                      <td colSpan={3} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total Consumed</td>
+                      <td className="px-3 py-2 font-bold text-amber-700">
+                        {logForDisplay.reduce((s, e) => s + (parseFloat(e.consumedQty) || 0), 0).toFixed(2)}
+                      </td>
+                      <td colSpan={3} />
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center">
+              <button onClick={openAddModal}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+                <Plus className="h-3.5 w-3.5" /> Add Consumption
+              </button>
+              <button onClick={() => setShowLogModal(false)}
+                className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors">Close</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -96,3 +96,20 @@ export const prPaymentsTable = pgTable("pr_payments", {
 });
 
 export type PrPaymentRecord = typeof prPaymentsTable.$inferSelect;
+
+export const consumptionLogTable = pgTable("consumption_log", {
+  id: serial("id").primaryKey(),
+  swatchOrderId: integer("swatch_order_id").notNull(),
+  bomRowId: integer("bom_row_id").notNull(),
+  materialCode: text("material_code").notNull(),
+  materialName: text("material_name").notNull(),
+  materialType: text("material_type").notNull(),
+  unitType: text("unit_type").notNull().default(""),
+  consumedQty: text("consumed_qty").notNull(),
+  consumedBy: text("consumed_by").notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }).notNull().defaultNow(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ConsumptionLogRecord = typeof consumptionLogTable.$inferSelect;
