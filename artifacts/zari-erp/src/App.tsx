@@ -28,6 +28,7 @@ import SwatchOrderDetail from "@/pages/SwatchOrderDetail";
 import ArtworkDetail from "@/pages/ArtworkDetail";
 import ClientPortal from "@/pages/ClientPortal";
 import StyleOrders from "@/pages/StyleOrders";
+import StyleOrderDetail from "@/pages/StyleOrderDetail";
 
 const queryClient = new QueryClient();
 
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/swatch-orders/:swatchOrderId/artworks/:id" component={ArtworkDetail} />
       <Route path="/swatch-orders/:id" component={SwatchOrderDetail} />
       <Route path="/style-orders" component={StyleOrders} />
+      <Route path="/style-orders/:id" component={StyleOrderDetail} />
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/client/:token" component={ClientPortal} />
