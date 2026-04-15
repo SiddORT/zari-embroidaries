@@ -41,7 +41,16 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled: "text-gray-500 bg-gray-50 border-gray-200",
 };
 
-const FLOW_STEPS = ["Basic Info", "Artwork", "Costing"];
+const TABS = [
+  { label: "Basic Info",   icon: "🗂" },
+  { label: "References",   icon: "🔗" },
+  { label: "Artworks",     icon: "🎨" },
+  { label: "Estimate",     icon: "📊" },
+  { label: "Revisions",    icon: "🔄" },
+  { label: "Costing",      icon: "💰" },
+  { label: "Client Link",  icon: "🔗" },
+  { label: "Invoice",      icon: "🧾" },
+];
 
 type FormState = {
   swatchName: string;
@@ -242,6 +251,7 @@ export default function SwatchOrderDetail() {
   const styleOptions = styles.map(s => ({ value: String(s.id), label: `${s.styleNo} – ${s.client}` }));
   const swatchOptions = swatches.map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
 
+  const [activeTab, setActiveTab] = useState(0);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
   const [saving, setSaving] = useState(false);
@@ -374,42 +384,17 @@ export default function SwatchOrderDetail() {
       <div className="max-w-6xl mx-auto pb-12">
 
         {/* ── Sticky Header ── */}
-        <div className="sticky top-0 z-20 -mx-6 px-6 py-3 bg-[#f8f9fb]/95 backdrop-blur border-b border-gray-200">
-          <div className="max-w-6xl mx-auto flex items-center gap-4">
+        <div className="sticky top-0 z-20 -mx-6 bg-[#f8f9fb]/95 backdrop-blur border-b border-gray-200">
+          {/* Top row: back, code, status, save */}
+          <div className="px-6 py-3 max-w-6xl mx-auto flex items-center gap-4">
             <button onClick={() => setLocation("/swatch-orders")}
               className="p-2 rounded-xl hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </button>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-mono font-bold text-gray-700 bg-white border border-gray-200 px-3 py-1 rounded-lg">
-                  {orderCode}
-                </span>
-                {/* Flow steps */}
-                <div className="flex items-center gap-1 text-xs">
-                  {FLOW_STEPS.map((step, i) => (
-                    <div key={step} className="flex items-center gap-1">
-                      {step === "Artwork" && !isNew ? (
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById("artworks-section")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                          className="px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-900 hover:text-[#C9B45C] transition-colors"
-                        >
-                          {step}
-                        </button>
-                      ) : (
-                        <span className={`px-2.5 py-1 rounded-full font-medium ${
-                          i === 0 ? "bg-gray-900 text-[#C9B45C]" : "bg-gray-100 text-gray-400"
-                        }`}>{step}</span>
-                      )}
-                      {i < FLOW_STEPS.length - 1 && <span className="text-gray-300 mx-0.5">›</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
+            <span className="text-sm font-mono font-bold text-gray-700 bg-white border border-gray-200 px-3 py-1 rounded-lg shrink-0">
+              {orderCode}
+            </span>
+            <div className="flex-1" />
             {/* Status selector */}
             <div className="relative shrink-0">
               <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
@@ -418,16 +403,37 @@ export default function SwatchOrderDetail() {
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
             </div>
-
-            <button onClick={() => { void handleSave(); }} disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : "Save"}
-            </button>
+            {/* Save — only on tabs with editable data (0=Basic Info, 1=References) */}
+            {activeTab <= 1 && (
+              <button onClick={() => { void handleSave(); }} disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save"}
+              </button>
+            )}
+          </div>
+          {/* Tab bar */}
+          <div className="px-6 flex items-end gap-0 overflow-x-auto scrollbar-none">
+            {TABS.map((tab, i) => (
+              <button
+                key={tab.label}
+                onClick={() => setActiveTab(i)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === i
+                    ? "border-gray-900 text-gray-900"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                } ${i >= 3 ? "opacity-60" : ""}`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="mt-5 space-y-5">
+        <div className="mt-5">
+
+        {/* ══ TAB 0: Basic Info ══ */}
+        {activeTab === 0 && <div className="space-y-5">
 
           {/* ── Section 1: Identity — full width ── */}
           <SectionCard icon={<User className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
@@ -602,7 +608,88 @@ export default function SwatchOrderDetail() {
             </SectionCard>
           </div>
 
-          {/* ── Section 2: References — full width ── */}
+          {/* ── Row: Notes + Completion Tracking side by side ── */}
+          <div className="grid grid-cols-2 gap-5 items-start">
+
+            {/* Notes */}
+            <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+              title="Notes" subtitle="Description, internal remarks and client instructions">
+              <div className="space-y-4">
+                <Field label="Description">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Brief description of the swatch order…"
+                    value={form.description} onChange={e => set("description", e.target.value)} />
+                </Field>
+                <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
+                    value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
+                </Field>
+                <Field label="Client Instructions">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
+                    value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
+                </Field>
+              </div>
+            </SectionCard>
+
+            {/* Completion Tracking */}
+            <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+              title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Actual Start Date">
+                    <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
+                  </Field>
+                  <Field label="Actual Completion Date">
+                    <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Tentative Delivery Date">
+                    <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
+                  </Field>
+                  <Field label="Approval Date">
+                    <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Revision Count" hint="Number of revisions this order has gone through">
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
+                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
+                    <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
+                    <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
+                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
+                    {form.revisionCount > 0 && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                        {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+                <Field label="Delay Reason" hint="Explain if the order was delayed beyond the delivery date">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
+                    value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
+                </Field>
+              </div>
+            </SectionCard>
+          </div>
+
+          {/* Bottom Save — Tab 0 */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setLocation("/swatch-orders")}
+              className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => { void handleSave(); }} disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
+            </button>
+          </div>
+        </div>} {/* ── end Tab 0 ── */}
+
+        {/* ══ TAB 1: References ══ */}
+        {activeTab === 1 && <div className="space-y-5">
+
+          {/* Style + Swatch References */}
           <SectionCard icon={<Layers className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="References" subtitle="Link related styles and swatches, add remarks for each">
             <div className="grid grid-cols-2 gap-6">
@@ -684,71 +771,7 @@ export default function SwatchOrderDetail() {
             </div>
           </SectionCard>
 
-          {/* ── Row: Notes + Completion Tracking side by side ── */}
-          <div className="grid grid-cols-2 gap-5 items-start">
-
-            {/* ── Section 5: Notes ── */}
-            <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-              title="Notes" subtitle="Description, internal remarks and client instructions">
-              <div className="space-y-4">
-                <Field label="Description">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Brief description of the swatch order…"
-                    value={form.description} onChange={e => set("description", e.target.value)} />
-                </Field>
-                <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
-                    value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
-                </Field>
-                <Field label="Client Instructions">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
-                    value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
-                </Field>
-              </div>
-            </SectionCard>
-
-            {/* ── Section 7: Completion Tracking ── */}
-            <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-              title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Actual Start Date">
-                    <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
-                  </Field>
-                  <Field label="Actual Completion Date">
-                    <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
-                  </Field>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Tentative Delivery Date">
-                    <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
-                  </Field>
-                  <Field label="Approval Date">
-                    <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
-                  </Field>
-                </div>
-                <Field label="Revision Count" hint="Number of revisions this order has gone through">
-                  <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
-                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
-                    <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
-                    <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
-                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
-                    {form.revisionCount > 0 && (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                        {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </Field>
-                <Field label="Delay Reason" hint="Explain if the order was delayed beyond the delivery date">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
-                    value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
-                </Field>
-              </div>
-            </SectionCard>
-          </div>
-
-          {/* ── Section 6: Attachments — full width ── */}
+          {/* Attachments */}
           <SectionCard icon={<Paperclip className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="Attachments" subtitle="Upload reference documents and images">
             <div className="grid grid-cols-2 gap-6">
@@ -771,15 +794,33 @@ export default function SwatchOrderDetail() {
             </div>
           </SectionCard>
 
-          {/* ── Artworks Section ── */}
-          <div id="artworks-section" className="scroll-mt-4">
-          <SectionCard icon={<Palette className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-            title="Artworks" subtitle="Manage artworks linked to this swatch order">
-            {isNew ? (
-              <p className="text-sm text-gray-400 text-center py-4">Save this order first to start adding artworks.</p>
-            ) : (
+          {/* Bottom Save — Tab 1 */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setLocation("/swatch-orders")}
+              className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => { void handleSave(); }} disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </div>} {/* ── end Tab 1 ── */}
+
+        {/* ══ TAB 2: Artworks ══ */}
+        {activeTab === 2 && <div className="space-y-5">
+          {isNew ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <div className="h-12 w-12 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <Palette className="h-6 w-6 text-gray-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-600">Save this order first to start adding artworks.</p>
+            </div>
+          ) : (
+            <SectionCard icon={<Palette className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+              title="Artworks" subtitle="Manage artworks linked to this swatch order">
               <div className="space-y-3">
-                {/* Artwork list */}
                 {(artworksData?.data ?? []).length === 0 ? (
                   <div className="text-xs text-gray-400 py-4 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
                     No artworks yet — click "New Artwork" to begin
@@ -825,23 +866,25 @@ export default function SwatchOrderDetail() {
                   <Plus className="h-4 w-4" /> New Artwork
                 </button>
               </div>
-            )}
-          </SectionCard>
-          </div>
+            </SectionCard>
+          )}
+        </div>} {/* ── end Tab 2 ── */}
 
-          {/* Bottom Save */}
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setLocation("/swatch-orders")}
-              className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
-              Cancel
-            </button>
-            <button onClick={() => { void handleSave(); }} disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
-            </button>
+        {/* ══ TABS 3–7: Coming Soon placeholders ══ */}
+        {activeTab >= 3 && (
+          <div className="flex flex-col items-center gap-4 py-20 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">
+              {TABS[activeTab].icon}
+            </div>
+            <h3 className="text-base font-semibold text-gray-700">{TABS[activeTab].label}</h3>
+            <p className="text-sm text-gray-400 max-w-xs">
+              This section is coming soon. You'll be able to manage {TABS[activeTab].label.toLowerCase()} details here once it's ready.
+            </p>
+            <span className="text-xs px-3 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 font-medium">Coming Soon</span>
           </div>
-        </div>
+        )}
+
+        </div> {/* ── end outer mt-5 ── */}
 
         {/* Add Unit Type Modal */}
         {addUnitTypeOpen && (
