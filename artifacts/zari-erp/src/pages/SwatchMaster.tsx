@@ -91,7 +91,7 @@ function AddCategoryModal({ open, onClose, onAdd, adding }: AddCategoryModalProp
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={adding}
-              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60">
               {adding ? "Adding…" : "Add"}
             </button>
           </div>
@@ -144,7 +144,7 @@ function AddUnitTypeModal({ open, onClose, value, onChange, onSubmit, adding }: 
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={adding}
-              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60">
               {adding ? "Adding…" : "Add"}
             </button>
           </div>

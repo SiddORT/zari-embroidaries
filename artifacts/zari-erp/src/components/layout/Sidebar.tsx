@@ -55,7 +55,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <a
                 className={`flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   active
-                    ? "bg-gray-900 text-white"
+                    ? "bg-gray-900 text-[#C9B45C]"
                     : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                 } ${collapsed ? "justify-center" : ""}`}
                 title={collapsed ? label : undefined}

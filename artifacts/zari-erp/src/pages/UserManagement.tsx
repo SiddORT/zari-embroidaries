@@ -100,7 +100,7 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
             <button type="button" onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={create.isPending}
-              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60">
               {create.isPending ? "Sending…" : "Create & Get Invite Link"}
             </button>
           </div>
@@ -136,7 +136,7 @@ function InviteLinkModal({ open, onClose, token, email }: InviteLinkModalProps) 
         </div>
         <div className="flex justify-end mt-5">
           <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800">Done</button>
+            className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800">Done</button>
         </div>
       </div>
     </div>
@@ -201,7 +201,7 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
             <button type="button" onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={update.isPending}
-              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60">
               {update.isPending ? "Saving…" : "Save Changes"}
             </button>
           </div>
@@ -254,7 +254,7 @@ function AddRoleModal({ open, onClose }: AddRoleModalProps) {
             <button type="button" onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={create.isPending}
-              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+              className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60">
               {create.isPending ? "Creating…" : "Create Role"}
             </button>
           </div>
@@ -307,7 +307,7 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">{users.length} user{users.length !== 1 ? "s" : ""}</p>
         <button onClick={() => setAddOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors">
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-gray-800 transition-colors">
           <Plus className="h-4 w-4" /> Invite User
         </button>
       </div>
@@ -420,7 +420,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
           {role.description && <p className="text-xs text-gray-400 mt-0.5">{role.description}</p>}
         </div>
         <button onClick={() => onSave([...selected])} disabled={saving}
-          className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60 transition-colors">
+          className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60 transition-colors">
           {saving ? "Saving…" : "Save Permissions"}
         </button>
       </div>
@@ -511,7 +511,7 @@ function RolesTab() {
           <div key={role.id}
             onClick={() => setSelectedRole(role)}
             className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors group ${
-              selectedRole?.id === role.id ? "bg-gray-900 text-white" : "hover:bg-gray-100 text-gray-700"
+              selectedRole?.id === role.id ? "bg-gray-900 text-[#C9B45C]" : "hover:bg-gray-100 text-gray-700"
             }`}>
             <div>
               <p className="text-sm font-medium capitalize">{role.name}</p>
