@@ -12,7 +12,8 @@ export interface InvoiceLineItem {
 export const invoicesTable = pgTable("invoices", {
   id: serial("id").primaryKey(),
   invoiceNo: text("invoice_no").notNull().unique(),
-  swatchOrderId: integer("swatch_order_id").notNull(),
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
   invoiceDate: text("invoice_date").notNull(),
   dueDate: text("due_date").default(""),
 

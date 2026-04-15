@@ -20,6 +20,7 @@ import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 import StyleCostingTab from "./StyleCostingTab";
 import StyleCostSheetTab from "./StyleCostSheetTab";
 import StyleClientLinkTab from "./StyleClientLinkTab";
+import StyleInvoiceTab from "./StyleInvoiceTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -943,7 +944,15 @@ export default function StyleOrderDetail() {
           )}
 
           {/* ══ TAB 8: Invoice ═════════════════════════════════════════════ */}
-          {activeTab === 8 && <PlaceholderTab icon="🧾" label="Invoice" />}
+          {activeTab === 8 && isNew && <PlaceholderTab icon="🧾" label="Invoice (save order first)" />}
+          {activeTab === 8 && !isNew && numId && (
+            <StyleInvoiceTab
+              styleOrderId={numId}
+              orderCode={orderData?.data?.orderCode}
+              styleName={orderData?.data?.styleName}
+              clientName={form.clientName}
+            />
+          )}
 
         </div>
       </div>

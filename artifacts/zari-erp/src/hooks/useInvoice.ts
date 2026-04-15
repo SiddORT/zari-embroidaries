@@ -13,7 +13,8 @@ export interface InvoiceLineItem {
 export interface InvoiceRecord {
   id: number;
   invoiceNo: string;
-  swatchOrderId: number;
+  swatchOrderId: number | null;
+  styleOrderId: number | null;
   invoiceDate: string;
   dueDate: string;
   clientName: string;
@@ -47,6 +48,14 @@ export function useInvoice(swatchOrderId: number) {
   });
 }
 
+export function useStyleInvoice(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["invoice-style", styleOrderId],
+    queryFn: () => customFetch<{ data: InvoiceRecord | null }>(`/api/invoices/style/${styleOrderId}`).then(r => r.data),
+    enabled: !!styleOrderId,
+  });
+}
+
 export function useNextInvoiceNo() {
   return useQuery({
     queryKey: ["invoice-next-no"],
@@ -60,7 +69,11 @@ export function useCreateInvoice() {
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       customFetch<{ data: InvoiceRecord }>("/api/invoices", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["invoice"] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["invoice"] });
+      void qc.invalidateQueries({ queryKey: ["invoice-style"] });
+      void qc.invalidateQueries({ queryKey: ["invoice-next-no"] });
+    },
   });
 }
 
@@ -69,7 +82,10 @@ export function useUpdateInvoice() {
   return useMutation({
     mutationFn: ({ id, ...body }: Record<string, unknown>) =>
       customFetch<{ data: InvoiceRecord }>(`/api/invoices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["invoice"] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["invoice"] });
+      void qc.invalidateQueries({ queryKey: ["invoice-style"] });
+    },
   });
 }
 
@@ -78,6 +94,9 @@ export function useDeleteInvoice() {
   return useMutation({
     mutationFn: (id: number) =>
       customFetch<{ success: boolean }>(`/api/invoices/${id}`, { method: "DELETE" }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["invoice"] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["invoice"] });
+      void qc.invalidateQueries({ queryKey: ["invoice-style"] });
+    },
   });
 }

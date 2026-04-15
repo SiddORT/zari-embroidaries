@@ -32,12 +32,20 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
   res.json({ data: rows[0] ?? null });
 });
 
+router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
+  const id = parseInt(req.params.styleOrderId);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const rows = await db.select().from(invoicesTable).where(eq(invoicesTable.styleOrderId, id)).limit(1);
+  res.json({ data: rows[0] ?? null });
+});
+
 router.post("/invoices", requireAuth, async (req, res) => {
   const b = req.body;
   const invoiceNo = b.invoiceNo ?? (await getNextInvoiceNo());
   const [row] = await db.insert(invoicesTable).values({
     invoiceNo,
-    swatchOrderId: Number(b.swatchOrderId),
+    swatchOrderId: b.swatchOrderId ? Number(b.swatchOrderId) : null,
+    styleOrderId: b.styleOrderId ? Number(b.styleOrderId) : null,
     invoiceDate: b.invoiceDate ?? new Date().toISOString().slice(0, 10),
     dueDate: b.dueDate ?? "",
     clientName: b.clientName ?? "",
