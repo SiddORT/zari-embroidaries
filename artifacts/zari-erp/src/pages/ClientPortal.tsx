@@ -39,6 +39,7 @@ interface PortalData {
   existingFeedback: Array<{
     id: number; artworkId: number; artworkName: string;
     decision: string; comment: string | null; createdAt: string;
+    internalNote: string | null;
   }>;
 }
 
@@ -150,17 +151,32 @@ function ArtworkCard({ artwork, existingFeedback, token, onFeedbackSubmitted }: 
         {/* Feedback section */}
         <div className="pt-3 border-t border-gray-100">
           {prevFb ? (
-            <div className={`flex items-start gap-3 p-4 rounded-xl ${prevFb.decision === "Approve" ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"}`}>
-              {prevFb.decision === "Approve"
-                ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                : <RotateCcw className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />}
-              <div>
-                <p className="text-sm font-semibold text-gray-800">
-                  You marked: <span className={prevFb.decision === "Approve" ? "text-green-700" : "text-orange-700"}>{prevFb.decision}</span>
-                </p>
-                {prevFb.comment && <p className="text-sm text-gray-600 mt-0.5">"{prevFb.comment}"</p>}
-                <p className="text-xs text-gray-400 mt-1">Submitted {new Date(prevFb.createdAt).toLocaleDateString()}</p>
+            <div className="space-y-2">
+              {/* Client's own feedback */}
+              <div className={`flex items-start gap-3 p-4 rounded-xl ${prevFb.decision === "Approve" ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"}`}>
+                {prevFb.decision === "Approve"
+                  ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                  : <RotateCcw className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />}
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    You marked: <span className={prevFb.decision === "Approve" ? "text-green-700" : "text-orange-700"}>{prevFb.decision}</span>
+                  </p>
+                  {prevFb.comment && <p className="text-sm text-gray-600 mt-0.5">"{prevFb.comment}"</p>}
+                  <p className="text-xs text-gray-400 mt-1">Submitted {new Date(prevFb.createdAt).toLocaleDateString()}</p>
+                </div>
               </div>
+              {/* Team reply */}
+              {prevFb.internalNote && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-200 ml-4">
+                  <div className="h-6 w-6 rounded-full bg-gray-900 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[10px] font-bold text-[#C9B45C]">Z</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 mb-0.5">Reply from ZARI Team</p>
+                    <p className="text-sm text-gray-700">{prevFb.internalNote}</p>
+                  </div>
+                </div>
+              )}
             </div>
           ) : submitted ? (
             <div className="flex items-center gap-2 p-4 rounded-xl bg-green-50 border border-green-200">
