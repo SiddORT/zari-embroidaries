@@ -18,6 +18,7 @@ import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 import ProductsTab from "./ProductsTab";
 import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 import StyleCostingTab from "./StyleCostingTab";
+import StyleCostSheetTab from "./StyleCostSheetTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -924,7 +925,15 @@ export default function StyleOrderDetail() {
           {activeTab === 5 && isNew && <PlaceholderTab icon="💰" label="Costing (save order first)" />}
 
           {/* ══ TAB 6: Cost Sheet ══════════════════════════════════════════ */}
-          {activeTab === 6 && <PlaceholderTab icon="📋" label="Cost Sheet" />}
+          {activeTab === 6 && isNew && <PlaceholderTab icon="📋" label="Cost Sheet (save order first)" />}
+          {activeTab === 6 && !isNew && numId && (
+            <StyleCostSheetTab
+              styleOrderId={numId}
+              orderCode={orderData?.data?.orderCode}
+              styleName={orderData?.data?.styleName}
+              clientName={form.clientName}
+            />
+          )}
 
           {/* ══ TAB 7: Client Link ═════════════════════════════════════════ */}
           {activeTab === 7 && <PlaceholderTab icon="🔗" label="Client Link" />}
