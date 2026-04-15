@@ -31,6 +31,22 @@ const PR_STATUS_COLORS: Record<string, string> = {
   Closed: "bg-gray-200 text-gray-500",
 };
 
+function computeRowMetrics(r: BomRecord, pos: PurchaseOrderRecord[], prs: PurchaseReceiptRecord[]) {
+  const poLineItems = pos.flatMap(po => po.bomItems ?? []).filter(item => item.bomRowId === r.id);
+  const posWithRow = pos.filter(po => (po.bomItems ?? []).some(item => item.bomRowId === r.id));
+  const prsForRow = prs.filter(pr => posWithRow.some(po => po.id === pr.poId));
+  const poTargetPrice = poLineItems.length > 0 ? parseFloat(poLineItems[poLineItems.length - 1].targetPrice || "0") : 0;
+  const poQty = poLineItems.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0);
+  const prQty = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+  const prTotal = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
+  const stockNum = parseFloat(r.currentStock || "0");
+  const avgPriceNum = parseFloat(r.avgUnitPrice || "0");
+  const weightedAvg = (stockNum + prQty) > 0 ? (stockNum * avgPriceNum + prTotal) / (stockNum + prQty) : avgPriceNum;
+  const consumedQtyNum = parseFloat(r.consumedQty ?? "0");
+  const consumedTotal = consumedQtyNum * weightedAvg;
+  return { poTargetPrice, poQty, prQty, prTotal, weightedAvg, consumedQtyNum, consumedTotal, stockNum };
+}
+
 function SectionHeader({ icon, title, children }: { icon: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-4">
@@ -113,26 +129,6 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
     toast({ title: "BOM row added" });
   }
 
-  function getRowMetrics(r: BomRecord) {
-    const poLineItems = pos.flatMap(po => po.bomItems ?? []).filter(item => item.bomRowId === r.id);
-    const posWithRow = pos.filter(po => (po.bomItems ?? []).some(item => item.bomRowId === r.id));
-    const prsForRow = prs.filter(pr => posWithRow.some(po => po.id === pr.poId));
-
-    const poTargetPrice = poLineItems.length > 0 ? parseFloat(poLineItems[poLineItems.length - 1].targetPrice || "0") : 0;
-    const poQty = poLineItems.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0);
-    const prQty = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
-    const prTotal = prsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
-
-    const stockNum = parseFloat(r.currentStock || "0");
-    const avgPriceNum = parseFloat(r.avgUnitPrice || "0");
-    const weightedAvg = (stockNum + prQty) > 0 ? (stockNum * avgPriceNum + prTotal) / (stockNum + prQty) : avgPriceNum;
-
-    const consumedQtyNum = parseFloat(r.consumedQty ?? "0");
-    const consumedTotal = consumedQtyNum * weightedAvg;
-
-    return { poTargetPrice, poQty, prQty, prTotal, weightedAvg, consumedQtyNum, consumedTotal };
-  }
-
   const filteredRows = typeFilter === "all" ? rows : rows.filter(r => r.materialType === typeFilter);
 
   function exportToExcel() {
@@ -144,7 +140,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
       ["Code", "Material/Fabric", "Type", "Stock", "Avg Price (₹)", "Req Qty", "PO Target Price (₹)", "PO Qty", "PR Qty", "PR Total (₹)", "Consumed Qty", "Consumed Total (₹)"],
     ];
     const dataRows = filteredRows.map(r => {
-      const m = getRowMetrics(r);
+      const m = computeRowMetrics(r, pos, prs);
       return [
         r.materialCode,
         r.materialName,
@@ -302,7 +298,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
             ) : filteredRows.length === 0 ? (
               <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
             ) : filteredRows.map(r => {
-              const m = getRowMetrics(r);
+              const m = computeRowMetrics(r, pos, prs);
               return (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -352,14 +348,14 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                 </td>
                 <td colSpan={2} className="px-3 py-2"></td>
                 <td className="px-3 py-2 font-bold text-blue-700 text-xs">
-                  {filteredRows.reduce((s, r) => s + getRowMetrics(r).prQty, 0).toFixed(0)}
+                  {filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).prQty, 0).toFixed(0)}
                 </td>
                 <td className="px-3 py-2 font-bold text-blue-700 text-xs">
-                  ₹{filteredRows.reduce((s, r) => s + getRowMetrics(r).prTotal, 0).toFixed(2)}
+                  ₹{filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).prTotal, 0).toFixed(2)}
                 </td>
                 <td className="px-3 py-2"></td>
                 <td className="px-3 py-2 font-bold text-green-700 text-xs">
-                  ₹{filteredRows.reduce((s, r) => s + getRowMetrics(r).consumedTotal, 0).toFixed(2)}
+                  ₹{filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).consumedTotal, 0).toFixed(2)}
                 </td>
                 <td />
               </tr>
@@ -554,7 +550,6 @@ function PrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord; poN
             </div>
           )}
         </td>
-        <td className="px-3 py-2.5"><StatusBadge status={pr.status} map={PR_STATUS_COLORS} /></td>
         <td className="px-3 py-2.5">
           <div className="flex items-center gap-1">
             <button onClick={() => setOpen(v => !v)}
@@ -571,7 +566,7 @@ function PrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord; poN
       </tr>
       {open && (
         <tr className="bg-gray-50/60 border-b border-gray-100">
-          <td colSpan={10} className="px-5 py-4">
+          <td colSpan={9} className="px-5 py-4">
             <PrPaymentsPanel prId={pr.id} />
           </td>
         </tr>
@@ -887,8 +882,6 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
   const [open, setOpen] = useState(false);
   const updatePO = useUpdatePO();
   const deletePO = useDeletePO();
-  const { data: prs = [] } = useSwatchPRs(open ? swatchOrderId : -1);
-  const poPrs = prs.filter(p => p.poId === po.id);
   const items: PoLineItem[] = po.bomItems ?? [];
 
   const canAdvance = po.status !== "Closed";
@@ -941,46 +934,37 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
         </div>
       </div>
 
-      {open && (
-        <div className="border-t border-gray-100 bg-gray-50/40">
-          {items.length > 0 && (
-            <div className="p-4 border-b border-gray-100">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Ordered Items</p>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    {["Code", "Item", "Qty", "Target Price", "Line Total"].map(h => (
-                      <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-2 py-1.5">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-50">
-                      <td className="px-2 py-2 font-mono text-[10px] text-gray-500">{item.materialCode}</td>
-                      <td className="px-2 py-2 text-gray-800">{item.materialName}</td>
-                      <td className="px-2 py-2 text-gray-600">{item.quantity} {item.unitType}</td>
-                      <td className="px-2 py-2 text-gray-600">₹{parseFloat(item.targetPrice).toFixed(2)}</td>
-                      <td className="px-2 py-2 font-semibold text-gray-900">
-                        ₹{((parseFloat(item.targetPrice) || 0) * (parseFloat(item.quantity) || 0)).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-gray-50">
-                    <td colSpan={4} className="px-2 py-1.5 text-right text-[10px] font-semibold text-gray-500">Total Target</td>
-                    <td className="px-2 py-1.5 font-bold text-gray-900">
-                      ₹{items.reduce((s, i) => s + (parseFloat(i.targetPrice) || 0) * (parseFloat(i.quantity) || 0), 0).toFixed(2)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div className="p-4 space-y-3">
-            {poPrs.length === 0
-              ? <p className="text-xs text-gray-400 italic text-center py-2">No purchase receipts yet. {canCreatePR ? 'Use "Create PR" above.' : `Advance PO to Approved first.`}</p>
-              : poPrs.map(pr => <PrAccordion key={pr.id} pr={pr} swatchOrderId={swatchOrderId} />)}
-          </div>
+      {open && items.length > 0 && (
+        <div className="border-t border-gray-100 bg-gray-50/40 p-4">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Ordered Items</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-200">
+                {["Code", "Item", "Qty", "Target Price", "Line Total"].map(h => (
+                  <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-2 py-1.5">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="px-2 py-2 font-mono text-[10px] text-gray-500">{item.materialCode}</td>
+                  <td className="px-2 py-2 text-gray-800">{item.materialName}</td>
+                  <td className="px-2 py-2 text-gray-600">{item.quantity} {item.unitType}</td>
+                  <td className="px-2 py-2 text-gray-600">₹{parseFloat(item.targetPrice).toFixed(2)}</td>
+                  <td className="px-2 py-2 font-semibold text-gray-900">
+                    ₹{((parseFloat(item.targetPrice) || 0) * (parseFloat(item.quantity) || 0)).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-gray-50">
+                <td colSpan={4} className="px-2 py-1.5 text-right text-[10px] font-semibold text-gray-500">Total Target</td>
+                <td className="px-2 py-1.5 font-bold text-gray-900">
+                  ₹{items.reduce((s, i) => s + (parseFloat(i.targetPrice) || 0) * (parseFloat(i.quantity) || 0), 0).toFixed(2)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -1097,30 +1081,69 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
 function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { data: prs = [], isLoading } = useSwatchPRs(swatchOrderId);
   const { data: pos = [] } = useSwatchPOs(swatchOrderId);
+  const { data: bomRows = [] } = useSwatchBom(swatchOrderId);
   const poMap = Object.fromEntries(pos.map(p => [p.id, p.poNumber]));
   const poItemsMap = Object.fromEntries(pos.map(p => [p.id, p.bomItems ?? []]));
 
-  const totalValue = prs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
+  const [filterPoId, setFilterPoId] = useState<string>("all");
+  const [filterBomRowId, setFilterBomRowId] = useState<string>("all");
+
+  const filteredPrs = prs.filter(pr => {
+    if (filterPoId !== "all" && String(pr.poId) !== filterPoId) return false;
+    if (filterBomRowId !== "all") {
+      const poForPr = pos.find(p => p.id === pr.poId);
+      const hasItem = (poForPr?.bomItems ?? []).some(item => String(item.bomRowId) === filterBomRowId);
+      if (!hasItem) return false;
+    }
+    return true;
+  });
+
+  const totalValue = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<FileText className="h-4 w-4" />} title="Purchase Receipts">
-        <div className="flex items-center gap-3">
-          {prs.length > 0 && (
-            <span className="text-xs text-gray-400">
-              {prs.length} receipt{prs.length !== 1 ? "s" : ""} · Total: <span className="font-semibold text-blue-700">₹{totalValue.toFixed(2)}</span>
-            </span>
+        {prs.length > 0 && (
+          <span className="text-xs text-gray-400">
+            {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""} · Total: <span className="font-semibold text-blue-700">₹{totalValue.toFixed(2)}</span>
+          </span>
+        )}
+      </SectionHeader>
+
+      {prs.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <select value={filterPoId} onChange={e => setFilterPoId(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300">
+            <option value="all">All POs</option>
+            {pos.map(p => <option key={p.id} value={String(p.id)}>{p.poNumber} — {p.vendorName}</option>)}
+          </select>
+          <select value={filterBomRowId} onChange={e => setFilterBomRowId(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300">
+            <option value="all">All Materials/Fabrics</option>
+            {bomRows.map(r => (
+              <option key={r.id} value={String(r.id)}>
+                [{r.materialCode}] {r.materialName}
+              </option>
+            ))}
+          </select>
+          {(filterPoId !== "all" || filterBomRowId !== "all") && (
+            <button onClick={() => { setFilterPoId("all"); setFilterBomRowId("all"); }}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+              Clear
+            </button>
           )}
         </div>
-      </SectionHeader>
+      )}
 
       {isLoading ? (
         <div className="py-6 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" /></div>
-      ) : prs.length === 0 ? (
-        <p className="text-xs text-gray-400 italic text-center py-6">No Purchase Receipts yet. Create a PR from a PO above.</p>
+      ) : filteredPrs.length === 0 ? (
+        <p className="text-xs text-gray-400 italic text-center py-6">
+          {prs.length === 0 ? "No Purchase Receipts yet. Create a PR from a PO above." : "No receipts match the selected filters."}
+        </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs min-w-[860px]">
+          <table className="w-full text-xs min-w-[760px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">PR #</th>
@@ -1131,24 +1154,118 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Actual Price</th>
                 <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Total Value</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Status</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {prs.map(pr => (
+              {filteredPrs.map(pr => (
                 <PrTableRow key={pr.id} pr={pr} poNumber={poMap[pr.poId] ?? "—"} bomItems={poItemsMap[pr.poId] ?? []} />
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 border-t border-gray-200">
                 <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">
-                  {prs.length} receipt{prs.length !== 1 ? "s" : ""} · Grand Total
+                  {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""} · Grand Total
                 </td>
                 <td className="px-3 py-2 font-bold text-blue-700">₹{totalValue.toFixed(2)}</td>
-                <td colSpan={3} />
+                <td colSpan={2} />
               </tr>
             </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Consumption Section ──────────────────────────────────────────────────────
+function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
+  const { data: bomRows = [], isLoading } = useSwatchBom(swatchOrderId);
+  const { data: pos = [] } = useSwatchPOs(swatchOrderId);
+  const { data: prs = [] } = useSwatchPRs(swatchOrderId);
+  const [filterBomRowId, setFilterBomRowId] = useState<string>("all");
+
+  const displayRows = filterBomRowId === "all" ? bomRows : bomRows.filter(r => String(r.id) === filterBomRowId);
+
+  const totals = displayRows.reduce((acc, r) => {
+    const m = computeRowMetrics(r, pos, prs);
+    acc.stockInclPr += m.stockNum + m.prQty;
+    acc.consumedQty += m.consumedQtyNum;
+    acc.consumedTotal += m.consumedTotal;
+    return acc;
+  }, { stockInclPr: 0, consumedQty: 0, consumedTotal: 0 });
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+      <SectionHeader icon={<Package className="h-4 w-4" />} title="Consumption">
+        {bomRows.length > 0 && (
+          <select value={filterBomRowId} onChange={e => setFilterBomRowId(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300">
+            <option value="all">All Materials/Fabrics</option>
+            {bomRows.map(r => (
+              <option key={r.id} value={String(r.id)}>
+                [{r.materialCode}] {r.materialName}
+              </option>
+            ))}
+          </select>
+        )}
+      </SectionHeader>
+
+      {isLoading ? (
+        <div className="py-6 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" /></div>
+      ) : displayRows.length === 0 ? (
+        <p className="text-xs text-gray-400 italic text-center py-6">No BOM items found. Add items to the BOM first.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[760px]">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Code</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Current Stock</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">PR Rcv</th>
+                <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Stock incl. PR</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Avg Price (₹)</th>
+                <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Consumed Qty</th>
+                <th className="text-left text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Consumed Total (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map(r => {
+                const m = computeRowMetrics(r, pos, prs);
+                const stockInclPr = m.stockNum + m.prQty;
+                return (
+                  <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
+                    <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-800">{r.materialName}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${r.materialType === "fabric" ? "bg-purple-100 text-purple-600" : "bg-green-100 text-green-700"}`}>
+                          {r.materialType === "fabric" ? "FAB" : "MAT"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600">{parseFloat(r.currentStock || "0").toFixed(2)} {r.unitType}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{m.prQty.toFixed(2)}</td>
+                    <td className="px-3 py-2.5 font-semibold text-blue-700">{stockInclPr.toFixed(2)} {r.unitType}</td>
+                    <td className="px-3 py-2.5 text-gray-700">₹{m.weightedAvg.toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-amber-700 font-medium">{m.consumedQtyNum.toFixed(2)} {r.unitType}</td>
+                    <td className="px-3 py-2.5 font-semibold text-red-700">₹{m.consumedTotal.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            {displayRows.length > 1 && (
+              <tfoot>
+                <tr className="bg-gray-50 border-t border-gray-200">
+                  <td colSpan={4} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
+                  <td className="px-3 py-2 font-bold text-blue-700">{totals.stockInclPr.toFixed(2)}</td>
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 font-bold text-amber-700">{totals.consumedQty.toFixed(2)}</td>
+                  <td className="px-3 py-2 font-bold text-red-700">₹{totals.consumedTotal.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       )}
@@ -1170,6 +1287,7 @@ export default function CostingTab({
       <BomSection swatchOrderId={swatchOrderId} orderCode={orderCode} swatchName={swatchName} clientName={clientName} />
       <PoSection swatchOrderId={swatchOrderId} />
       <PrSection swatchOrderId={swatchOrderId} />
+      <ConsumptionSection swatchOrderId={swatchOrderId} />
     </div>
   );
 }
