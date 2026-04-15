@@ -247,6 +247,7 @@ export default function SwatchOrderDetail() {
   const [saving, setSaving] = useState(false);
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
+  const [unitTypeError, setUnitTypeError] = useState("");
 
   useEffect(() => {
     if (orderData?.data) {
@@ -323,15 +324,29 @@ export default function SwatchOrderDetail() {
     }
   }
 
-  async function handleAddUnitType() {
-    if (!newUnitTypeName.trim()) return;
-    try {
-      await createUnitType.mutateAsync({ name: newUnitTypeName.trim() });
-      set("unitType", newUnitTypeName.trim());
-      setAddUnitTypeOpen(false);
-    } catch {
-      toast({ title: "Failed to add unit type", variant: "destructive" });
+  function handleAddUnitType() {
+    const trimmed = newUnitTypeName.trim();
+    if (!trimmed) return;
+    const alreadyExists = unitTypes.some(t => t.name.toLowerCase() === trimmed.toLowerCase());
+    if (alreadyExists) {
+      setUnitTypeError(`"${trimmed}" already exists — select it from the dropdown`);
+      return;
     }
+    setUnitTypeError("");
+    createUnitType.mutate({ name: trimmed }, {
+      onSuccess: () => {
+        set("unitType", trimmed);
+        setAddUnitTypeOpen(false);
+      },
+      onError: (err: unknown) => {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.toLowerCase().includes("conflict") || msg.toLowerCase().includes("already exists") || msg.includes("409")) {
+          setUnitTypeError(`"${trimmed}" already exists — select it from the dropdown`);
+        } else {
+          setUnitTypeError("Failed to add unit type. Please try again.");
+        }
+      },
+    });
   }
 
   function handleLogout() {
@@ -545,7 +560,7 @@ export default function SwatchOrderDetail() {
                   label="Unit Type"
                   value={form.unitType}
                   onChange={v => set("unitType", v)}
-                  onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
+                  onAdd={() => { setNewUnitTypeName(""); setUnitTypeError(""); setAddUnitTypeOpen(true); }}
                   options={unitTypeOptions}
                   placeholder="Select Unit Type"
                 />
@@ -835,18 +850,23 @@ export default function SwatchOrderDetail() {
               <h3 className="text-base font-semibold text-gray-900 mb-4">Add Unit Type</h3>
               <input
                 autoFocus
-                className={inputCls}
+                className={`${inputCls} ${unitTypeError ? "border-red-400 focus:ring-red-200" : ""}`}
                 placeholder="e.g. cm, inch, meter"
                 value={newUnitTypeName}
-                onChange={e => setNewUnitTypeName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") { void handleAddUnitType(); } }}
+                onChange={e => { setNewUnitTypeName(e.target.value); setUnitTypeError(""); }}
+                onKeyDown={e => { if (e.key === "Enter") { handleAddUnitType(); } }}
               />
+              {unitTypeError && (
+                <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
+                  <span className="font-medium">⚠</span> {unitTypeError}
+                </p>
+              )}
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => setAddUnitTypeOpen(false)}
+                <button onClick={() => { setAddUnitTypeOpen(false); setUnitTypeError(""); }}
                   className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { void handleAddUnitType(); }} disabled={!newUnitTypeName.trim() || createUnitType.isPending}
+                <button onClick={handleAddUnitType} disabled={!newUnitTypeName.trim() || createUnitType.isPending}
                   className="px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60">
                   {createUnitType.isPending ? "Adding…" : "Add"}
                 </button>
