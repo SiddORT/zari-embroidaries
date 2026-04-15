@@ -18,6 +18,7 @@ import swatchOrdersRouter from "./swatchOrders";
 import artworksRouter from "./artworks";
 import clientLinksRouter from "./clientLinks";
 import clientPortalRouter from "./clientPortal";
+import costingRouter from "./costing";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(swatchOrdersRouter);
 router.use(artworksRouter);
 router.use(clientLinksRouter);
 router.use(clientPortalRouter);
+router.use("/api/costing", costingRouter);
 
 export default router;
