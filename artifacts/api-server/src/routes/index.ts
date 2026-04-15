@@ -41,6 +41,6 @@ router.use(swatchOrdersRouter);
 router.use(artworksRouter);
 router.use(clientLinksRouter);
 router.use(clientPortalRouter);
-router.use("/api/costing", costingRouter);
+router.use(costingRouter);
 
 export default router;

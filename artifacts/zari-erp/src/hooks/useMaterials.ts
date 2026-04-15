@@ -86,6 +86,9 @@ export function useAllMaterials() {
   return useQuery<MaterialRecord[]>({
     queryKey: ["materials", "all"],
     queryFn: () => customFetch<MaterialRecord[]>("/api/materials/all"),
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: 2,
   });
 }
 

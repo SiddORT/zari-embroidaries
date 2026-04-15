@@ -128,7 +128,7 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
               <select
                 value={selectedMaterialId}
                 onChange={e => { onMaterialChange(e.target.value); }}
-                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
+                className="w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
               >
                 <option value="">— Select material —</option>
                 {allMaterials.map(m => (
@@ -143,7 +143,7 @@ function BomSection({ swatchOrderId }: { swatchOrderId: number }) {
               <select
                 value={selectedFabricId}
                 onChange={e => { onFabricChange(e.target.value); }}
-                className="w-full mt-0.5 text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
+                className="w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white"
               >
                 <option value="">— Select fabric —</option>
                 {allFabrics.map(f => (
