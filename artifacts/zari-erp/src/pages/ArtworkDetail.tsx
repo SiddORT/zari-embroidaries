@@ -7,7 +7,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useArtwork, useCreateArtwork, useUpdateArtwork, type FileAttachment } from "@/hooks/useArtworks";
-import { useUnitTypes, useCreateUnitType } from "@/hooks/useLookups";
+import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
 import AddableSelect from "@/components/ui/AddableSelect";
 
 const FEEDBACK_STATUSES = ["Pending", "In Review", "Approved", "Revision Required", "Rejected"];
@@ -160,7 +160,7 @@ export default function ArtworkDetail() {
   const updateArtwork = useUpdateArtwork();
 
   const { data: unitTypeData } = useUnitTypes();
-  const unitTypes = unitTypeData?.data ?? [];
+  const unitTypes: LookupRecord[] = unitTypeData ?? [];
   const unitTypeOptions = unitTypes.map(u => ({ value: u.name, label: u.name }));
 
   const createUnitType = useCreateUnitType();
