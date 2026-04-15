@@ -2,10 +2,10 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
-  consumptionLogTable,
-  materialsTable, fabricsTable, vendorsTable,
+  consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable,
+  materialsTable, fabricsTable, vendorsTable, hsnTable,
 } from "@workspace/db/schema";
-import { eq, ilike, or } from "drizzle-orm";
+import { eq, ilike, or, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
@@ -346,6 +346,112 @@ router.delete("/consumption/:id", requireAuth, async (req, res) => {
   await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
     .where(eq(swatchBomTable.id, entry.bomRowId));
 
+  res.json({ success: true });
+});
+
+// ─── Vendor Search (for outsource jobs) ──────────────────────────────────────
+router.get("/vendor-search", requireAuth, async (req, res) => {
+  const q = String(req.query.q ?? "").trim();
+  const rows = await db.select({
+    id: vendorsTable.id,
+    brandName: vendorsTable.brandName,
+    vendorCode: vendorsTable.vendorCode,
+    contactName: vendorsTable.contactName,
+  }).from(vendorsTable)
+    .where(q
+      ? or(ilike(vendorsTable.brandName, `%${q}%`), ilike(vendorsTable.vendorCode, `%${q}%`))
+      : undefined)
+    .limit(30);
+  res.json({ data: rows });
+});
+
+// ─── HSN Search (for outsource jobs) ─────────────────────────────────────────
+router.get("/hsn-search", requireAuth, async (req, res) => {
+  const q = String(req.query.q ?? "").trim();
+  const rows = await db.select({
+    id: hsnTable.id,
+    hsnCode: hsnTable.hsnCode,
+    gstPercentage: hsnTable.gstPercentage,
+    govtDescription: hsnTable.govtDescription,
+  }).from(hsnTable)
+    .where(q
+      ? or(ilike(hsnTable.hsnCode, `%${q}%`), ilike(hsnTable.govtDescription, `%${q}%`))
+      : undefined)
+    .limit(30);
+  res.json({ data: rows });
+});
+
+// ─── Artisan Timesheets ───────────────────────────────────────────────────────
+router.get("/artisan-timesheets/:swatchOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(artisanTimesheetsTable)
+    .where(eq(artisanTimesheetsTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .orderBy(desc(artisanTimesheetsTable.createdAt));
+  res.json({ data: rows });
+});
+
+router.post("/artisan-timesheets", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { swatchOrderId, noOfArtisans, startDate, endDate, shiftType, totalHours, hourlyRate, notes } = req.body;
+  if (!swatchOrderId || !startDate || !endDate || !shiftType) {
+    res.status(400).json({ error: "swatchOrderId, startDate, endDate and shiftType are required" }); return;
+  }
+  const totalHoursNum = parseFloat(totalHours) || 0;
+  const hourlyRateNum = parseFloat(hourlyRate) || 0;
+  const noOfArtisansNum = parseInt(noOfArtisans) || 1;
+  const totalRate = (totalHoursNum * hourlyRateNum * noOfArtisansNum).toFixed(2);
+  const [row] = await db.insert(artisanTimesheetsTable).values({
+    swatchOrderId: Number(swatchOrderId),
+    noOfArtisans: noOfArtisansNum,
+    startDate: String(startDate),
+    endDate: String(endDate),
+    shiftType: String(shiftType),
+    totalHours: String(totalHoursNum),
+    hourlyRate: String(hourlyRateNum),
+    totalRate,
+    notes: notes ? String(notes) : null,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+router.delete("/artisan-timesheets/:id", requireAuth, async (req, res) => {
+  await db.delete(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.id, Number(req.params.id)));
+  res.json({ success: true });
+});
+
+// ─── Outsource Jobs ───────────────────────────────────────────────────────────
+router.get("/outsource-jobs/:swatchOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(outsourceJobsTable)
+    .where(eq(outsourceJobsTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .orderBy(desc(outsourceJobsTable.createdAt));
+  res.json({ data: rows });
+});
+
+router.post("/outsource-jobs", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { swatchOrderId, vendorId, vendorName, hsnId, hsnCode, gstPercentage, issueDate, targetDate, deliveryDate, totalCost, notes } = req.body;
+  if (!swatchOrderId || !vendorId || !hsnId || !issueDate) {
+    res.status(400).json({ error: "swatchOrderId, vendorId, hsnId and issueDate are required" }); return;
+  }
+  const [row] = await db.insert(outsourceJobsTable).values({
+    swatchOrderId: Number(swatchOrderId),
+    vendorId: Number(vendorId),
+    vendorName: String(vendorName),
+    hsnId: Number(hsnId),
+    hsnCode: String(hsnCode),
+    gstPercentage: String(gstPercentage || "5"),
+    issueDate: String(issueDate),
+    targetDate: targetDate ? String(targetDate) : null,
+    deliveryDate: deliveryDate ? String(deliveryDate) : null,
+    totalCost: String(parseFloat(totalCost) || 0),
+    notes: notes ? String(notes) : null,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+router.delete("/outsource-jobs/:id", requireAuth, async (req, res) => {
+  await db.delete(outsourceJobsTable).where(eq(outsourceJobsTable.id, Number(req.params.id)));
   res.json({ success: true });
 });
 

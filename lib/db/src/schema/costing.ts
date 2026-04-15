@@ -113,3 +113,41 @@ export const consumptionLogTable = pgTable("consumption_log", {
 });
 
 export type ConsumptionLogRecord = typeof consumptionLogTable.$inferSelect;
+
+// ─── Artisan Timesheet ───────────────────────────────────────────────────────
+export const artisanTimesheetsTable = pgTable("artisan_timesheets", {
+  id: serial("id").primaryKey(),
+  swatchOrderId: integer("swatch_order_id").notNull(),
+  noOfArtisans: integer("no_of_artisans").notNull().default(1),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  shiftType: text("shift_type").notNull().default("regular"),
+  totalHours: text("total_hours").notNull().default("0"),
+  hourlyRate: text("hourly_rate").notNull().default("0"),
+  totalRate: text("total_rate").notNull().default("0"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ArtisanTimesheetRecord = typeof artisanTimesheetsTable.$inferSelect;
+
+// ─── Outsource Jobs ──────────────────────────────────────────────────────────
+export const outsourceJobsTable = pgTable("outsource_jobs", {
+  id: serial("id").primaryKey(),
+  swatchOrderId: integer("swatch_order_id").notNull(),
+  vendorId: integer("vendor_id").notNull(),
+  vendorName: text("vendor_name").notNull(),
+  hsnId: integer("hsn_id").notNull(),
+  hsnCode: text("hsn_code").notNull(),
+  gstPercentage: text("gst_percentage").notNull().default("5"),
+  issueDate: text("issue_date").notNull(),
+  targetDate: text("target_date"),
+  deliveryDate: text("delivery_date"),
+  totalCost: text("total_cost").notNull().default("0"),
+  notes: text("notes"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OutsourceJobRecord = typeof outsourceJobsTable.$inferSelect;

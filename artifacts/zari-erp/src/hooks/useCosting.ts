@@ -261,3 +261,115 @@ export function useDeleteConsumptionEntry() {
     },
   });
 }
+
+// ─── Vendor / HSN search for outsource jobs ───────────────────────────────────
+export interface VendorSearchResult {
+  id: number;
+  brandName: string;
+  vendorCode: string;
+  contactName: string;
+}
+export interface HsnSearchResult {
+  id: number;
+  hsnCode: string;
+  gstPercentage: string;
+  govtDescription: string;
+}
+
+export function useVendorSearch(q: string) {
+  return useQuery({
+    queryKey: ["costing-vendor-search", q],
+    queryFn: () => customFetch<{ data: VendorSearchResult[] }>(`/api/costing/vendor-search?q=${encodeURIComponent(q)}`).then(r => r.data),
+    staleTime: 30_000,
+  });
+}
+
+export function useHsnSearch(q: string) {
+  return useQuery({
+    queryKey: ["costing-hsn-search", q],
+    queryFn: () => customFetch<{ data: HsnSearchResult[] }>(`/api/costing/hsn-search?q=${encodeURIComponent(q)}`).then(r => r.data),
+    staleTime: 30_000,
+  });
+}
+
+// ─── Artisan Timesheets ───────────────────────────────────────────────────────
+export interface ArtisanTimesheetRecord {
+  id: number;
+  swatchOrderId: number;
+  noOfArtisans: number;
+  startDate: string;
+  endDate: string;
+  shiftType: string;
+  totalHours: string;
+  hourlyRate: string;
+  totalRate: string;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export function useArtisanTimesheets(swatchOrderId: number) {
+  return useQuery({
+    queryKey: ["artisan-timesheets", swatchOrderId],
+    queryFn: () => customFetch<{ data: ArtisanTimesheetRecord[] }>(`/api/costing/artisan-timesheets/${swatchOrderId}`).then(r => r.data),
+    enabled: !!swatchOrderId,
+  });
+}
+
+export function useCreateArtisanTimesheet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: ArtisanTimesheetRecord }>("/api/costing/artisan-timesheets", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["artisan-timesheets"] }); },
+  });
+}
+
+export function useDeleteArtisanTimesheet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/artisan-timesheets/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["artisan-timesheets"] }); },
+  });
+}
+
+// ─── Outsource Jobs ───────────────────────────────────────────────────────────
+export interface OutsourceJobRecord {
+  id: number;
+  swatchOrderId: number;
+  vendorId: number;
+  vendorName: string;
+  hsnId: number;
+  hsnCode: string;
+  gstPercentage: string;
+  issueDate: string;
+  targetDate: string | null;
+  deliveryDate: string | null;
+  totalCost: string;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export function useOutsourceJobs(swatchOrderId: number) {
+  return useQuery({
+    queryKey: ["outsource-jobs", swatchOrderId],
+    queryFn: () => customFetch<{ data: OutsourceJobRecord[] }>(`/api/costing/outsource-jobs/${swatchOrderId}`).then(r => r.data),
+    enabled: !!swatchOrderId,
+  });
+}
+
+export function useCreateOutsourceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: OutsourceJobRecord }>("/api/costing/outsource-jobs", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["outsource-jobs"] }); },
+  });
+}
+
+export function useDeleteOutsourceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/outsource-jobs/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["outsource-jobs"] }); },
+  });
+}
