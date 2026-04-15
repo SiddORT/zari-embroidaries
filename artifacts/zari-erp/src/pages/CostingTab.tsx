@@ -3,14 +3,14 @@ import * as XLSX from "xlsx";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
-  ArrowRight, Paperclip, Package, Info, Download, Filter,
+  ArrowRight, Paperclip, Package, Info, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useAllMaterials } from "@/hooks/useMaterials";
 import { useAllFabrics } from "@/hooks/useFabrics";
 import {
-  useSwatchBom, useAddBomRow, useUpdateBomRow, useDeleteBomRow,
+  useSwatchBom, useAddBomRow, useDeleteBomRow,
   useSwatchPOs, useCreatePO, useUpdatePO, useDeletePO,
   useSwatchPRs, useCreatePR, useDeletePR,
   usePrPayments, useAddPayment, useDeletePayment,
@@ -67,14 +67,12 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
   const { data: pos = [] } = useSwatchPOs(swatchOrderId);
   const { data: prs = [] } = useSwatchPRs(swatchOrderId);
   const addRow = useAddBomRow();
-  const updateRow = useUpdateBomRow();
   const deleteRow = useDeleteBomRow();
   const { data: allMaterials = [] } = useAllMaterials();
   const { data: allFabrics = [] } = useAllFabrics();
 
   const [showForm, setShowForm] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "material" | "fabric">("all");
-  const [localConsumed, setLocalConsumed] = useState<Record<number, string>>({});
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
     currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "",
@@ -129,7 +127,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
     const avgPriceNum = parseFloat(r.avgUnitPrice || "0");
     const weightedAvg = (stockNum + prQty) > 0 ? (stockNum * avgPriceNum + prTotal) / (stockNum + prQty) : avgPriceNum;
 
-    const consumedQtyNum = parseFloat(localConsumed[r.id] ?? r.consumedQty ?? "0");
+    const consumedQtyNum = parseFloat(r.consumedQty ?? "0");
     const consumedTotal = consumedQtyNum * weightedAvg;
 
     return { poTargetPrice, poQty, prQty, prTotal, weightedAvg, consumedQtyNum, consumedTotal };
@@ -305,7 +303,6 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
             ) : filteredRows.map(r => {
               const m = getRowMetrics(r);
-              const localVal = localConsumed[r.id] ?? r.consumedQty ?? "0";
               return (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -332,19 +329,8 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   <td className="px-3 py-2.5 font-semibold text-blue-700">
                     {m.prTotal > 0 ? `₹${m.prTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number" min="0" step="any"
-                      value={localVal}
-                      onChange={e => setLocalConsumed(prev => ({ ...prev, [r.id]: e.target.value }))}
-                      onBlur={e => {
-                        const val = e.target.value;
-                        if (val !== r.consumedQty) {
-                          updateRow.mutate({ id: r.id, consumedQty: val });
-                        }
-                      }}
-                      className="w-20 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-300"
-                    />
+                  <td className="px-3 py-2.5 text-green-700 font-semibold">
+                    {m.consumedQtyNum > 0 ? m.consumedQtyNum : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5 font-semibold text-green-700">
                     {m.consumedTotal > 0 ? `₹${m.consumedTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
