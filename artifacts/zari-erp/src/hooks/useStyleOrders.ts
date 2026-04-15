@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+export type ReferenceItem = { id: string; label: string; remark: string };
+export type FileAttachment = { name: string; type: string; data: string; size: number };
+
 export type StyleOrderRecord = {
   id: number;
   orderCode: string;
@@ -24,6 +27,10 @@ export type StyleOrderRecord = {
   internalNotes: string | null;
   clientInstructions: string | null;
   isChargeable: boolean;
+  styleReferences: ReferenceItem[];
+  swatchReferences: ReferenceItem[];
+  refDocs: FileAttachment[];
+  refImages: FileAttachment[];
   actualStartDate: string | null;
   actualStartTime: string | null;
   tentativeDeliveryDate: string | null;

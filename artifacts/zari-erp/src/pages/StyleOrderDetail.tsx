@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Loader2, ChevronDown,
   User, CalendarDays, MessageSquare, CheckCircle2,
+  Layers, Paperclip, Plus, X, FileText, Image as ImageIcon,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +12,9 @@ import AppLayout from "@/components/layout/AppLayout";
 import { useAllClients } from "@/hooks/useClients";
 import AddableSelect from "@/components/ui/AddableSelect";
 import { useDepartments, useCreateDepartment } from "@/hooks/useLookups";
-import { useStyleOrder, useCreateStyleOrder, useUpdateStyleOrder } from "@/hooks/useStyleOrders";
+import { useStyleOrder, useCreateStyleOrder, useUpdateStyleOrder, type ReferenceItem, type FileAttachment } from "@/hooks/useStyleOrders";
+import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
+import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 import ProductsTab from "./ProductsTab";
 import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 
@@ -64,6 +67,10 @@ type FormState = {
   internalNotes: string;
   clientInstructions: string;
   isChargeable: boolean;
+  styleReferences: ReferenceItem[];
+  swatchReferences: ReferenceItem[];
+  refDocs: FileAttachment[];
+  refImages: FileAttachment[];
   actualStartDate: string;
   actualStartTime: string;
   tentativeDeliveryDate: string;
@@ -80,6 +87,8 @@ const EMPTY_FORM: FormState = {
   orderIssueDate: "", deliveryDate: "", targetHours: "",
   issuedTo: "", department: "", description: "",
   internalNotes: "", clientInstructions: "", isChargeable: false,
+  styleReferences: [], swatchReferences: [],
+  refDocs: [], refImages: [],
   actualStartDate: "", actualStartTime: "",
   tentativeDeliveryDate: "", actualCompletionDate: "",
   actualCompletionTime: "", delayReason: "", approvalDate: "",
@@ -87,6 +96,76 @@ const EMPTY_FORM: FormState = {
 
 // ── Shared helpers (defined outside component to avoid re-render focus loss) ─
 const inputCls = "w-full px-3 py-2.5 text-sm text-gray-900 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-400";
+
+function fileToAttachment(file: File): Promise<FileAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result as string, size: file.size });
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function FileUploadZone({ files, onChange, accept, icon, label }: {
+  files: FileAttachment[];
+  onChange: (files: FileAttachment[]) => void;
+  accept: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFiles(fileList: FileList | null) {
+    if (!fileList) return;
+    const newFiles = await Promise.all(Array.from(fileList).map(fileToAttachment));
+    onChange([...files, ...newFiles]);
+  }
+
+  function remove(idx: number) {
+    onChange(files.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div>
+      <div
+        onClick={() => inputRef.current?.click()}
+        className="border-2 border-dashed border-gray-200 rounded-xl p-5 text-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer"
+      >
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400">{icon}</div>
+          <div>
+            <p className="text-sm font-medium text-gray-700">{label}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Click to browse or drag & drop</p>
+          </div>
+        </div>
+        <input ref={inputRef} type="file" accept={accept} multiple className="hidden"
+          onChange={e => { void handleFiles(e.target.files); }} />
+      </div>
+      {files.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {files.map((f, i) => (
+            <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
+              {f.type.startsWith("image/") ? (
+                <img src={f.data} alt={f.name} className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0" />
+              ) : (
+                <div className="h-8 w-8 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 shrink-0">
+                  <FileText className="h-4 w-4" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                <span className="text-xs font-medium text-gray-700 truncate">{f.name}</span>
+                <span className="text-xs text-gray-400">{(f.size / 1024).toFixed(0)} KB</span>
+              </div>
+              <button onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 transition-colors mt-1 shrink-0">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SectionCard({ icon, title, subtitle, accentColor, children }: {
   icon: React.ReactNode; title: string; subtitle: string; accentColor: string; children: React.ReactNode;
@@ -150,6 +229,13 @@ export default function StyleOrderDetail() {
   const { data: clientsData } = useAllClients();
   const clients = clientsData?.data ?? [];
 
+  const { data: stylesData } = useStyleList({ search: "", status: "active", client: "", location: "", page: 1, limit: 200 });
+  const { data: swatchesData } = useSwatchList({ search: "", status: "active", client: "", location: "", swatchCategory: "", page: 1, limit: 200 });
+  const styles: StyleRecord[] = stylesData?.data ?? [];
+  const swatches: SwatchRecord[] = swatchesData?.data ?? [];
+  const styleOptions = styles.map(s => ({ value: String(s.id), label: `${s.styleNo} – ${s.client}` }));
+  const swatchOptions = swatches.map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
+
   const { data: deptData } = useDepartments();
   const createDept = useCreateDepartment();
   const departments = deptData ?? [];
@@ -189,6 +275,10 @@ export default function StyleOrderDetail() {
         internalNotes: o.internalNotes ?? "",
         clientInstructions: o.clientInstructions ?? "",
         isChargeable: o.isChargeable ?? false,
+        styleReferences: o.styleReferences ?? [],
+        swatchReferences: o.swatchReferences ?? [],
+        refDocs: o.refDocs ?? [],
+        refImages: o.refImages ?? [],
         actualStartDate: o.actualStartDate ?? "",
         actualStartTime: o.actualStartTime ?? "",
         tentativeDeliveryDate: o.tentativeDeliveryDate ?? "",
@@ -202,6 +292,23 @@ export default function StyleOrderDetail() {
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
+  }
+
+  function addStyleRef() {
+    set("styleReferences", [...form.styleReferences, { id: "", label: "", remark: "" }]);
+  }
+  function addSwatchRef() {
+    set("swatchReferences", [...form.swatchReferences, { id: "", label: "", remark: "" }]);
+  }
+  function updateRef(type: "style" | "swatch", idx: number, field: keyof ReferenceItem, value: string) {
+    const key = type === "style" ? "styleReferences" : "swatchReferences";
+    const arr = [...form[key]];
+    arr[idx] = { ...arr[idx], [field]: value };
+    set(key, arr);
+  }
+  function removeRef(type: "style" | "swatch", idx: number) {
+    const key = type === "style" ? "styleReferences" : "swatchReferences";
+    set(key, form[key].filter((_, i) => i !== idx));
   }
 
   const clientOptions = clients.map((c: { id: number; brandName: string }) => ({
@@ -485,7 +592,123 @@ export default function StyleOrderDetail() {
           )}
 
           {/* ══ TAB 1: References ══════════════════════════════════════════ */}
-          {activeTab === 1 && <PlaceholderTab icon="🔗" label="References" />}
+          {activeTab === 1 && <div className="space-y-5">
+
+            <SectionCard icon={<Layers className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+              title="References" subtitle="Link related styles and swatches, add remarks for each">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Style References */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Style References</span>
+                    <button onClick={addStyleRef}
+                      className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                      <Plus className="h-3.5 w-3.5" /> Add Style
+                    </button>
+                  </div>
+                  {form.styleReferences.length === 0 ? (
+                    <div className="text-xs text-gray-400 py-3 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">No style references added</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.styleReferences.map((ref, i) => (
+                        <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                          <div className="flex-1 space-y-2">
+                            <AddableSelect
+                              value={ref.id}
+                              onChange={v => {
+                                const s = styles.find(s => String(s.id) === v);
+                                updateRef("style", i, "id", v);
+                                updateRef("style", i, "label", s ? `${s.styleNo} – ${s.client}` : "");
+                              }}
+                              options={styleOptions}
+                              placeholder="— Select style —"
+                            />
+                            <input className={inputCls} placeholder="Remark…" value={ref.remark}
+                              onChange={e => updateRef("style", i, "remark", e.target.value)} />
+                          </div>
+                          <button onClick={() => removeRef("style", i)} className="p-1.5 text-gray-400 hover:text-red-500 mt-0.5">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Swatch References */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Swatch References</span>
+                    <button onClick={addSwatchRef}
+                      className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                      <Plus className="h-3.5 w-3.5" /> Add Swatch
+                    </button>
+                  </div>
+                  {form.swatchReferences.length === 0 ? (
+                    <div className="text-xs text-gray-400 py-3 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">No swatch references added</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.swatchReferences.map((ref, i) => (
+                        <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                          <div className="flex-1 space-y-2">
+                            <AddableSelect
+                              value={ref.id}
+                              onChange={v => {
+                                const s = swatches.find(s => String(s.id) === v);
+                                updateRef("swatch", i, "id", v);
+                                updateRef("swatch", i, "label", s?.swatchName ?? "");
+                              }}
+                              options={swatchOptions}
+                              placeholder="— Select swatch —"
+                            />
+                            <input className={inputCls} placeholder="Remark…" value={ref.remark}
+                              onChange={e => updateRef("swatch", i, "remark", e.target.value)} />
+                          </div>
+                          <button onClick={() => removeRef("swatch", i)} className="p-1.5 text-gray-400 hover:text-red-500 mt-0.5">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard icon={<Paperclip className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+              title="Attachments" subtitle="Upload reference documents and images">
+              <div className="grid grid-cols-2 gap-6">
+                <Field label="Reference Documents">
+                  <FileUploadZone
+                    files={form.refDocs} onChange={files => set("refDocs", files)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    icon={<FileText className="h-5 w-5" />}
+                    label="Upload Documents"
+                  />
+                </Field>
+                <Field label="Reference Images">
+                  <FileUploadZone
+                    files={form.refImages} onChange={files => set("refImages", files)}
+                    accept="image/*"
+                    icon={<ImageIcon className="h-5 w-5" />}
+                    label="Upload Images"
+                  />
+                </Field>
+              </div>
+            </SectionCard>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setLocation("/style-orders")}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => { void handleSave(); }} disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>}
 
           {/* ══ TAB 2: Products ════════════════════════════════════════════ */}
           {activeTab === 2 && (

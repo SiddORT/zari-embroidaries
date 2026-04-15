@@ -1,19 +1,25 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Plus, Trash2, Pencil, Palette, ExternalLink, Package, Loader2 } from "lucide-react";
 import ImageLightbox from "@/components/ui/ImageLightbox";
-import { useStyleOrderArtworks, useDeleteStyleOrderArtwork, type StyleOrderArtworkRecord, type FileAttachment } from "@/hooks/useStyleOrderArtworks";
+import {
+  useStyleOrderArtworks,
+  useDeleteStyleOrderArtwork,
+  useUpdateStyleOrderArtwork,
+  type StyleOrderArtworkRecord,
+  type FileAttachment,
+} from "@/hooks/useStyleOrderArtworks";
 import { useStyleOrderProducts, type StyleOrderProductRecord } from "@/hooks/useStyleOrderProducts";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Helpers (outside component to prevent focus-loss) ─────────────────────────
 
 const FEEDBACK_COLORS: Record<string, string> = {
-  Pending:            "bg-gray-100 text-gray-600 border-gray-200",
-  "In Review":        "bg-sky-50 text-sky-700 border-sky-200",
-  Approved:           "bg-gray-900 text-[#C9B45C] border-gray-900",
-  "Revision Required":"bg-amber-50 text-amber-700 border-amber-200",
-  Rejected:           "bg-red-50 text-red-700 border-red-200",
+  Pending:             "bg-gray-100 text-gray-600 border-gray-200",
+  "In Review":         "bg-sky-50 text-sky-700 border-sky-200",
+  Approved:            "bg-gray-900 text-[#C9B45C] border-gray-900",
+  "Revision Required": "bg-amber-50 text-amber-700 border-amber-200",
+  Rejected:            "bg-red-50 text-red-700 border-red-200",
 };
 
 function SectionCard({
@@ -40,11 +46,15 @@ function ArtworkRow({
   styleOrderId,
   onDelete,
   onPreview,
+  onAddWip,
+  onAddFinal,
 }: {
   art: StyleOrderArtworkRecord;
   styleOrderId: number;
   onDelete: (id: number) => void;
   onPreview: (images: FileAttachment[], index: number) => void;
+  onAddWip: (artId: number) => void;
+  onAddFinal: (artId: number) => void;
 }) {
   const [, setLocation] = useLocation();
   const isApproved = art.feedbackStatus === "Approved";
@@ -112,34 +122,54 @@ function ArtworkRow({
         </div>
       </div>
 
-      {/* Row 2: WIP + Final image strips */}
-      {((art.wipImages?.length ?? 0) > 0 || (art.finalImages?.length ?? 0) > 0) && (
-        <div className="flex items-start gap-4 px-4 pb-3 border-t border-gray-100 pt-2">
-          {/* WIP */}
-          <div className="flex-1">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">WIP Images</p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(art.wipImages ?? []).map((img, idx) => (
-                <img key={idx} src={img.data} alt={img.name}
-                  className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
-                  onClick={() => onPreview(art.wipImages ?? [], idx)} />
-              ))}
-            </div>
-          </div>
-          <div className="w-px bg-gray-200 self-stretch" />
-          {/* Final */}
-          <div className="flex-1">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Final Images</p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(art.finalImages ?? []).map((img, idx) => (
-                <img key={idx} src={img.data} alt={img.name}
-                  className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
-                  onClick={() => onPreview(art.finalImages ?? [], idx)} />
-              ))}
-            </div>
+      {/* Row 2: WIP + Final image strips — always shown */}
+      <div className="flex items-start gap-4 px-4 pb-3 border-t border-gray-100 pt-2">
+        {/* WIP */}
+        <div className="flex-1">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">WIP Images</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(art.wipImages ?? []).map((img, idx) => (
+              <img key={idx} src={img.data} alt={img.name}
+                className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                title={img.name}
+                onClick={e => { e.stopPropagation(); onPreview(art.wipImages ?? [], idx); }}
+              />
+            ))}
+            {!isApproved && (
+              <button
+                onClick={e => { e.stopPropagation(); onAddWip(art.id); }}
+                title="Add WIP image"
+                className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
-      )}
+        <div className="w-px bg-gray-200 self-stretch" />
+        {/* Final */}
+        <div className="flex-1">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Final Images</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(art.finalImages ?? []).map((img, idx) => (
+              <img key={idx} src={img.data} alt={img.name}
+                className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                title={img.name}
+                onClick={e => { e.stopPropagation(); onPreview(art.finalImages ?? [], idx); }}
+              />
+            ))}
+            {!isApproved && (
+              <button
+                onClick={e => { e.stopPropagation(); onAddFinal(art.id); }}
+                title="Add final image"
+                className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -150,15 +180,19 @@ function ProductSection({
   styleOrderId,
   onDelete,
   onPreview,
+  onAddWip,
+  onAddFinal,
 }: {
   product: StyleOrderProductRecord | null;
   artworks: StyleOrderArtworkRecord[];
   styleOrderId: number;
   onDelete: (id: number) => void;
   onPreview: (images: FileAttachment[], index: number) => void;
+  onAddWip: (artId: number) => void;
+  onAddFinal: (artId: number) => void;
 }) {
   const [, setLocation] = useLocation();
-  const productId  = product?.id ?? null;
+  const productId   = product?.id ?? null;
   const productName = product?.productName ?? "Unassigned";
 
   return (
@@ -199,6 +233,8 @@ function ProductSection({
               styleOrderId={styleOrderId}
               onDelete={onDelete}
               onPreview={onPreview}
+              onAddWip={onAddWip}
+              onAddFinal={onAddFinal}
             />
           ))}
         </div>
@@ -221,11 +257,14 @@ export default function StyleOrderArtworksTab({
   const { data: artworksData, isLoading: artLoading } = useStyleOrderArtworks(styleOrderId);
   const { data: productsData } = useStyleOrderProducts(styleOrderId);
   const deleteArtwork = useDeleteStyleOrderArtwork();
+  const updateArtwork = useUpdateStyleOrderArtwork();
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<{ images: FileAttachment[]; index: number } | null>(null);
+  const [imgUploadTarget, setImgUploadTarget] = useState<{ artId: number; type: "wip" | "final" } | null>(null);
+  const artImgInputRef = useRef<HTMLInputElement>(null);
 
-  const products = productsData?.data ?? [];
+  const products   = productsData?.data ?? [];
   const allArtworks = artworksData?.data ?? [];
 
   if (isNew) {
@@ -239,11 +278,7 @@ export default function StyleOrderArtworksTab({
 
   // Group artworks by product
   const byProduct = new Map<number | null, StyleOrderArtworkRecord[]>();
-  // Seed with all products (so they always appear even with 0 artworks)
-  for (const p of products) {
-    byProduct.set(p.id, []);
-  }
-  // Place artworks into their product buckets
+  for (const p of products) byProduct.set(p.id, []);
   for (const art of allArtworks) {
     const key = art.styleOrderProductId ?? null;
     if (!byProduct.has(key)) byProduct.set(key, []);
@@ -255,6 +290,54 @@ export default function StyleOrderArtworksTab({
     await deleteArtwork.mutateAsync({ id: deleteConfirmId, styleOrderId: styleOrderId! });
     setDeleteConfirmId(null);
     toast({ title: "Artwork removed" });
+  }
+
+  function handleAddWip(artId: number) {
+    setImgUploadTarget({ artId, type: "wip" });
+    setTimeout(() => artImgInputRef.current?.click(), 0);
+  }
+
+  function handleAddFinal(artId: number) {
+    setImgUploadTarget({ artId, type: "final" });
+    setTimeout(() => artImgInputRef.current?.click(), 0);
+  }
+
+  function handleArtworkImageFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!imgUploadTarget || !e.target.files) return;
+    const { artId, type } = imgUploadTarget;
+    const art = allArtworks.find(a => a.id === artId);
+    if (!art) return;
+    const files = Array.from(e.target.files);
+    const readers = files.map(file =>
+      new Promise<FileAttachment>(resolve => {
+        const reader = new FileReader();
+        reader.onload = ev => resolve({
+          name: file.name, type: file.type,
+          data: ev.target!.result as string,
+          size: file.size,
+        });
+        reader.readAsDataURL(file);
+      })
+    );
+    Promise.all(readers).then(newFiles => {
+      const existing = type === "wip" ? (art.wipImages ?? []) : (art.finalImages ?? []);
+      const merged   = [...existing, ...newFiles];
+      updateArtwork.mutate({
+        id: artId,
+        data: {
+          styleOrderId:        art.styleOrderId,
+          artworkName:         art.artworkName,
+          artworkCreated:      art.artworkCreated,
+          feedbackStatus:      art.feedbackStatus,
+          wipImages:           type === "wip"   ? merged : (art.wipImages   ?? []),
+          finalImages:         type === "final" ? merged : (art.finalImages ?? []),
+          files:               art.files   ?? [],
+          refImages:           art.refImages ?? [],
+        },
+      });
+      if (artImgInputRef.current) artImgInputRef.current.value = "";
+      setImgUploadTarget(null);
+    });
   }
 
   const totalCount = allArtworks.length;
@@ -276,7 +359,6 @@ export default function StyleOrderArtworksTab({
             <div className="text-xs text-gray-400 py-6 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
               Add products first, then attach artworks to each product.
             </div>
-            {/* Still allow unassigned artworks */}
             <button
               onClick={() => setLocation(`/style-orders/${styleOrderId}/artworks/new`)}
               className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center font-medium"
@@ -286,7 +368,6 @@ export default function StyleOrderArtworksTab({
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Render each product section */}
             {products.map(p => (
               <ProductSection
                 key={p.id}
@@ -295,9 +376,10 @@ export default function StyleOrderArtworksTab({
                 styleOrderId={styleOrderId!}
                 onDelete={setDeleteConfirmId}
                 onPreview={(imgs, idx) => setLightbox({ images: imgs, index: idx })}
+                onAddWip={handleAddWip}
+                onAddFinal={handleAddFinal}
               />
             ))}
-            {/* Unassigned artworks (if any) */}
             {(byProduct.get(null) ?? []).length > 0 && (
               <ProductSection
                 product={null}
@@ -305,6 +387,8 @@ export default function StyleOrderArtworksTab({
                 styleOrderId={styleOrderId!}
                 onDelete={setDeleteConfirmId}
                 onPreview={(imgs, idx) => setLightbox({ images: imgs, index: idx })}
+                onAddWip={handleAddWip}
+                onAddFinal={handleAddFinal}
               />
             )}
           </div>
@@ -340,6 +424,16 @@ export default function StyleOrderArtworksTab({
           onClose={() => setLightbox(null)}
         />
       )}
+
+      {/* Hidden file input for artwork WIP/Final image upload */}
+      <input
+        ref={artImgInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleArtworkImageFiles}
+      />
     </>
   );
 }

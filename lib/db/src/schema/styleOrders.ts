@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const styleOrdersTable = pgTable("style_orders", {
@@ -30,6 +30,11 @@ export const styleOrdersTable = pgTable("style_orders", {
   clientInstructions: text("client_instructions"),
 
   isChargeable: boolean("is_chargeable").notNull().default(false),
+
+  styleReferences: jsonb("style_references").default([]),
+  swatchReferences: jsonb("swatch_references").default([]),
+  refDocs: jsonb("ref_docs").default([]),
+  refImages: jsonb("ref_images").default([]),
 
   actualStartDate: text("actual_start_date"),
   actualStartTime: text("actual_start_time"),
@@ -70,6 +75,10 @@ export const insertStyleOrderSchema = z.object({
   internalNotes: z.string().optional(),
   clientInstructions: z.string().optional(),
   isChargeable: z.boolean().default(false),
+  styleReferences: z.array(z.any()).optional(),
+  swatchReferences: z.array(z.any()).optional(),
+  refDocs: z.array(z.any()).optional(),
+  refImages: z.array(z.any()).optional(),
   actualStartDate: z.string().optional(),
   actualStartTime: z.string().optional(),
   tentativeDeliveryDate: z.string().optional(),
