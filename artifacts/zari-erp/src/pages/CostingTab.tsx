@@ -17,10 +17,11 @@ import {
   useSwatchConsumptionLog, useAddConsumptionEntry, useDeleteConsumptionEntry,
   useArtisanTimesheets, useCreateArtisanTimesheet, useDeleteArtisanTimesheet,
   useOutsourceJobs, useCreateOutsourceJob, useDeleteOutsourceJob,
+  useCustomCharges, useCreateCustomCharge, useDeleteCustomCharge,
   useVendorSearch, useHsnSearch,
   type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord,
   type PrPaymentRecord, type PoLineItem, type ConsumptionLogRecord,
-  type ArtisanTimesheetRecord, type OutsourceJobRecord,
+  type ArtisanTimesheetRecord, type OutsourceJobRecord, type CustomChargeRecord,
 } from "@/hooks/useCosting";
 
 const PO_STATUSES = ["Draft", "Pending Approval", "Approved", "In Process", "Closed"];
@@ -60,7 +61,7 @@ function SectionHeader({ icon, title, children }: { icon: React.ReactNode; title
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
-        <span className="text-gray-400">{icon}</span>
+        <span className="text-[#C9B45C]">{icon}</span>
         <h3 className="text-sm font-bold text-gray-900 tracking-tight">{title}</h3>
       </div>
       {children}
@@ -1703,18 +1704,18 @@ function ArtisanTimesheetSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <EmptyRow text={rows.length === 0 ? "No timesheet entries yet." : "No entries for selected type."} />
               ) : filtered.map(r => (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40">
-                  <td className="px-3 py-2.5">{r.startDate}</td>
-                  <td className="px-3 py-2.5">{r.endDate}</td>
+                  <td className="px-3 py-2.5 text-gray-800">{r.startDate}</td>
+                  <td className="px-3 py-2.5 text-gray-800">{r.endDate}</td>
                   <td className="px-3 py-2.5">
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${SHIFT_COLORS[r.shiftType] ?? "bg-gray-100 text-gray-600"}`}>
                       {SHIFT_LABELS[r.shiftType] ?? r.shiftType}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-right text-gray-700">{r.noOfArtisans}</td>
-                  <td className="px-3 py-2.5 text-right text-gray-700">{parseFloat(r.totalHours).toFixed(1)}</td>
-                  <td className="px-3 py-2.5 text-right text-gray-700">₹{parseFloat(r.hourlyRate).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-800">{r.noOfArtisans}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-800">{parseFloat(r.totalHours).toFixed(1)}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-800">₹{parseFloat(r.hourlyRate).toFixed(2)}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalRate).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 text-gray-400 text-[10px]">{r.createdBy}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-[10px]">{r.createdBy}</td>
                   <td className="px-3 py-2.5 text-right">
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Entry deleted" }),
@@ -2066,6 +2067,252 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
   );
 }
 
+// ─── Custom Charges Section ────────────────────────────────────────────────────
+const defaultCustomChargeForm = {
+  vendorId: "", vendorName: "", vendorQuery: "",
+  hsnId: "", hsnCode: "", gstPercentage: "", hsnQuery: "",
+  description: "", unitPrice: "", quantity: "1",
+};
+
+function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
+  const { toast } = useToast();
+  const { data: rows = [], isLoading } = useCustomCharges(swatchOrderId);
+  const createMutation = useCreateCustomCharge();
+  const deleteMutation = useDeleteCustomCharge();
+
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(defaultCustomChargeForm);
+  const [filterVendor, setFilterVendor] = useState("all");
+  const [showVendorDrop, setShowVendorDrop] = useState(false);
+  const [showHsnDrop, setShowHsnDrop] = useState(false);
+
+  const { data: vendorResults = [] } = useVendorSearch(form.vendorQuery);
+  const { data: hsnResults = [] } = useHsnSearch(form.hsnQuery);
+
+  const computedTotal = ((parseFloat(form.unitPrice) || 0) * (parseFloat(form.quantity) || 0)).toFixed(2);
+
+  function handleAdd() {
+    if (!form.vendorId || !form.hsnId || !form.description) {
+      toast({ title: "Vendor, HSN Code and Description are required", variant: "destructive" }); return;
+    }
+    createMutation.mutate({
+      swatchOrderId,
+      vendorId: parseInt(form.vendorId),
+      vendorName: form.vendorName,
+      hsnId: parseInt(form.hsnId),
+      hsnCode: form.hsnCode,
+      gstPercentage: form.gstPercentage || "5",
+      description: form.description,
+      unitPrice: form.unitPrice || "0",
+      quantity: form.quantity || "1",
+    }, {
+      onSuccess: () => { setShowModal(false); setForm(defaultCustomChargeForm); toast({ title: "Custom charge added" }); },
+      onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
+    });
+  }
+
+  const uniqueVendors = [...new Set(rows.map(r => r.vendorName))];
+  const filtered = filterVendor === "all" ? rows : rows.filter(r => r.vendorName === filterVendor);
+  const grandTotal = filtered.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <SectionHeader icon={<CreditCard className="h-4 w-4" />} title="Custom Charges">
+        <div className="flex items-center gap-2">
+          <select value={filterVendor} onChange={e => setFilterVendor(e.target.value)}
+            className="text-[10px] border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
+            <option value="all">All Vendors</option>
+            {uniqueVendors.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <button onClick={() => { setForm(defaultCustomChargeForm); setShowModal(true); }}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+            <Plus className="h-3.5 w-3.5" /> Add Charge
+          </button>
+        </div>
+      </SectionHeader>
+
+      {isLoading ? (
+        <div className="py-6 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" /></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[760px]">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Vendor</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">HSN</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">GST%</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Description</th>
+                <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Unit Price (₹)</th>
+                <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Qty</th>
+                <th className="text-right text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Total (₹)</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <EmptyRow text={rows.length === 0 ? "No custom charges yet." : "No charges for selected vendor."} />
+              ) : filtered.map(r => (
+                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40">
+                  <td className="px-3 py-2.5 font-medium text-gray-800">{r.vendorName}</td>
+                  <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.hsnCode}</td>
+                  <td className="px-3 py-2.5">
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{r.gstPercentage}%</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-800">{r.description}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-800">₹{parseFloat(r.unitPrice).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-800">{parseFloat(r.quantity).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalAmount).toFixed(2)}</td>
+                  <td className="px-3 py-2.5 text-right">
+                    <button onClick={() => deleteMutation.mutate(r.id, {
+                      onSuccess: () => toast({ title: "Charge deleted" }),
+                      onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {filtered.length > 0 && (
+              <tfoot>
+                <tr className="bg-gray-50 border-t border-gray-200">
+                  <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
+                  <td className="px-3 py-2 text-right font-bold text-amber-700">₹{grandTotal.toFixed(2)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-900">Add Custom Charge</h3>
+              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
+
+              {/* Vendor search */}
+              <div>
+                <label className="text-[10px] text-gray-500 font-medium">Vendor *</label>
+                <div className="relative mt-1">
+                  <input type="text" value={form.vendorId ? form.vendorName : form.vendorQuery}
+                    onChange={e => {
+                      if (form.vendorId) setForm(f => ({ ...f, vendorId: "", vendorName: "", vendorQuery: e.target.value }));
+                      else setForm(f => ({ ...f, vendorQuery: e.target.value }));
+                      setShowVendorDrop(true);
+                    }}
+                    onFocus={() => setShowVendorDrop(true)}
+                    placeholder="Search vendor by name or code..."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                  {form.vendorId && (
+                    <button onClick={() => setForm(f => ({ ...f, vendorId: "", vendorName: "", vendorQuery: "" }))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /></button>
+                  )}
+                  {showVendorDrop && !form.vendorId && vendorResults.length > 0 && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
+                      {vendorResults.map(v => (
+                        <button key={v.id} type="button"
+                          onClick={() => { setForm(f => ({ ...f, vendorId: String(v.id), vendorName: v.brandName, vendorQuery: "" })); setShowVendorDrop(false); }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                          <span className="font-medium text-gray-800">{v.brandName}</span>
+                          <span className="ml-2 text-gray-400 font-mono text-[10px]">{v.vendorCode}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* HSN search */}
+              <div>
+                <label className="text-[10px] text-gray-500 font-medium">HSN Code *</label>
+                <div className="relative mt-1">
+                  <input type="text" value={form.hsnId ? form.hsnCode : form.hsnQuery}
+                    onChange={e => {
+                      if (form.hsnId) setForm(f => ({ ...f, hsnId: "", hsnCode: "", gstPercentage: "", hsnQuery: e.target.value }));
+                      else setForm(f => ({ ...f, hsnQuery: e.target.value }));
+                      setShowHsnDrop(true);
+                    }}
+                    onFocus={() => setShowHsnDrop(true)}
+                    placeholder="Search HSN code or description..."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                  {form.hsnId && (
+                    <button onClick={() => setForm(f => ({ ...f, hsnId: "", hsnCode: "", gstPercentage: "", hsnQuery: "" }))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /></button>
+                  )}
+                  {showHsnDrop && !form.hsnId && hsnResults.length > 0 && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
+                      {hsnResults.map(h => (
+                        <button key={h.id} type="button"
+                          onClick={() => { setForm(f => ({ ...f, hsnId: String(h.id), hsnCode: h.hsnCode, gstPercentage: h.gstPercentage, hsnQuery: "" })); setShowHsnDrop(false); }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                          <span className="font-mono font-medium text-gray-800">{h.hsnCode}</span>
+                          <span className="ml-2 text-gray-400 text-[10px]">{h.govtDescription}</span>
+                          <span className="ml-1 text-blue-500 text-[10px] font-semibold">GST {h.gstPercentage}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* GST indicator */}
+              {form.hsnId && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-xs flex items-center gap-2">
+                  <span className="text-gray-500">GST from HSN {form.hsnCode}:</span>
+                  <span className="font-bold text-blue-700 text-sm">{form.gstPercentage}%</span>
+                </div>
+              )}
+
+              {/* Description */}
+              <div>
+                <label className="text-[10px] text-gray-500 font-medium">Description *</label>
+                <input type="text" value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  placeholder="e.g. Embroidery work, Thread charges..." />
+              </div>
+
+              {/* Unit price + quantity */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-gray-500 font-medium">Unit Price (₹)</label>
+                  <input type="number" min="0" step="any" value={form.unitPrice}
+                    onChange={e => setForm(f => ({ ...f, unitPrice: e.target.value }))}
+                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-500 font-medium">Quantity</label>
+                  <input type="number" min="0" step="any" value={form.quantity}
+                    onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
+                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" placeholder="1" />
+                </div>
+              </div>
+
+              {/* Total preview */}
+              <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
+                <span className="text-gray-500">Total Amount = {form.unitPrice || 0} × {form.quantity || 0}</span>
+                <span className="font-bold text-amber-700">₹{computedTotal}</span>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleAdd} disabled={createMutation.isPending}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-900 text-[#C9B45C] hover:bg-black disabled:opacity-50">
+                {createMutation.isPending ? "Saving…" : "Add Charge"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Costing Tab ─────────────────────────────────────────────────────────
 export default function CostingTab({
   swatchOrderId, orderCode, swatchName, clientName,
@@ -2083,6 +2330,7 @@ export default function CostingTab({
       <ConsumptionSection swatchOrderId={swatchOrderId} />
       <ArtisanTimesheetSection swatchOrderId={swatchOrderId} />
       <OutsourceJobSection swatchOrderId={swatchOrderId} />
+      <CustomChargesSection swatchOrderId={swatchOrderId} />
     </div>
   );
 }

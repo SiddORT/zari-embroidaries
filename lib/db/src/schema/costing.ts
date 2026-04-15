@@ -151,3 +151,22 @@ export const outsourceJobsTable = pgTable("outsource_jobs", {
 });
 
 export type OutsourceJobRecord = typeof outsourceJobsTable.$inferSelect;
+
+// ─── Custom Charges ───────────────────────────────────────────────────────────
+export const customChargesTable = pgTable("custom_charges", {
+  id: serial("id").primaryKey(),
+  swatchOrderId: integer("swatch_order_id").notNull(),
+  vendorId: integer("vendor_id").notNull(),
+  vendorName: text("vendor_name").notNull(),
+  hsnId: integer("hsn_id").notNull(),
+  hsnCode: text("hsn_code").notNull(),
+  gstPercentage: text("gst_percentage").notNull().default("5"),
+  description: text("description").notNull(),
+  unitPrice: text("unit_price").notNull().default("0"),
+  quantity: text("quantity").notNull().default("1"),
+  totalAmount: text("total_amount").notNull().default("0"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CustomChargeRecord = typeof customChargesTable.$inferSelect;

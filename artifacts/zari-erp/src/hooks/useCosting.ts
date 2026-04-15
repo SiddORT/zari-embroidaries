@@ -373,3 +373,44 @@ export function useDeleteOutsourceJob() {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["outsource-jobs"] }); },
   });
 }
+
+// ─── Custom Charges ───────────────────────────────────────────────────────────
+export interface CustomChargeRecord {
+  id: number;
+  swatchOrderId: number;
+  vendorId: number;
+  vendorName: string;
+  hsnId: number;
+  hsnCode: string;
+  gstPercentage: string;
+  description: string;
+  unitPrice: string;
+  quantity: string;
+  totalAmount: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export function useCustomCharges(swatchOrderId: number) {
+  return useQuery({
+    queryKey: ["custom-charges", swatchOrderId],
+    queryFn: () => customFetch<{ data: CustomChargeRecord[] }>(`/api/costing/custom-charges/${swatchOrderId}`).then(r => r.data),
+    enabled: !!swatchOrderId,
+  });
+}
+
+export function useCreateCustomCharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: CustomChargeRecord }>("/api/costing/custom-charges", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["custom-charges"] }); },
+  });
+}
+
+export function useDeleteCustomCharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/custom-charges/${id}`, { method: "DELETE" }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["custom-charges"] }); },
+  });
+}

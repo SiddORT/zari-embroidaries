@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
-  consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable,
+  consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable, customChargesTable,
   materialsTable, fabricsTable, vendorsTable, hsnTable,
 } from "@workspace/db/schema";
 import { eq, ilike, or, desc } from "drizzle-orm";
@@ -452,6 +452,44 @@ router.post("/outsource-jobs", requireAuth, async (req, res) => {
 
 router.delete("/outsource-jobs/:id", requireAuth, async (req, res) => {
   await db.delete(outsourceJobsTable).where(eq(outsourceJobsTable.id, Number(req.params.id)));
+  res.json({ success: true });
+});
+
+// ─── Custom Charges ───────────────────────────────────────────────────────────
+router.get("/custom-charges/:swatchOrderId", requireAuth, async (req, res) => {
+  const rows = await db.select().from(customChargesTable)
+    .where(eq(customChargesTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .orderBy(desc(customChargesTable.createdAt));
+  res.json({ data: rows });
+});
+
+router.post("/custom-charges", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const { swatchOrderId, vendorId, vendorName, hsnId, hsnCode, gstPercentage, description, unitPrice, quantity } = req.body;
+  if (!swatchOrderId || !vendorId || !hsnId || !description) {
+    res.status(400).json({ error: "swatchOrderId, vendorId, hsnId and description are required" }); return;
+  }
+  const unitPriceNum = parseFloat(unitPrice) || 0;
+  const quantityNum = parseFloat(quantity) || 1;
+  const totalAmount = (unitPriceNum * quantityNum).toFixed(2);
+  const [row] = await db.insert(customChargesTable).values({
+    swatchOrderId: Number(swatchOrderId),
+    vendorId: Number(vendorId),
+    vendorName: String(vendorName),
+    hsnId: Number(hsnId),
+    hsnCode: String(hsnCode),
+    gstPercentage: String(gstPercentage || "5"),
+    description: String(description),
+    unitPrice: String(unitPriceNum),
+    quantity: String(quantityNum),
+    totalAmount,
+    createdBy: user.email,
+  }).returning();
+  res.status(201).json({ data: row });
+});
+
+router.delete("/custom-charges/:id", requireAuth, async (req, res) => {
+  await db.delete(customChargesTable).where(eq(customChargesTable.id, Number(req.params.id)));
   res.json({ success: true });
 });
 
