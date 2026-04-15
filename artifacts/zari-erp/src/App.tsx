@@ -26,6 +26,7 @@ import AcceptInvite from "@/pages/AcceptInvite";
 import SwatchOrders from "@/pages/SwatchOrders";
 import SwatchOrderDetail from "@/pages/SwatchOrderDetail";
 import ArtworkDetail from "@/pages/ArtworkDetail";
+import ClientPortal from "@/pages/ClientPortal";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ function Router() {
       <Route path="/swatch-orders/:id" component={SwatchOrderDetail} />
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accept-invite" component={AcceptInvite} />
+      <Route path="/client/:token" component={ClientPortal} />
       <Route component={NotFound} />
     </Switch>
   );

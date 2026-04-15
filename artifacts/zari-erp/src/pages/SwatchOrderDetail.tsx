@@ -19,6 +19,7 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
 import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
+import ClientLinkTab from "@/pages/ClientLinkTab";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -1210,8 +1211,13 @@ export default function SwatchOrderDetail() {
           </div>
         )}
 
-        {/* ══ TABS 4–7: Coming Soon placeholders ══ */}
-        {activeTab >= 4 && (
+        {/* ══ TAB 6: Client Link ══ */}
+        {activeTab === 6 && numId && (
+          <ClientLinkTab swatchOrderId={numId} />
+        )}
+
+        {/* ══ TABS 4, 5, 7: Coming Soon placeholders ══ */}
+        {(activeTab === 4 || activeTab === 5 || activeTab === 7) && (
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">
               {TABS[activeTab].icon}
