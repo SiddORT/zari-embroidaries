@@ -457,7 +457,7 @@ export default function SwatchOrderDetail() {
           </SectionCard>
 
           {/* ── Row: Material + Planning side by side ── */}
-          <div className="grid grid-cols-2 gap-5 items-start">
+          <div className="grid grid-cols-2 gap-5">
 
             {/* ── Section 3: Material ── */}
             <SectionCard icon={<Scissors className="h-4 w-4 text-white" />} accentColor="bg-emerald-500"
@@ -475,31 +475,33 @@ export default function SwatchOrderDetail() {
                   </select>
                 </Field>
 
-                <Field label="Lining">
-                  <div className="flex items-center gap-3 pt-1.5">
-                    <button type="button" onClick={() => set("hasLining", !form.hasLining)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.hasLining ? "bg-emerald-500" : "bg-gray-200"}`}>
-                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.hasLining ? "translate-x-6" : "translate-x-1"}`} />
-                    </button>
-                    <span className={`text-sm font-medium ${form.hasLining ? "text-emerald-600" : "text-gray-400"}`}>
-                      {form.hasLining ? "Yes" : "No"}
-                    </span>
-                  </div>
-                </Field>
-
-                {form.hasLining && (
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <Field label="Lining">
+                    <div className="flex items-center gap-3 pt-1.5">
+                      <button type="button" onClick={() => set("hasLining", !form.hasLining)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.hasLining ? "bg-emerald-500" : "bg-gray-200"}`}>
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.hasLining ? "translate-x-6" : "translate-x-1"}`} />
+                      </button>
+                      <span className={`text-sm font-medium ${form.hasLining ? "text-emerald-600" : "text-gray-400"}`}>
+                        {form.hasLining ? "Yes" : "No"}
+                      </span>
+                    </div>
+                  </Field>
                   <Field label="Lining Fabric">
-                    <select className={selectCls} value={form.liningFabricId}
+                    <select
+                      className={`${selectCls} ${!form.hasLining ? "opacity-40 cursor-not-allowed" : ""}`}
+                      value={form.liningFabricId}
+                      disabled={!form.hasLining}
                       onChange={e => {
                         const f = fabrics.find(f => String(f.id) === e.target.value);
                         set("liningFabricId", e.target.value);
                         set("liningFabricName", f ? `${f.fabricType} – ${f.quality}` : "");
                       }}>
-                      <option value="">— Select lining fabric —</option>
+                      <option value="">— Select fabric —</option>
                       {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
                     </select>
                   </Field>
-                )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Length">

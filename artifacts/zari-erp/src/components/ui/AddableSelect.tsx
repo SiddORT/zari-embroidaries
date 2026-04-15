@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Check, Plus, Search } from "lucide-react";
 
 interface Option {
@@ -32,6 +33,7 @@ export default function AddableSelect({
 }: AddableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [dropdownStyle, setDropdownStyle] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -44,17 +46,40 @@ export default function AddableSelect({
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery("");
+      const target = e.target as Node;
+      if (containerRef.current && !containerRef.current.contains(target)) {
+        const dropdown = document.getElementById("addable-select-dropdown");
+        if (!dropdown || !dropdown.contains(target)) {
+          setOpen(false);
+          setQuery("");
+        }
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownStyle({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
   function handleOpen() {
     if (disabled) return;
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setDropdownStyle({ top: rect.bottom + 6, left: rect.left, width: rect.width });
     setOpen(true);
     setQuery("");
     setTimeout(() => inputRef.current?.focus(), 10);
@@ -81,7 +106,6 @@ export default function AddableSelect({
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1" ref={containerRef}>
-          {/* Display / search input */}
           {open ? (
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
@@ -114,33 +138,8 @@ export default function AddableSelect({
               )}
             </button>
           )}
-
-          {/* Dropdown */}
-          {open && (
-            <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-              <ul className="max-h-52 overflow-y-auto py-1">
-                {filtered.length === 0 && (
-                  <li className="px-4 py-2.5 text-sm text-gray-400 italic">No results</li>
-                )}
-                {filtered.map((opt) => (
-                  <li key={opt.value}>
-                    <button
-                      type="button"
-                      onClick={() => handleSelect(opt)}
-                      className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors
-                        ${value === opt.value ? "bg-gray-50 text-gray-900 font-medium" : "text-gray-700 hover:bg-gray-50"}`}
-                    >
-                      {value === opt.value && <Check className="h-3.5 w-3.5 text-gray-900 shrink-0" />}
-                      <span className={value === opt.value ? "" : "ml-5"}>{opt.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
-        {/* + button */}
         {onAdd && (
           <button
             type="button"
@@ -155,6 +154,34 @@ export default function AddableSelect({
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
+
+      {open && createPortal(
+        <div
+          id="addable-select-dropdown"
+          style={{ position: "fixed", top: dropdownStyle.top, left: dropdownStyle.left, width: dropdownStyle.width, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+        >
+          <ul className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 && (
+              <li className="px-4 py-2.5 text-sm text-gray-400 italic">No results</li>
+            )}
+            {filtered.map((opt) => (
+              <li key={opt.value}>
+                <button
+                  type="button"
+                  onClick={() => handleSelect(opt)}
+                  className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left transition-colors
+                    ${value === opt.value ? "bg-gray-50 text-gray-900 font-medium" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  {value === opt.value && <Check className="h-3.5 w-3.5 text-gray-900 shrink-0" />}
+                  <span className={value === opt.value ? "" : "ml-5"}>{opt.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
