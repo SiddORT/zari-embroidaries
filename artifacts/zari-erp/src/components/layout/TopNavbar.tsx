@@ -24,6 +24,7 @@ const MASTERS_ITEMS = [
 
 const OTHER_ORDERS_ITEMS = [
   { label: "Swatch Orders", href: "/swatch-orders" },
+  { label: "Style Orders",  href: "/style-orders" },
 ];
 
 const TOP_LINKS = [
