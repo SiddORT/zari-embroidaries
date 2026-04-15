@@ -12,7 +12,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import { useSwatchOrder, useCreateSwatchOrder, useUpdateSwatchOrder, type ReferenceItem, type FileAttachment } from "@/hooks/useSwatchOrders";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 import { useAllFabrics, type FabricRecord } from "@/hooks/useFabrics";
-import { useUnitTypes, type LookupRecord } from "@/hooks/useLookups";
+import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
+import AddableSelect from "@/components/ui/AddableSelect";
 import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
 import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 
@@ -215,15 +216,21 @@ export default function SwatchOrderDetail() {
   const { data: stylesData } = useStyleList({ search: "", status: "active", client: "", location: "", page: 1, limit: 200 });
   const { data: swatchesData } = useSwatchList({ search: "", status: "active", client: "", location: "", swatchCategory: "", page: 1, limit: 200 });
 
+  const createUnitType = useCreateUnitType();
+
   const clients: ClientRecord[] = clientsData ?? [];
   const fabrics: FabricRecord[] = fabricsData ?? [];
   const unitTypes: LookupRecord[] = unitTypesData ?? [];
   const styles: StyleRecord[] = stylesData?.data ?? [];
   const swatches: SwatchRecord[] = swatchesData?.data ?? [];
 
+  const unitTypeOptions = unitTypes.filter(t => t.isActive).map(t => ({ value: t.name, label: t.name }));
+
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
   const [saving, setSaving] = useState(false);
+  const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
+  const [newUnitTypeName, setNewUnitTypeName] = useState("");
 
   useEffect(() => {
     if (orderData?.data) {
@@ -300,6 +307,17 @@ export default function SwatchOrderDetail() {
     }
   }
 
+  async function handleAddUnitType() {
+    if (!newUnitTypeName.trim()) return;
+    try {
+      await createUnitType.mutateAsync({ name: newUnitTypeName.trim() });
+      set("unitType", newUnitTypeName.trim());
+      setAddUnitTypeOpen(false);
+    } catch {
+      toast({ title: "Failed to add unit type", variant: "destructive" });
+    }
+  }
+
   function handleLogout() {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
@@ -322,11 +340,11 @@ export default function SwatchOrderDetail() {
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <div className="max-w-6xl mx-auto pb-12">
 
         {/* ── Sticky Header ── */}
         <div className="sticky top-0 z-20 -mx-6 px-6 py-3 bg-[#f8f9fb]/95 backdrop-blur border-b border-gray-200">
-          <div className="max-w-4xl mx-auto flex items-center gap-4">
+          <div className="max-w-6xl mx-auto flex items-center gap-4">
             <button onClick={() => setLocation("/swatch-orders")}
               className="p-2 rounded-xl hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
               <ArrowLeft className="h-4 w-4" />
@@ -368,348 +386,382 @@ export default function SwatchOrderDetail() {
           </div>
         </div>
 
-        {/* ── Section 1: Identity ── */}
-        <SectionCard icon={<User className="h-4 w-4 text-white" />} accentColor="bg-violet-500"
-          title="Identity" subtitle="Core details of this swatch order">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Swatch Name *">
-              <input className={inputCls} placeholder="e.g. Ivory Silk Embroidery – Spring 2026"
-                value={form.swatchName} onChange={e => set("swatchName", e.target.value)} />
-            </Field>
+        <div className="mt-5 space-y-5">
 
-            <Field label="Client">
-              <select className={selectCls} value={form.clientId}
-                onChange={e => {
-                  const c = clients.find(c => String(c.id) === e.target.value);
-                  set("clientId", e.target.value);
-                  set("clientName", c?.brandName ?? "");
-                }}>
-                <option value="">— Select client —</option>
-                {clients.map(c => <option key={c.id} value={String(c.id)}>{c.brandName}</option>)}
-              </select>
-            </Field>
-
-            {selectedClient && (
-              <div className="col-span-2 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 rounded-xl p-4">
-                <div className="grid grid-cols-3 gap-3 text-xs">
-                  <div><p className="text-gray-400 mb-0.5">Contact</p><p className="font-medium text-gray-800">{selectedClient.contactName}</p></div>
-                  <div><p className="text-gray-400 mb-0.5">Email</p><p className="font-medium text-gray-800">{selectedClient.email}</p></div>
-                  <div><p className="text-gray-400 mb-0.5">Phone</p><p className="font-medium text-gray-800">{selectedClient.contactNo}</p></div>
-                  {selectedClient.country && <div><p className="text-gray-400 mb-0.5">Country</p><p className="font-medium text-gray-800">{selectedClient.country}</p></div>}
-                </div>
-              </div>
-            )}
-
-            <Field label="Quantity">
-              <input className={inputCls} type="number" min="0" placeholder="e.g. 10"
-                value={form.quantity} onChange={e => set("quantity", e.target.value)} />
-            </Field>
-
-            <Field label="Chargeable Swatch" hint="Enable if this swatch requires a client invoice">
-              <div className="flex items-center gap-3 pt-1.5">
-                <button
-                  type="button"
-                  onClick={() => set("isChargeable", !form.isChargeable)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.isChargeable ? "bg-emerald-500" : "bg-gray-200"}`}>
-                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isChargeable ? "translate-x-6" : "translate-x-1"}`} />
-                </button>
-                <span className={`text-sm font-medium ${form.isChargeable ? "text-emerald-600" : "text-gray-400"}`}>
-                  {form.isChargeable ? "Yes — Invoice will be generated" : "No — Non-billable"}
-                </span>
-              </div>
-            </Field>
-
-            <div className="col-span-2">
-              <Field label="Priority">
-                <div className="flex gap-2 mt-1">
-                  {PRIORITIES.map(p => (
-                    <button key={p} type="button" onClick={() => set("priority", p)}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ring-1 ${
-                        form.priority === p
-                          ? `${PRIORITY_STYLES[p]} ring-2`
-                          : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
-                      }`}>
-                      {p}
-                    </button>
-                  ))}
-                </div>
+          {/* ── Section 1: Identity — full width ── */}
+          <SectionCard icon={<User className="h-4 w-4 text-white" />} accentColor="bg-violet-500"
+            title="Identity" subtitle="Core details of this swatch order">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Swatch Name *">
+                <input className={inputCls} placeholder="e.g. Ivory Silk Embroidery – Spring 2026"
+                  value={form.swatchName} onChange={e => set("swatchName", e.target.value)} />
               </Field>
-            </div>
-          </div>
-        </SectionCard>
 
-        {/* ── Section 2: References ── */}
-        <SectionCard icon={<Layers className="h-4 w-4 text-white" />} accentColor="bg-blue-500"
-          title="References" subtitle="Link related styles and swatches, add remarks for each">
-          <div className="space-y-4">
-            {/* Style References */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Style References</span>
-                <button onClick={addStyleRef}
-                  className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
-                  <Plus className="h-3.5 w-3.5" /> Add Style
-                </button>
-              </div>
-              {form.styleReferences.length === 0 ? (
-                <div className="text-xs text-gray-400 py-3 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">No style references added</div>
-              ) : (
-                <div className="space-y-2">
-                  {form.styleReferences.map((ref, i) => (
-                    <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                      <div className="flex-1 grid grid-cols-2 gap-2">
-                        <select className={selectCls} value={ref.id}
-                          onChange={e => {
-                            const s = styles.find(s => String(s.id) === e.target.value);
-                            updateRef("style", i, "id", e.target.value);
-                            updateRef("style", i, "label", s ? `${s.styleNo} – ${s.client}` : "");
-                          }}>
-                          <option value="">— Select style —</option>
-                          {styles.map(s => <option key={s.id} value={String(s.id)}>{s.styleNo} – {s.client}</option>)}
-                        </select>
-                        <input className={inputCls} placeholder="Remark…" value={ref.remark}
-                          onChange={e => updateRef("style", i, "remark", e.target.value)} />
-                      </div>
-                      <button onClick={() => removeRef("style", i)} className="p-1.5 text-gray-400 hover:text-red-500 mt-0.5">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-gray-100" />
-
-            {/* Swatch References */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Swatch References</span>
-                <button onClick={addSwatchRef}
-                  className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
-                  <Plus className="h-3.5 w-3.5" /> Add Swatch
-                </button>
-              </div>
-              {form.swatchReferences.length === 0 ? (
-                <div className="text-xs text-gray-400 py-3 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">No swatch references added</div>
-              ) : (
-                <div className="space-y-2">
-                  {form.swatchReferences.map((ref, i) => (
-                    <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                      <div className="flex-1 grid grid-cols-2 gap-2">
-                        <select className={selectCls} value={ref.id}
-                          onChange={e => {
-                            const s = swatches.find(s => String(s.id) === e.target.value);
-                            updateRef("swatch", i, "id", e.target.value);
-                            updateRef("swatch", i, "label", s?.swatchName ?? "");
-                          }}>
-                          <option value="">— Select swatch —</option>
-                          {swatches.map(s => <option key={s.id} value={String(s.id)}>{s.swatchCode} – {s.swatchName}</option>)}
-                        </select>
-                        <input className={inputCls} placeholder="Remark…" value={ref.remark}
-                          onChange={e => updateRef("swatch", i, "remark", e.target.value)} />
-                      </div>
-                      <button onClick={() => removeRef("swatch", i)} className="p-1.5 text-gray-400 hover:text-red-500 mt-0.5">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </SectionCard>
-
-        {/* ── Section 3: Material ── */}
-        <SectionCard icon={<Scissors className="h-4 w-4 text-white" />} accentColor="bg-emerald-500"
-          title="Material" subtitle="Fabric specifications and unit sizing">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Fabric">
-              <select className={selectCls} value={form.fabricId}
-                onChange={e => {
-                  const f = fabrics.find(f => String(f.id) === e.target.value);
-                  set("fabricId", e.target.value);
-                  set("fabricName", f ? `${f.fabricType} – ${f.quality}` : "");
-                }}>
-                <option value="">— Select fabric —</option>
-                {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
-              </select>
-            </Field>
-
-            <Field label="Lining">
-              <div className="flex items-center gap-3 pt-1.5">
-                <button type="button" onClick={() => set("hasLining", !form.hasLining)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.hasLining ? "bg-emerald-500" : "bg-gray-200"}`}>
-                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.hasLining ? "translate-x-6" : "translate-x-1"}`} />
-                </button>
-                <span className={`text-sm font-medium ${form.hasLining ? "text-emerald-600" : "text-gray-400"}`}>
-                  {form.hasLining ? "Yes" : "No"}
-                </span>
-              </div>
-            </Field>
-
-            {form.hasLining && (
-              <Field label="Lining Fabric">
-                <select className={selectCls} value={form.liningFabricId}
+              <Field label="Client">
+                <select className={selectCls} value={form.clientId}
                   onChange={e => {
-                    const f = fabrics.find(f => String(f.id) === e.target.value);
-                    set("liningFabricId", e.target.value);
-                    set("liningFabricName", f ? `${f.fabricType} – ${f.quality}` : "");
+                    const c = clients.find(c => String(c.id) === e.target.value);
+                    set("clientId", e.target.value);
+                    set("clientName", c?.brandName ?? "");
                   }}>
-                  <option value="">— Select lining fabric —</option>
-                  {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
+                  <option value="">— Select client —</option>
+                  {clients.map(c => <option key={c.id} value={String(c.id)}>{c.brandName}</option>)}
                 </select>
               </Field>
-            )}
 
-            <div className="col-span-2">
-              <Field label="Unit Size (Length × Width)">
-                <div className="flex gap-2">
-                  <input className={inputCls} placeholder="Length" type="number" min="0"
-                    value={form.unitLength} onChange={e => set("unitLength", e.target.value)} />
-                  <span className="flex items-center text-gray-400 font-bold px-1">×</span>
-                  <input className={inputCls} placeholder="Width" type="number" min="0"
-                    value={form.unitWidth} onChange={e => set("unitWidth", e.target.value)} />
-                  <select className={`${selectCls} max-w-[140px]`} value={form.unitType} onChange={e => set("unitType", e.target.value)}>
-                    <option value="">Unit</option>
-                    {unitTypes.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                  </select>
+              {selectedClient && (
+                <div className="col-span-2 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 rounded-xl p-4">
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div><p className="text-gray-400 mb-0.5">Contact</p><p className="font-medium text-gray-800">{selectedClient.contactName}</p></div>
+                    <div><p className="text-gray-400 mb-0.5">Email</p><p className="font-medium text-gray-800">{selectedClient.email}</p></div>
+                    <div><p className="text-gray-400 mb-0.5">Phone</p><p className="font-medium text-gray-800">{selectedClient.contactNo}</p></div>
+                    {selectedClient.country && <div><p className="text-gray-400 mb-0.5">Country</p><p className="font-medium text-gray-800">{selectedClient.country}</p></div>}
+                  </div>
+                </div>
+              )}
+
+              <Field label="Quantity">
+                <input className={inputCls} type="number" min="0" placeholder="e.g. 10"
+                  value={form.quantity} onChange={e => set("quantity", e.target.value)} />
+              </Field>
+
+              <Field label="Chargeable Swatch" hint="Enable if this swatch requires a client invoice">
+                <div className="flex items-center gap-3 pt-1.5">
+                  <button type="button" onClick={() => set("isChargeable", !form.isChargeable)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.isChargeable ? "bg-emerald-500" : "bg-gray-200"}`}>
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isChargeable ? "translate-x-6" : "translate-x-1"}`} />
+                  </button>
+                  <span className={`text-sm font-medium ${form.isChargeable ? "text-emerald-600" : "text-gray-400"}`}>
+                    {form.isChargeable ? "Yes — Invoice will be generated" : "No — Non-billable"}
+                  </span>
                 </div>
               </Field>
+
+              <div className="col-span-2">
+                <Field label="Priority">
+                  <div className="flex gap-2 mt-1">
+                    {PRIORITIES.map(p => (
+                      <button key={p} type="button" onClick={() => set("priority", p)}
+                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ring-1 ${
+                          form.priority === p
+                            ? `${PRIORITY_STYLES[p]} ring-2`
+                            : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
+                        }`}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
             </div>
+          </SectionCard>
+
+          {/* ── Row: Material + Planning side by side ── */}
+          <div className="grid grid-cols-2 gap-5 items-start">
+
+            {/* ── Section 3: Material ── */}
+            <SectionCard icon={<Scissors className="h-4 w-4 text-white" />} accentColor="bg-emerald-500"
+              title="Material" subtitle="Fabric specifications and unit sizing">
+              <div className="space-y-4">
+                <Field label="Fabric">
+                  <select className={selectCls} value={form.fabricId}
+                    onChange={e => {
+                      const f = fabrics.find(f => String(f.id) === e.target.value);
+                      set("fabricId", e.target.value);
+                      set("fabricName", f ? `${f.fabricType} – ${f.quality}` : "");
+                    }}>
+                    <option value="">— Select fabric —</option>
+                    {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
+                  </select>
+                </Field>
+
+                <Field label="Lining">
+                  <div className="flex items-center gap-3 pt-1.5">
+                    <button type="button" onClick={() => set("hasLining", !form.hasLining)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.hasLining ? "bg-emerald-500" : "bg-gray-200"}`}>
+                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.hasLining ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                    <span className={`text-sm font-medium ${form.hasLining ? "text-emerald-600" : "text-gray-400"}`}>
+                      {form.hasLining ? "Yes" : "No"}
+                    </span>
+                  </div>
+                </Field>
+
+                {form.hasLining && (
+                  <Field label="Lining Fabric">
+                    <select className={selectCls} value={form.liningFabricId}
+                      onChange={e => {
+                        const f = fabrics.find(f => String(f.id) === e.target.value);
+                        set("liningFabricId", e.target.value);
+                        set("liningFabricName", f ? `${f.fabricType} – ${f.quality}` : "");
+                      }}>
+                      <option value="">— Select lining fabric —</option>
+                      {fabrics.map(f => <option key={f.id} value={String(f.id)}>{f.fabricCode} — {f.fabricType} {f.quality}</option>)}
+                    </select>
+                  </Field>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Length">
+                    <input className={inputCls} placeholder="Length" type="number" min="0"
+                      value={form.unitLength} onChange={e => set("unitLength", e.target.value)} />
+                  </Field>
+                  <Field label="Width">
+                    <input className={inputCls} placeholder="Width" type="number" min="0"
+                      value={form.unitWidth} onChange={e => set("unitWidth", e.target.value)} />
+                  </Field>
+                </div>
+
+                <AddableSelect
+                  label="Unit Type"
+                  value={form.unitType}
+                  onChange={v => set("unitType", v)}
+                  onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
+                  options={unitTypeOptions}
+                  placeholder="Select Unit Type"
+                />
+              </div>
+            </SectionCard>
+
+            {/* ── Section 4: Planning ── */}
+            <SectionCard icon={<CalendarDays className="h-4 w-4 text-white" />} accentColor="bg-orange-500"
+              title="Planning" subtitle="Dates, timing and assignment details">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Order Issue Date">
+                    <input type="date" className={inputCls} value={form.orderIssueDate} onChange={e => set("orderIssueDate", e.target.value)} />
+                  </Field>
+                  <Field label="Delivery Date">
+                    <input type="date" className={inputCls} value={form.deliveryDate} onChange={e => set("deliveryDate", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Target Hours" hint="Estimated production hours">
+                    <input type="number" min="0" step="0.5" className={inputCls} placeholder="e.g. 8"
+                      value={form.targetHours} onChange={e => set("targetHours", e.target.value)} />
+                  </Field>
+                  <Field label="Department">
+                    <select className={selectCls} value={form.department} onChange={e => set("department", e.target.value)}>
+                      <option value="">— Select department —</option>
+                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Issued To">
+                  <input className={inputCls} placeholder="Artisan / Team member name"
+                    value={form.issuedTo} onChange={e => set("issuedTo", e.target.value)} />
+                </Field>
+              </div>
+            </SectionCard>
           </div>
-        </SectionCard>
 
-        {/* ── Section 4: Planning ── */}
-        <SectionCard icon={<CalendarDays className="h-4 w-4 text-white" />} accentColor="bg-orange-500"
-          title="Planning" subtitle="Dates, timing and assignment details">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Order Issue Date">
-              <input type="date" className={inputCls} value={form.orderIssueDate} onChange={e => set("orderIssueDate", e.target.value)} />
-            </Field>
-            <Field label="Delivery Date">
-              <input type="date" className={inputCls} value={form.deliveryDate} onChange={e => set("deliveryDate", e.target.value)} />
-            </Field>
-            <Field label="Target Hours" hint="Estimated production hours for this swatch">
-              <input type="number" min="0" step="0.5" className={inputCls} placeholder="e.g. 8"
-                value={form.targetHours} onChange={e => set("targetHours", e.target.value)} />
-            </Field>
-            <Field label="Issued To">
-              <input className={inputCls} placeholder="Artisan / Team member name"
-                value={form.issuedTo} onChange={e => set("issuedTo", e.target.value)} />
-            </Field>
-            <Field label="Department">
-              <select className={selectCls} value={form.department} onChange={e => set("department", e.target.value)}>
-                <option value="">— Select department —</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
-          </div>
-        </SectionCard>
-
-        {/* ── Section 5: Notes ── */}
-        <SectionCard icon={<MessageSquare className="h-4 w-4 text-white" />} accentColor="bg-indigo-500"
-          title="Notes" subtitle="Description, internal remarks and client instructions">
-          <div className="grid grid-cols-1 gap-4">
-            <Field label="Description">
-              <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Brief description of the swatch order…"
-                value={form.description} onChange={e => set("description", e.target.value)} />
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
-                <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
-                  value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
-              </Field>
-              <Field label="Client Instructions">
-                <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
-                  value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
-              </Field>
-            </div>
-          </div>
-        </SectionCard>
-
-        {/* ── Section 6: Attachments ── */}
-        <SectionCard icon={<Paperclip className="h-4 w-4 text-white" />} accentColor="bg-teal-500"
-          title="Attachments" subtitle="Upload reference documents and images">
-          <div className="grid grid-cols-2 gap-6">
-            <Field label="Reference Documents">
-              <FileUploadZone
-                files={form.refDocs} onChange={files => set("refDocs", files)}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
-                icon={<FileText className="h-5 w-5" />}
-                label="Upload Documents"
-              />
-            </Field>
-            <Field label="Reference Images">
-              <FileUploadZone
-                files={form.refImages} onChange={files => set("refImages", files)}
-                accept="image/*"
-                icon={<ImageIcon className="h-5 w-5" />}
-                label="Upload Images"
-              />
-            </Field>
-          </div>
-        </SectionCard>
-
-        {/* ── Section 7: Completion Tracking ── */}
-        <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-white" />} accentColor="bg-rose-500"
-          title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Actual Start Date">
-              <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
-            </Field>
-            <Field label="Actual Start Time">
-              <input type="time" className={inputCls} value={form.actualStartTime} onChange={e => set("actualStartTime", e.target.value)} />
-            </Field>
-            <Field label="Tentative Delivery Date">
-              <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
-            </Field>
-            <Field label="Approval Date">
-              <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
-            </Field>
-            <Field label="Actual Completion Date">
-              <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
-            </Field>
-            <Field label="Actual Completion Time">
-              <input type="time" className={inputCls} value={form.actualCompletionTime} onChange={e => set("actualCompletionTime", e.target.value)} />
-            </Field>
-
-            <Field label="Revision Count" hint="Number of revisions this order has gone through">
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
-                  className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
-                <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
-                <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
-                  className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
-                {form.revisionCount > 0 && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                    {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
-                  </span>
+          {/* ── Section 2: References — full width ── */}
+          <SectionCard icon={<Layers className="h-4 w-4 text-white" />} accentColor="bg-blue-500"
+            title="References" subtitle="Link related styles and swatches, add remarks for each">
+            <div className="grid grid-cols-2 gap-6">
+              {/* Style References */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Style References</span>
+                  <button onClick={addStyleRef}
+                    className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                    <Plus className="h-3.5 w-3.5" /> Add Style
+                  </button>
+                </div>
+                {form.styleReferences.length === 0 ? (
+                  <div className="text-xs text-gray-400 py-3 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">No style references added</div>
+                ) : (
+                  <div className="space-y-2">
+                    {form.styleReferences.map((ref, i) => (
+                      <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                        <div className="flex-1 space-y-2">
+                          <select className={selectCls} value={ref.id}
+                            onChange={e => {
+                              const s = styles.find(s => String(s.id) === e.target.value);
+                              updateRef("style", i, "id", e.target.value);
+                              updateRef("style", i, "label", s ? `${s.styleNo} – ${s.client}` : "");
+                            }}>
+                            <option value="">— Select style —</option>
+                            {styles.map(s => <option key={s.id} value={String(s.id)}>{s.styleNo} – {s.client}</option>)}
+                          </select>
+                          <input className={inputCls} placeholder="Remark…" value={ref.remark}
+                            onChange={e => updateRef("style", i, "remark", e.target.value)} />
+                        </div>
+                        <button onClick={() => removeRef("style", i)} className="p-1.5 text-gray-400 hover:text-red-500 mt-0.5">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </Field>
 
-            <div className="col-span-2">
-              <Field label="Delay Reason" hint="Explain if the order was delayed beyond the delivery date">
-                <textarea rows={2} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
-                  value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
+              {/* Swatch References */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Swatch References</span>
+                  <button onClick={addSwatchRef}
+                    className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                    <Plus className="h-3.5 w-3.5" /> Add Swatch
+                  </button>
+                </div>
+                {form.swatchReferences.length === 0 ? (
+                  <div className="text-xs text-gray-400 py-3 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">No swatch references added</div>
+                ) : (
+                  <div className="space-y-2">
+                    {form.swatchReferences.map((ref, i) => (
+                      <div key={i} className="flex gap-2 items-start p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                        <div className="flex-1 space-y-2">
+                          <select className={selectCls} value={ref.id}
+                            onChange={e => {
+                              const s = swatches.find(s => String(s.id) === e.target.value);
+                              updateRef("swatch", i, "id", e.target.value);
+                              updateRef("swatch", i, "label", s?.swatchName ?? "");
+                            }}>
+                            <option value="">— Select swatch —</option>
+                            {swatches.map(s => <option key={s.id} value={String(s.id)}>{s.swatchCode} – {s.swatchName}</option>)}
+                          </select>
+                          <input className={inputCls} placeholder="Remark…" value={ref.remark}
+                            onChange={e => updateRef("swatch", i, "remark", e.target.value)} />
+                        </div>
+                        <button onClick={() => removeRef("swatch", i)} className="p-1.5 text-gray-400 hover:text-red-500 mt-0.5">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* ── Row: Notes + Completion Tracking side by side ── */}
+          <div className="grid grid-cols-2 gap-5 items-start">
+
+            {/* ── Section 5: Notes ── */}
+            <SectionCard icon={<MessageSquare className="h-4 w-4 text-white" />} accentColor="bg-indigo-500"
+              title="Notes" subtitle="Description, internal remarks and client instructions">
+              <div className="space-y-4">
+                <Field label="Description">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Brief description of the swatch order…"
+                    value={form.description} onChange={e => set("description", e.target.value)} />
+                </Field>
+                <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
+                    value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
+                </Field>
+                <Field label="Client Instructions">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
+                    value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
+                </Field>
+              </div>
+            </SectionCard>
+
+            {/* ── Section 7: Completion Tracking ── */}
+            <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-white" />} accentColor="bg-rose-500"
+              title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Actual Start Date">
+                    <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
+                  </Field>
+                  <Field label="Actual Completion Date">
+                    <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Tentative Delivery Date">
+                    <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
+                  </Field>
+                  <Field label="Approval Date">
+                    <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Revision Count" hint="Number of revisions this order has gone through">
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
+                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
+                    <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
+                    <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
+                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
+                    {form.revisionCount > 0 && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                        {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+                <Field label="Delay Reason" hint="Explain if the order was delayed beyond the delivery date">
+                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
+                    value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
+                </Field>
+              </div>
+            </SectionCard>
+          </div>
+
+          {/* ── Section 6: Attachments — full width ── */}
+          <SectionCard icon={<Paperclip className="h-4 w-4 text-white" />} accentColor="bg-teal-500"
+            title="Attachments" subtitle="Upload reference documents and images">
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="Reference Documents">
+                <FileUploadZone
+                  files={form.refDocs} onChange={files => set("refDocs", files)}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  icon={<FileText className="h-5 w-5" />}
+                  label="Upload Documents"
+                />
+              </Field>
+              <Field label="Reference Images">
+                <FileUploadZone
+                  files={form.refImages} onChange={files => set("refImages", files)}
+                  accept="image/*"
+                  icon={<ImageIcon className="h-5 w-5" />}
+                  label="Upload Images"
+                />
               </Field>
             </div>
-          </div>
-        </SectionCard>
+          </SectionCard>
 
-        {/* Bottom Save */}
-        <div className="flex justify-end gap-3 pt-2">
-          <button onClick={() => setLocation("/swatch-orders")}
-            className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
-            Cancel
-          </button>
-          <button onClick={() => { void handleSave(); }} disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
-          </button>
+          {/* Bottom Save */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setLocation("/swatch-orders")}
+              className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => { void handleSave(); }} disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
+            </button>
+          </div>
         </div>
+
+        {/* Add Unit Type Modal */}
+        {addUnitTypeOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Add Unit Type</h3>
+              <input
+                autoFocus
+                className={inputCls}
+                placeholder="e.g. cm, inch, meter"
+                value={newUnitTypeName}
+                onChange={e => setNewUnitTypeName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { void handleAddUnitType(); } }}
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setAddUnitTypeOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={() => { void handleAddUnitType(); }} disabled={!newUnitTypeName.trim() || createUnitType.isPending}
+                  className="px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60">
+                  {createUnitType.isPending ? "Adding…" : "Add"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
