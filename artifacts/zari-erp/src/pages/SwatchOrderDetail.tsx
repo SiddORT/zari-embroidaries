@@ -16,6 +16,7 @@ import { useAllFabrics, type FabricRecord } from "@/hooks/useFabrics";
 import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
 import AddableSelect from "@/components/ui/AddableSelect";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import ImageLightbox from "@/components/ui/ImageLightbox";
 import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
 import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 
@@ -266,6 +267,7 @@ export default function SwatchOrderDetail() {
   const [artworkToDelete, setArtworkToDelete] = useState<number | null>(null);
   const [imgUploadTarget, setImgUploadTarget] = useState<{ artId: number; type: "wip" | "final" } | null>(null);
   const artImgInputRef = useRef<HTMLInputElement>(null);
+  const [lightbox, setLightbox] = useState<{ images: ArtFileAttachment[]; index: number } | null>(null);
 
   const deleteArtwork = useDeleteArtwork();
   const updateArtwork = useUpdateArtwork();
@@ -893,7 +895,7 @@ export default function SwatchOrderDetail() {
                               src={art.finalImages[0].data}
                               alt="Final"
                               className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
-                              onClick={() => window.open(art.finalImages[0].data, "_blank")}
+                              onClick={e => { e.stopPropagation(); setLightbox({ images: art.finalImages ?? [], index: 0 }); }}
                             />
                           ) : (
                             <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
@@ -958,7 +960,7 @@ export default function SwatchOrderDetail() {
                                 <img key={idx} src={img.data} alt={img.name}
                                   className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
                                   title={img.name}
-                                  onClick={() => window.open(img.data, "_blank")}
+                                  onClick={e => { e.stopPropagation(); setLightbox({ images: art.wipImages ?? [], index: idx }); }}
                                 />
                               ))}
                               <button
@@ -985,7 +987,7 @@ export default function SwatchOrderDetail() {
                                 <img key={idx} src={img.data} alt={img.name}
                                   className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
                                   title={img.name}
-                                  onClick={() => window.open(img.data, "_blank")}
+                                  onClick={e => { e.stopPropagation(); setLightbox({ images: art.finalImages ?? [], index: idx }); }}
                                 />
                               ))}
                               <button
@@ -1040,6 +1042,15 @@ export default function SwatchOrderDetail() {
           className="hidden"
           onChange={handleArtworkImageFiles}
         />
+
+        {/* Image Lightbox */}
+        {lightbox && (
+          <ImageLightbox
+            images={lightbox.images}
+            startIndex={lightbox.index}
+            onClose={() => setLightbox(null)}
+          />
+        )}
 
         {/* Delete Artwork Confirmation Modal */}
         {artworkToDelete !== null && (

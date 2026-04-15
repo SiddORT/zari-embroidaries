@@ -9,6 +9,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { useArtwork, useCreateArtwork, useUpdateArtwork, type FileAttachment } from "@/hooks/useArtworks";
 import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useLookups";
 import AddableSelect from "@/components/ui/AddableSelect";
+import ImageLightbox from "@/components/ui/ImageLightbox";
 
 const FEEDBACK_STATUSES = ["Pending", "In Review", "Approved", "Revision Required", "Rejected"];
 const FEEDBACK_COLORS: Record<string, string> = {
@@ -66,12 +67,13 @@ function fileToAttachment(file: File): Promise<FileAttachment> {
   });
 }
 
-function FileUploadZone({ files, onChange, accept, icon, label }: {
+function FileUploadZone({ files, onChange, accept, icon, label, onImageClick }: {
   files: FileAttachment[];
   onChange: (files: FileAttachment[]) => void;
   accept: string;
   icon: React.ReactNode;
   label: string;
+  onImageClick?: (index: number) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +86,10 @@ function FileUploadZone({ files, onChange, accept, icon, label }: {
   function remove(idx: number) {
     onChange(files.filter((_, i) => i !== idx));
   }
+
+  // compute a per-image index (only among image files in this array)
+  const imageIndices: number[] = [];
+  files.forEach((f, i) => { if (f.type.startsWith("image/")) imageIndices.push(i); });
 
   return (
     <div>
@@ -106,7 +112,9 @@ function FileUploadZone({ files, onChange, accept, icon, label }: {
           {files.map((f, i) => (
             <div key={i} className="flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
               {f.type.startsWith("image/") && (
-                <img src={f.data} alt={f.name} className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0" />
+                <img src={f.data} alt={f.name}
+                  className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                  onClick={e => { e.stopPropagation(); onImageClick?.(imageIndices.indexOf(i)); }} />
               )}
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
                 <span className="text-xs font-medium text-gray-700 truncate">{f.name}</span>
@@ -169,6 +177,7 @@ export default function ArtworkDetail() {
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [lightbox, setLightbox] = useState<{ images: FileAttachment[]; index: number } | null>(null);
 
   useEffect(() => {
     if (artworkData?.data) {
@@ -433,7 +442,7 @@ export default function ArtworkDetail() {
                     {form.refImages.length === 0 ? <p className="italic text-gray-400">None</p> : form.refImages.map((img, i) => (
                       <img key={i} src={img.data} alt={img.name} title={img.name}
                         className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
-                        onClick={() => window.open(img.data, "_blank")} />
+                        onClick={() => setLightbox({ images: form.refImages, index: i })} />
                     ))}
                   </div>
                 </div>
@@ -454,6 +463,7 @@ export default function ArtworkDetail() {
                     accept="image/*"
                     icon={<ImageIcon className="h-5 w-5" />}
                     label="Upload Images"
+                    onImageClick={i => setLightbox({ images: form.refImages.filter(f => f.type.startsWith("image/")), index: i })}
                   />
                 </Field>
               </div>
@@ -470,7 +480,7 @@ export default function ArtworkDetail() {
                   : form.wipImages.map((img, i) => (
                     <img key={i} src={img.data} alt={img.name} title={img.name}
                       className="h-16 w-16 rounded-xl object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
-                      onClick={() => window.open(img.data, "_blank")} />
+                      onClick={() => setLightbox({ images: form.wipImages, index: i })} />
                   ))
                 }
               </div>
@@ -480,6 +490,7 @@ export default function ArtworkDetail() {
                 accept="image/*"
                 icon={<ImageIcon className="h-5 w-5" />}
                 label="Upload WIP Images"
+                onImageClick={i => setLightbox({ images: form.wipImages, index: i })}
               />
             )}
           </SectionCard>
@@ -492,6 +503,7 @@ export default function ArtworkDetail() {
               accept="image/*"
               icon={<ImageIcon className="h-5 w-5" />}
               label="Upload Final Images"
+              onImageClick={i => setLightbox({ images: form.finalImages, index: i })}
             />
           </SectionCard>
 
@@ -508,6 +520,15 @@ export default function ArtworkDetail() {
             </button>
           </div>
         </div>
+
+        {/* Image Lightbox */}
+        {lightbox && (
+          <ImageLightbox
+            images={lightbox.images}
+            startIndex={lightbox.index}
+            onClose={() => setLightbox(null)}
+          />
+        )}
 
         {/* Add Unit Type Modal */}
         {addUnitTypeOpen && (
