@@ -404,6 +404,166 @@ function PaymentRow({ pay, onDelete }: { pay: PrPaymentRecord; onDelete: () => v
   );
 }
 
+// ─── PR Payments Panel (reusable) ─────────────────────────────────────────────
+function PrPaymentsPanel({ prId }: { prId: number }) {
+  const { toast } = useToast();
+  const { data: payments = [] } = usePrPayments(prId);
+  const addPay = useAddPayment();
+  const delPay = useDeletePayment();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [payForm, setPayForm] = useState({
+    paymentType: "Partial", paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMode: "", amount: "", transactionStatus: "", paymentStatus: "Pending",
+    attachment: null as null | { name: string; type: string; data: string; size: number },
+  });
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => setPayForm(f => ({ ...f, attachment: { name: file.name, type: file.type, data: ev.target?.result as string, size: file.size } }));
+    reader.readAsDataURL(file);
+  }
+
+  async function handleAdd() {
+    if (!payForm.amount || parseFloat(payForm.amount) <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return; }
+    await addPay.mutateAsync({ prId, ...payForm });
+    setPayForm({ paymentType: "Partial", paymentDate: new Date().toISOString().slice(0, 10), paymentMode: "", amount: "", transactionStatus: "", paymentStatus: "Pending", attachment: null });
+    setShowForm(false);
+    toast({ title: "Payment recorded" });
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+          Payments {payments.length > 0 && <span className="text-gray-600">({payments.length})</span>}
+        </p>
+        <button onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+          <CreditCard className="h-3 w-3" /> Record Payment
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">Type</label>
+              <select value={payForm.paymentType} onChange={e => setPayForm(f => ({ ...f, paymentType: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
+                {["Advance", "Partial", "Full"].map(v => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">Mode</label>
+              <input value={payForm.paymentMode} onChange={e => setPayForm(f => ({ ...f, paymentMode: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                placeholder="Bank / UPI / Cash…" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">Amount (₹)</label>
+              <input type="number" min="0" step="any" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                placeholder="0.00" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">Date</label>
+              <input type="date" value={payForm.paymentDate} onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">Transaction Status</label>
+              <input value={payForm.transactionStatus} onChange={e => setPayForm(f => ({ ...f, transactionStatus: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                placeholder="e.g. TXN123456" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">Payment Status</label>
+              <select value={payForm.paymentStatus} onChange={e => setPayForm(f => ({ ...f, paymentStatus: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
+                {["Pending", "Processing", "Completed", "Failed"].map(v => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors">
+              <Paperclip className="h-3 w-3" /> {payForm.attachment ? payForm.attachment.name : "Attach file"}
+            </button>
+            {payForm.attachment && <button onClick={() => setPayForm(f => ({ ...f, attachment: null }))} className="text-gray-400 hover:text-red-500"><X className="h-3 w-3" /></button>}
+            <input ref={fileRef} type="file" className="hidden" onChange={onFile} />
+            <button onClick={handleAdd} disabled={addPay.isPending}
+              className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">
+              {addPay.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Save
+            </button>
+            <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600"><X className="h-3.5 w-3.5" /></button>
+          </div>
+        </div>
+      )}
+
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-100">
+            {["Type", "Mode", "Amount", "Date", "Txn Status", "Pay Status", "Attachment", ""].map(h => (
+              <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-1.5">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {payments.length === 0
+            ? <EmptyRow text="No payments recorded" />
+            : payments.map(p => <PaymentRow key={p.id} pay={p} onDelete={() => delPay.mutate(p.id)} />)}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── PR Table Row (flat table view) ───────────────────────────────────────────
+function PrTableRow({ pr, poNumber }: { pr: PurchaseReceiptRecord; poNumber: string }) {
+  const [open, setOpen] = useState(false);
+  const deletePR = useDeletePR();
+  const total = (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0);
+
+  return (
+    <>
+      <tr className="border-b border-gray-50 hover:bg-gray-50/50">
+        <td className="px-3 py-2.5 font-mono text-[10px] font-bold text-gray-700">{pr.prNumber}</td>
+        <td className="px-3 py-2.5 font-mono text-[10px] text-amber-700 font-semibold">{poNumber}</td>
+        <td className="px-3 py-2.5 text-gray-700 text-xs">{pr.vendorName}</td>
+        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap text-xs">{new Date(pr.receivedDate).toLocaleDateString()}</td>
+        <td className="px-3 py-2.5 font-semibold text-gray-800 text-xs">{pr.receivedQty}</td>
+        <td className="px-3 py-2.5 text-gray-700 text-xs">₹{parseFloat(pr.actualPrice).toFixed(2)}</td>
+        <td className="px-3 py-2.5 font-semibold text-blue-700 text-xs">₹{total.toFixed(2)}</td>
+        <td className="px-3 py-2.5 text-gray-500 text-xs">{pr.warehouseLocation || <span className="text-gray-300">—</span>}</td>
+        <td className="px-3 py-2.5"><StatusBadge status={pr.status} map={PR_STATUS_COLORS} /></td>
+        <td className="px-3 py-2.5">
+          <div className="flex items-center gap-1">
+            <button onClick={() => setOpen(v => !v)}
+              className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${open ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+              <CreditCard className="h-3 w-3" /> Payments
+              {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+            <button onClick={() => deletePR.mutate(pr.id)} disabled={deletePR.isPending}
+              className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {open && (
+        <tr className="bg-gray-50/60 border-b border-gray-100">
+          <td colSpan={10} className="px-5 py-4">
+            <PrPaymentsPanel prId={pr.id} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 // ─── PR Accordion (inside PO) ─────────────────────────────────────────────────
 function PrAccordion({ pr, swatchOrderId }: { pr: PurchaseReceiptRecord; swatchOrderId: number }) {
   const { toast } = useToast();
@@ -917,6 +1077,68 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
   );
 }
 
+// ─── PR Section (flat table of all receipts) ──────────────────────────────────
+function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
+  const { data: prs = [], isLoading } = useSwatchPRs(swatchOrderId);
+  const { data: pos = [] } = useSwatchPOs(swatchOrderId);
+  const poMap = Object.fromEntries(pos.map(p => [p.id, p.poNumber]));
+
+  const totalValue = prs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+      <SectionHeader icon={<FileText className="h-4 w-4" />} title="Purchase Receipts">
+        <div className="flex items-center gap-3">
+          {prs.length > 0 && (
+            <span className="text-xs text-gray-400">
+              {prs.length} receipt{prs.length !== 1 ? "s" : ""} · Total: <span className="font-semibold text-blue-700">₹{totalValue.toFixed(2)}</span>
+            </span>
+          )}
+        </div>
+      </SectionHeader>
+
+      {isLoading ? (
+        <div className="py-6 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" /></div>
+      ) : prs.length === 0 ? (
+        <p className="text-xs text-gray-400 italic text-center py-6">No Purchase Receipts yet. Create a PR from a PO above.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[860px]">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">PR #</th>
+                <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO #</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Vendor</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Date</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Rcv Qty</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Actual Price</th>
+                <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Total Value</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Location</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Status</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {prs.map(pr => (
+                <PrTableRow key={pr.id} pr={pr} poNumber={poMap[pr.poId] ?? "—"} />
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50 border-t border-gray-200">
+                <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">
+                  {prs.length} receipt{prs.length !== 1 ? "s" : ""} · Grand Total
+                </td>
+                <td className="px-3 py-2 font-bold text-blue-700">₹{totalValue.toFixed(2)}</td>
+                <td colSpan={3} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Costing Tab ─────────────────────────────────────────────────────────
 export default function CostingTab({
   swatchOrderId, orderCode, swatchName, clientName,
@@ -930,6 +1152,7 @@ export default function CostingTab({
     <div className="space-y-5">
       <BomSection swatchOrderId={swatchOrderId} orderCode={orderCode} swatchName={swatchName} clientName={clientName} />
       <PoSection swatchOrderId={swatchOrderId} />
+      <PrSection swatchOrderId={swatchOrderId} />
     </div>
   );
 }
