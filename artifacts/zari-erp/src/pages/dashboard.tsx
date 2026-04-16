@@ -13,8 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 
 // ── Palette from reference image ─────────────────────────────────
-const ORANGE   = "#E8956D";
-const ORANGE_L = "#F4C4A8";
+const ORANGE   = "#CAB45C";
+const ORANGE_L = "#E8D89A";
 const GOLD     = "#C9B45C";
 const DARK     = "#1A1A2E";
 const CARD_BG  = "#FFFFFF";
@@ -137,7 +137,7 @@ export default function Dashboard() {
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E8956D] mb-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#CAB45C] mb-1">
               ZARI ERP · OVERVIEW
             </p>
             <h1 className="text-2xl font-bold tracking-tight text-[#1A1A2E]">
@@ -150,7 +150,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <span className="h-2.5 w-2.5 rounded-full bg-[#1A1A2E] inline-block" />
             <span className="font-medium text-gray-700">Style Orders</span>
-            <span className="h-2.5 w-2.5 rounded-full bg-[#E8956D] inline-block ml-2" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#CAB45C] inline-block ml-2" />
             <span className="font-medium text-gray-700">Swatch Orders</span>
           </div>
         </div>
@@ -166,7 +166,7 @@ export default function Dashboard() {
               up: true,
               icon: Layers,
               accent: ORANGE,
-              accentBg: "#FDF0E8",
+              accentBg: "#FAF5E4",
             },
             {
               label: "SWATCH ORDERS",
@@ -231,7 +231,7 @@ export default function Dashboard() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-0.5">ORDER TREND</p>
                 <h3 className="text-sm font-bold text-[#1A1A2E]">Monthly Orders — Nov 2025 to Apr 2026</h3>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#E8956D] bg-[#FDF0E8] px-3 py-1.5 rounded-full">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#CAB45C] bg-[#FAF5E4] px-3 py-1.5 rounded-full">
                 6 Months
               </span>
             </div>
@@ -299,7 +299,7 @@ export default function Dashboard() {
                 <h3 className="text-sm font-bold text-[#1A1A2E]">Latest 5 Orders</h3>
               </div>
               <button onClick={() => setLocation("/style-orders")}
-                className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#E8956D] hover:text-[#d47a55] transition-colors">
+                className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#CAB45C] hover:text-[#b09a47] transition-colors">
                 View All <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -352,7 +352,7 @@ export default function Dashboard() {
 
             {/* Quick Actions */}
             <div className="bg-[#1A1A2E] rounded-2xl shadow-[0_2px_12px_rgba(26,26,46,0.2)] p-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#E8956D] mb-1">QUICK ACTIONS</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#CAB45C] mb-1">QUICK ACTIONS</p>
               <h3 className="text-sm font-bold text-white mb-4">Jump Right In</h3>
               <div className="space-y-2.5">
                 {[
@@ -417,8 +417,8 @@ export default function Dashboard() {
                         <td key={i} className="py-2 text-center px-2">
                           <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl font-bold text-sm mx-auto"
                             style={{
-                              background: v === 0 ? "#F9FAFB" : v === rowMax ? "#1A1A2E" : v > rowMax * 0.6 ? "#E8956D" : "#FDF0E8",
-                              color:      v === 0 ? "#D1D5DB" : v === rowMax ? "#FFFFFF" : v > rowMax * 0.6 ? "#FFFFFF" : "#E8956D",
+                              background: v === 0 ? "#F9FAFB" : v === rowMax ? "#1A1A2E" : v > rowMax * 0.6 ? "#CAB45C" : "#FAF5E4",
+                              color:      v === 0 ? "#D1D5DB" : v === rowMax ? "#FFFFFF" : v > rowMax * 0.6 ? "#FFFFFF" : "#CAB45C",
                             }}>
                             {v === 0 ? "–" : v}
                           </span>
