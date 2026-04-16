@@ -54,10 +54,13 @@ function initials(name: string) {
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  outsource:    { label: "Outsource",   color: G_DIM,     bg: `${G}12` },
-  custom_charge:{ label: "Order Charge",color: "#8B5CF6", bg: "rgba(139,92,246,0.1)" },
-  ledger_charge:{ label: "Manual Charge",color: "#F59E0B",bg: "rgba(245,158,11,0.1)" },
-  payment:      { label: "Payment",     color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+  outsource:      { label: "Outsource Job",   color: G_DIM,     bg: `${G}12` },
+  custom_charge:  { label: "Order Charge",    color: "#8B5CF6", bg: "rgba(139,92,246,0.1)" },
+  ledger_charge:  { label: "Manual Charge",   color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
+  artwork_swatch: { label: "Artwork (Swatch)",color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
+  artwork_style:  { label: "Artwork (Style)", color: "#6366F1", bg: "rgba(99,102,241,0.1)" },
+  toile:          { label: "Toile Work",      color: "#EC4899", bg: "rgba(236,72,153,0.1)" },
+  payment:        { label: "Payment",         color: "#10B981", bg: "rgba(16,185,129,0.1)" },
 };
 
 export default function VendorLedgerDetail() {
@@ -285,6 +288,9 @@ export default function VendorLedgerDetail() {
             <option value="debits">Debits Only</option>
             <option value="credits">Credits Only</option>
             <option value="outsource">Outsource Jobs</option>
+            <option value="artwork_swatch">Artwork — Swatch</option>
+            <option value="artwork_style">Artwork — Style</option>
+            <option value="toile">Toile Work</option>
             <option value="custom_charge">Order Charges</option>
             <option value="ledger_charge">Manual Charges</option>
             <option value="payment">Payments</option>
