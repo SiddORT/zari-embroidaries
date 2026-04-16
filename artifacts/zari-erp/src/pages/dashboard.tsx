@@ -6,66 +6,91 @@ import {
 } from "recharts";
 import {
   Package, Palette, Users, Clock, ArrowUpRight, ArrowDownRight,
-  Layers, FileText, TrendingUp, ChevronRight, Star, Zap, Activity,
+  Layers, ChevronRight, Star, Zap, Activity, TrendingUp,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 
-// ── Palette from reference image ─────────────────────────────────
-const ORANGE   = "#CAB45C";
-const ORANGE_L = "#E8D89A";
-const GOLD     = "#C9B45C";
-const DARK     = "#1A1A2E";
-const CARD_BG  = "#FFFFFF";
+// ── Brand Palette ─────────────────────────────────────────────────
+const G       = "#C6AF4B";   // primary gold
+const G_LIGHT = "#D4C870";   // lighter gold
+const G_DIM   = "#A8943E";   // darker gold
+const G_GLOW  = "rgba(198,175,75,0.18)";
+const DARK1   = "#0E0E14";
+const DARK2   = "#141420";
+const DARK3   = "#1C1C2A";
 
-// ── Mock data ─────────────────────────────────────────────────────
+// ── Data ──────────────────────────────────────────────────────────
 const trendData = [
-  { month: "Nov", styleOrders: 18, swatchOrders: 42 },
-  { month: "Dec", styleOrders: 24, swatchOrders: 55 },
-  { month: "Jan", styleOrders: 31, swatchOrders: 61 },
-  { month: "Feb", styleOrders: 27, swatchOrders: 48 },
-  { month: "Mar", styleOrders: 38, swatchOrders: 72 },
-  { month: "Apr", styleOrders: 44, swatchOrders: 81 },
+  { month: "Nov", styleQty: 18, swatchQty: 42 },
+  { month: "Dec", styleQty: 24, swatchQty: 55 },
+  { month: "Jan", styleQty: 31, swatchQty: 61 },
+  { month: "Feb", styleQty: 27, swatchQty: 48 },
+  { month: "Mar", styleQty: 38, swatchQty: 72 },
+  { month: "Apr", styleQty: 44, swatchQty: 81 },
 ];
 
 const statusData = [
-  { name: "Draft",       value: 12, color: "#94A3B8" },
-  { name: "Issued",      value: 18, color: GOLD },
-  { name: "In Progress", value: 28, color: ORANGE },
-  { name: "Completed",   value: 34, color: "#1A1A2E" },
-  { name: "Cancelled",   value: 4,  color: "#FCA5A5" },
+  { name: "Draft",       value: 12, color: "#3A3A55" },
+  { name: "Issued",      value: 18, color: G },
+  { name: "In Progress", value: 28, color: G_LIGHT },
+  { name: "Completed",   value: 34, color: "#E8E0C0" },
+  { name: "Cancelled",   value: 4,  color: "#C44A5A" },
 ];
 
 const recentOrders = [
-  { code: "ZST-2601", client: "House of Amore",    status: "In Progress", date: "15 Apr",  priority: "High" },
-  { code: "ZST-2600", client: "Vera Couture",       status: "Issued",      date: "14 Apr",  priority: "Medium" },
-  { code: "ZST-2599", client: "Nila Threads",       status: "Completed",   date: "13 Apr",  priority: "Low" },
-  { code: "ZST-2598", client: "Meera Bespoke",      status: "Draft",       date: "12 Apr",  priority: "Urgent" },
-  { code: "ZST-2597", client: "Elara Fashion",      status: "In Progress", date: "11 Apr",  priority: "High" },
+  { code: "ZST-2601", client: "House of Amore",  status: "In Progress", date: "15 Apr", priority: "High" },
+  { code: "ZST-2600", client: "Vera Couture",     status: "Issued",      date: "14 Apr", priority: "Medium" },
+  { code: "ZST-2599", client: "Nila Threads",     status: "Completed",   date: "13 Apr", priority: "Low" },
+  { code: "ZST-2598", client: "Meera Bespoke",    status: "Draft",       date: "12 Apr", priority: "Urgent" },
+  { code: "ZST-2597", client: "Elara Fashion",    status: "In Progress", date: "11 Apr", priority: "High" },
 ];
 
 const artworkStats = [
-  { label: "Pending Toile",  count: 7,  color: ORANGE },
-  { label: "Pattern Ready",  count: 12, color: GOLD },
-  { label: "Client Review",  count: 5,  color: "#6366F1" },
-  { label: "Approved",       count: 23, color: "#10B981" },
+  { label: "Pending Toile",  count: 7,  pct: 23 },
+  { label: "Pattern Ready",  count: 12, pct: 40 },
+  { label: "Client Review",  count: 5,  pct: 17 },
+  { label: "Approved",       count: 23, pct: 77 },
 ];
 
 const statusPill: Record<string, string> = {
-  Draft:       "bg-slate-100 text-slate-600",
-  Issued:      "bg-amber-100 text-amber-700",
-  "In Progress":"bg-orange-100 text-orange-700",
-  Completed:   "bg-emerald-100 text-emerald-700",
-  Cancelled:   "bg-red-100 text-red-600",
+  Draft:         "bg-white/10 text-white/50",
+  Issued:        "bg-[#C6AF4B]/20 text-[#C6AF4B]",
+  "In Progress": "bg-[#D4C870]/20 text-[#D4C870]",
+  Completed:     "bg-white/15 text-white/80",
+  Cancelled:     "bg-red-900/30 text-red-400",
 };
 
 const priorityDot: Record<string, string> = {
-  Low:    "bg-slate-400",
-  Medium: "bg-blue-500",
-  High:   "bg-amber-500",
+  Low:    "bg-white/30",
+  Medium: "bg-blue-400",
+  High:   "#C6AF4B",
   Urgent: "bg-red-500",
 };
+
+// ── Card base class ───────────────────────────────────────────────
+const card = [
+  "rounded-2xl overflow-hidden",
+  "bg-gradient-to-br from-[#111118] to-[#1A1A26]",
+  "border border-[#C6AF4B]/20",
+  `shadow-[0_4px_24px_rgba(198,175,75,0.10),0_1px_4px_rgba(0,0,0,0.35)]`,
+  "hover:shadow-[0_8px_36px_rgba(198,175,75,0.20),0_2px_8px_rgba(0,0,0,0.4)]",
+  "hover:-translate-y-0.5 transition-all duration-300",
+].join(" ");
+
+// ── Custom tooltip ────────────────────────────────────────────────
+function GoldTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl px-4 py-3 text-xs" style={{ background: DARK1, border: `1px solid ${G}30`, boxShadow: `0 4px 20px ${G_GLOW}` }}>
+      <p className="font-bold mb-2" style={{ color: G }}>{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} className="text-white/70">{p.name}: <span className="font-bold text-white">{p.value}</span></p>
+      ))}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -73,11 +98,7 @@ export default function Dashboard() {
   const token = localStorage.getItem("zarierp_token");
 
   const { data: user, isLoading, isError } = useGetMe({
-    query: {
-      enabled: !!token,
-      queryKey: getGetMeQueryKey(),
-      retry: false,
-    },
+    query: { enabled: !!token, queryKey: getGetMeQueryKey(), retry: false },
   });
 
   const logoutMutation = useLogout();
@@ -91,259 +112,249 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
-      onSuccess: () => {
-        localStorage.removeItem("zarierp_token");
-        queryClient.clear();
-        setLocation("/login");
-      },
-      onError: () => {
-        localStorage.removeItem("zarierp_token");
-        queryClient.clear();
-        setLocation("/login");
-      },
+      onSuccess: () => { localStorage.removeItem("zarierp_token"); queryClient.clear(); setLocation("/login"); },
+      onError:   () => { localStorage.removeItem("zarierp_token"); queryClient.clear(); setLocation("/login"); },
     });
   };
 
   if (isLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f9fb]">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 border-2 border-[#1A1A2E] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Loading workspace…</p>
+          <div className="h-8 w-8 rounded-full border-2 animate-spin" style={{ borderColor: G, borderTopColor: "transparent" }} />
+          <p className="text-sm text-gray-400">Loading workspace…</p>
         </div>
       </div>
     );
   }
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const totalStatus = statusData.reduce((s, d) => s + d.value, 0);
 
-  const totalStatusCount = statusData.reduce((s, d) => s + d.value, 0);
+  const kpiCards = [
+    { label: "STYLE ORDERS",   value: "44",  sub: "Active this month",      change: "+15.8%", up: true,  icon: Layers,   delay: "0ms"   },
+    { label: "SWATCH ORDERS",  value: "81",  sub: "Active this month",      change: "+12.5%", up: true,  icon: Package,  delay: "80ms"  },
+    { label: "ARTWORKS",       value: "47",  sub: "Across all orders",      change: "+6.2%",  up: true,  icon: Palette,  delay: "160ms" },
+    { label: "ACTIVE CLIENTS", value: "18",  sub: "In current pipeline",    change: "−2 this month", up: false, icon: Users, delay: "240ms" },
+  ];
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
 
-      {/* Decorative background blobs (matches reference image aesthetic) */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
-        <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full opacity-[0.07]"
-          style={{ background: `radial-gradient(circle, ${ORANGE} 0%, transparent 70%)` }} />
-        <div className="absolute -bottom-20 -left-20 h-72 w-72 rounded-full opacity-[0.06]"
-          style={{ background: `radial-gradient(circle, ${GOLD} 0%, transparent 70%)` }} />
+      {/* Animation keyframes */}
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position:  200% center; }
+        }
+        @keyframes pulseGold {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(198,175,75,0); }
+          50%       { box-shadow: 0 0 0 6px rgba(198,175,75,0.12); }
+        }
+        .fade-up { animation: fadeUp 0.5s ease both; }
+        .gold-bar-track { background: rgba(198,175,75,0.12); }
+        .gold-bar-fill {
+          background: linear-gradient(90deg, #A8943E, #C6AF4B, #D4C870);
+          background-size: 200%;
+          animation: shimmer 2.5s linear infinite;
+        }
+      `}</style>
+
+      {/* Subtle background glow */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full opacity-[0.04]"
+          style={{ background: `radial-gradient(circle, ${G} 0%, transparent 65%)` }} />
+        <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full opacity-[0.03]"
+          style={{ background: `radial-gradient(circle, ${G} 0%, transparent 65%)` }} />
       </div>
 
-      <div className="relative z-10 space-y-6 pb-10">
+      <div className="relative z-10 space-y-5 pb-12">
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-end justify-between">
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <div className="fade-up flex items-end justify-between" style={{ animationDelay: "0ms" }}>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#CAB45C] mb-1">
-              ZARI ERP · OVERVIEW
-            </p>
-            <h1 className="text-2xl font-bold tracking-tight text-[#1A1A2E]">
-              Welcome back, {user.username}.
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="h-px w-8 rounded-full" style={{ background: `linear-gradient(90deg, ${G}, transparent)` }} />
+              <p className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: G }}>
+                ZARI ERP · OVERVIEW
+              </p>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              Welcome back, <span style={{ color: G }}>{user.username}</span>.
             </h1>
-            <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" /> {today}
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+              <Clock className="h-3 w-3" style={{ color: G }} /> {today}
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#1A1A2E] inline-block" />
-            <span className="font-medium text-gray-700">Style Orders</span>
-            <span className="h-2.5 w-2.5 rounded-full bg-[#CAB45C] inline-block ml-2" />
-            <span className="font-medium text-gray-700">Swatch Orders</span>
+          <div className="flex items-center gap-5 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="h-2.5 w-2.5 rounded-full" style={{ background: DARK3, border: `1.5px solid ${G}40` }} />
+              <span className="text-gray-500 font-medium">Style Orders</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2.5 w-2.5 rounded-full" style={{ background: G }} />
+              <span className="text-gray-500 font-medium">Swatch Orders</span>
+            </div>
           </div>
         </div>
 
-        {/* ── KPI Row ─────────────────────────────────────────────────────── */}
+        {/* ── KPI Cards ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              label: "STYLE ORDERS",
-              value: "44",
-              sub: "Active this month",
-              change: "+15.8%",
-              up: true,
-              icon: Layers,
-              accent: ORANGE,
-              accentBg: "#FAF5E4",
-            },
-            {
-              label: "SWATCH ORDERS",
-              value: "81",
-              sub: "Active this month",
-              change: "+12.5%",
-              up: true,
-              icon: Package,
-              accent: GOLD,
-              accentBg: "#FAF5E4",
-            },
-            {
-              label: "ARTWORKS",
-              value: "47",
-              sub: "Across all orders",
-              change: "+6.2%",
-              up: true,
-              icon: Palette,
-              accent: "#6366F1",
-              accentBg: "#EEF2FF",
-            },
-            {
-              label: "ACTIVE CLIENTS",
-              value: "18",
-              sub: "In current pipeline",
-              change: "-2 this month",
-              up: false,
-              icon: Users,
-              accent: "#10B981",
-              accentBg: "#ECFDF5",
-            },
-          ].map((card) => (
-            <div key={card.label} className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-5">
-              <div className="flex items-start justify-between mb-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">
-                  {card.label}
-                </p>
-                <div className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: card.accentBg }}>
-                  <card.icon className="h-4 w-4" style={{ color: card.accent }} />
+          {kpiCards.map((c) => (
+            <div key={c.label} className={`${card} fade-up`} style={{ animationDelay: c.delay }}>
+              {/* Gold shimmer top bar */}
+              <div className="h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${G}, transparent)` }} />
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: G }}>
+                    {c.label}
+                  </p>
+                  <div className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: `${G}18`, border: `1px solid ${G}30` }}>
+                    <c.icon className="h-4 w-4" style={{ color: G }} />
+                  </div>
                 </div>
-              </div>
-              <p className="text-[2.2rem] font-bold leading-none tracking-tight text-[#1A1A2E]">
-                {card.value}
-              </p>
-              <p className="text-[11px] text-gray-400 mt-1 mb-3">{card.sub}</p>
-              <div className={`flex items-center gap-1 text-[11px] font-semibold ${card.up ? "text-emerald-600" : "text-red-500"}`}>
-                {card.up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                {card.change}
+                <p className="text-[2.6rem] font-black leading-none tracking-tight text-white">
+                  {c.value}
+                </p>
+                <p className="text-[11px] mt-1 mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {c.sub}
+                </p>
+                <div className={`flex items-center gap-1 text-[11px] font-bold ${c.up ? "text-emerald-400" : "text-red-400"}`}>
+                  {c.up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                  {c.change}
+                </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* ── Main Row ─────────────────────────────────────────────────────── */}
+        {/* ── Charts Row ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-          {/* Trend Chart (spans 2 cols) */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6">
+          {/* Trend bar chart */}
+          <div className={`${card} fade-up lg:col-span-2 p-6`} style={{ animationDelay: "320ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-0.5">ORDER TREND</p>
-                <h3 className="text-sm font-bold text-[#1A1A2E]">Monthly Orders — Nov 2025 to Apr 2026</h3>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-1" style={{ color: G }}>ORDER TREND</p>
+                <h3 className="text-sm font-bold text-white">Monthly Orders — Nov 2025 to Apr 2026</h3>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#CAB45C] bg-[#FAF5E4] px-3 py-1.5 rounded-full">
+              <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full"
+                style={{ color: G, background: `${G}18`, border: `1px solid ${G}30` }}>
                 6 Months
               </span>
             </div>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={trendData} barCategoryGap="28%" barGap={3}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF", fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: CARD_BG, border: "none", borderRadius: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.12)", fontSize: 12 }}
-                  cursor={{ fill: "rgba(0,0,0,0.03)", radius: 6 }}
-                />
-                <Bar dataKey="styleOrders" name="Style Orders" fill={DARK} radius={[5, 5, 0, 0]} />
-                <Bar dataKey="swatchOrders" name="Swatch Orders" fill={ORANGE} radius={[5, 5, 0, 0]} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)", fontWeight: 700 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.25)" }} axisLine={false} tickLine={false} />
+                <Tooltip content={<GoldTooltip />} cursor={{ fill: `${G}08`, radius: 6 }} />
+                <Bar dataKey="styleQty"  name="Style Orders"  fill={DARK3}  radius={[5,5,0,0]} />
+                <Bar dataKey="swatchQty" name="Swatch Orders" fill={G}      radius={[5,5,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Status Donut */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6">
-            <div className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-0.5">STYLE ORDER STATUS</p>
-              <h3 className="text-sm font-bold text-[#1A1A2E]">Current Pipeline</h3>
-            </div>
-            <div className="flex items-center justify-center mb-5">
+          {/* Status donut */}
+          <div className={`${card} fade-up p-6`} style={{ animationDelay: "400ms" }}>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>STYLE ORDER STATUS</p>
+            <h3 className="text-sm font-bold text-white mb-4">Current Pipeline</h3>
+            <div className="flex justify-center mb-4">
               <div className="relative">
                 <PieChart width={140} height={140}>
-                  <Pie data={statusData} cx={65} cy={65} innerRadius={42} outerRadius={62}
-                    dataKey="value" strokeWidth={2} stroke="white">
-                    {statusData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
+                  <Pie data={statusData} cx={65} cy={65} innerRadius={44} outerRadius={64}
+                    dataKey="value" strokeWidth={2} stroke={DARK2}>
+                    {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
                 </PieChart>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-bold text-[#1A1A2E]">{totalStatusCount}</span>
-                  <span className="text-[10px] text-gray-400 font-medium">Total</span>
+                  <span className="text-2xl font-black text-white">{totalStatus}</span>
+                  <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: G }}>Total</span>
                 </div>
               </div>
             </div>
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {statusData.map((s) => (
                 <div key={s.name} className="flex items-center gap-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
-                  <span className="text-xs text-gray-600 flex-1">{s.name}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(s.value / totalStatusCount) * 100}%`, background: s.color }} />
-                    </div>
-                    <span className="text-xs font-bold text-[#1A1A2E] w-5 text-right">{s.value}</span>
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: s.color }} />
+                  <span className="text-xs flex-1" style={{ color: "rgba(255,255,255,0.55)" }}>{s.name}</span>
+                  <div className="w-14 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${(s.value/totalStatus)*100}%`, background: s.color }} />
                   </div>
+                  <span className="text-xs font-bold text-white w-5 text-right">{s.value}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ── Bottom Row ───────────────────────────────────────────────────── */}
+        {/* ── Bottom Row ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-          {/* Recent Style Orders */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6">
+          {/* Recent orders */}
+          <div className={`${card} fade-up lg:col-span-2 p-6`} style={{ animationDelay: "480ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-0.5">RECENT STYLE ORDERS</p>
-                <h3 className="text-sm font-bold text-[#1A1A2E]">Latest 5 Orders</h3>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>RECENT STYLE ORDERS</p>
+                <h3 className="text-sm font-bold text-white">Latest 5 Orders</h3>
               </div>
               <button onClick={() => setLocation("/style-orders")}
-                className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#CAB45C] hover:text-[#b09a47] transition-colors">
+                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors"
+                style={{ color: G }}
+                onMouseEnter={e => (e.currentTarget.style.color = G_LIGHT)}
+                onMouseLeave={e => (e.currentTarget.style.color = G)}>
                 View All <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="space-y-0">
-              <div className="grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-3 pb-2 border-b border-gray-100">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Order</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Client</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Status</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 text-right">Date</span>
-              </div>
-              {recentOrders.map((order) => (
-                <button key={order.code} onClick={() => setLocation("/style-orders")}
-                  className="w-full grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-3 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors rounded-xl px-1 -mx-1 text-left">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${priorityDot[order.priority] ?? "bg-gray-400"}`} />
-                    <span className="text-xs font-bold text-[#1A1A2E] font-mono">{order.code}</span>
-                  </div>
-                  <span className="text-xs text-gray-600 truncate">{order.client}</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full w-fit ${statusPill[order.status] ?? "bg-gray-100 text-gray-600"}`}>
-                    {order.status}
-                  </span>
-                  <span className="text-xs text-gray-400 text-right">{order.date}</span>
-                </button>
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-3 pb-2.5 mb-1"
+              style={{ borderBottom: "1px solid rgba(198,175,75,0.15)" }}>
+              {["Order", "Client", "Status", "Date"].map((h, i) => (
+                <span key={h} className={`text-[9px] font-black uppercase tracking-widest ${i === 3 ? "text-right" : ""}`}
+                  style={{ color: "rgba(255,255,255,0.25)" }}>{h}</span>
               ))}
             </div>
+            {recentOrders.map((order, idx) => (
+              <button key={order.code} onClick={() => setLocation("/style-orders")}
+                className="w-full grid grid-cols-[1fr_1.4fr_1fr_1fr] gap-3 py-2.5 text-left rounded-xl px-1 -mx-1 transition-all duration-200"
+                style={{ borderBottom: idx < recentOrders.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${G}08`; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0"
+                    style={{ background: order.priority === "Urgent" ? "#EF4444" : order.priority === "High" ? G : order.priority === "Medium" ? "#60A5FA" : "#6B7280" }} />
+                  <span className="text-xs font-bold font-mono text-white">{order.code}</span>
+                </div>
+                <span className="text-xs truncate" style={{ color: "rgba(255,255,255,0.55)" }}>{order.client}</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-fit ${statusPill[order.status] ?? "bg-white/10 text-white/50"}`}>
+                  {order.status}
+                </span>
+                <span className="text-xs text-right" style={{ color: "rgba(255,255,255,0.3)" }}>{order.date}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Right column: Artwork stats + Quick Actions */}
+          {/* Right column */}
           <div className="space-y-4">
 
-            {/* Artwork breakdown */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-0.5">ARTWORK PIPELINE</p>
-              <h3 className="text-sm font-bold text-[#1A1A2E] mb-4">Current Status</h3>
-              <div className="space-y-3">
-                {artworkStats.map((a) => (
+            {/* Artwork pipeline */}
+            <div className={`${card} fade-up p-5`} style={{ animationDelay: "560ms" }}>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>ARTWORK PIPELINE</p>
+              <h3 className="text-sm font-bold text-white mb-4">Current Status</h3>
+              <div className="space-y-3.5">
+                {artworkStats.map((a, i) => (
                   <div key={a.label}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-gray-600">{a.label}</span>
-                      <span className="text-xs font-bold text-[#1A1A2E]">{a.count}</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{a.label}</span>
+                      <span className="text-xs font-black" style={{ color: G }}>{a.count}</span>
                     </div>
-                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                      <div className="h-full rounded-full transition-all"
-                        style={{ width: `${(a.count / 30) * 100}%`, background: a.color }} />
+                    <div className="h-1.5 rounded-full gold-bar-track overflow-hidden">
+                      <div className="h-full rounded-full gold-bar-fill"
+                        style={{ width: `${a.pct}%`, animationDelay: `${i * 200}ms` }} />
                     </div>
                   </div>
                 ))}
@@ -351,79 +362,109 @@ export default function Dashboard() {
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-[#1A1A2E] rounded-2xl shadow-[0_2px_12px_rgba(26,26,46,0.2)] p-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#CAB45C] mb-1">QUICK ACTIONS</p>
+            <div className={`${card} fade-up p-5`} style={{ animationDelay: "640ms" }}>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>QUICK ACTIONS</p>
               <h3 className="text-sm font-bold text-white mb-4">Jump Right In</h3>
-              <div className="space-y-2.5">
+              <div className="space-y-1.5">
                 {[
-                  { label: "New Style Order",  icon: Star,     path: "/style-orders/new", color: ORANGE },
-                  { label: "New Swatch Order", icon: Zap,      path: "/swatch-orders",    color: GOLD },
-                  { label: "View All Orders",  icon: Activity, path: "/style-orders",     color: "#6366F1" },
-                  { label: "Client Masters",   icon: Users,    path: "/clients",           color: "#10B981" },
+                  { label: "New Style Order",  icon: Star,     path: "/style-orders/new" },
+                  { label: "New Swatch Order", icon: Zap,      path: "/swatch-orders"    },
+                  { label: "View All Orders",  icon: Activity, path: "/style-orders"      },
+                  { label: "Client Masters",   icon: Users,    path: "/clients"           },
                 ].map((action) => (
                   <button key={action.label} onClick={() => setLocation(action.path)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors text-left group">
-                    <div className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: `${action.color}22` }}>
-                      <action.icon className="h-4 w-4" style={{ color: action.color }} />
+                    className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left group"
+                    style={{ border: "1px solid transparent" }}
+                    onMouseEnter={e => {
+                      const el = e.currentTarget as HTMLButtonElement;
+                      el.style.background = `${G}12`;
+                      el.style.borderColor = `${G}30`;
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget as HTMLButtonElement;
+                      el.style.background = "transparent";
+                      el.style.borderColor = "transparent";
+                    }}>
+                    <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `${G}20`, border: `1px solid ${G}35` }}>
+                      <action.icon className="h-3.5 w-3.5" style={{ color: G }} />
                     </div>
-                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                    <span className="text-sm font-medium flex-1" style={{ color: "rgba(255,255,255,0.65)" }}>
                       {action.label}
                     </span>
-                    <ChevronRight className="h-3.5 w-3.5 text-gray-500 group-hover:text-gray-300 ml-auto transition-colors" />
+                    <ChevronRight className="h-3.5 w-3.5 opacity-30 group-hover:opacity-70 transition-opacity" style={{ color: G }} />
                   </button>
                 ))}
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* ── Survey Score–style Heatmap Row (matches reference's survey section) ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6">
+        {/* ── Priority × Status Heatmap ───────────────────────────── */}
+        <div className={`${card} fade-up p-6`} style={{ animationDelay: "720ms" }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-0.5">ORDER METRICS</p>
-              <h3 className="text-sm font-bold text-[#1A1A2E]">This Week — Orders by Priority &amp; Status</h3>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>ORDER METRICS</p>
+              <h3 className="text-sm font-bold text-white">This Week — Orders by Priority &amp; Status</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" style={{ color: G }} />
+              <span className="text-xs font-bold" style={{ color: G }}>Live</span>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr>
-                  <th className="text-left pb-3 text-gray-400 font-bold uppercase tracking-widest text-[10px] w-36">Priority</th>
+                  <th className="text-left pb-3 w-28">
+                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>Priority</span>
+                  </th>
                   {["Draft", "Issued", "In Progress", "Completed", "Cancelled"].map(s => (
-                    <th key={s} className="pb-3 text-gray-400 font-bold uppercase tracking-widest text-[10px] text-center px-2">{s}</th>
+                    <th key={s} className="pb-3 text-center px-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>{s}</span>
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="space-y-1">
+              <tbody>
                 {[
-                  { priority: "Urgent", values: [2, 3, 7, 1, 1],  dotColor: "bg-red-500" },
-                  { priority: "High",   values: [3, 6, 12, 8, 2], dotColor: "bg-amber-500" },
-                  { priority: "Medium", values: [4, 7, 6, 14, 1], dotColor: "bg-blue-500" },
-                  { priority: "Low",    values: [3, 2, 3, 11, 0], dotColor: "bg-slate-400" },
+                  { priority: "Urgent", values: [2, 3, 7, 1, 1],  dot: "#EF4444" },
+                  { priority: "High",   values: [3, 6, 12, 8, 2], dot: G },
+                  { priority: "Medium", values: [4, 7, 6, 14, 1], dot: "#60A5FA" },
+                  { priority: "Low",    values: [3, 2, 3, 11, 0], dot: "#6B7280" },
                 ].map((row) => {
                   const rowMax = Math.max(...row.values);
                   return (
                     <tr key={row.priority}>
                       <td className="py-2 pr-4">
                         <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${row.dotColor}`} />
-                          <span className="font-semibold text-[#1A1A2E]">{row.priority}</span>
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: row.dot }} />
+                          <span className="font-bold text-white/70">{row.priority}</span>
                         </div>
                       </td>
-                      {row.values.map((v, i) => (
-                        <td key={i} className="py-2 text-center px-2">
-                          <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl font-bold text-sm mx-auto"
-                            style={{
-                              background: v === 0 ? "#F9FAFB" : v === rowMax ? "#1A1A2E" : v > rowMax * 0.6 ? "#CAB45C" : "#FAF5E4",
-                              color:      v === 0 ? "#D1D5DB" : v === rowMax ? "#FFFFFF" : v > rowMax * 0.6 ? "#FFFFFF" : "#CAB45C",
-                            }}>
-                            {v === 0 ? "–" : v}
-                          </span>
-                        </td>
-                      ))}
+                      {row.values.map((v, i) => {
+                        const isMax  = v === rowMax;
+                        const isHigh = v > rowMax * 0.6 && !isMax;
+                        const isEmpty = v === 0;
+                        return (
+                          <td key={i} className="py-2 text-center px-1">
+                            <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl font-black text-sm mx-auto transition-all"
+                              style={{
+                                background: isEmpty ? "rgba(255,255,255,0.04)"
+                                          : isMax   ? G
+                                          : isHigh  ? `${G}40`
+                                          :           `${G}18`,
+                                color:      isEmpty ? "rgba(255,255,255,0.15)"
+                                          : isMax   ? DARK1
+                                          : isHigh  ? G
+                                          :           `${G}80`,
+                                border: isMax ? "none" : `1px solid ${G}20`,
+                              }}>
+                              {isEmpty ? "–" : v}
+                            </span>
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
