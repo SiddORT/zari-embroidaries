@@ -1,0 +1,252 @@
+UPDATE EXISTING DASHBOARD MODULE UI REQUIREMENTS
+
+Enhance the Sampling ERP Dashboard UI to be modern, clean, user-friendly, visually attractive, and easy to scan quickly for operational insights.
+
+Use the existing project theme and styling system already implemented.
+
+Do NOT change global theme colors or typography.
+
+---
+
+## SECTION 1 — UI DESIGN PRINCIPLES
+
+Apply the following design rules:
+
+Clean spacing between dashboard sections
+
+Rounded card layout
+
+Soft shadow cards
+
+Consistent icon usage across KPI cards
+
+Readable typography hierarchy
+
+Responsive layout for desktop and laptop screens
+
+Ensure dashboard fits within one screen view without scrolling when possible
+
+---
+
+## SECTION 2 — KPI CARD DESIGN
+
+KPI cards must include:
+
+Icon on left
+
+Title label
+
+Numeric value
+
+Optional small status indicator
+
+Example:
+
+Pending Swatch Orders ↑
+Open Purchase Orders ↓
+
+Add subtle hover animation:
+
+Card slightly lifts on hover
+
+Use smooth transition animation (200ms–300ms)
+
+Cards must be clickable.
+
+---
+
+## SECTION 3 — STATUS CHART VISUAL STYLE
+
+Charts must match existing theme colors.
+
+Use:
+
+Donut charts for:
+
+Style Status Tracker
+Swatch Status Tracker
+
+Each segment must:
+
+show count
+
+show tooltip on hover
+
+support click navigation
+
+Add animation:
+
+chart load animation on dashboard open
+
+---
+
+## SECTION 4 — INVOICE STATUS PANEL DESIGN
+
+Display invoice status panel as:
+
+stacked summary card group
+
+Include icons per status:
+
+Generated
+Pending
+Completed
+Overdue
+
+Show both:
+
+count
+amount
+
+Highlight overdue invoices using warning color from theme.
+
+---
+
+## SECTION 5 — VENDOR PAYMENT PENDING PANEL DESIGN
+
+Display:
+
+pending amount
+
+number of open PR records
+
+Use highlighted badge style.
+
+Add hover tooltip:
+
+View pending purchase receipts
+
+Click opens filtered PR page.
+
+---
+
+## SECTION 6 — ACTIVITY TIMELINE SIDEBAR DESIGN
+
+Display activity feed as vertical timeline.
+
+Each entry must show:
+
+user avatar placeholder
+
+user name
+
+action description
+
+reference number
+
+timestamp
+
+Newest entry appears at top.
+
+Limit to:
+
+last 10 activities
+
+Add subtle fade-in animation on load.
+
+---
+
+## SECTION 7 — LAST LOGIN DISPLAY STYLE
+
+Display last login as small profile info card:
+
+User Name
+Last Login Timestamp
+
+Admin users also see:
+
+Active Users Today counter
+
+---
+
+## SECTION 8 — VIEW ALL LOGS BUTTON DESIGN
+
+Display button:
+
+View All Logs
+
+Place inside activity panel footer.
+
+Button style:
+
+outline button matching theme
+
+Click opens:
+
+System Activity Logs Page
+
+---
+
+## SECTION 9 — RESPONSIVE BEHAVIOR
+
+Dashboard must support:
+
+Desktop layout (primary)
+
+Tablet layout (secondary)
+
+Collapse sidebar panels automatically on smaller screens.
+
+Charts resize dynamically.
+
+Cards wrap automatically into rows.
+
+---
+
+## SECTION 10 — PERFORMANCE OPTIMIZATION
+
+Dashboard must:
+
+load KPI cards first
+
+then charts
+
+then activity timeline
+
+Use lazy loading for activity logs.
+
+Limit activity preview to:
+
+10 records
+
+---
+
+## SECTION 11 — MICRO ANIMATIONS
+
+Add subtle animations:
+
+card hover lift
+
+chart load animation
+
+timeline fade-in
+
+button hover highlight
+
+Use short animation duration:
+
+200ms–300ms
+
+Avoid heavy animation effects.
+
+---
+
+## SECTION 12 — ACCESSIBILITY REQUIREMENTS
+
+Ensure:
+
+text contrast readable
+
+icons visible
+
+tooltips available on hover
+
+click targets large enough
+
+keyboard navigation supported
+
+---
+
+## END OF DASHBOARD UI ENHANCEMENT REQUIREMENTS
+
+Apply enhancements without modifying existing theme structure.
