@@ -27,9 +27,12 @@ const OTHER_ORDERS_ITEMS = [
   { label: "Style Orders",  href: "/style-orders" },
 ];
 
+const ACCOUNTS_ITEMS = [
+  { label: "Vendor Ledgers", href: "/accounts/ledgers" },
+];
+
 const TOP_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Accounts",  href: "/accounts" },
   { label: "Quotation", href: "/quotation" },
   { label: "Shipping",  href: "/shipping" },
 ];
@@ -39,15 +42,19 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
   const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
+  const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const mastersRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
+  const accountsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const mastersActive = location.startsWith("/masters");
-  const ordersActive = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
+  const mastersActive  = location.startsWith("/masters");
+  const ordersActive   = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
+  const accountsActive = location.startsWith("/accounts");
 
   const initials = (username ?? "")
     .split(" ")
@@ -74,6 +81,15 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [ordersOpen]);
+
+  useEffect(() => {
+    if (!accountsOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (accountsRef.current && !accountsRef.current.contains(e.target as Node)) setAccountsOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [accountsOpen]);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -172,6 +188,43 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                         key={href}
                         href={href}
                         onClick={() => setOrdersOpen(false)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          active
+                            ? "text-gray-900 bg-gray-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Accounts dropdown */}
+            <div className="relative" ref={accountsRef}>
+              <button
+                onClick={() => setAccountsOpen((v) => !v)}
+                className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  accountsActive
+                    ? "bg-gray-900 text-[#C9B45C]"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                Accounts
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountsOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {accountsOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                  {ACCOUNTS_ITEMS.map(({ label, href }) => {
+                    const active = location === href || location.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setAccountsOpen(false)}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           active
                             ? "text-gray-900 bg-gray-50 font-semibold"
@@ -327,6 +380,33 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileOrdersOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {OTHER_ORDERS_ITEMS.map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Mobile Accounts */}
+              <button
+                onClick={() => setMobileAccountsOpen((v) => !v)}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                  accountsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <span>Accounts</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileAccountsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileAccountsOpen && (
+                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                  {ACCOUNTS_ITEMS.map(({ label, href }) => (
                     <Link
                       key={href}
                       href={href}

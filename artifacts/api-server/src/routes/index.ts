@@ -23,6 +23,7 @@ import invoicesRouter from "./invoices";
 import styleOrdersRouter from "./styleOrders";
 import styleOrderProductsRouter from "./styleOrderProducts";
 import styleOrderArtworksRouter from "./styleOrderArtworks";
+import vendorLedgerRouter from "./vendorLedger";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(invoicesRouter);
 router.use(styleOrdersRouter);
 router.use(styleOrderProductsRouter);
 router.use(styleOrderArtworksRouter);
+router.use(vendorLedgerRouter);
 
 export default router;

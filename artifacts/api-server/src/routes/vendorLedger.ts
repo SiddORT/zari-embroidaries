@@ -1,0 +1,232 @@
+import { Router } from "express";
+import { db, vendorPaymentsTable, vendorLedgerChargesTable, vendorsTable } from "@workspace/db";
+import { pool } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import { requireAuth } from "../middlewares/requireAuth";
+import { insertVendorPaymentSchema, insertVendorLedgerChargeSchema } from "@workspace/db";
+
+const router = Router();
+
+router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        v.id                AS vendor_id,
+        v.vendor_code       AS vendor_code,
+        v.brand_name        AS brand_name,
+        v.contact_name      AS contact_name,
+        v.email             AS email,
+        v.contact_no        AS contact_no,
+        v.is_active         AS is_active,
+        COALESCE(oj_sum.total, 0) + COALESCE(cc_sum.total, 0) + COALESCE(lc_sum.total, 0) AS total_debits,
+        COALESCE(vp_sum.total, 0)  AS total_credits,
+        COALESCE(oj_sum.cnt, 0) + COALESCE(cc_sum.cnt, 0) + COALESCE(lc_sum.cnt, 0) + COALESCE(vp_sum.cnt, 0) AS total_entries
+      FROM vendors v
+      LEFT JOIN (
+        SELECT vendor_id, SUM(total_cost::numeric) AS total, COUNT(*) AS cnt
+        FROM outsource_jobs GROUP BY vendor_id
+      ) oj_sum ON oj_sum.vendor_id = v.id
+      LEFT JOIN (
+        SELECT vendor_id, SUM(total_amount::numeric) AS total, COUNT(*) AS cnt
+        FROM custom_charges GROUP BY vendor_id
+      ) cc_sum ON cc_sum.vendor_id = v.id
+      LEFT JOIN (
+        SELECT vendor_id, SUM(amount::numeric) AS total, COUNT(*) AS cnt
+        FROM vendor_ledger_charges GROUP BY vendor_id
+      ) lc_sum ON lc_sum.vendor_id = v.id
+      LEFT JOIN (
+        SELECT vendor_id, SUM(amount::numeric) AS total, COUNT(*) AS cnt
+        FROM vendor_payments GROUP BY vendor_id
+      ) vp_sum ON vp_sum.vendor_id = v.id
+      WHERE v.is_deleted = false
+      ORDER BY v.brand_name ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load vendor ledger summary" });
+  }
+});
+
+router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => {
+  try {
+    const vendorId = parseInt(req.params.vendorId);
+    const { orderType = "all", startDate, endDate } = req.query as Record<string, string>;
+
+    const params: (string | number)[] = [vendorId];
+    let dateFilter = "";
+    if (startDate) { params.push(startDate); dateFilter += ` AND entry_date >= $${params.length}::timestamptz`; }
+    if (endDate) { params.push(endDate + "T23:59:59Z"); dateFilter += ` AND entry_date <= $${params.length}::timestamptz`; }
+    const orderTypeFilter = orderType !== "all" ? ` AND order_type = '${orderType === "style" ? "style" : "swatch"}'` : "";
+
+    const result = await pool.query(`
+      SELECT * FROM (
+        SELECT
+          'outsource'           AS entry_type,
+          oj.id::text           AS entry_id,
+          oj.created_at         AS entry_date,
+          CONCAT('Outsource Job', COALESCE(': ' || oj.notes, '')) AS description,
+          CASE WHEN oj.swatch_order_id IS NOT NULL THEN 'swatch' ELSE 'style' END AS order_type,
+          COALESCE(so.order_code, sw.order_code) AS order_code,
+          oj.total_cost::numeric  AS debit,
+          0::numeric              AS credit
+        FROM outsource_jobs oj
+        LEFT JOIN style_orders  so ON oj.style_order_id  = so.id
+        LEFT JOIN swatch_orders sw ON oj.swatch_order_id = sw.id
+        WHERE oj.vendor_id = $1
+
+        UNION ALL
+
+        SELECT
+          'custom_charge'         AS entry_type,
+          cc.id::text             AS entry_id,
+          cc.created_at           AS entry_date,
+          CONCAT('Charge: ', cc.description) AS description,
+          CASE WHEN cc.swatch_order_id IS NOT NULL THEN 'swatch' ELSE 'style' END AS order_type,
+          COALESCE(so.order_code, sw.order_code) AS order_code,
+          cc.total_amount::numeric AS debit,
+          0::numeric               AS credit
+        FROM custom_charges cc
+        LEFT JOIN style_orders  so ON cc.style_order_id  = so.id
+        LEFT JOIN swatch_orders sw ON cc.swatch_order_id = sw.id
+        WHERE cc.vendor_id = $1
+
+        UNION ALL
+
+        SELECT
+          'ledger_charge'     AS entry_type,
+          lc.id::text         AS entry_id,
+          lc.charge_date      AS entry_date,
+          CONCAT('Manual Charge: ', lc.description) AS description,
+          lc.order_type,
+          COALESCE(lc.style_order_code, lc.swatch_order_code) AS order_code,
+          lc.amount::numeric  AS debit,
+          0::numeric          AS credit
+        FROM vendor_ledger_charges lc
+        WHERE lc.vendor_id = $1
+
+        UNION ALL
+
+        SELECT
+          'payment'       AS entry_type,
+          vp.id::text     AS entry_id,
+          vp.payment_date AS entry_date,
+          CONCAT('Payment — ', vp.payment_mode, COALESCE(' (' || vp.reference_no || ')', '')) AS description,
+          vp.order_type,
+          COALESCE(vp.style_order_code, vp.swatch_order_code) AS order_code,
+          0::numeric      AS debit,
+          vp.amount::numeric AS credit
+        FROM vendor_payments vp
+        WHERE vp.vendor_id = $1
+      ) ledger
+      WHERE 1=1${dateFilter}${orderTypeFilter}
+      ORDER BY entry_date ASC
+    `, params);
+
+    const entries = result.rows;
+    let running = 0;
+    const withBalance = entries.map((row: { debit: string | number; credit: string | number; [key: string]: unknown }) => {
+      running += Number(row.debit) - Number(row.credit);
+      return { ...row, running_balance: running };
+    });
+
+    res.json(withBalance);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load ledger entries" });
+  }
+});
+
+router.get("/vendor-ledger/:vendorId/info", requireAuth, async (req, res) => {
+  try {
+    const vendorId = parseInt(req.params.vendorId);
+    const rows = await db.select().from(vendorsTable).where(and(eq(vendorsTable.id, vendorId), eq(vendorsTable.isDeleted, false)));
+    if (!rows.length) return res.status(404).json({ error: "Vendor not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load vendor" });
+  }
+});
+
+router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
+  try {
+    const vendorId = parseInt(req.params.vendorId);
+    const user = (req as { user?: { username?: string } }).user;
+    const parsed = insertVendorPaymentSchema.safeParse({ ...req.body, vendorId });
+    if (!parsed.success) return res.status(400).json({ error: "Invalid data", issues: parsed.error.issues });
+
+    const data = parsed.data;
+    const rows = await db.insert(vendorPaymentsTable).values({
+      vendorId: data.vendorId,
+      vendorName: data.vendorName,
+      paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
+      amount: data.amount,
+      paymentMode: data.paymentMode,
+      referenceNo: data.referenceNo,
+      notes: data.notes,
+      orderType: data.orderType,
+      styleOrderId: data.styleOrderId,
+      styleOrderCode: data.styleOrderCode,
+      swatchOrderId: data.swatchOrderId,
+      swatchOrderCode: data.swatchOrderCode,
+      createdBy: user?.username ?? "system",
+    }).returning();
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to record payment" });
+  }
+});
+
+router.post("/vendor-ledger/:vendorId/charge", requireAuth, async (req, res) => {
+  try {
+    const vendorId = parseInt(req.params.vendorId);
+    const user = (req as { user?: { username?: string } }).user;
+    const parsed = insertVendorLedgerChargeSchema.safeParse({ ...req.body, vendorId });
+    if (!parsed.success) return res.status(400).json({ error: "Invalid data", issues: parsed.error.issues });
+
+    const data = parsed.data;
+    const rows = await db.insert(vendorLedgerChargesTable).values({
+      vendorId: data.vendorId,
+      vendorName: data.vendorName,
+      chargeDate: data.chargeDate ? new Date(data.chargeDate) : new Date(),
+      description: data.description,
+      amount: data.amount,
+      notes: data.notes,
+      orderType: data.orderType,
+      styleOrderId: data.styleOrderId,
+      styleOrderCode: data.styleOrderCode,
+      swatchOrderId: data.swatchOrderId,
+      swatchOrderCode: data.swatchOrderCode,
+      createdBy: user?.username ?? "system",
+    }).returning();
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add charge" });
+  }
+});
+
+router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(vendorPaymentsTable).where(eq(vendorPaymentsTable.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete payment" });
+  }
+});
+
+router.delete("/vendor-ledger/charges/:id", requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(vendorLedgerChargesTable).where(eq(vendorLedgerChargesTable.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete charge" });
+  }
+});
+
+export default router;

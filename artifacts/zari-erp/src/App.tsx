@@ -30,6 +30,8 @@ import ClientPortal from "@/pages/ClientPortal";
 import StyleOrders from "@/pages/StyleOrders";
 import StyleOrderDetail from "@/pages/StyleOrderDetail";
 import StyleOrderArtworkDetail from "@/pages/StyleOrderArtworkDetail";
+import VendorLedgers from "@/pages/VendorLedgers";
+import VendorLedgerDetail from "@/pages/VendorLedgerDetail";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +87,8 @@ function Router() {
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/client/:token" component={ClientPortal} />
+      <Route path="/accounts/ledgers" component={VendorLedgers} />
+      <Route path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} />
       <Route component={NotFound} />
     </Switch>
   );
