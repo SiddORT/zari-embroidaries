@@ -11,6 +11,9 @@ import { useSwatchOrderList, useDeleteSwatchOrder, type SwatchOrderRecord } from
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 
+const G = "#C6AF4B";
+const CARD = "bg-white rounded-2xl border border-[#C6AF4B]/20 overflow-hidden shadow-[0_2px_16px_rgba(198,175,75,0.10),0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_24px_rgba(198,175,75,0.20),0_2px_6px_rgba(0,0,0,0.07)] hover:-translate-y-0.5 transition-all duration-300";
+
 const STATUS_COLORS: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-600 border-gray-200",
   Issued: "bg-blue-50 text-blue-700 border-blue-200",
@@ -34,7 +37,7 @@ const STATUS_BAR: Record<string, string> = {
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  Low: "bg-gray-100 text-gray-500",
+  Low: "bg-gray-100 text-gray-600",
   Medium: "bg-sky-100 text-sky-700",
   High: "bg-orange-100 text-orange-700",
   Urgent: "bg-red-100 text-red-700",
@@ -62,13 +65,13 @@ function OrderCard({ order, onView, onDelete }: {
   onDelete: () => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
+    <div className={CARD}>
       <div className={`h-1 w-full ${STATUS_BAR[order.orderStatus] ?? "bg-gray-200"}`} />
       <div className="p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{order.orderCode}</span>
+              <span className="text-xs font-mono font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{order.orderCode}</span>
               <PriorityDot priority={order.priority} />
             </div>
             <h3 className="text-sm font-semibold text-gray-900 truncate">{order.swatchName}</h3>
@@ -103,18 +106,19 @@ function OrderCard({ order, onView, onDelete }: {
         </div>
 
         {order.isChargeable && (
-          <div className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-2.5 py-1 mb-3 inline-flex items-center gap-1">
-            <span>⚡</span> Chargeable
+          <div className="text-xs font-medium rounded-lg px-2.5 py-1 mb-3 inline-flex items-center gap-1" style={{ background: "rgba(198,175,75,0.10)", color: "#A8943E" }}>
+            ⚡ Chargeable
           </div>
         )}
 
         <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
           <button onClick={onView}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-gray-900 hover:bg-black transition-colors"
+            style={{ color: G }}>
             <Eye className="h-3.5 w-3.5" /> View / Edit
           </button>
           <button onClick={onDelete}
-            className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-200">
+            className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -135,10 +139,11 @@ export default function SwatchOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [chargeableFilter, setChargeableFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const { data, isLoading } = useSwatchOrderList({ search, status: statusFilter, priority: priorityFilter, page, limit: 24 });
+  const { data, isLoading } = useSwatchOrderList({ search, status: statusFilter, priority: priorityFilter, chargeable: chargeableFilter, page, limit: 24 });
   const deleteOrder = useDeleteSwatchOrder();
 
   const orders = data?.data ?? [];
@@ -184,7 +189,8 @@ export default function SwatchOrders() {
           </div>
           <button
             onClick={() => setLocation("/swatch-orders/new")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-sm font-medium hover:bg-black transition-colors shadow-sm"
+            style={{ color: G }}
           >
             <Plus className="h-4 w-4" /> New Swatch Order
           </button>
@@ -193,18 +199,18 @@ export default function SwatchOrders() {
         {/* Status pills quick filter */}
         <div className="flex flex-wrap gap-2">
           <button onClick={() => { setStatusFilter("all"); setPage(1); }}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${statusFilter === "all" ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}>
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${statusFilter === "all" ? "bg-gray-900 border-gray-900 text-white" : "border-gray-200 text-gray-900 hover:border-gray-400"}`}>
             All
           </button>
           {ORDER_STATUSES.map(s => (
             <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${statusFilter === s ? `${STATUS_COLORS[s]} font-semibold` : "border-gray-200 text-gray-600 hover:border-gray-400"}`}>
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${statusFilter === s ? `${STATUS_COLORS[s]} font-semibold` : "border-gray-200 text-gray-900 hover:border-gray-400"}`}>
               {s}
             </button>
           ))}
         </div>
 
-        {/* Search + Priority */}
+        {/* Search + Priority + Chargeable */}
         <div className="flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -213,13 +219,19 @@ export default function SwatchOrders() {
               placeholder="Search swatch name, client…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 focus:border-[#C6AF4B]/50"
             />
           </div>
           <select value={priorityFilter} onChange={e => { setPriorityFilter(e.target.value); setPage(1); }}
-            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10">
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 focus:border-[#C6AF4B]/50">
             <option value="all">All Priorities</option>
             {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={chargeableFilter} onChange={e => { setChargeableFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 focus:border-[#C6AF4B]/50">
+            <option value="all">All (Chargeable)</option>
+            <option value="yes">Chargeable</option>
+            <option value="no">Not Chargeable</option>
           </select>
         </div>
 
@@ -227,16 +239,17 @@ export default function SwatchOrders() {
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 h-48 animate-pulse" />
+              <div key={i} className="bg-white rounded-2xl border border-[#C6AF4B]/15 h-48 animate-pulse" />
             ))}
           </div>
         ) : orders.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-[#C6AF4B]/30">
             <Palette className="h-10 w-10 text-gray-300 mx-auto mb-3" />
             <p className="text-sm font-medium text-gray-500">No swatch orders found</p>
             <p className="text-xs text-gray-400 mt-1">Create your first swatch order to get started</p>
             <button onClick={() => setLocation("/swatch-orders/new")}
-              className="mt-4 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors">
+              className="mt-4 px-4 py-2 rounded-xl bg-gray-900 text-sm font-medium hover:bg-black transition-colors"
+              style={{ color: G }}>
               + New Swatch Order
             </button>
           </div>

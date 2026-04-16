@@ -41,15 +41,15 @@ export default function MasterTable({
   const end = Math.min(page * limit, total);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-[#C6AF4B]/20 shadow-[0_2px_16px_rgba(198,175,75,0.10),0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
+            <tr className="border-b border-[#C6AF4B]/10" style={{ background: "linear-gradient(to right, rgba(198,175,75,0.04), rgba(198,175,75,0.02))" }}>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${col.className ?? ""}`}
+                  className={`px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap ${col.className ?? ""}`}
                 >
                   {col.label}
                 </th>
@@ -75,7 +75,7 @@ export default function MasterTable({
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={rowKey(row)} className="hover:bg-gray-50 transition-colors">
+                <tr key={rowKey(row)} className="hover:bg-amber-50/40 transition-colors">
                   {columns.map((col) => (
                     <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className ?? ""}`}>
                       {col.render ? col.render(row) : String(row[col.key] ?? "")}
@@ -89,7 +89,7 @@ export default function MasterTable({
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-[#C6AF4B]/10" style={{ background: "linear-gradient(to right, rgba(198,175,75,0.03), rgba(198,175,75,0.01))" }}>
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <span>Rows per page:</span>
           <select

@@ -23,7 +23,7 @@ async function generateOrderCode(): Promise<string> {
 
 // List
 router.get("/style-orders", requireAuth, async (req, res) => {
-  const { search = "", status = "all", priority = "all", page = "1", limit = "24" } = req.query as Record<string, string>;
+  const { search = "", status = "all", priority = "all", chargeable = "all", page = "1", limit = "24" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page));
   const limitNum = Math.min(100, parseInt(limit));
   const offset = (pageNum - 1) * limitNum;
@@ -42,6 +42,8 @@ router.get("/style-orders", requireAuth, async (req, res) => {
   }
   if (status !== "all") conditions.push(eq(styleOrdersTable.orderStatus, status));
   if (priority !== "all") conditions.push(eq(styleOrdersTable.priority, priority));
+  if (chargeable === "yes") conditions.push(eq(styleOrdersTable.isChargeable, true));
+  if (chargeable === "no") conditions.push(eq(styleOrdersTable.isChargeable, false));
 
   const where = and(...conditions);
 

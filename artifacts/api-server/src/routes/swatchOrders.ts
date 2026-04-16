@@ -21,7 +21,7 @@ async function generateOrderCode(): Promise<string> {
 }
 
 router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
-  const { search = "", status = "all", priority = "all", page = "1", limit = "20" } = req.query as Record<string, string>;
+  const { search = "", status = "all", priority = "all", chargeable = "all", page = "1", limit = "20" } = req.query as Record<string, string>;
   const pg = Math.max(1, parseInt(page));
   const lim = Math.min(100, Math.max(1, parseInt(limit)));
   const offset = (pg - 1) * lim;
@@ -30,6 +30,8 @@ router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
   if (search) conditions.push(ilike(swatchOrdersTable.swatchName, `%${search}%`));
   if (status !== "all") conditions.push(eq(swatchOrdersTable.orderStatus, status));
   if (priority !== "all") conditions.push(eq(swatchOrdersTable.priority, priority));
+  if (chargeable === "yes") conditions.push(eq(swatchOrdersTable.isChargeable, true));
+  if (chargeable === "no") conditions.push(eq(swatchOrdersTable.isChargeable, false));
 
   const where = and(...conditions);
   const [rows, countRow] = await Promise.all([

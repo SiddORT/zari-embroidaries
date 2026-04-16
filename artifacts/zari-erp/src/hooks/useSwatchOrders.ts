@@ -54,12 +54,12 @@ export type SwatchOrderFormData = Omit<SwatchOrderRecord, "id" | "orderCode" | "
 const BASE = "/api/swatch-orders";
 const QK = "swatch-orders";
 
-export function useSwatchOrderList(params: { search: string; status: string; priority: string; page: number; limit: number }) {
+export function useSwatchOrderList(params: { search: string; status: string; priority: string; chargeable: string; page: number; limit: number }) {
   return useQuery({
     queryKey: [QK, params],
     queryFn: () =>
       customFetch<{ data: SwatchOrderRecord[]; total: number; page: number; limit: number }>(
-        `${BASE}?search=${encodeURIComponent(params.search)}&status=${params.status}&priority=${params.priority}&page=${params.page}&limit=${params.limit}`,
+        `${BASE}?search=${encodeURIComponent(params.search)}&status=${params.status}&priority=${params.priority}&chargeable=${params.chargeable}&page=${params.page}&limit=${params.limit}`,
       ),
     placeholderData: (prev) => prev,
   });

@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { seedAdminUser } from "./lib/seed";
+import { seedAdminUser, seedDummyData } from "./lib/seed";
 
 const rawPort = process.env["PORT"];
 
@@ -28,5 +28,11 @@ app.listen(port, async (err) => {
     await seedAdminUser();
   } catch (seedErr) {
     logger.error({ err: seedErr }, "Failed to seed admin user");
+  }
+
+  try {
+    await seedDummyData();
+  } catch (seedErr) {
+    logger.error({ err: seedErr }, "Failed to seed dummy data");
   }
 });
