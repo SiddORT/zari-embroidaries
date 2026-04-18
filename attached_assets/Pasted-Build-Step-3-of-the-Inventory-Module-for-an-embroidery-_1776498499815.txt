@@ -1,0 +1,251 @@
+Build Step-3 of the Inventory Module for an embroidery sampling ERP system.
+
+This step must integrate Purchase Receipt (PR) entries with inventory so stock updates automatically when PR records are created.
+
+This module extends:
+
+inventory_items table
+stock_ledger table
+
+created earlier in Step-1 and Step-2.
+
+Follow structure exactly as defined below.
+
+---
+
+## MODULE NAME
+
+Inventory Management — Step 3 (Purchase Receipt Integration)
+
+---
+
+## SECTION 1 — PR TO INVENTORY AUTO UPDATE
+
+Whenever a Purchase Receipt record is created:
+
+System must automatically:
+
+Increase inventory_items.current_stock
+
+Update inventory_items.average_price
+
+Update inventory_items.last_purchase_price
+
+Update inventory_items.last_updated_at
+
+Then create stock_ledger entry.
+
+---
+
+## SECTION 2 — LEDGER ENTRY CREATION
+
+For each PR item received:
+
+Create ledger entry:
+
+transaction_type = Purchase Receipt
+
+reference_type = PR
+
+reference_number = PR Number
+
+in_quantity = Received Quantity
+
+out_quantity = 0
+
+balance_quantity = Updated Stock
+
+remarks = Auto generated from Purchase Receipt
+
+---
+
+## SECTION 3 — AVERAGE PRICE UPDATE LOGIC
+
+Average price must update automatically using:
+
+Weighted Average Formula
+
+Formula:
+
+new_average_price =
+((existing_stock × existing_avg_price)
++
+(received_qty × received_price))
+÷
+(total_stock_after_receipt)
+
+Store result in:
+
+inventory_items.average_price
+
+---
+
+## SECTION 4 — LAST PURCHASE PRICE UPDATE
+
+After PR entry:
+
+Update:
+
+inventory_items.last_purchase_price = received_price
+
+---
+
+## SECTION 5 — MULTIPLE PR SUPPORT
+
+System must support:
+
+Multiple PR entries per item
+
+Each PR must:
+
+update stock
+
+update ledger
+
+update average price
+
+without overwriting previous entries
+
+---
+
+## SECTION 6 — LOCATION-WISE STOCK UPDATE
+
+Each PR entry includes:
+
+warehouse_location
+
+System must:
+
+update stock for correct warehouse location
+
+Support multiple locations per item
+
+---
+
+## SECTION 7 — VALIDATION RULES
+
+Prevent:
+
+Negative received quantity
+
+Zero received quantity
+
+Missing warehouse location
+
+Missing item reference
+
+---
+
+## SECTION 8 — PR UPDATE HANDLING
+
+If PR quantity edited:
+
+System must:
+
+adjust inventory stock difference
+
+update ledger entry accordingly
+
+recalculate average price
+
+---
+
+## SECTION 9 — PR DELETE HANDLING
+
+If PR record deleted:
+
+System must:
+
+reverse inventory stock increase
+
+remove related ledger entry
+
+recalculate average price
+
+---
+
+## SECTION 10 — PARTIAL PR SUPPORT
+
+Support multiple PR entries against one PO.
+
+Each PR must:
+
+create separate ledger entry
+
+update stock independently
+
+---
+
+## SECTION 11 — UI UPDATE REQUIREMENTS
+
+Inside Purchase Receipt screen:
+
+Display:
+
+Inventory Updated Successfully message
+
+After PR saved
+
+---
+
+## SECTION 12 — INVENTORY ITEM VIEW UPDATE
+
+Inventory listing screen must refresh automatically after PR update.
+
+Updated fields:
+
+current_stock
+
+average_price
+
+last_purchase_price
+
+last_updated_at
+
+---
+
+## SECTION 13 — PERMISSIONS CONTROL
+
+Only authorized users may:
+
+Create PR
+
+Edit PR
+
+Delete PR
+
+Inventory updates must follow PR permissions.
+
+---
+
+## SECTION 14 — ERROR HANDLING
+
+If inventory update fails:
+
+Rollback PR save operation
+
+Display error message:
+
+Inventory update failed
+
+Prevent partial updates
+
+---
+
+## SECTION 15 — PERFORMANCE REQUIREMENTS
+
+PR save operation must:
+
+update inventory quickly
+
+create ledger entry instantly
+
+avoid duplicate stock updates
+
+Ensure transaction-safe database update logic.
+
+---
+
+## END OF STEP-3 INVENTORY MODULE REQUIREMENTS
+
+Build backend logic and frontend integration accordingly.

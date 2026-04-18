@@ -32,8 +32,9 @@ const ACCOUNTS_ITEMS = [
 ];
 
 const INVENTORY_ITEMS = [
-  { label: "Item Stock List", href: "/inventory/items" },
-  { label: "Stock Ledger",    href: "/inventory/ledger" },
+  { label: "Item Stock List",     href: "/inventory/items" },
+  { label: "Stock Ledger",        href: "/inventory/ledger" },
+  { label: "Purchase Receipts",   href: "/inventory/purchase-receipts" },
 ];
 
 const TOP_LINKS = [

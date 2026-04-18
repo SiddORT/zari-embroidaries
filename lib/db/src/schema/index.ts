@@ -21,3 +21,4 @@ export * from "./styleOrderProducts";
 export * from "./styleOrderArtworks";
 export * from "./vendorLedger";
 export * from "./inventory";
+export * from "./purchaseReceipts";

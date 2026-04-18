@@ -34,6 +34,8 @@ import VendorLedgers from "@/pages/VendorLedgers";
 import VendorLedgerDetail from "@/pages/VendorLedgerDetail";
 import InventoryStockList from "@/pages/InventoryStockList";
 import InventoryLedger from "@/pages/InventoryLedger";
+import PurchaseReceipts from "@/pages/PurchaseReceipts";
+import PurchaseReceiptForm from "@/pages/PurchaseReceiptForm";
 
 const queryClient = new QueryClient();
 
@@ -93,6 +95,9 @@ function Router() {
       <Route path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} />
       <Route path="/inventory/items" component={InventoryStockList} />
       <Route path="/inventory/ledger" component={InventoryLedger} />
+      <Route path="/inventory/purchase-receipts/new" component={PurchaseReceiptForm} />
+      <Route path="/inventory/purchase-receipts/:id" component={PurchaseReceiptForm} />
+      <Route path="/inventory/purchase-receipts" component={PurchaseReceipts} />
       <Route component={NotFound} />
     </Switch>
   );

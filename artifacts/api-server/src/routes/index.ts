@@ -25,6 +25,7 @@ import styleOrderProductsRouter from "./styleOrderProducts";
 import styleOrderArtworksRouter from "./styleOrderArtworks";
 import vendorLedgerRouter from "./vendorLedger";
 import inventoryRouter from "./inventory";
+import purchaseReceiptsRouter from "./purchaseReceipts";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(styleOrderProductsRouter);
 router.use(styleOrderArtworksRouter);
 router.use(vendorLedgerRouter);
 router.use(inventoryRouter);
+router.use(purchaseReceiptsRouter);
 
 export default router;
