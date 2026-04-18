@@ -35,7 +35,7 @@ const STATUS_OPTIONS = [
 ];
 const EMPTY_FORM: PackagingMaterialFormData = {
   itemType: "", itemName: "", department: "", size: "", unitType: "",
-  unitPrice: "", vendor: "", location: "", isActive: true,
+  unitPrice: "", currentStock: "", vendor: "", location: "", isActive: true,
 };
 type FormErrors = Partial<Record<keyof PackagingMaterialFormData, string>>;
 const asPM = (r: TableRow) => r as unknown as PackagingMaterialRecord;
@@ -140,6 +140,7 @@ export default function PackagingMaterialsMaster() {
     setForm({
       itemType: r.itemType ?? "", itemName: r.itemName, department: r.department ?? "", size: r.size ?? "",
       unitType: r.unitType ?? "", unitPrice: r.unitPrice ?? "",
+      currentStock: r.currentStock ?? "",
       vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive,
     });
     setErrors({}); setModalOpen(true);
@@ -179,6 +180,11 @@ export default function PackagingMaterialsMaster() {
     { key: "size", label: "Size", render: (r) => asPM(r).size || "—" },
     { key: "unitType", label: "Unit Type", render: (r) => asPM(r).unitType || "—" },
     { key: "unitPrice", label: "Unit Price", render: (r) => asPM(r).unitPrice ? `₹${asPM(r).unitPrice}` : "—" },
+    { key: "currentStock", label: "Current Stock", render: (r) => {
+      const v = asPM(r).currentStock;
+      if (!v || parseFloat(v) === 0) return <span className="text-gray-400">0</span>;
+      return <span className="font-semibold text-gray-900">{parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 3 })}</span>;
+    }},
     { key: "vendor", label: "Vendor", render: (r) => asPM(r).vendor || "—" },
     { key: "location", label: "Location", render: (r) => asPM(r).location || "—" },
     { key: "isActive", label: "Status", render: (r) => <StatusToggle isActive={asPM(r).isActive} onToggle={() => toggleStatus.mutate(asPM(r).id)} /> },
@@ -207,6 +213,7 @@ export default function PackagingMaterialsMaster() {
     { key: "size", label: "Size" },
     { key: "unitType", label: "Unit Type" },
     { key: "unitPrice", label: "Unit Price" },
+    { key: "currentStock", label: "Current Stock" },
     { key: "vendor", label: "Vendor" },
     { key: "location", label: "Location" },
     { key: "createdBy", label: "Created By" },
@@ -290,6 +297,7 @@ export default function PackagingMaterialsMaster() {
                 options={unitTypeOptions} placeholder="Select unit type" />
             </div>
             <InputField label="Unit Price" value={form.unitPrice} onChange={(e) => setForm(f => ({ ...f, unitPrice: e.target.value }))} placeholder="0.00" type="number" />
+            <InputField label="Current Stock" value={form.currentStock} onChange={(e) => setForm(f => ({ ...f, currentStock: e.target.value }))} placeholder="0" type="number" />
             <div className="py-2">
               <SearchableSelect label="Vendor" value={form.vendor} onChange={(v) => setForm(f => ({ ...f, vendor: v }))}
                 options={vendorOptions} placeholder="Select vendor" />

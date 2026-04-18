@@ -10,6 +10,7 @@ export type PackagingMaterialRecord = {
   size: string | null;
   unitType: string | null;
   unitPrice: string | null;
+  currentStock: string | null;
   vendor: string | null;
   location: string | null;
   isActive: boolean;
@@ -27,6 +28,7 @@ export type PackagingMaterialFormData = {
   size: string;
   unitType: string;
   unitPrice: string;
+  currentStock: string;
   vendor: string;
   location: string;
   isActive: boolean;

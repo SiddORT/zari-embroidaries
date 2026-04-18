@@ -104,7 +104,8 @@ export async function syncAllFromMasters(): Promise<{ synced: number; updated: n
           COALESCE(p.unit_price, 0),
           COALESCE(p.unit_price, 0),
           p.vendor,
-          0, 0,
+          COALESCE(p.current_stock, 0),
+          COALESCE(p.current_stock, 0),
           NOW(), NOW()
         FROM packaging_materials p
         WHERE p.is_deleted = false
@@ -113,7 +114,7 @@ export async function syncAllFromMasters(): Promise<{ synced: number; updated: n
       `),
     ]);
 
-    const [fUpd, mUpd] = await Promise.all([
+    const [fUpd, mUpd, pUpd] = await Promise.all([
       pool.query(`
         UPDATE inventory_items ii
         SET
@@ -146,10 +147,26 @@ export async function syncAllFromMasters(): Promise<{ synced: number; updated: n
         WHERE ii.source_type = 'material' AND ii.source_id = m.id AND m.is_deleted = false
         RETURNING ii.id
       `),
+      pool.query(`
+        UPDATE inventory_items ii
+        SET
+          current_stock   = COALESCE(p.current_stock, 0),
+          available_stock = GREATEST(0,
+            COALESCE(p.current_stock, 0)
+            - ii.style_reserved_qty::numeric - ii.swatch_reserved_qty::numeric
+          ),
+          item_name       = p.item_name,
+          item_code       = p.item_code,
+          average_price   = COALESCE(p.unit_price, ii.average_price),
+          last_updated_at = NOW()
+        FROM packaging_materials p
+        WHERE ii.source_type = 'packaging' AND ii.source_id = p.id AND p.is_deleted = false
+        RETURNING ii.id
+      `),
     ]);
 
     const newCount = (fNew.rowCount ?? 0) + (mNew.rowCount ?? 0) + (pNew.rowCount ?? 0);
-    const updCount = (fUpd.rowCount ?? 0) + (mUpd.rowCount ?? 0);
+    const updCount = (fUpd.rowCount ?? 0) + (mUpd.rowCount ?? 0) + (pUpd.rowCount ?? 0);
     return { synced: newCount, updated: updCount };
   } catch (err) {
     console.error("[InventoryService] Sync failed:", err);
