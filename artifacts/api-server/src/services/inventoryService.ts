@@ -46,14 +46,14 @@ export async function ensureInventoryRecord(
   }
 }
 
-export async function syncAllFromMasters(): Promise<{ synced: number }> {
+export async function syncAllFromMasters(): Promise<{ synced: number; updated: number }> {
   try {
-    const [f, m, p] = await Promise.all([
+    const [fNew, mNew, pNew] = await Promise.all([
       pool.query(`
         INSERT INTO inventory_items
           (source_type, source_id, item_name, item_code, category, unit_type,
            warehouse_location, average_price, last_purchase_price, preferred_vendor,
-           last_updated_at, created_at)
+           current_stock, available_stock, last_updated_at, created_at)
         SELECT
           'fabric', f.id,
           TRIM(CONCAT(f.fabric_type, ' - ', f.quality, ' - ', f.color_name)),
@@ -61,7 +61,10 @@ export async function syncAllFromMasters(): Promise<{ synced: number }> {
           f.location,
           COALESCE(NULLIF(TRIM(f.price_per_meter),'')::numeric, 0),
           COALESCE(NULLIF(TRIM(f.price_per_meter),'')::numeric, 0),
-          f.vendor, NOW(), NOW()
+          f.vendor,
+          COALESCE(NULLIF(TRIM(COALESCE(f.current_stock,'0')),'')::numeric, 0),
+          COALESCE(NULLIF(TRIM(COALESCE(f.current_stock,'0')),'')::numeric, 0),
+          NOW(), NOW()
         FROM fabrics f
         WHERE f.is_deleted = false
         ON CONFLICT (source_type, source_id) DO NOTHING
@@ -71,7 +74,7 @@ export async function syncAllFromMasters(): Promise<{ synced: number }> {
         INSERT INTO inventory_items
           (source_type, source_id, item_name, item_code, category, unit_type,
            warehouse_location, average_price, last_purchase_price, preferred_vendor,
-           last_updated_at, created_at)
+           current_stock, available_stock, last_updated_at, created_at)
         SELECT
           'material', m.id,
           TRIM(CONCAT(m.item_type, ' - ', m.quality, ' - ', m.color_name)),
@@ -79,7 +82,10 @@ export async function syncAllFromMasters(): Promise<{ synced: number }> {
           m.location,
           COALESCE(NULLIF(TRIM(m.unit_price),'')::numeric, 0),
           COALESCE(NULLIF(TRIM(m.unit_price),'')::numeric, 0),
-          m.vendor, NOW(), NOW()
+          m.vendor,
+          COALESCE(NULLIF(TRIM(COALESCE(m.current_stock,'0')),'')::numeric, 0),
+          COALESCE(NULLIF(TRIM(COALESCE(m.current_stock,'0')),'')::numeric, 0),
+          NOW(), NOW()
         FROM materials m
         WHERE m.is_deleted = false
         ON CONFLICT (source_type, source_id) DO NOTHING
@@ -89,7 +95,7 @@ export async function syncAllFromMasters(): Promise<{ synced: number }> {
         INSERT INTO inventory_items
           (source_type, source_id, item_name, item_code, category, unit_type,
            warehouse_location, average_price, last_purchase_price, preferred_vendor,
-           last_updated_at, created_at)
+           current_stock, available_stock, last_updated_at, created_at)
         SELECT
           'packaging', p.id,
           p.item_name,
@@ -97,14 +103,54 @@ export async function syncAllFromMasters(): Promise<{ synced: number }> {
           p.location,
           COALESCE(p.unit_price, 0),
           COALESCE(p.unit_price, 0),
-          p.vendor, NOW(), NOW()
+          p.vendor,
+          0, 0,
+          NOW(), NOW()
         FROM packaging_materials p
         WHERE p.is_deleted = false
         ON CONFLICT (source_type, source_id) DO NOTHING
         RETURNING id
       `),
     ]);
-    return { synced: (f.rowCount ?? 0) + (m.rowCount ?? 0) + (p.rowCount ?? 0) };
+
+    const [fUpd, mUpd] = await Promise.all([
+      pool.query(`
+        UPDATE inventory_items ii
+        SET
+          current_stock   = COALESCE(NULLIF(TRIM(COALESCE(f.current_stock,'0')),'')::numeric, 0),
+          available_stock = GREATEST(0,
+            COALESCE(NULLIF(TRIM(COALESCE(f.current_stock,'0')),'')::numeric, 0)
+            - ii.style_reserved_qty::numeric - ii.swatch_reserved_qty::numeric
+          ),
+          item_name       = TRIM(CONCAT(f.fabric_type, ' - ', f.quality, ' - ', f.color_name)),
+          item_code       = f.fabric_code,
+          average_price   = COALESCE(NULLIF(TRIM(f.price_per_meter),'')::numeric, ii.average_price),
+          last_updated_at = NOW()
+        FROM fabrics f
+        WHERE ii.source_type = 'fabric' AND ii.source_id = f.id AND f.is_deleted = false
+        RETURNING ii.id
+      `),
+      pool.query(`
+        UPDATE inventory_items ii
+        SET
+          current_stock   = COALESCE(NULLIF(TRIM(COALESCE(m.current_stock,'0')),'')::numeric, 0),
+          available_stock = GREATEST(0,
+            COALESCE(NULLIF(TRIM(COALESCE(m.current_stock,'0')),'')::numeric, 0)
+            - ii.style_reserved_qty::numeric - ii.swatch_reserved_qty::numeric
+          ),
+          item_name       = TRIM(CONCAT(m.item_type, ' - ', m.quality, ' - ', m.color_name)),
+          item_code       = m.material_code,
+          average_price   = COALESCE(NULLIF(TRIM(m.unit_price),'')::numeric, ii.average_price),
+          last_updated_at = NOW()
+        FROM materials m
+        WHERE ii.source_type = 'material' AND ii.source_id = m.id AND m.is_deleted = false
+        RETURNING ii.id
+      `),
+    ]);
+
+    const newCount = (fNew.rowCount ?? 0) + (mNew.rowCount ?? 0) + (pNew.rowCount ?? 0);
+    const updCount = (fUpd.rowCount ?? 0) + (mUpd.rowCount ?? 0);
+    return { synced: newCount, updated: updCount };
   } catch (err) {
     console.error("[InventoryService] Sync failed:", err);
     throw err;

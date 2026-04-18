@@ -33,6 +33,22 @@ export const inventoryItemsTable = pgTable(
 
 export type InventoryItemRecord = typeof inventoryItemsTable.$inferSelect;
 
+export const inventoryStockLogsTable = pgTable("inventory_stock_logs", {
+  id: serial("id").primaryKey(),
+  inventoryItemId: integer("inventory_item_id").notNull(),
+  actionType: text("action_type").notNull(),
+  quantityBefore: numeric("quantity_before", { precision: 14, scale: 3 }).notNull().default("0"),
+  quantityAfter: numeric("quantity_after", { precision: 14, scale: 3 }).notNull().default("0"),
+  quantityDelta: numeric("quantity_delta", { precision: 14, scale: 3 }).notNull().default("0"),
+  referenceType: text("reference_type"),
+  referenceId: integer("reference_id"),
+  notes: text("notes"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type InventoryStockLog = typeof inventoryStockLogsTable.$inferSelect;
+
 export const updateInventoryStockSchema = z.object({
   warehouseLocation: z.string().optional(),
   currentStock: z.string().min(1, "Opening quantity is required"),

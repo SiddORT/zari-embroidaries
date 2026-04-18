@@ -42,6 +42,8 @@ router.get("/inventory/items", requireAuth, async (req, res) => {
       location = "all",
       stockLevel = "all",
       sourceType = "all",
+      fromDate = "",
+      toDate = "",
       page = "1",
       limit = "50",
       sort = "item_name",
@@ -81,6 +83,14 @@ router.get("/inventory/items", requireAuth, async (req, res) => {
       conditions.push(`ii.available_stock::numeric > 0 AND ii.reorder_level::numeric > 0 AND ii.available_stock::numeric <= ii.reorder_level::numeric`);
     } else if (stockLevel === "out") {
       conditions.push(`ii.available_stock::numeric <= 0`);
+    }
+    if (fromDate) {
+      params.push(fromDate);
+      conditions.push(`ii.last_updated_at >= $${params.length}::date`);
+    }
+    if (toDate) {
+      params.push(toDate);
+      conditions.push(`ii.last_updated_at < ($${params.length}::date + INTERVAL '1 day')`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -145,6 +155,72 @@ router.get("/inventory/items/:id", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/inventory/items/:id/logs", requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const r = await pool.query(
+      `SELECT * FROM inventory_stock_logs
+       WHERE inventory_item_id = $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [id]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load stock logs" });
+  }
+});
+
+router.get("/inventory/items/:id/reservations", requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const itemRes = await pool.query(
+      `SELECT source_type, source_id, item_name, style_reserved_qty, swatch_reserved_qty FROM inventory_items WHERE id = $1`,
+      [id]
+    );
+    if (!itemRes.rows.length) return res.status(404).json({ error: "Not found" });
+    const item = itemRes.rows[0];
+
+    let swatchOrders: unknown[] = [];
+    let styleOrders: unknown[] = [];
+
+    if (item.source_type === "fabric") {
+      const srcId = parseInt(item.source_id);
+      const [sw, st] = await Promise.all([
+        pool.query(
+          `SELECT id, order_code, swatch_name, client_name, order_status, quantity, unit_type,
+                  CASE WHEN fabric_id = $1 THEN 'Main Fabric' ELSE 'Lining Fabric' END AS fabric_role
+           FROM swatch_orders
+           WHERE (fabric_id = $1 OR lining_fabric_id = $1) AND is_deleted = false
+           ORDER BY created_at DESC LIMIT 50`,
+          [srcId]
+        ),
+        pool.query(
+          `SELECT so.id, so.order_code, so.client_name, so.order_status
+           FROM style_orders so
+           WHERE so.is_deleted = false
+           ORDER BY so.created_at DESC LIMIT 0`
+        ),
+      ]);
+      swatchOrders = sw.rows;
+      styleOrders = st.rows;
+    }
+
+    res.json({
+      item_name: item.item_name,
+      source_type: item.source_type,
+      style_reserved_qty: item.style_reserved_qty,
+      swatch_reserved_qty: item.swatch_reserved_qty,
+      swatch_orders: swatchOrders,
+      style_orders: styleOrders,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load reservations" });
+  }
+});
+
 router.get("/inventory/filters", requireAuth, async (_req, res) => {
   try {
     const [cats, depts, locs] = await Promise.all([
@@ -177,7 +253,12 @@ router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, r
       reorderLevel,
       maximumLevel,
       department,
+      notes,
     } = req.body;
+
+    const prevRes = await pool.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [id]);
+    if (!prevRes.rows.length) return res.status(404).json({ error: "Not found" });
+    const prevStock = parseFloat(prevRes.rows[0].current_stock ?? "0");
 
     const stock = parseFloat(currentStock ?? "0") || 0;
     const styleRes = 0;
@@ -212,6 +293,20 @@ router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, r
       ]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+
+    const delta = stock - prevStock;
+    const actionType = prevStock === 0 ? "opening" : delta >= 0 ? "adjustment_in" : "adjustment_out";
+    const userName = (req.user as { name?: string; email?: string } | undefined)?.name
+      || (req.user as { name?: string; email?: string } | undefined)?.email
+      || "Admin";
+
+    await pool.query(
+      `INSERT INTO inventory_stock_logs
+         (inventory_item_id, action_type, quantity_before, quantity_after, quantity_delta, reference_type, notes, created_by_name, created_at)
+       VALUES ($1,$2,$3,$4,$5,'manual',$6,$7,NOW())`,
+      [id, actionType, prevStock, stock, delta, notes ?? null, userName]
+    ).catch(e => console.error("[StockLog] Failed to write log:", e));
+
     res.json(r.rows[0]);
   } catch (err) {
     console.error(err);
@@ -225,7 +320,10 @@ router.post("/inventory/sync", requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: "Admin only" });
     }
     const result = await syncAllFromMasters();
-    res.json({ message: `Synced ${result.synced} new item(s) from masters`, ...result });
+    res.json({
+      message: `Synced ${result.synced} new item(s), updated stock for ${result.updated} existing item(s) from masters`,
+      ...result,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Sync failed" });
