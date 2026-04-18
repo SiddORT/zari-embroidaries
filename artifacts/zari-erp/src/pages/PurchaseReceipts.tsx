@@ -33,6 +33,10 @@ interface PR {
   item_count: string;
   created_by: string | null;
   created_at: string;
+  source: "inventory" | "costing";
+  po_id: number | null;
+  swatch_order_id: number | null;
+  style_order_id: number | null;
 }
 
 function fmtDate(s: string) {
@@ -224,6 +228,7 @@ export default function PurchaseReceipts() {
                 <tr>
                   <th className={thCls}>#</th>
                   <th className={thCls}>PR Number</th>
+                  <th className={thCls}>Source</th>
                   <th className={thCls}>Date</th>
                   <th className={thCls}>Vendor</th>
                   <th className={thCls}>Items</th>
@@ -235,31 +240,57 @@ export default function PurchaseReceipts() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center">
+                  <tr><td colSpan={10} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-8 w-8 rounded-full border-2 border-[#C6AF4B] border-t-transparent animate-spin" />
                       <span className="text-sm text-gray-700">Loading…</span>
                     </div>
                   </td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-16 text-center">
+                  <tr><td colSpan={10} className="px-4 py-16 text-center">
                     <FileText className="h-10 w-10 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-700 font-medium">No purchase receipts found</p>
                     <p className="text-xs text-gray-400 mt-1">Click "New PR" to create your first purchase receipt</p>
                   </td></tr>
-                ) : rows.map((pr, idx) => (
-                  <tr key={pr.id} className="hover:bg-[#C6AF4B]/5 transition-colors">
+                ) : rows.map((pr, idx) => {
+                  const isCosting = pr.source === "costing";
+                  return (
+                  <tr key={`${pr.source}-${pr.id}`} className="hover:bg-[#C6AF4B]/5 transition-colors">
                     <td className={tdCls}><span className="text-xs text-gray-400">{(page - 1) * limit + idx + 1}</span></td>
                     <td className={tdCls}>
-                      <button onClick={() => navigate(`/inventory/purchase-receipts/${pr.id}`)}
-                        className="font-mono text-sm font-semibold hover:underline" style={{ color: G }}>
-                        {pr.pr_number}
-                      </button>
+                      {isCosting ? (
+                        <span className="font-mono text-sm font-semibold text-gray-700">{pr.pr_number}</span>
+                      ) : (
+                        <button onClick={() => navigate(`/inventory/purchase-receipts/${pr.id}`)}
+                          className="font-mono text-sm font-semibold hover:underline" style={{ color: G }}>
+                          {pr.pr_number}
+                        </button>
+                      )}
+                      {isCosting && pr.po_id && (
+                        <div className="text-[10px] text-gray-400 mt-0.5">PO #{pr.po_id}</div>
+                      )}
+                      {isCosting && pr.swatch_order_id && (
+                        <div className="text-[10px] text-purple-500 mt-0.5">Swatch #{pr.swatch_order_id}</div>
+                      )}
+                      {isCosting && pr.style_order_id && (
+                        <div className="text-[10px] text-indigo-500 mt-0.5">Style #{pr.style_order_id}</div>
+                      )}
+                    </td>
+                    <td className={tdCls}>
+                      {isCosting ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700">
+                          From PO
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700">
+                          Inventory
+                        </span>
+                      )}
                     </td>
                     <td className={tdCls}><span className="text-xs">{fmtDate(pr.pr_date)}</span></td>
-                    <td className={tdCls}><span className="text-xs">{pr.vendor_name ?? "—"}</span></td>
+                    <td className={tdCls}><span className="text-xs">{pr.vendor_name || "—"}</span></td>
                     <td className={tdCls}>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700">
                         {pr.item_count} item{parseInt(pr.item_count) !== 1 ? "s" : ""}
                       </span>
                     </td>
@@ -267,27 +298,32 @@ export default function PurchaseReceipts() {
                     <td className={tdCls}><StatusBadge s={pr.status} /></td>
                     <td className={tdCls}><span className="text-xs text-gray-600">{pr.created_by ?? "—"}</span></td>
                     <td className={tdCls}>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => navigate(`/inventory/purchase-receipts/${pr.id}`)}
-                          className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors">
-                          <Eye className="h-3 w-3" /> View
-                        </button>
-                        {pr.status !== "cancelled" && (
-                          <button onClick={() => setCancelConfirm(pr)}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
-                            <XCircle className="h-3 w-3" /> Cancel
+                      {isCosting ? (
+                        <span className="text-[11px] text-gray-400 italic">Managed in Costing</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => navigate(`/inventory/purchase-receipts/${pr.id}`)}
+                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors">
+                            <Eye className="h-3 w-3" /> View
                           </button>
-                        )}
-                        {isAdmin && (
-                          <button onClick={() => setDeleteConfirm(pr)}
-                            className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+                          {pr.status !== "cancelled" && (
+                            <button onClick={() => setCancelConfirm(pr)}
+                              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
+                              <XCircle className="h-3 w-3" /> Cancel
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => setDeleteConfirm(pr)}
+                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -130,7 +130,7 @@ async function reverseInventoryUpdate(
 router.get("/purchase-receipts", requireAuth, async (req, res) => {
   try {
     const {
-      search = "", status = "all", vendorId = "",
+      search = "", status = "all",
       fromDate = "", toDate = "",
       page = "1", limit = "10", sort = "newest",
     } = req.query as Record<string, string>;
@@ -139,30 +139,80 @@ router.get("/purchase-receipts", requireAuth, async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
     const offset = (pageNum - 1) * limitNum;
 
-    const conditions: string[] = ["pr.is_deleted = false"];
+    // Build outer WHERE conditions on the combined CTE
+    const conditions: string[] = [];
     const params: (string | number)[] = [];
 
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(pr.pr_number ILIKE $${params.length} OR pr.vendor_name ILIKE $${params.length})`);
+      conditions.push(`(c.pr_number ILIKE $${params.length} OR c.vendor_name ILIKE $${params.length})`);
     }
-    if (status !== "all") { params.push(status); conditions.push(`pr.status = $${params.length}`); }
-    if (vendorId) { params.push(parseInt(vendorId)); conditions.push(`pr.vendor_id = $${params.length}`); }
-    if (fromDate) { params.push(fromDate); conditions.push(`pr.pr_date >= $${params.length}`); }
-    if (toDate) { params.push(toDate); conditions.push(`pr.pr_date <= $${params.length}`); }
+    if (status !== "all") {
+      params.push(status);
+      conditions.push(`c.status = $${params.length}`);
+    }
+    if (fromDate) { params.push(fromDate); conditions.push(`c.pr_date >= $${params.length}`); }
+    if (toDate)   { params.push(toDate);   conditions.push(`c.pr_date <= $${params.length}`); }
 
-    const where = `WHERE ${conditions.join(" AND ")}`;
-    const orderBy = sort === "oldest" ? "pr.created_at ASC" : "pr.created_at DESC";
+    const outerWhere = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const orderBy = sort === "oldest" ? "c.created_at ASC" : "c.created_at DESC";
+
+    // UNION of standalone inventory PRs and costing/PO-linked PRs
+    const cte = `
+      WITH combined AS (
+        SELECT
+          ir.id,
+          ir.pr_number,
+          COALESCE(ir.vendor_name, '') AS vendor_name,
+          ir.pr_date::text AS pr_date,
+          ir.status,
+          ir.total_amount::numeric AS total_amount,
+          (SELECT COUNT(*) FROM inv_receipt_items WHERE pr_id = ir.id)::int AS item_count,
+          ir.created_by,
+          ir.created_at,
+          'inventory' AS source,
+          NULL::integer AS po_id,
+          NULL::integer AS swatch_order_id,
+          NULL::integer AS style_order_id
+        FROM inv_receipts ir
+        WHERE ir.is_deleted = false
+
+        UNION ALL
+
+        SELECT
+          pr.id,
+          pr.pr_number,
+          COALESCE(pr.vendor_name, '') AS vendor_name,
+          (pr.received_date AT TIME ZONE 'UTC')::date::text AS pr_date,
+          CASE pr.status
+            WHEN 'Open'      THEN 'draft'
+            WHEN 'Received'  THEN 'confirmed'
+            WHEN 'Cancelled' THEN 'cancelled'
+            ELSE LOWER(pr.status)
+          END AS status,
+          CASE
+            WHEN pr.received_qty  ~ E'^[0-9]+(\\\\.[0-9]+)?$'
+             AND pr.actual_price  ~ E'^[0-9]+(\\\\.[0-9]+)?$'
+            THEN pr.received_qty::numeric * pr.actual_price::numeric
+            ELSE 0
+          END AS total_amount,
+          1 AS item_count,
+          pr.created_by,
+          pr.created_at,
+          'costing' AS source,
+          pr.po_id,
+          pr.swatch_order_id,
+          pr.style_order_id
+        FROM purchase_receipts pr
+      )`;
 
     const [rows, totalRes] = await Promise.all([
       pool.query(
-        `SELECT pr.*,
-           (SELECT COUNT(*) FROM inv_receipt_items pri WHERE pri.pr_id = pr.id) AS item_count
-         FROM inv_receipts pr ${where} ORDER BY ${orderBy}
+        `${cte} SELECT c.* FROM combined c ${outerWhere} ORDER BY ${orderBy}
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, limitNum, offset]
       ),
-      pool.query(`SELECT COUNT(*) FROM inv_receipts pr ${where}`, params),
+      pool.query(`${cte} SELECT COUNT(*) FROM combined c ${outerWhere}`, params),
     ]);
 
     res.json({ data: rows.rows, total: parseInt(totalRes.rows[0].count), page: pageNum, limit: limitNum });
