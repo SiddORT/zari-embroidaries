@@ -92,7 +92,7 @@ export default function InventoryLedger() {
   const [total, setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage]     = useState(1);
-  const limit = 50;
+  const limit = 10;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const [search,    setSearch]    = useState("");

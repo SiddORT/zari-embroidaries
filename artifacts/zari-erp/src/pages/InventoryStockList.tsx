@@ -198,7 +198,7 @@ export default function InventoryStockList() {
   const [syncing, setSyncing] = useState(false);
   const [total, setTotal]     = useState(0);
   const [page, setPage]       = useState(1);
-  const limit                 = 50;
+  const limit                 = 10;
 
   const [search,      setSearch]      = useState("");
   const [category,    setCategory]    = useState("all");
