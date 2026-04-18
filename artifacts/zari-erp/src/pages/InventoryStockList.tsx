@@ -213,7 +213,7 @@ export default function InventoryStockList() {
 
   const [stockModal, setStockModal] = useState<{ item: InventoryItem | null; open: boolean }>({ item: null, open: false });
   const [stockForm, setStockForm]   = useState({
-    currentStock: "", averagePrice: "", lastPurchasePrice: "",
+    currentStock: "", stockChange: "", averagePrice: "", lastPurchasePrice: "",
     warehouseLocation: "", department: "", minimumLevel: "",
     reorderLevel: "", maximumLevel: "", notes: "",
   });
@@ -278,6 +278,7 @@ export default function InventoryStockList() {
   const openStockModal = (item: InventoryItem) => {
     setStockForm({
       currentStock: item.current_stock ?? "0",
+      stockChange: "",
       averagePrice: item.average_price ?? "0",
       lastPurchasePrice: item.last_purchase_price ?? "0",
       warehouseLocation: item.warehouse_location ?? "",
@@ -294,9 +295,12 @@ export default function InventoryStockList() {
     if (!stockModal.item) return;
     setSubmitting(true);
     try {
+      const base   = parseFloat(stockForm.currentStock) || 0;
+      const delta  = parseFloat(stockForm.stockChange)  || 0;
+      const newQty = (base + delta).toFixed(3);
       await customFetch(`/api/inventory/items/${stockModal.item.id}/stock`, {
         method: "PUT",
-        body: JSON.stringify(stockForm),
+        body: JSON.stringify({ ...stockForm, currentStock: newQty }),
       });
       toast({ title: "Stock updated successfully" });
       setStockModal({ item: null, open: false });
@@ -644,29 +648,78 @@ export default function InventoryStockList() {
               </button>
             </div>
 
-            <div className="p-5 grid grid-cols-2 gap-4">
-              {[
-                { label: "Opening / Current Stock *", key: "currentStock", placeholder: "0.000" },
-                { label: "Average Price (₹)", key: "averagePrice", placeholder: "0.00" },
-                { label: "Last Purchase Price (₹)", key: "lastPurchasePrice", placeholder: "0.00" },
-                { label: "Warehouse Location", key: "warehouseLocation", placeholder: "e.g. Rack A-12" },
-                { label: "Department", key: "department", placeholder: "e.g. Embroidery" },
-                { label: "Minimum Level", key: "minimumLevel", placeholder: "0" },
-                { label: "Reorder Level", key: "reorderLevel", placeholder: "0" },
-                { label: "Maximum Level", key: "maximumLevel", placeholder: "0" },
-              ].map(({ label, key, placeholder }) => (
-                <div key={key} className={(key === "warehouseLocation" || key === "department") ? "col-span-2" : ""}>
-                  <label className="block text-xs font-medium text-gray-900 mb-1">{label}</label>
-                  <input
-                    type="text"
-                    placeholder={placeholder}
-                    value={(stockForm as Record<string, string>)[key]}
-                    onChange={e => setStockForm(f => ({ ...f, [key]: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30"
-                  />
-                </div>
-              ))}
-              <div className="col-span-2">
+            <div className="p-5 space-y-4">
+              {/* Stock change row */}
+              {(() => {
+                const base    = parseFloat(stockForm.currentStock) || 0;
+                const delta   = parseFloat(stockForm.stockChange)  || 0;
+                const newQty  = base + delta;
+                const hasChange = stockForm.stockChange.trim() !== "";
+                const isPos   = delta > 0;
+                const isNeg   = delta < 0;
+                return (
+                  <div className="rounded-xl border border-[#C6AF4B]/30 bg-[#FDFBF2] p-3 space-y-3">
+                    {/* Current + Adjustment side by side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Current Stock</label>
+                        <div className="w-full px-3 py-2 text-sm font-semibold text-gray-900 rounded-xl border border-gray-200 bg-gray-50 select-none">
+                          {parseFloat(stockForm.currentStock).toFixed(3)}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Adjustment&nbsp;<span className="text-gray-400 font-normal">(+ add / − reduce)</span></label>
+                        <input
+                          type="number"
+                          placeholder="e.g. +50 or -20"
+                          value={stockForm.stockChange}
+                          onChange={e => setStockForm(f => ({ ...f, stockChange: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30"
+                        />
+                      </div>
+                    </div>
+                    {/* Live preview strip */}
+                    {hasChange && (
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${isPos ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isNeg ? "bg-red-50 text-red-700 border border-red-200" : "bg-gray-50 text-gray-600 border border-gray-200"}`}>
+                        <span className="text-gray-500 font-normal">{base.toFixed(3)}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="font-bold text-base">{newQty.toFixed(3)}</span>
+                        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-semibold ${isPos ? "bg-emerald-100 text-emerald-800" : isNeg ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700"}`}>
+                          {isPos ? `▲ +${delta.toFixed(3)}` : isNeg ? `▼ ${delta.toFixed(3)}` : "No change"}
+                        </span>
+                      </div>
+                    )}
+                    {!hasChange && (
+                      <p className="text-[11px] text-gray-400 text-center">Enter an adjustment amount to preview the new stock level</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Other fields grid */}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: "Average Price (₹)", key: "averagePrice", placeholder: "0.00" },
+                  { label: "Last Purchase Price (₹)", key: "lastPurchasePrice", placeholder: "0.00" },
+                  { label: "Warehouse Location", key: "warehouseLocation", placeholder: "e.g. Rack A-12" },
+                  { label: "Department", key: "department", placeholder: "e.g. Embroidery" },
+                  { label: "Minimum Level", key: "minimumLevel", placeholder: "0" },
+                  { label: "Reorder Level", key: "reorderLevel", placeholder: "0" },
+                  { label: "Maximum Level", key: "maximumLevel", placeholder: "0" },
+                ].map(({ label, key, placeholder }) => (
+                  <div key={key} className={(key === "warehouseLocation" || key === "department") ? "col-span-2" : ""}>
+                    <label className="block text-xs font-medium text-gray-900 mb-1">{label}</label>
+                    <input
+                      type="text"
+                      placeholder={placeholder}
+                      value={(stockForm as Record<string, string>)[key]}
+                      onChange={e => setStockForm(f => ({ ...f, [key]: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-900 mb-1">Notes / Reason</label>
                 <textarea
                   rows={2}
