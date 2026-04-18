@@ -60,6 +60,43 @@ Reusable UI fields at `artifacts/zari-erp/src/components/ui/`:
 - `AddableSelect` — Custom dropdown (DOM-based, not native `<select>`) with optional inline "+ Add New" action at bottom
 - `ConfirmModal` — Delete confirmation modal with warning icon, Cancel + red Delete buttons
 
+## Procurement Module (Unified PO→PR flow)
+
+Centralized procurement across Inventory, Swatch Costing, and Style Planning via unified PO→PR workflow.
+
+### DB Changes
+- `purchase_orders` — added `reference_type` (Inventory/Swatch/Style/Manual), `reference_id`
+- `purchase_order_items` — new table: id, po_id FK, inventory_item_id FK, item_name/code, ordered_quantity, received_quantity, pending_quantity, unit_price, unit_type, warehouse_location, remarks
+- `purchase_receipt_items` — new table: id, pr_id FK, po_item_id FK, inventory_item_id FK, quantity, unit_price, unit_type, warehouse_location, remarks
+- `purchase_receipts` — kept; legacy NOT NULL fields (received_qty, actual_price, warehouse_location) filled with dummy values for old rows
+
+### API routes (artifacts/api-server/src/routes/procurement.ts)
+- `GET /api/procurement/purchase-orders` — filterable PO list (referenceType, status, search, sort, page)
+- `GET /api/procurement/purchase-orders/:id` — PO detail with items array
+- `POST /api/procurement/purchase-orders` — create new PO with line items (inventoryItemId required)
+- `PATCH /api/procurement/purchase-orders/:id/status` — update PO status (Draft→Approved→Partially Received→Closed)
+- `DELETE /api/procurement/purchase-orders/:id` — delete Draft PO only
+- `GET /api/procurement/purchase-receipts` — filterable PR list (referenceType, status, date range, search, sort, page)
+- `GET /api/procurement/purchase-receipts/:id` — PR detail with items
+- `POST /api/procurement/purchase-receipts` — create PR against approved PO; `confirmNow=true` updates inventory (weighted avg) + vendor ledger
+- `POST /api/procurement/purchase-receipts/:id/confirm` — confirm open PR, updates inventory + ledger
+- `POST /api/procurement/purchase-receipts/:id/cancel` — cancel PR (reverses inventory if Received)
+- `DELETE /api/procurement/purchase-receipts/:id` — delete PR
+- `GET /api/procurement/approved-pos` — list POs in Approved/Partially Received status
+- `GET /api/procurement/item-tracking` — per-item ordered/received/pending quantities
+
+### Frontend pages
+- `/procurement/purchase-orders` — `PurchaseOrderList.tsx` (filterable, paginated, source/status badges, ordered/received/pending qty)
+- `/procurement/purchase-orders/new` — `PurchaseOrderForm.tsx` create mode (vendor + date + line items with item search dropdown)
+- `/procurement/purchase-orders/:id` — `PurchaseOrderForm.tsx` view mode (summary cards, items with progress bars, Approve + Create Receipt buttons)
+- `/procurement/purchase-receipts` — `PurchaseReceipts.tsx` (filterable, date range, cancel/delete actions)
+- `/procurement/purchase-receipts/new?poId=X` — `PurchaseReceiptForm.tsx` create mode (PO selector, pending qty per item, Save Draft or Confirm)
+- `/procurement/purchase-receipts/:id` — `PurchaseReceiptForm.tsx` view mode (Confirm button for Open receipts)
+
+### Navigation
+- TopNavbar: Procurement dropdown added (Purchase Orders, Purchase Receipts) — both desktop and mobile menus
+- Inventory menu: removed Purchase Receipts sub-link (now lives under Procurement)
+
 ## API Routes
 
 - `POST /api/auth/login` — Login, returns JWT

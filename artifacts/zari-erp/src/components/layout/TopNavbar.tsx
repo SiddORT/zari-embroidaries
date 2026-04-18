@@ -32,9 +32,13 @@ const ACCOUNTS_ITEMS = [
 ];
 
 const INVENTORY_ITEMS = [
-  { label: "Item Stock List",     href: "/inventory/items" },
-  { label: "Stock Ledger",        href: "/inventory/ledger" },
-  { label: "Purchase Receipts",   href: "/inventory/purchase-receipts" },
+  { label: "Item Stock List", href: "/inventory/items" },
+  { label: "Stock Ledger",    href: "/inventory/ledger" },
+];
+
+const PROCUREMENT_ITEMS = [
+  { label: "Purchase Orders",   href: "/procurement/purchase-orders" },
+  { label: "Purchase Receipts", href: "/procurement/purchase-receipts" },
 ];
 
 const TOP_LINKS = [
@@ -48,23 +52,27 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [procurementOpen, setProcurementOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
   const [mobileInventoryOpen, setMobileInventoryOpen] = useState(false);
+  const [mobileProcurementOpen, setMobileProcurementOpen] = useState(false);
   const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
   const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const mastersRef = useRef<HTMLDivElement>(null);
   const inventoryRef = useRef<HTMLDivElement>(null);
+  const procurementRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const accountsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const mastersActive   = location.startsWith("/masters");
-  const inventoryActive = location.startsWith("/inventory");
-  const ordersActive    = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
-  const accountsActive  = location.startsWith("/accounts");
+  const mastersActive     = location.startsWith("/masters");
+  const inventoryActive   = location.startsWith("/inventory");
+  const procurementActive = location.startsWith("/procurement");
+  const ordersActive      = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
+  const accountsActive    = location.startsWith("/accounts");
 
   const initials = (username ?? "")
     .split(" ")
@@ -91,6 +99,15 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [inventoryOpen]);
+
+  useEffect(() => {
+    if (!procurementOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (procurementRef.current && !procurementRef.current.contains(e.target as Node)) setProcurementOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [procurementOpen]);
 
   useEffect(() => {
     if (!ordersOpen) return;
@@ -206,6 +223,42 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                         key={href}
                         href={href}
                         onClick={() => setInventoryOpen(false)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          active
+                            ? "text-gray-900 bg-gray-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Procurement dropdown */}
+            <div className="relative" ref={procurementRef}>
+              <button
+                onClick={() => setProcurementOpen((v) => !v)}
+                className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  procurementActive
+                    ? "bg-gray-900 text-[#C9B45C]"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                Procurement
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${procurementOpen ? "rotate-180" : ""}`} />
+              </button>
+              {procurementOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                  {PROCUREMENT_ITEMS.map(({ label, href }) => {
+                    const active = location === href || location.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setProcurementOpen(false)}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           active
                             ? "text-gray-900 bg-gray-50 font-semibold"
@@ -435,6 +488,33 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileInventoryOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {INVENTORY_ITEMS.map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Mobile Procurement */}
+              <button
+                onClick={() => setMobileProcurementOpen((v) => !v)}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                  procurementActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <span>Procurement</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileProcurementOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileProcurementOpen && (
+                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                  {PROCUREMENT_ITEMS.map(({ label, href }) => (
                     <Link
                       key={href}
                       href={href}

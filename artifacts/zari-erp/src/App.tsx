@@ -36,6 +36,8 @@ import InventoryStockList from "@/pages/InventoryStockList";
 import InventoryLedger from "@/pages/InventoryLedger";
 import PurchaseReceipts from "@/pages/PurchaseReceipts";
 import PurchaseReceiptForm from "@/pages/PurchaseReceiptForm";
+import PurchaseOrderList from "@/pages/PurchaseOrderList";
+import PurchaseOrderForm from "@/pages/PurchaseOrderForm";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +100,12 @@ function Router() {
       <Route path="/inventory/purchase-receipts/new" component={PurchaseReceiptForm} />
       <Route path="/inventory/purchase-receipts/:id" component={PurchaseReceiptForm} />
       <Route path="/inventory/purchase-receipts" component={PurchaseReceipts} />
+      <Route path="/procurement/purchase-orders/new" component={PurchaseOrderForm} />
+      <Route path="/procurement/purchase-orders/:id" component={PurchaseOrderForm} />
+      <Route path="/procurement/purchase-orders" component={PurchaseOrderList} />
+      <Route path="/procurement/purchase-receipts/new" component={PurchaseReceiptForm} />
+      <Route path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} />
+      <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
       <Route component={NotFound} />
     </Switch>
   );

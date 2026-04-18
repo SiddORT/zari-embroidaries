@@ -1,0 +1,269 @@
+Update the existing Purchase Order (PO) and Purchase Receipt (PR) system currently used inside the Costing module.
+
+Convert it into a centralized Procurement Module shared across:
+
+Inventory
+Swatch Costing
+Style Planning
+
+Do NOT create new PO or PR tables.
+
+Reuse existing PO and PR tables.
+
+Follow structure exactly as defined below.
+
+---
+
+## OBJECTIVE
+
+Centralize procurement so all Purchase Orders and Purchase Receipts work from one shared system.
+
+Existing Costing PO and PR must now support:
+
+Inventory-based procurement
+Swatch-based procurement
+Style-based procurement
+Manual procurement
+
+---
+
+## SECTION 1 — ADD REFERENCE TYPE SUPPORT
+
+Modify existing Purchase Order table.
+
+Add fields:
+
+reference_type
+reference_id
+
+reference_type values:
+
+Inventory
+Swatch
+Style
+Manual
+
+reference_id stores:
+
+Swatch ID
+Style ID
+NULL (for Inventory or Manual PO)
+
+Example:
+
+PO created from costing:
+
+reference_type = Swatch
+
+PO created from style planning:
+
+reference_type = Style
+
+PO created from inventory:
+
+reference_type = Inventory
+
+---
+
+## SECTION 2 — MODIFY EXISTING PO ITEM TABLE
+
+Ensure PO item table includes:
+
+po_item_id
+po_id
+item_id
+ordered_quantity
+received_quantity
+pending_quantity
+unit_price
+warehouse_location
+
+pending_quantity calculation:
+
+pending_quantity =
+ordered_quantity − received_quantity
+
+---
+
+## SECTION 3 — LINK INVENTORY SCREEN WITH EXISTING PO SYSTEM
+
+Inventory Item List page must include:
+
+Create PO button
+
+When clicked:
+
+Create record inside existing Purchase Order table
+
+reference_type = Inventory
+
+reference_id = NULL
+
+Create PO item inside existing PO item table
+
+---
+
+## SECTION 4 — LINK EXISTING PR TABLE TO INVENTORY
+
+Existing Purchase Receipt table must include:
+
+po_id as mandatory foreign key
+
+PR cannot exist without PO
+
+Each PR item must reference:
+
+po_item_id
+
+Ensure inventory PR uses same PR tables as costing module
+
+Do NOT create duplicate PR tables
+
+---
+
+## SECTION 5 — UPDATE PO STATUS AUTOMATICALLY
+
+Automatically update PO header status:
+
+If no PR created:
+
+Approved
+
+If partial PR created:
+
+Partially Received
+
+If full PR completed:
+
+Closed
+
+---
+
+## SECTION 6 — INVENTORY SCREEN PROCUREMENT TRACKING
+
+Inventory Item List page must display:
+
+total_ordered_quantity
+
+total_received_quantity
+
+pending_delivery_quantity
+
+These values must aggregate from:
+
+existing purchase_order_items table
+
+existing purchase_receipt_items table
+
+Formula:
+
+pending_delivery_quantity =
+total_ordered_quantity − total_received_quantity
+
+---
+
+## SECTION 7 — LINK COSTING PO WITH CENTRAL PROCUREMENT
+
+When PO created inside costing module:
+
+store:
+
+reference_type = Swatch
+
+reference_id = Swatch ID
+
+Ensure costing PO records appear inside central PO list page
+
+---
+
+## SECTION 8 — LINK STYLE PO WITH CENTRAL PROCUREMENT
+
+When PO created inside style module:
+
+store:
+
+reference_type = Style
+
+reference_id = Style ID
+
+Ensure style PO records appear inside central PO list page
+
+---
+
+## SECTION 9 — LINK COSTING PR WITH CENTRAL PROCUREMENT
+
+When PR created inside costing module:
+
+store:
+
+po_id
+
+Ensure PR records update:
+
+purchase_order_items.received_quantity
+
+pending_quantity
+
+---
+
+## SECTION 10 — PREVENT DUPLICATE PROCUREMENT SYSTEMS
+
+Ensure:
+
+Inventory module
+
+Costing module
+
+Style module
+
+All use same tables:
+
+purchase_orders
+
+purchase_order_items
+
+purchase_receipts
+
+purchase_receipt_items
+
+No additional procurement tables allowed
+
+---
+
+## SECTION 11 — INVENTORY PROCUREMENT VISIBILITY
+
+Inventory item list must show:
+
+ordered_quantity
+
+received_quantity
+
+pending_quantity
+
+Values must include:
+
+Inventory PO
+
+Swatch PO
+
+Style PO
+
+---
+
+## SECTION 12 — VALIDATION RULES
+
+Prevent:
+
+PR without PO
+
+received_quantity greater than pending_quantity
+
+missing item_id
+
+missing vendor_id
+
+---
+
+## END OF PROCUREMENT CENTRALIZATION UPDATE
+
+Update backend logic and UI integration accordingly.

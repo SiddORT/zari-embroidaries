@@ -130,6 +130,8 @@ router.post("/po", requireAuth, async (req, res) => {
   const [row] = await db.insert(purchaseOrdersTable).values({
     poNumber,
     swatchOrderId: Number(swatchOrderId),
+    referenceType: "Swatch",
+    referenceId: Number(swatchOrderId),
     vendorId,
     vendorName: vendor.brandName,
     status: "Draft",
@@ -551,6 +553,8 @@ router.post("/style-po", requireAuth, async (req, res) => {
   const [row] = await db.insert(purchaseOrdersTable).values({
     poNumber,
     styleOrderId: Number(styleOrderId),
+    referenceType: "Style",
+    referenceId: Number(styleOrderId),
     vendorId,
     vendorName: vendor.brandName,
     status: "Draft",
