@@ -33,6 +33,7 @@ const ACCOUNTS_ITEMS = [
 
 const INVENTORY_ITEMS = [
   { label: "Item Stock List", href: "/inventory/items" },
+  { label: "Stock Ledger",    href: "/inventory/ledger" },
 ];
 
 const TOP_LINKS = [

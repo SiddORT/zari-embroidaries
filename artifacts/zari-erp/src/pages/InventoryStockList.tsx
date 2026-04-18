@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, ChevronUp, ChevronDown,
   Edit2, X, ChevronLeft, ChevronRight, Boxes,
   Clock, CalendarRange, ArrowUpCircle, ArrowDownCircle,
-  MinusCircle, Info,
+  MinusCircle, Info, BookOpen,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -592,6 +592,10 @@ export default function InventoryStockList() {
                             <button onClick={() => openLogModal(item)}
                               className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors">
                               <Clock className="h-3 w-3" /> Log
+                            </button>
+                            <button onClick={() => navigate(`/inventory/ledger?itemId=${item.id}&itemName=${encodeURIComponent(item.item_name)}`)}
+                              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
+                              <BookOpen className="h-3 w-3" /> Ledger
                             </button>
                           </div>
                         </td>

@@ -1,0 +1,346 @@
+Build Step-2 of the Inventory Module for an embroidery sampling ERP system.
+
+This step must implement the Stock Ledger Engine that records all inventory movements.
+
+The ledger must support stock tracking history and automatic quantity updates.
+
+Follow structure exactly as defined below.
+
+---
+
+## MODULE NAME
+
+Inventory Management — Step 2 (Stock Ledger Engine)
+
+This module extends the existing inventory_items table created in Step-1.
+
+---
+
+## SECTION 1 — DATABASE TABLE STRUCTURE
+
+Create table:
+
+stock_ledger
+
+Fields:
+
+ledger_id (primary key)
+
+item_id (foreign key → Item Master)
+
+inventory_id (foreign key → inventory_items)
+
+transaction_type
+
+reference_number
+
+reference_type
+
+in_quantity
+
+out_quantity
+
+balance_quantity
+
+remarks
+
+created_by
+
+created_at
+
+---
+
+## SECTION 2 — TRANSACTION TYPES SUPPORTED
+
+Support ledger transaction types:
+
+Opening Stock
+
+Purchase Receipt
+
+Consumption
+
+Style Reservation
+
+Swatch Reservation
+
+Reservation Conversion
+
+Reservation Release
+
+Wastage
+
+Transaction type must be stored as enum or controlled values.
+
+---
+
+## SECTION 3 — OPENING STOCK LEDGER ENTRY
+
+Whenever opening stock entered in inventory_items:
+
+Automatically create ledger entry:
+
+transaction_type = Opening Stock
+
+reference_type = Manual Entry
+
+reference_number = Opening Stock Entry ID
+
+in_quantity = Opening Quantity
+
+balance_quantity = Updated stock
+
+---
+
+## SECTION 4 — PURCHASE RECEIPT LEDGER ENTRY (STRUCTURE ONLY)
+
+Prepare ledger structure for Purchase Receipt integration.
+
+Do NOT integrate with PR module yet.
+
+Ledger must support:
+
+transaction_type = Purchase Receipt
+
+reference_type = PR
+
+reference_number = PR Number
+
+in_quantity = Received Quantity
+
+balance_quantity updated automatically
+
+---
+
+## SECTION 5 — CONSUMPTION LEDGER ENTRY (STRUCTURE ONLY)
+
+Prepare ledger structure for consumption integration.
+
+Do NOT integrate consumption module yet.
+
+Ledger must support:
+
+transaction_type = Consumption
+
+reference_type = Swatch
+
+reference_number = Swatch ID
+
+out_quantity = Consumed Quantity
+
+balance_quantity updated automatically
+
+---
+
+## SECTION 6 — RESERVATION LEDGER ENTRY STRUCTURE
+
+Prepare ledger structure for reservations.
+
+Support:
+
+Style Reservation
+
+Swatch Reservation
+
+Reservation Conversion
+
+Reservation Release
+
+Ledger fields:
+
+reference_type:
+
+Style
+
+Swatch
+
+reference_number:
+
+Style ID or Swatch ID
+
+reserved_quantity stored inside remarks metadata field
+
+Do NOT implement reservation engine yet.
+
+---
+
+## SECTION 7 — WASTAGE LEDGER ENTRY
+
+Support wastage transaction entry.
+
+Fields required:
+
+Item
+
+Quantity
+
+Reason
+
+Date
+
+Reference optional
+
+System must:
+
+reduce current_stock
+
+create ledger entry:
+
+transaction_type = Wastage
+
+out_quantity = wastage quantity
+
+update balance_quantity automatically
+
+---
+
+## SECTION 8 — AUTO BALANCE UPDATE LOGIC
+
+Whenever ledger entry created:
+
+System must update:
+
+inventory_items.current_stock
+
+Then recalculate:
+
+available_stock
+
+Formula:
+
+available_stock =
+current_stock
+− style_reserved_qty
+− swatch_reserved_qty
+
+Update:
+
+last_updated_at timestamp
+
+---
+
+## SECTION 9 — ITEM LEDGER VIEW PAGE
+
+Create Item Ledger View Screen.
+
+User can open ledger from:
+
+Inventory List Page → View Ledger button
+
+Ledger screen columns:
+
+Date
+
+Transaction Type
+
+Reference Type
+
+Reference Number
+
+In Quantity
+
+Out Quantity
+
+Balance Quantity
+
+Remarks
+
+Created By
+
+---
+
+## SECTION 10 — LEDGER FILTERS
+
+Provide filters:
+
+Item Name
+
+Transaction Type
+
+Reference Type
+
+Date Range
+
+Created By
+
+---
+
+## SECTION 11 — SORTING OPTIONS
+
+Allow sorting:
+
+Newest First
+
+Oldest First
+
+Highest Quantity Movement
+
+---
+
+## SECTION 12 — PERMISSIONS CONTROL
+
+Ledger entries must NOT be editable after creation.
+
+Ledger deletion allowed only for Admin users.
+
+Normal users:
+
+View only
+
+Admin users:
+
+Create wastage entry
+
+Delete incorrect ledger entry
+
+---
+
+## SECTION 13 — VALIDATION RULES
+
+Prevent negative stock after:
+
+Consumption
+
+Wastage
+
+Reservation
+
+Reject ledger entry if:
+
+out_quantity > available_stock
+
+---
+
+## SECTION 14 — UI STRUCTURE
+
+Add button inside Inventory List Screen:
+
+View Ledger
+
+Click opens:
+
+Item Ledger Page
+
+Add button:
+
+Add Wastage Entry
+
+(Admin only)
+
+---
+
+## SECTION 15 — PERFORMANCE OPTIMIZATION
+
+Ledger queries must:
+
+paginate results
+
+limit default view to last 50 records
+
+support fast filtering
+
+---
+
+## END OF STEP-2 INVENTORY MODULE REQUIREMENTS
+
+Build backend logic and frontend UI accordingly.

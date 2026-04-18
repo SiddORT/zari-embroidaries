@@ -238,6 +238,156 @@ router.get("/inventory/filters", requireAuth, async (_req, res) => {
   }
 });
 
+// ── Stock Ledger ────────────────────────────────────────────────────────────
+
+router.get("/inventory/ledger", requireAuth, async (req, res) => {
+  try {
+    const {
+      itemId = "",
+      transactionType = "all",
+      referenceType = "all",
+      createdBy = "",
+      fromDate = "",
+      toDate = "",
+      search = "",
+      sort = "newest",
+      page = "1",
+      limit = "50",
+    } = req.query as Record<string, string>;
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (itemId) {
+      params.push(parseInt(itemId));
+      conditions.push(`sl.item_id = $${params.length}`);
+    }
+    if (transactionType !== "all") {
+      params.push(transactionType);
+      conditions.push(`sl.transaction_type = $${params.length}`);
+    }
+    if (referenceType !== "all") {
+      params.push(referenceType);
+      conditions.push(`sl.reference_type = $${params.length}`);
+    }
+    if (createdBy) {
+      params.push(`%${createdBy}%`);
+      conditions.push(`sl.created_by ILIKE $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`ii.item_name ILIKE $${params.length}`);
+    }
+    if (fromDate) {
+      params.push(fromDate);
+      conditions.push(`sl.created_at >= $${params.length}::date`);
+    }
+    if (toDate) {
+      params.push(toDate);
+      conditions.push(`sl.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    let orderBy = "sl.created_at DESC";
+    if (sort === "oldest") orderBy = "sl.created_at ASC";
+    else if (sort === "highest_in") orderBy = "sl.in_quantity::numeric DESC";
+    else if (sort === "highest_out") orderBy = "sl.out_quantity::numeric DESC";
+
+    const [rows, totalRes] = await Promise.all([
+      pool.query(
+        `SELECT sl.*, ii.item_name, ii.item_code, ii.unit_type
+         FROM stock_ledger sl
+         JOIN inventory_items ii ON ii.id = sl.item_id
+         ${where}
+         ORDER BY ${orderBy}
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limitNum, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*) FROM stock_ledger sl JOIN inventory_items ii ON ii.id = sl.item_id ${where}`,
+        params
+      ),
+    ]);
+
+    res.json({ data: rows.rows, total: parseInt(totalRes.rows[0].count), page: pageNum, limit: limitNum });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load ledger" });
+  }
+});
+
+router.post("/inventory/ledger/wastage", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+
+    const { itemId, quantity, reason, referenceNumber } = req.body;
+    if (!itemId || !quantity) return res.status(400).json({ error: "itemId and quantity are required" });
+
+    const qty = parseFloat(quantity);
+    if (isNaN(qty) || qty <= 0) return res.status(400).json({ error: "Quantity must be a positive number" });
+
+    const itemRes = await pool.query(
+      `SELECT id, item_name, current_stock, style_reserved_qty, swatch_reserved_qty, available_stock FROM inventory_items WHERE id = $1 AND is_active = true`,
+      [itemId]
+    );
+    if (!itemRes.rows.length) return res.status(404).json({ error: "Item not found" });
+
+    const item = itemRes.rows[0];
+    const avail = parseFloat(item.available_stock ?? "0");
+    if (qty > avail) {
+      return res.status(422).json({ error: `Wastage quantity (${qty}) exceeds available stock (${avail.toFixed(3)})` });
+    }
+
+    const newStock = Math.max(0, parseFloat(item.current_stock ?? "0") - qty);
+    const newAvail = Math.max(0, newStock - parseFloat(item.style_reserved_qty ?? "0") - parseFloat(item.swatch_reserved_qty ?? "0"));
+    const userName = (req.user as { name?: string; email?: string } | undefined)?.name
+      || (req.user as { name?: string; email?: string } | undefined)?.email
+      || "Admin";
+
+    await pool.query(
+      `UPDATE inventory_items SET current_stock = $1, available_stock = $2, last_updated_at = NOW() WHERE id = $3`,
+      [newStock, newAvail, itemId]
+    );
+
+    const ledger = await pool.query(
+      `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by, created_at)
+       VALUES ($1,'wastage',$2,'manual_entry',0,$3,$4,$5,$6,NOW()) RETURNING *`,
+      [itemId, referenceNumber ?? null, qty, newStock, reason ?? null, userName]
+    );
+
+    await pool.query(
+      `INSERT INTO inventory_stock_logs (inventory_item_id, action_type, quantity_before, quantity_after, quantity_delta, reference_type, notes, created_by_name, created_at)
+       VALUES ($1,'wastage',$2,$3,$4,'manual',$5,$6,NOW())`,
+      [itemId, parseFloat(item.current_stock), newStock, -qty, reason ?? null, userName]
+    ).catch(e => console.error("[StockLog] wastage log failed:", e));
+
+    res.json(ledger.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to record wastage" });
+  }
+});
+
+router.delete("/inventory/ledger/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+    const id = parseInt(req.params.id);
+    const r = await pool.query(`DELETE FROM stock_ledger WHERE id = $1 RETURNING id`, [id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete ledger entry" });
+  }
+});
+
+// ── Stock Update ─────────────────────────────────────────────────────────────
+
 router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, res) => {
   try {
     if (req.user?.role !== "admin") {
@@ -306,6 +456,15 @@ router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, r
        VALUES ($1,$2,$3,$4,$5,'manual',$6,$7,NOW())`,
       [id, actionType, prevStock, stock, delta, notes ?? null, userName]
     ).catch(e => console.error("[StockLog] Failed to write log:", e));
+
+    const ledgerType = prevStock === 0 ? "opening_stock" : delta >= 0 ? "adjustment_in" : "adjustment_out";
+    const inQty  = delta > 0 ? delta : 0;
+    const outQty = delta < 0 ? Math.abs(delta) : 0;
+    await pool.query(
+      `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by, created_at)
+       VALUES ($1,$2,'Manual Entry','manual_entry',$3,$4,$5,$6,$7,NOW())`,
+      [id, ledgerType, inQty, outQty, stock, notes ?? null, userName]
+    ).catch(e => console.error("[Ledger] Failed to write ledger entry:", e));
 
     res.json(r.rows[0]);
   } catch (err) {
