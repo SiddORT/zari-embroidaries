@@ -1,0 +1,126 @@
+Build an Inventory Module for an embroidery sampling ERP system. make inventory menu after masters menu
+The inventory module must support:
+Fabric Material Stationery Packaging Materials General Items
+Asset Inventory  
+The module must integrate with:
+Swatch Orders Style Reservations Purchase Orders Purchase Receipts Consumption Entries 
+Follow structure exactly as defined below.
+
+MODULE NAME
+Inventory Management
+
+SECTION 1 — INVENTORY DASHBOARD
+Display summary cards:
+Total Items in Inventory Fabric Stock Summary Material Stock Summary Low Stock Alerts Out-of-Stock Alerts Recently Received Items Recently Consumed Items Reservation Summary (Style vs Swatch)
+Each card must be clickable and open filtered list.
+
+SECTION 2 — ITEM STOCK LIST SCREEN
+Inventory listing table must include:
+Item Name Item Category Department Warehouse Location Current Stock Style Reserved Quantity Swatch Reserved Quantity Available Stock Average Price Last Purchase Price
+Filters required:
+Search by Item Name Filter by Category Filter by Department Filter by Vendor Filter by Location Filter by Stock Level
+Available Stock calculation:
+Available Stock = Current Stock − Style Reserved Qty − Swatch Reserved Qty
+
+SECTION 3 — STOCK LEDGER (ITEM MOVEMENT HISTORY)
+Each item must maintain stock movement ledger.
+Ledger transaction types:
+Opening Stock Entry Purchase Receipt Entry (auto from PR) Consumption Entry (auto from swatch) Style Reservation Entry Swatch Reservation Entry Wastage Entry
+Ledger columns:
+Date Transaction Type Reference Number In Quantity Out Quantity Reserved Quantity Balance Quantity Remarks
+Ledger entries must generate automatically from system transactions.
+
+SECTION 4 — RESERVATION SYSTEM
+Support two reservation types:
+Style Reservation Swatch Reservation
+
+STYLE RESERVATION FEATURES
+Manual reservation entry
+Auto reservation from Style BOM
+Reservation release option
+Reservation status tracking
+Status values:
+Active Released Converted to Swatch Reservation Cancelled
+
+SWATCH RESERVATION FEATURES
+Manual reservation entry
+Auto reservation from Swatch BOM
+Convert reservation to consumption
+Reservation release option
+Status values:
+Active Consumed Released Cancelled
+System must prevent reservation beyond available stock.
+
+SECTION 5 — PURCHASE RECEIPT INTEGRATION
+Inventory must update automatically when PR is created.
+System must:
+Increase stock automatically
+Update average price automatically
+Update last purchase price automatically
+Store warehouse location
+
+SECTION 6 — CONSUMPTION INTEGRATION
+Inventory must decrease automatically after consumption entry.
+Consumption must store:
+Swatch ID Material ID Consumed Quantity Date
+System must prevent consumption beyond available stock.
+Display swatch-wise consumption history.
+
+SECTION 7 — MATERIAL INVENTORY TRACKING
+Track:
+Material Category Unit Type Preferred Vendor Average Price Last Purchase Price
+
+SECTION 8 — PACKAGING AND STATIONERY TRACKING
+Track:
+Item Name Quantity Unit Department Usage Reorder Level Alerts
+
+SECTION 9 — MINIMUM STOCK ALERT SYSTEM
+Each item must support:
+Minimum Level Reorder Level Maximum Level
+Dashboard must display:
+Low Stock Warning Out-of-Stock Warning
+
+SECTION 10 — WAREHOUSE LOCATION SUPPORT
+Support:
+Multiple warehouse locations per item
+Display location-wise stock summary
+
+SECTION 11 — VENDOR MAPPING PER ITEM
+Track:
+Preferred Vendor Last Vendor Vendor-wise price tracking
+
+SECTION 12 — INVENTORY REPORTS SECTION
+Generate reports:
+Stock Summary Report Item Ledger Report Stock Movement Report Low Stock Report Reservation Report Consumption Report (Swatch-wise) Purchase Receipt Report
+Export formats:
+Excel PDF CSV
+
+SECTION 13 — AUTO CALCULATED FIELDS PER ITEM
+Each item must display:
+Current Stock Style Reserved Quantity Swatch Reserved Quantity Available Stock Average Price Last Purchase Price Last Updated Date
+
+SECTION 14 — PERMISSIONS AND CONTROLS
+Apply restrictions:
+Stock adjustment allowed only for Admin users
+Reservation release allowed only for Admin users
+Prevent consumption beyond available stock
+Restrict deletion of ledger entries
+
+SECTION 15 — DATABASE TABLES REQUIRED
+Create tables:
+Inventory_Items
+Fields:
+item_id item_name category department warehouse_location current_stock style_reserved_qty swatch_reserved_qty available_stock average_price last_purchase_price preferred_vendor last_vendor minimum_level reorder_level maximum_level last_updated_at
+
+Material_Reservations
+Fields:
+reservation_id material_id style_id swatch_id reservation_type reserved_quantity status reserved_by reservation_date remarks
+Reservation types:
+Style Swatch
+
+Stock_Ledger
+Fields:
+ledger_id item_id transaction_type reference_number in_quantity out_quantity reserved_quantity balance_quantity remarks created_at
+
+END OF INVENTORY MODULE REQUIREMENTS
+Build backend logic and frontend UI accordingly.
