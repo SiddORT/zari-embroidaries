@@ -1,0 +1,278 @@
+Build Step-1 of the Inventory Module for an embroidery sampling ERP system.
+
+This step must only create the Inventory Item Sync Layer and Inventory Stock Listing Screen.
+
+Do NOT implement ledger, reservations, consumption deduction, alerts, reports, or PR integration yet.
+
+Follow structure exactly as defined below.
+
+---
+
+## MODULE NAME
+
+Inventory Management — Step 1 (Item Sync Layer)
+
+This module must display inventory stock visibility using items from existing masters.
+
+Inventory items must NOT be duplicated.
+
+Inventory records must reference:
+
+Fabric Master
+Material Master
+Item Master
+
+---
+
+## SECTION 1 — DATABASE TABLE STRUCTURE
+
+Create table:
+
+inventory_items
+
+Fields:
+
+inventory_id (primary key)
+
+item_id (foreign key from Item Master)
+
+category
+
+department
+
+warehouse_location
+
+current_stock
+
+style_reserved_qty
+
+swatch_reserved_qty
+
+available_stock
+
+average_price
+
+last_purchase_price
+
+last_updated_at
+
+---
+
+## SECTION 2 — ITEM MASTER LINKING LOGIC
+
+Inventory module must NOT create separate items.
+
+Instead:
+
+inventory_items.item_id references existing Item Master record
+
+Supported item sources:
+
+Fabric Master
+Material Master
+Item Master
+
+Inventory records must sync with these masters.
+
+---
+
+## SECTION 3 — AVAILABLE STOCK CALCULATION
+
+Available stock must calculate automatically:
+
+available_stock =
+current_stock
+− style_reserved_qty
+− swatch_reserved_qty
+
+Recalculate automatically whenever any stock value changes.
+
+---
+
+## SECTION 4 — INVENTORY LIST SCREEN
+
+Create Inventory Listing Page.
+
+Display columns:
+
+Item Name
+
+Category
+
+Department
+
+Warehouse Location
+
+Current Stock
+
+Style Reserved Quantity
+
+Swatch Reserved Quantity
+
+Available Stock
+
+Average Price
+
+Last Purchase Price
+
+Last Updated Date
+
+---
+
+## SECTION 5 — FILTERS AND SEARCH
+
+Add filters:
+
+Search by Item Name
+
+Filter by Category
+
+Filter by Department
+
+Filter by Warehouse Location
+
+Filter by Stock Level
+
+Stock level filters:
+
+In Stock
+
+Low Stock
+
+Out of Stock
+
+---
+
+## SECTION 6 — STOCK ENTRY SUPPORT (INITIAL ONLY)
+
+Allow admin users to enter:
+
+Opening Stock
+
+Fields:
+
+Item
+
+Warehouse Location
+
+Opening Quantity
+
+Average Price
+
+Last Purchase Price
+
+Opening Date
+
+Update:
+
+current_stock
+
+average_price
+
+last_purchase_price
+
+last_updated_at
+
+Do NOT create ledger entries yet.
+
+Ledger module will be implemented later.
+
+---
+
+## SECTION 7 — PERMISSIONS CONTROL
+
+Only Admin users can:
+
+Create inventory record
+
+Edit stock values
+
+Enter opening stock
+
+Normal users:
+
+View inventory only
+
+---
+
+## SECTION 8 — UI STRUCTURE
+
+Create page:
+
+Inventory → Item Stock Listing
+
+Layout:
+
+Top:
+
+Search bar
+
+Filters row
+
+Main section:
+
+Inventory table
+
+Support:
+
+Pagination
+
+Sorting by:
+
+Item Name
+
+Stock Quantity
+
+Last Updated Date
+
+---
+
+## SECTION 9 — AUTO RECORD CREATION LOGIC
+
+When a new item is created in:
+
+Fabric Master
+
+Material Master
+
+Item Master
+
+System must automatically create corresponding inventory_items record.
+
+Default values:
+
+current_stock = 0
+
+style_reserved_qty = 0
+
+swatch_reserved_qty = 0
+
+available_stock = 0
+
+average_price = 0
+
+last_purchase_price = 0
+
+---
+
+## SECTION 10 — VALIDATION RULES
+
+Prevent negative values in:
+
+current_stock
+
+style_reserved_qty
+
+swatch_reserved_qty
+
+available_stock
+
+Warehouse location required
+
+Item reference required
+
+---
+
+## END OF STEP-1 INVENTORY MODULE REQUIREMENTS
+
+Build backend logic and frontend UI accordingly.

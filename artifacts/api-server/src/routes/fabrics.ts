@@ -4,6 +4,7 @@ import { db, fabricsTable } from "@workspace/db";
 import { insertFabricSchema, updateFabricSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { ensureInventoryRecord } from "../services/inventoryService";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -65,6 +66,15 @@ router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void
 
   const [record] = await db.insert(fabricsTable).values({ ...parsed.data, fabricCode, createdBy }).returning();
   logger.info({ id: record.id, fabricCode }, "Fabric created");
+  ensureInventoryRecord("fabric", record.id, {
+    itemName: [record.fabricType, record.quality, record.colorName].filter(Boolean).join(" - "),
+    itemCode: record.fabricCode,
+    category: record.fabricType,
+    warehouseLocation: record.location ?? undefined,
+    unitType: record.unitType,
+    averagePrice: record.pricePerMeter,
+    preferredVendor: record.vendor ?? undefined,
+  });
   res.status(201).json(record);
 });
 

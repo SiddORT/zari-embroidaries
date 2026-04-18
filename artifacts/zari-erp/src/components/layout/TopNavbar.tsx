@@ -31,6 +31,10 @@ const ACCOUNTS_ITEMS = [
   { label: "Vendor Ledgers", href: "/accounts/ledgers" },
 ];
 
+const INVENTORY_ITEMS = [
+  { label: "Item Stock List", href: "/inventory/items" },
+];
+
 const TOP_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Quotation", href: "/quotation" },
@@ -41,20 +45,24 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
+  const [mobileInventoryOpen, setMobileInventoryOpen] = useState(false);
   const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
   const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const mastersRef = useRef<HTMLDivElement>(null);
+  const inventoryRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const accountsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const mastersActive  = location.startsWith("/masters");
-  const ordersActive   = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
-  const accountsActive = location.startsWith("/accounts");
+  const mastersActive   = location.startsWith("/masters");
+  const inventoryActive = location.startsWith("/inventory");
+  const ordersActive    = OTHER_ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
+  const accountsActive  = location.startsWith("/accounts");
 
   const initials = (username ?? "")
     .split(" ")
@@ -72,6 +80,15 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [mastersOpen]);
+
+  useEffect(() => {
+    if (!inventoryOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (inventoryRef.current && !inventoryRef.current.contains(e.target as Node)) setInventoryOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [inventoryOpen]);
 
   useEffect(() => {
     if (!ordersOpen) return;
@@ -152,6 +169,42 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                         href={href}
                         onClick={() => setMastersOpen(false)}
                         className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          active
+                            ? "text-gray-900 bg-gray-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Inventory dropdown */}
+            <div className="relative" ref={inventoryRef}>
+              <button
+                onClick={() => setInventoryOpen((v) => !v)}
+                className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  inventoryActive
+                    ? "bg-gray-900 text-[#C9B45C]"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                Inventory
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${inventoryOpen ? "rotate-180" : ""}`} />
+              </button>
+              {inventoryOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                  {INVENTORY_ITEMS.map(({ label, href }) => {
+                    const active = location === href || location.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setInventoryOpen(false)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                           active
                             ? "text-gray-900 bg-gray-50 font-semibold"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -353,6 +406,33 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileMastersOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {MASTERS_ITEMS.map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Mobile Inventory */}
+              <button
+                onClick={() => setMobileInventoryOpen((v) => !v)}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                  inventoryActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <span>Inventory</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileInventoryOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileInventoryOpen && (
+                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                  {INVENTORY_ITEMS.map(({ label, href }) => (
                     <Link
                       key={href}
                       href={href}

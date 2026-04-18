@@ -32,6 +32,7 @@ import StyleOrderDetail from "@/pages/StyleOrderDetail";
 import StyleOrderArtworkDetail from "@/pages/StyleOrderArtworkDetail";
 import VendorLedgers from "@/pages/VendorLedgers";
 import VendorLedgerDetail from "@/pages/VendorLedgerDetail";
+import InventoryStockList from "@/pages/InventoryStockList";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ function Router() {
       <Route path="/client/:token" component={ClientPortal} />
       <Route path="/accounts/ledgers" component={VendorLedgers} />
       <Route path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} />
+      <Route path="/inventory/items" component={InventoryStockList} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -3,6 +3,7 @@ import { eq, ilike, and, or, desc } from "drizzle-orm";
 import { db, packagingMaterialsTable, insertPackagingMaterialSchema, updatePackagingMaterialSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { ensureInventoryRecord } from "../services/inventoryService";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -49,6 +50,16 @@ router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): 
   const itemCode = `ITM${String(total.length + 1).padStart(4, "0")}`;
   const [record] = await db.insert(packagingMaterialsTable).values({ ...parsed.data, itemCode, createdBy }).returning();
   logger.info({ id: record.id, itemCode }, "Item master record created");
+  ensureInventoryRecord("packaging", record.id, {
+    itemName: record.itemName,
+    itemCode: record.itemCode,
+    category: record.itemType ?? undefined,
+    department: record.department ?? undefined,
+    warehouseLocation: record.location ?? undefined,
+    unitType: record.unitType ?? undefined,
+    averagePrice: record.unitPrice ? String(record.unitPrice) : undefined,
+    preferredVendor: record.vendor ?? undefined,
+  });
   res.status(201).json(record);
 });
 

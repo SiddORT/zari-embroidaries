@@ -20,3 +20,4 @@ export * from "./styleOrders";
 export * from "./styleOrderProducts";
 export * from "./styleOrderArtworks";
 export * from "./vendorLedger";
+export * from "./inventory";
