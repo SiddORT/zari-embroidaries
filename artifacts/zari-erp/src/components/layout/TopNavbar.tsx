@@ -63,7 +63,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const [profileData, setProfileData] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [profileData, setProfileData] = useState<{ name: string; email: string; role: string; photo: string | null } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("zarierp_token");
@@ -72,13 +72,21 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     })
       .then(r => r.ok ? r.json() : null)
-      .then(j => { if (j?.data) setProfileData({ name: j.data.username ?? username, email: j.data.email ?? "", role: j.data.role ?? role }); })
+      .then(j => {
+        if (j?.data) setProfileData({
+          name:  j.data.username     ?? username,
+          email: j.data.email        ?? "",
+          role:  j.data.role         ?? role,
+          photo: j.data.profile_photo ?? null,
+        });
+      })
       .catch(() => {});
   }, []);
 
   const displayName  = profileData?.name  ?? username;
   const displayEmail = profileData?.email ?? "";
   const displayRole  = profileData?.role  ?? role;
+  const displayPhoto = profileData?.photo ?? null;
 
   const mastersRef    = useRef<HTMLDivElement>(null);
   const ordersRef     = useRef<HTMLDivElement>(null);
@@ -301,10 +309,12 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors"
               >
                 <div
-                  className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+                  className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold overflow-hidden"
                   style={{ backgroundColor: "#111", color: "#C9B45C" }}
                 >
-                  {initials}
+                  {displayPhoto
+                    ? <img src={displayPhoto} alt={displayName} className="h-full w-full object-cover" />
+                    : initials}
                 </div>
                 <div className="hidden sm:flex flex-col items-start leading-tight">
                   <span className="text-sm font-medium text-gray-900">{displayEmail || displayName}</span>
@@ -315,10 +325,20 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
 
               {profileOpen && (
                 <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
-                    {displayEmail && <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>}
-                    <p className="text-xs text-gray-400 capitalize mt-0.5">{displayRole}</p>
+                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                    <div
+                      className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold overflow-hidden"
+                      style={{ backgroundColor: "#111", color: "#C9B45C" }}
+                    >
+                      {displayPhoto
+                        ? <img src={displayPhoto} alt={displayName} className="h-full w-full object-cover" />
+                        : initials}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                      {displayEmail && <p className="text-xs text-gray-500 truncate">{displayEmail}</p>}
+                      <p className="text-xs text-gray-400 capitalize">{displayRole}</p>
+                    </div>
                   </div>
                   <div className="p-1">
                     <button
