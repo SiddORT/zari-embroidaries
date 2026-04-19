@@ -112,7 +112,7 @@ async function autoReserveForBom(opts: {
       await client.query(
         `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
          VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8)`,
-        [inventoryId, `${reservationType} Reservation`, String(orderId), reservationType,
+        [inventoryId, `${reservationType.toLowerCase()}_reservation`, String(orderId), reservationType,
          reqQty, balR.rows[0].current_stock,
          `Reserved ${reqQty} for ${reservationType} Order #${orderId} (BOM row ${bomRowId})`, actor]
       );
@@ -265,12 +265,12 @@ async function syncConsumptionWithInventory(opts: {
       [inventoryId]
     );
 
-    // Section 4 — stock ledger entry
+    // Section 4 — stock ledger entry (reference_number = orderId so it joins to swatch/style orders)
     const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [inventoryId]);
     await client.query(
       `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
-       VALUES ($1,'Consumption',$2,$3,0,$4,$5,$6,$7)`,
-      [inventoryId, String(consumptionId), reservationType,
+       VALUES ($1,'consumption',$2,$3,0,$4,$5,$6,$7)`,
+      [inventoryId, String(orderId), reservationType,
        consumedQty, balR.rows[0].current_stock,
        `Consumption from ${reservationType} Order #${orderId} (log #${consumptionId})`, actor]
     );

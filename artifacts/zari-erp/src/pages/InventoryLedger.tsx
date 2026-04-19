@@ -52,6 +52,9 @@ interface LedgerRow {
   remarks: string | null;
   created_by: string | null;
   created_at: string;
+  swatch_order_code: string | null;
+  style_order_code: string | null;
+  style_order_style_no: string | null;
 }
 
 interface InventoryItemOption {
@@ -395,9 +398,27 @@ export default function InventoryLedger() {
                         </span>
                       </td>
                       <td className={tdCls}>
-                        <div className="text-xs text-gray-700">{row.reference_number ?? "—"}</div>
-                        {row.reference_type && (
-                          <div className="text-[11px] text-gray-400 capitalize">{row.reference_type.replace("_", " ")}</div>
+                        {row.reference_type === "Swatch" && row.swatch_order_code ? (
+                          <div>
+                            <div className="text-xs font-semibold text-violet-700">{row.swatch_order_code}</div>
+                            <div className="text-[11px] text-gray-400">Swatch Order</div>
+                          </div>
+                        ) : row.reference_type === "Style" && row.style_order_code ? (
+                          <div>
+                            <div className="text-xs font-semibold text-indigo-700">{row.style_order_code}</div>
+                            {row.style_order_style_no && (
+                              <div className="text-[11px] text-gray-400">{row.style_order_style_no}</div>
+                            )}
+                          </div>
+                        ) : row.reference_number ? (
+                          <div>
+                            <div className="text-xs text-gray-700 font-mono">{row.reference_number}</div>
+                            {row.reference_type && (
+                              <div className="text-[11px] text-gray-400 capitalize">{row.reference_type.replace(/_/g, " ")}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
                         )}
                       </td>
                       <td className={`${tdCls} text-right`}>

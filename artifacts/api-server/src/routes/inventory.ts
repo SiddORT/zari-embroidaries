@@ -276,8 +276,8 @@ router.get("/inventory/ledger", requireAuth, async (req, res) => {
       conditions.push(`sl.item_id = $${params.length}`);
     }
     if (transactionType !== "all") {
-      params.push(transactionType);
-      conditions.push(`sl.transaction_type = $${params.length}`);
+      params.push(transactionType.toLowerCase());
+      conditions.push(`LOWER(REPLACE(sl.transaction_type, ' ', '_')) = $${params.length}`);
     }
     if (referenceType !== "all") {
       params.push(referenceType);
@@ -309,9 +309,18 @@ router.get("/inventory/ledger", requireAuth, async (req, res) => {
 
     const [rows, totalRes] = await Promise.all([
       pool.query(
-        `SELECT sl.*, ii.item_name, ii.item_code, ii.unit_type
+        `SELECT sl.*, ii.item_name, ii.item_code, ii.unit_type,
+                sw.order_code AS swatch_order_code,
+                so.order_code AS style_order_code,
+                so.style_no   AS style_order_style_no
          FROM stock_ledger sl
          JOIN inventory_items ii ON ii.id = sl.item_id
+         LEFT JOIN swatch_orders sw ON sl.reference_type = 'Swatch'
+                AND sl.reference_number ~ '^[0-9]+$'
+                AND sw.id = sl.reference_number::bigint
+         LEFT JOIN style_orders so ON sl.reference_type = 'Style'
+                AND sl.reference_number ~ '^[0-9]+$'
+                AND so.id = sl.reference_number::bigint
          ${where}
          ORDER BY ${orderBy}
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -622,7 +631,7 @@ router.post("/inventory/reservations", requireAuth, async (req, res) => {
       await client.query(
         `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
          VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8)`,
-        [inventoryId, `${reservationType} Reservation`, String(referenceId), reservationType,
+        [inventoryId, `${reservationType.toLowerCase()}_reservation`, String(referenceId), reservationType,
          qty, balR.rows[0].current_stock, `Reserved ${qty} for ${reservationType} #${referenceId}${remarks ? ` — ${remarks}` : ""}`,
          auth.user?.name || auth.user?.email || "System"]
       );
@@ -662,7 +671,7 @@ router.patch("/inventory/reservations/:id/release", requireAuth, async (req, res
       const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [resv.inventory_id]);
       await client.query(
         `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
-         VALUES ($1,'Reservation Release',$2,$3,$4,0,$5,$6,$7)`,
+         VALUES ($1,'reservation_release',$2,$3,$4,0,$5,$6,$7)`,
         [resv.inventory_id, String(resv.reference_id), resv.reservation_type, resv.reserved_quantity,
          balR.rows[0].current_stock, `Released ${resv.reserved_quantity} reserved for ${resv.reservation_type} #${resv.reference_id}`,
          auth.user?.name || auth.user?.email || "System"]
@@ -770,7 +779,7 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
       if (consumedQty > 0) {
         await client.query(
           `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
-           VALUES ($1,'Consumption',  $2,$3, 0,$4,$5,$6,$7)`,
+           VALUES ($1,'consumption',  $2,$3, 0,$4,$5,$6,$7)`,
           [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
            consumedQty, bal,
            `Consumed ${consumedQty} for ${resv.reservation_type} #${resv.reference_id}`, actor]
@@ -779,7 +788,7 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
       if (releasedQty > 0) {
         await client.query(
           `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
-           VALUES ($1,'Reservation Release',$2,$3,$4,0,$5,$6,$7)`,
+           VALUES ($1,'reservation_release',$2,$3,$4,0,$5,$6,$7)`,
           [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
            releasedQty, bal,
            `Released ${releasedQty} back to stock from ${resv.reservation_type} #${resv.reference_id}`, actor]
@@ -788,7 +797,7 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
       if (wastageQty > 0) {
         await client.query(
           `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
-           VALUES ($1,'Wastage',$2,$3,0,$4,$5,$6,$7)`,
+           VALUES ($1,'wastage',$2,$3,0,$4,$5,$6,$7)`,
           [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
            wastageQty, bal,
            `Wastage ${wastageQty} from ${resv.reservation_type} #${resv.reference_id}`, actor]
