@@ -1457,15 +1457,41 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [addForm, setAddForm] = useState({ bomRowId: "", consumedQty: "", notes: "" });
+  const [includeGst, setIncludeGst] = useState(true);
+
+  // ── HSN/GST master data ──────────────────────────────────────────────────────
+  type MatMasterRow = { materialCode: string; hsnCode: string; gstPercent: string };
+  type FabMasterRow = { fabricCode: string; hsnCode: string; gstPercent: string };
+  const [materialsMaster, setMaterialsMaster] = useState<MatMasterRow[]>([]);
+  const [fabricsMaster, setFabricsMaster] = useState<FabMasterRow[]>([]);
+  useEffect(() => {
+    const token = localStorage.getItem("zarierp_token");
+    const hdrs: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch("/api/materials/all", { headers: hdrs }).then(r => r.json()).then((d: MatMasterRow[] | { data: MatMasterRow[] }) => {
+      setMaterialsMaster(Array.isArray(d) ? d : (d as { data: MatMasterRow[] }).data ?? []);
+    }).catch(() => {});
+    fetch("/api/fabrics/all", { headers: hdrs }).then(r => r.json()).then((d: FabMasterRow[] | { data: FabMasterRow[] }) => {
+      setFabricsMaster(Array.isArray(d) ? d : (d as { data: FabMasterRow[] }).data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  function getBomHsnGst(r: { materialCode: string; materialType: string }): { hsnCode: string; gstPct: number } {
+    const master = r.materialType === "fabric"
+      ? fabricsMaster.find(f => f.fabricCode === r.materialCode)
+      : materialsMaster.find(m => m.materialCode === r.materialCode);
+    return { hsnCode: master?.hsnCode ?? "", gstPct: master ? (parseFloat(master.gstPercent) || 0) : 0 };
+  }
 
   const displayRows = filterBomRowId === "all" ? bomRows : bomRows.filter(r => String(r.id) === filterBomRowId);
   const logForDisplay = filterBomRowId === "all" ? consumptionLog : consumptionLog.filter(e => String(e.bomRowId) === filterBomRowId);
 
   const totals = displayRows.reduce((acc, r) => {
     const m = computeRowMetrics(r, pos, prs);
+    const { gstPct } = getBomHsnGst(r);
+    const effectiveGst = includeGst ? gstPct : 0;
     acc.stockInclPr += m.stockNum + m.prQty;
     acc.consumedQty += m.consumedQtyNum;
-    acc.consumedTotal += m.consumedTotal;
+    acc.consumedTotal += m.consumedTotal * (1 + effectiveGst / 100);
     return acc;
   }, { stockInclPr: 0, consumedQty: 0, consumedTotal: 0 });
 
