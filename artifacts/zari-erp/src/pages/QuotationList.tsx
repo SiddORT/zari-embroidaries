@@ -5,10 +5,10 @@ import {
   Eye, Edit2, Trash2, RefreshCw, CheckCircle2, XCircle, Clock,
   MoreHorizontal, ChevronDown,
 } from "lucide-react";
-import { useGetMe, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import TopNavbar from "@/components/layout/TopNavbar";
+import AppLayout from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 
 const G = "#C6AF4B";
@@ -51,10 +51,11 @@ interface QuotRow {
 export default function QuotationList() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
-  const { data: meData } = useGetMe();
-  const { mutateAsync: logout } = useLogout();
   const { toast } = useToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const token = localStorage.getItem("zarierp_token");
+  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const logoutMutation = useLogout();
 
   const [rows, setRows] = useState<QuotRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -73,7 +74,6 @@ export default function QuotationList() {
   const [actionOpen, setActionOpen] = useState<number | null>(null);
   const actionRef = useRef<HTMLDivElement>(null);
 
-  const user = meData?.data;
   const isAdmin = user?.role === "admin";
 
   const refresh = () => setRefreshKey((k) => k + 1);
@@ -85,8 +85,7 @@ export default function QuotationList() {
       search, status, fromDate, toDate,
       page: String(page), limit: String(limit),
     });
-    customFetch(`/quotations?${params}`)
-      .then((r) => r.json())
+    customFetch<{ data: QuotRow[]; total: number }>(`/api/quotations?${params}`)
       .then((j) => {
         if (cancelled) return;
         setRows(j.data ?? []);
@@ -111,9 +110,7 @@ export default function QuotationList() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      const r = await customFetch(`/quotations/${deleteId}`, { method: "DELETE" });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Delete failed");
+      await customFetch(`/api/quotations/${deleteId}`, { method: "DELETE" });
       toast({ title: "Deleted", description: "Quotation deleted." });
       setDeleteId(null);
       refresh();
@@ -124,17 +121,18 @@ export default function QuotationList() {
     }
   }
 
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    try {
-      await logout({});
-      localStorage.removeItem("zarierp_token");
-      qc.clear();
-      navigate("/login");
-    } catch {
-      setIsLoggingOut(false);
-    }
+  function handleLogout() {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        localStorage.removeItem("zarierp_token");
+        qc.removeQueries({ queryKey: getGetMeQueryKey() });
+        navigate("/login");
+      },
+    });
   }
+
+  if (loadingUser) return null;
+  if (!user) { navigate("/login"); return null; }
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -145,14 +143,8 @@ export default function QuotationList() {
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
-    <div className="min-h-screen bg-[#F8F6F0]">
-      <TopNavbar
-        username={user?.name || user?.email || ""}
-        role={user?.role || ""}
-        onLogout={handleLogout}
-        isLoggingOut={isLoggingOut}
-      />
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pt-24 pb-10">
+    <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+      <div className="max-w-screen-xl mx-auto space-y-5">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
@@ -357,6 +349,6 @@ export default function QuotationList() {
           </div>
         </div>
       )}
-    </div>
+    </AppLayout>
   );
 }

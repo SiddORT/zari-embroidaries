@@ -5,10 +5,10 @@ import {
   Copy, Layers, ListOrdered, Plus, X, CheckCircle2,
   AlertCircle, Clock, FileText, Printer,
 } from "lucide-react";
-import { useGetMe, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import TopNavbar from "@/components/layout/TopNavbar";
+import AppLayout from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 
 const G = "#C6AF4B";
@@ -80,12 +80,12 @@ export default function QuotationDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
-  const { data: meData } = useGetMe();
-  const { mutateAsync: logout } = useLogout();
   const { toast } = useToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const user = meData?.data;
+  const token = localStorage.getItem("zarierp_token");
+  const { data: user } = useGetMe({ enabled: !!token });
+  const logoutMutation = useLogout();
+
   const isAdmin = user?.role === "admin";
 
   const [quotation, setQuotation] = useState<Quotation | null>(null);
@@ -110,9 +110,7 @@ export default function QuotationDetail() {
   async function fetchData() {
     setLoading(true);
     try {
-      const r = await customFetch(`/quotations/${id}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Failed");
+      const j = await customFetch<{ data: Quotation }>(`/api/quotations/${id}`);
       setQuotation(j.data);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -126,12 +124,10 @@ export default function QuotationDetail() {
   async function changeStatus(newStatus: string) {
     setStatusBusy(true);
     try {
-      const r = await customFetch(`/quotations/${id}/status`, {
+      const j = await customFetch<{ message: string }>(`/api/quotations/${id}/status`, {
         method: "POST",
         body: JSON.stringify({ newStatus }),
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Failed");
       toast({ title: "Status Updated", description: j.message });
       fetchData();
     } catch (err: any) {
@@ -145,12 +141,10 @@ export default function QuotationDetail() {
     if (!feedbackText.trim()) return;
     setSubmittingFeedback(true);
     try {
-      const r = await customFetch(`/quotations/${id}/feedback`, {
+      const j = await customFetch<{ message: string }>(`/api/quotations/${id}/feedback`, {
         method: "POST",
         body: JSON.stringify({ feedbackText, revisionReference: feedbackRef }),
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Failed");
       toast({ title: "Feedback Added", description: j.message });
       setFeedbackText(""); setFeedbackRef(""); setFeedbackOpen(false);
       fetchData();
@@ -164,9 +158,7 @@ export default function QuotationDetail() {
   async function createRevision() {
     setRevisingBusy(true);
     try {
-      const r = await customFetch(`/quotations/${id}/revise`, { method: "POST" });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Failed");
+      const j = await customFetch<{ data: { id: number; quotationNumber: string; revisionNumber: number } }>(`/api/quotations/${id}/revise`, { method: "POST" });
       toast({ title: "Revision Created", description: `${j.data?.quotationNumber} (R${j.data?.revisionNumber})` });
       navigate(`/quotation/${j.data?.id}/edit`);
     } catch (err: any) {
@@ -179,9 +171,7 @@ export default function QuotationDetail() {
   async function doConvert(type: "swatch" | "style") {
     setConvertBusy(type);
     try {
-      const r = await customFetch(`/quotations/${id}/convert-${type}`, { method: "POST" });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Failed");
+      const j = await customFetch<{ message: string }>(`/api/quotations/${id}/convert-${type}`, { method: "POST" });
       toast({ title: "Converted", description: j.message });
       setConfirmConvert(null);
       fetchData();
@@ -192,14 +182,14 @@ export default function QuotationDetail() {
     }
   }
 
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    try {
-      await logout({});
-      localStorage.removeItem("zarierp_token");
-      qc.clear();
-      navigate("/login");
-    } catch { setIsLoggingOut(false); }
+  function handleLogout() {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        localStorage.removeItem("zarierp_token");
+        qc.removeQueries({ queryKey: getGetMeQueryKey() });
+        navigate("/login");
+      },
+    });
   }
 
   const fmt = (v: string | number | null) => {
@@ -209,14 +199,13 @@ export default function QuotationDetail() {
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   const fmtDateTime = (d: string) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <div className="min-h-screen bg-[#F8F6F0]">
-        <TopNavbar username={user?.name || ""} role={user?.role || ""} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
-        <div className="pt-24 flex items-center justify-center">
+      <AppLayout username={user?.username ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+        <div className="flex items-center justify-center py-24">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C6AF4B]" />
         </div>
-      </div>
+      </AppLayout>
     );
   }
   if (!quotation) return null;
@@ -231,9 +220,8 @@ export default function QuotationDetail() {
   const styleDisabled = q.status === "Approved" && q.converted_to === "Style";
 
   return (
-    <div className="min-h-screen bg-[#F8F6F0]">
-      <TopNavbar username={user?.name || ""} role={user?.role || ""} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-24 pb-10">
+    <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
           <div className="flex items-start gap-3">
@@ -585,6 +573,6 @@ export default function QuotationDetail() {
           </div>
         </div>
       )}
-    </div>
+    </AppLayout>
   );
 }

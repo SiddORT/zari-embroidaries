@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Plus, Trash2, Save, Upload, X, User, Phone, Mail, MapPin, CreditCard } from "lucide-react";
-import { useGetMe, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import TopNavbar from "@/components/layout/TopNavbar";
+import AppLayout from "@/components/layout/AppLayout";
+import { useAllClients } from "@/hooks/useClients";
 import { useToast } from "@/hooks/use-toast";
 
 const G = "#C6AF4B";
@@ -29,26 +30,6 @@ interface Charge {
   price: string;
 }
 
-interface ClientRecord {
-  id: number;
-  client_code: string;
-  brand_name: string;
-  contact_name: string;
-  email: string;
-  alt_email: string | null;
-  contact_no: string;
-  alt_contact_no: string | null;
-  country: string | null;
-  has_gst: boolean;
-  gst_no: string | null;
-  address1: string | null;
-  address2: string | null;
-  state: string | null;
-  city: string | null;
-  pincode: string | null;
-  invoice_currency: string | null;
-}
-
 interface HsnRecord {
   id: number;
   hsn_code: string;
@@ -64,20 +45,34 @@ export default function QuotationForm() {
   const [, navigate] = useLocation();
   const isEdit = !!id && id !== "new";
   const qc = useQueryClient();
-  const { data: meData } = useGetMe();
-  const { mutateAsync: logout } = useLogout();
   const { toast } = useToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const user = meData?.data;
+
+  const token = localStorage.getItem("zarierp_token");
+  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const logoutMutation = useLogout();
 
   // ── Master Data ────────────────────────────────────────────────────────────
-  const [allClients, setAllClients] = useState<ClientRecord[]>([]);
+  const { data: allClients = [], isLoading: loadingClients } = useAllClients();
   const [allHsn, setAllHsn] = useState<HsnRecord[]>([]);
-  const [masterLoading, setMasterLoading] = useState(true);
+  const [loadingHsn, setLoadingHsn] = useState(true);
+
+  useEffect(() => {
+    customFetch<HsnRecord[]>(`/api/hsn/all`)
+      .then((h) => setAllHsn(Array.isArray(h) ? h : []))
+      .catch(console.error)
+      .finally(() => setLoadingHsn(false));
+  }, []);
 
   // ── Client State ──────────────────────────────────────────────────────────
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const selectedClient = allClients.find((c) => String(c.id) === selectedClientId) ?? null;
+
+  // Derive state for GST from billing address
+  const clientState =
+    selectedClient?.addresses?.find((a) => a.isBillingDefault)?.state ??
+    selectedClient?.addresses?.[0]?.state ??
+    "";
+  const gstType = clientState.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST";
 
   // ── Form State ─────────────────────────────────────────────────────────────
   const [requirementSummary, setRequirementSummary] = useState("");
@@ -96,27 +91,12 @@ export default function QuotationForm() {
   const gstAmount = parseFloat((subtotal * 0.18).toFixed(2));
   const total = subtotal + gstAmount + shipping;
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-  const gstType = selectedClient?.state?.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST";
-
-  // ── Load Master Data (clients + hsn) ──────────────────────────────────────
-  useEffect(() => {
-    Promise.all([
-      customFetch<ClientRecord[]>(`/clients/all`),
-      customFetch<HsnRecord[]>(`/hsn/all`),
-    ])
-      .then(([c, h]) => {
-        setAllClients(Array.isArray(c) ? c : []);
-        setAllHsn(Array.isArray(h) ? h : []);
-      })
-      .catch(console.error)
-      .finally(() => setMasterLoading(false));
-  }, []);
 
   // ── Load Existing Quotation (edit mode) ────────────────────────────────────
   useEffect(() => {
     if (!isEdit) return;
     setLoadingData(true);
-    customFetch<{ data: any }>(`/quotations/${id}`)
+    customFetch<{ data: any }>(`/api/quotations/${id}`)
       .then((j) => {
         if (!j.data) return;
         const d = j.data;
@@ -174,21 +154,23 @@ export default function QuotationForm() {
     const validCharges = charges.filter((c) => c.chargeName.trim());
     setSaving(true);
     try {
-      const payload = {
-        clientId: selectedClientId,
-        clientName: resolvedClient?.brand_name || "",
-        clientState: resolvedClient?.state || "",
-        requirementSummary: requirementSummary.trim(),
-        estimatedWeight: parseFloat(estimatedWeight) || 0,
-        estimatedShippingCharges: parseFloat(estimatedShippingCharges) || 0,
-        internalNotes: internalNotes.trim(),
-        clientNotes: clientNotes.trim(),
-        designs: validDesigns,
-        charges: validCharges,
-      };
       const j = await customFetch<{ message?: string; data?: { id: number } }>(
-        isEdit ? `/quotations/${id}` : `/quotations`,
-        { method: isEdit ? "PUT" : "POST", body: JSON.stringify(payload) }
+        isEdit ? `/api/quotations/${id}` : `/api/quotations`,
+        {
+          method: isEdit ? "PUT" : "POST",
+          body: JSON.stringify({
+            clientId: selectedClientId,
+            clientName: resolvedClient?.brandName || "",
+            clientState: clientState,
+            requirementSummary: requirementSummary.trim(),
+            estimatedWeight: parseFloat(estimatedWeight) || 0,
+            estimatedShippingCharges: parseFloat(estimatedShippingCharges) || 0,
+            internalNotes: internalNotes.trim(),
+            clientNotes: clientNotes.trim(),
+            designs: validDesigns,
+            charges: validCharges,
+          }),
+        }
       );
       toast({ title: "Saved", description: j.message || "Quotation saved successfully" });
       navigate(isEdit ? `/quotation/${id}` : `/quotation/${j.data?.id}`);
@@ -199,31 +181,33 @@ export default function QuotationForm() {
     }
   }
 
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    try {
-      await logout({});
-      localStorage.removeItem("zarierp_token");
-      qc.clear();
-      navigate("/login");
-    } catch { setIsLoggingOut(false); }
+  function handleLogout() {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        localStorage.removeItem("zarierp_token");
+        qc.removeQueries({ queryKey: getGetMeQueryKey() });
+        navigate("/login");
+      },
+    });
   }
 
-  if (loadingData || masterLoading) {
+  const masterLoading = loadingClients || loadingHsn;
+
+  if (loadingUser || masterLoading || loadingData) {
     return (
-      <div className="min-h-screen bg-[#F8F6F0]">
-        <TopNavbar username={user?.name || ""} role={user?.role || ""} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
-        <div className="pt-24 flex items-center justify-center">
+      <AppLayout username={user?.username ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+        <div className="flex items-center justify-center py-24">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C6AF4B]" />
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
+  if (!user) { navigate("/login"); return null; }
+
   return (
-    <div className="min-h-screen bg-[#F8F6F0]">
-      <TopNavbar username={user?.name || ""} role={user?.role || ""} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-24 pb-10">
+    <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+      <div className="max-w-5xl mx-auto">
 
         {/* Page Header */}
         <div className="flex items-center gap-3 mb-6">
@@ -251,7 +235,7 @@ export default function QuotationForm() {
               <option value="">— Select a client —</option>
               {allClients.map((c) => (
                 <option key={c.id} value={String(c.id)}>
-                  {c.brand_name} ({c.client_code})
+                  {c.brandName} ({c.clientCode})
                 </option>
               ))}
             </select>
@@ -262,16 +246,18 @@ export default function QuotationForm() {
             <div className="border border-[#C6AF4B]/20 rounded-xl bg-[#C6AF4B]/[0.04] p-4">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
-                  <p className="font-bold text-gray-900 text-base">{selectedClient.brand_name}</p>
-                  <p className="text-xs text-gray-400 font-mono">{selectedClient.client_code}</p>
+                  <p className="font-bold text-gray-900 text-base">{selectedClient.brandName}</p>
+                  <p className="text-xs text-gray-400 font-mono">{selectedClient.clientCode}</p>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  selectedClient.state?.toLowerCase() === "maharashtra"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-indigo-100 text-indigo-700"
-                }`}>
-                  {gstType}
-                </span>
+                {clientState && (
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    clientState.toLowerCase() === "maharashtra"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-indigo-100 text-indigo-700"
+                  }`}>
+                    {gstType}
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 text-sm">
@@ -279,15 +265,15 @@ export default function QuotationForm() {
                   <User size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-400">Contact Person</p>
-                    <p className="font-medium text-gray-800">{selectedClient.contact_name}</p>
+                    <p className="font-medium text-gray-800">{selectedClient.contactName}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-400">Phone</p>
-                    <p className="font-medium text-gray-800">{selectedClient.contact_no}</p>
-                    {selectedClient.alt_contact_no && <p className="text-xs text-gray-500">{selectedClient.alt_contact_no}</p>}
+                    <p className="font-medium text-gray-800">{selectedClient.contactNo}</p>
+                    {selectedClient.altContactNo && <p className="text-xs text-gray-500">{selectedClient.altContactNo}</p>}
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
@@ -295,45 +281,42 @@ export default function QuotationForm() {
                   <div>
                     <p className="text-xs text-gray-400">Email</p>
                     <p className="font-medium text-gray-800 break-all">{selectedClient.email}</p>
-                    {selectedClient.alt_email && <p className="text-xs text-gray-500 break-all">{selectedClient.alt_email}</p>}
+                    {selectedClient.altEmail && <p className="text-xs text-gray-500 break-all">{selectedClient.altEmail}</p>}
                   </div>
                 </div>
-                <div className="flex items-start gap-2">
-                  <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400">State / City</p>
-                    <p className="font-medium text-gray-800">
-                      {[selectedClient.city, selectedClient.state].filter(Boolean).join(", ") || "—"}
-                    </p>
-                    {selectedClient.pincode && <p className="text-xs text-gray-500">{selectedClient.pincode}</p>}
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CreditCard size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400">GST No.</p>
-                    {selectedClient.has_gst && selectedClient.gst_no
-                      ? <p className="font-medium text-gray-800 font-mono">{selectedClient.gst_no}</p>
-                      : <p className="text-gray-400 italic text-sm">Not Registered</p>
-                    }
-                  </div>
-                </div>
-                {selectedClient.invoice_currency && (
+                {clientState && (
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 text-xs mt-0.5 shrink-0 font-bold">₹</span>
+                    <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">State / City</p>
+                      <p className="font-medium text-gray-800">
+                        {[
+                          selectedClient.addresses?.find((a) => a.isBillingDefault)?.city ?? selectedClient.addresses?.[0]?.city,
+                          clientState,
+                        ].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {selectedClient.invoiceCurrency && (
+                  <div className="flex items-start gap-2">
+                    <CreditCard size={13} className="text-gray-400 mt-0.5 shrink-0" />
                     <div>
                       <p className="text-xs text-gray-400">Invoice Currency</p>
-                      <p className="font-medium text-gray-800">{selectedClient.invoice_currency}</p>
+                      <p className="font-medium text-gray-800">{selectedClient.invoiceCurrency}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedClient.country && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-400 text-xs mt-0.5 shrink-0">🌐</span>
+                    <div>
+                      <p className="text-xs text-gray-400">Country</p>
+                      <p className="font-medium text-gray-800">{selectedClient.country}</p>
                     </div>
                   </div>
                 )}
               </div>
-
-              {(selectedClient.address1 || selectedClient.address2) && (
-                <p className="mt-3 text-xs text-gray-500 border-t border-[#C6AF4B]/15 pt-2">
-                  {[selectedClient.address1, selectedClient.address2].filter(Boolean).join(", ")}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -399,7 +382,7 @@ export default function QuotationForm() {
                       <option value="">— Select HSN —</option>
                       {allHsn.map((h) => (
                         <option key={h.id} value={h.hsn_code}>
-                          {h.hsn_code} — {h.govt_description.length > 40 ? h.govt_description.slice(0, 40) + "…" : h.govt_description} ({h.gst_percentage}%)
+                          {h.hsn_code}{h.govt_description ? ` — ${h.govt_description.length > 40 ? h.govt_description.slice(0, 40) + "…" : h.govt_description}` : ""} ({h.gst_percentage}%)
                         </option>
                       ))}
                     </select>
@@ -523,7 +506,7 @@ export default function QuotationForm() {
               </div>
               <div className="flex justify-between w-60">
                 <span className="text-gray-500">
-                  GST @ 18%{selectedClient?.state ? <span className="text-xs text-gray-400 ml-1">({gstType})</span> : null}
+                  GST @ 18%{clientState ? <span className="text-xs text-gray-400 ml-1">({gstType})</span> : null}
                 </span>
                 <span className="font-semibold">{fmt(gstAmount)}</span>
               </div>
@@ -553,6 +536,6 @@ export default function QuotationForm() {
           </button>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
