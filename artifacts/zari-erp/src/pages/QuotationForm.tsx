@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAllClients } from "@/hooks/useClients";
+import { useUnitTypes } from "@/hooks/useLookups";
 import { useToast } from "@/hooks/use-toast";
 
 const G = "#C6AF4B";
@@ -53,6 +54,8 @@ export default function QuotationForm() {
 
   // ── Master Data ────────────────────────────────────────────────────────────
   const { data: allClients = [], isLoading: loadingClients } = useAllClients();
+  const { data: unitTypesData = [] } = useUnitTypes();
+  const unitOptions = unitTypesData.filter((u) => u.isActive).map((u) => u.name);
   const [allHsn, setAllHsn] = useState<HsnRecord[]>([]);
   const [loadingHsn, setLoadingHsn] = useState(true);
 
@@ -461,9 +464,13 @@ export default function QuotationForm() {
                         </select>
                       </td>
                       <td className="pr-2 py-1.5">
-                        <input type="text" className={inputCls} placeholder="pcs / m / kg"
-                          value={c.unit}
-                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))} />
+                        <select className={inputCls} value={c.unit}
+                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))}>
+                          <option value="">— Unit —</option>
+                          {unitOptions.map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="pr-2 py-1.5">
                         <input type="number" min="0" step="0.001" className={inputCls} value={c.quantity}
