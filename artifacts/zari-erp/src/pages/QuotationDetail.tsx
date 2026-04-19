@@ -28,6 +28,16 @@ const STATUS_COLORS: Record<string, string> = {
   "Converted to Swatch":   "bg-teal-100 text-teal-700",
 };
 
+const STATUS_BTN_STYLES: Record<string, string> = {
+  "Draft":                 "border-gray-300   text-gray-700   hover:bg-gray-100",
+  "Sent":                  "border-blue-300   text-blue-700   hover:bg-blue-50",
+  "Client Reviewing":      "border-indigo-300 text-indigo-700 hover:bg-indigo-50",
+  "Correction Requested":  "border-yellow-400 text-yellow-700 hover:bg-yellow-50",
+  "Revised":               "border-amber-400  text-amber-700  hover:bg-amber-50",
+  "Approved":              "border-emerald-300 text-emerald-700 hover:bg-emerald-50",
+  "Rejected":              "border-red-300    text-red-600    hover:bg-red-50",
+};
+
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   "Draft":               ["Sent"],
   "Sent":                ["Client Reviewing", "Approved", "Rejected"],
@@ -269,7 +279,7 @@ export default function QuotationDetail() {
                     key={ns}
                     disabled={statusBusy}
                     onClick={() => changeStatus(ns)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 transition ${STATUS_BTN_STYLES[ns] ?? "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
                   >
                     {ns} {statusBusy && <span className="ml-1 animate-pulse">…</span>}
                   </button>
@@ -408,11 +418,11 @@ export default function QuotationDetail() {
                     <tbody>
                       {q.charges.map((c) => (
                         <tr key={c.id} className="border-b border-gray-50">
-                          <td className="py-2 font-medium text-gray-800">{c.charge_name}<br/><span className="text-xs text-gray-400">{c.unit}</span></td>
-                          <td className="py-2 text-gray-500">{c.hsn_code || "—"}</td>
-                          <td className="py-2 text-right text-gray-700">{parseFloat(c.quantity).toLocaleString("en-IN")}</td>
-                          <td className="py-2 text-right text-gray-700">{fmt(c.price)}</td>
-                          <td className="py-2 text-right font-semibold text-gray-800">{fmt(c.amount)}</td>
+                          <td className="py-2 font-medium text-gray-900">{c.charge_name}<br/><span className="text-xs text-gray-600">{c.unit}</span></td>
+                          <td className="py-2 text-gray-900">{c.hsn_code || "—"}</td>
+                          <td className="py-2 text-right text-gray-900">{parseFloat(c.quantity).toLocaleString("en-IN")}</td>
+                          <td className="py-2 text-right text-gray-900">{fmt(c.price)}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{fmt(c.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
