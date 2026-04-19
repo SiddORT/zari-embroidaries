@@ -47,6 +47,8 @@ interface PO {
   status: string;
   reference_type: string;
   reference_id: number | null;
+  swatch_order_code: string | null;
+  style_order_code: string | null;
   po_date: string;
   item_count: number;
   total_ordered_qty: string;
@@ -339,8 +341,10 @@ export default function PurchaseOrderList() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${ref.color}`}>
                           {ref.label}
                         </span>
-                        {isCosting && po.reference_id && (
-                          <div className="text-[10px] text-gray-400 mt-0.5">#{po.reference_id}</div>
+                        {isCosting && (po.swatch_order_code || po.style_order_code) && (
+                          <div className="text-[10px] font-mono text-gray-500 mt-0.5">
+                            {po.swatch_order_code ?? po.style_order_code}
+                          </div>
                         )}
                       </td>
                       <td className={tdCls}><span className="text-xs">{po.vendor_name}</span></td>

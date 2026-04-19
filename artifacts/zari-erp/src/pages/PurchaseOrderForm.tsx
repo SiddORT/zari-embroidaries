@@ -279,10 +279,10 @@ export default function PurchaseOrderForm() {
           ? (() => {
               if (referenceType === "Swatch") {
                 const s = swatchOrders.find(o => o.id === Number(referenceId));
-                return s ? `Swatch Ref: ${s.orderCode} — ${s.swatchName}` : notes;
+                return s ? `Swatch Ref: ${s.orderCode}` : notes;
               }
               const s = styleOrders.find(o => o.id === Number(referenceId));
-              return s ? `Style Ref: ${s.orderCode} — ${s.styleName}` : notes;
+              return s ? `Style Ref: ${s.orderCode}` : notes;
             })()
           : notes,
         includeGst,

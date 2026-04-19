@@ -727,9 +727,16 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
   const auth = req as AuthRequest;
   try {
     const { id } = req.params;
-    const r = await pool.query(`SELECT * FROM material_reservations WHERE id = $1`, [id]);
+    const r = await pool.query(
+      `SELECT mr.*,
+         COALESCE(sw.order_code, so.order_code) AS order_code
+       FROM material_reservations mr
+       LEFT JOIN swatch_orders sw ON mr.reservation_type = 'Swatch' AND sw.id = mr.reference_id
+       LEFT JOIN style_orders  so ON mr.reservation_type = 'Style'  AND so.id = mr.reference_id
+       WHERE mr.id = $1`, [id]);
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
     const resv = r.rows[0];
+    const orderRef = resv.order_code ?? `#${resv.reference_id}`;
     if (resv.status !== "Active") return res.status(400).json({ error: "Only Active reservations can be converted" });
 
     const reserved = parseFloat(resv.reserved_quantity);
@@ -780,27 +787,27 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
         await client.query(
           `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
            VALUES ($1,'consumption',  $2,$3, 0,$4,$5,$6,$7)`,
-          [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
+          [resv.inventory_id, orderRef, resv.reservation_type,
            consumedQty, bal,
-           `Consumed ${consumedQty} for ${resv.reservation_type} #${resv.reference_id}`, actor]
+           `Consumed ${consumedQty} for ${resv.reservation_type} ${orderRef}`, actor]
         );
       }
       if (releasedQty > 0) {
         await client.query(
           `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
            VALUES ($1,'reservation_release',$2,$3,$4,0,$5,$6,$7)`,
-          [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
+          [resv.inventory_id, orderRef, resv.reservation_type,
            releasedQty, bal,
-           `Released ${releasedQty} back to stock from ${resv.reservation_type} #${resv.reference_id}`, actor]
+           `Released ${releasedQty} back to stock from ${resv.reservation_type} ${orderRef}`, actor]
         );
       }
       if (wastageQty > 0) {
         await client.query(
           `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
            VALUES ($1,'wastage',$2,$3,0,$4,$5,$6,$7)`,
-          [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
+          [resv.inventory_id, orderRef, resv.reservation_type,
            wastageQty, bal,
-           `Wastage ${wastageQty} from ${resv.reservation_type} #${resv.reference_id}`, actor]
+           `Wastage ${wastageQty} from ${resv.reservation_type} ${orderRef}`, actor]
         );
       }
 

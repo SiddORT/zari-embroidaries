@@ -93,8 +93,13 @@ router.get("/procurement/purchase-orders", requireAuth, async (req, res) => {
         `SELECT po.*,
            (SELECT COUNT(*) FROM purchase_order_items WHERE po_id = po.id)::int AS item_count,
            (SELECT COALESCE(SUM(poi.ordered_quantity),0)  FROM purchase_order_items poi WHERE poi.po_id = po.id) AS total_ordered_qty,
-           (SELECT COALESCE(SUM(poi.received_quantity),0) FROM purchase_order_items poi WHERE poi.po_id = po.id) AS total_received_qty
-         FROM purchase_orders po ${where} ORDER BY ${orderBy}
+           (SELECT COALESCE(SUM(poi.received_quantity),0) FROM purchase_order_items poi WHERE poi.po_id = po.id) AS total_received_qty,
+           sw.order_code AS swatch_order_code,
+           so.order_code AS style_order_code
+         FROM purchase_orders po
+         LEFT JOIN swatch_orders sw ON po.reference_type = 'Swatch' AND sw.id = po.swatch_order_id
+         LEFT JOIN style_orders  so ON po.reference_type = 'Style'  AND so.id = po.style_order_id
+         ${where} ORDER BY ${orderBy}
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, limitNum, offset]
       ),
