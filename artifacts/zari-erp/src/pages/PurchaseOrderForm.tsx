@@ -660,7 +660,7 @@ export default function PurchaseOrderForm() {
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[200px]">Item</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Unit</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Ordered Qty</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Price / Unit (₹)</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Target Price / Unit (₹)</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Total (₹)</th>
                   {includeGst && <>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">HSN Code</th>
