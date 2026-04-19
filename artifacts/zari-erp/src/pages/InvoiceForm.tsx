@@ -995,6 +995,17 @@ export default function InvoiceForm() {
                   );
                 })}
               </tbody>
+              {items.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50/60">
+                    <td colSpan={7} className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Line Items Total</td>
+                    <td className="px-3 py-2.5 text-right text-sm font-bold text-gray-900">
+                      {items.reduce((s, i) => s + i.total, 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>

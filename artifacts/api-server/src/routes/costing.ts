@@ -1557,9 +1557,9 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
       ? db.select().from(customChargesTable).where(eq(customChargesTable.swatchOrderId, orderId))
       : db.select().from(customChargesTable).where(eq(customChargesTable.styleOrderId, orderId)),
 
-    // HSN master lookup
-    db.select({ materialCode: materialsTable.materialCode, hsnCode: materialsTable.hsnCode, gstPercent: materialsTable.gstPercent }).from(materialsTable),
-    db.select({ fabricCode: fabricsTable.fabricCode, hsnCode: fabricsTable.hsnCode, gstPercent: fabricsTable.gstPercent }).from(fabricsTable),
+    // Material + Fabric full master (for label format matching the dropdown)
+    db.select({ materialCode: materialsTable.materialCode, itemType: materialsTable.itemType, quality: materialsTable.quality, colorName: materialsTable.colorName, hsnCode: materialsTable.hsnCode, gstPercent: materialsTable.gstPercent }).from(materialsTable),
+    db.select({ fabricCode: fabricsTable.fabricCode, fabricType: fabricsTable.fabricType, quality: fabricsTable.quality, colorName: fabricsTable.colorName, hsnCode: fabricsTable.hsnCode, gstPercent: fabricsTable.gstPercent }).from(fabricsTable),
 
     // PRs for weighted avg calculation
     isSwatch
@@ -1572,9 +1572,9 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
     ).catch(() => ({ rows: [] as any[] })),
   ]);
 
-  // Build HSN lookup maps
-  const matHsnMap = new Map(allMaterials.map(m => [m.materialCode, { hsnCode: m.hsnCode ?? "", gstPercent: m.gstPercent ?? "0" }]));
-  const fabHsnMap = new Map(allFabrics.map(f => [f.fabricCode, { hsnCode: f.hsnCode ?? "", gstPercent: f.gstPercent ?? "0" }]));
+  // Build lookup maps — include label fields so descriptions match the frontend dropdown format
+  const matMap = new Map(allMaterials.map(m => [m.materialCode, m]));
+  const fabMap = new Map(allFabrics.map(f => [f.fabricCode, f]));
 
   // Build PR lookup for weighted avg: map bomRowId → list of {receivedQty, actualPrice}
   const prsByBomRow = new Map<number, { qty: number; price: number }[]>();
@@ -1610,19 +1610,35 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
     const rate = weightedAvg > 0 ? weightedAvg : avgPrice;
     const total = consumedQty * rate;
 
-    // HSN + GST from master
-    const hsnInfo = isFabric
-      ? (fabHsnMap.get(r.materialCode ?? "") ?? { hsnCode: "", gstPercent: "0" })
-      : (matHsnMap.get(r.materialCode ?? "") ?? { hsnCode: "", gstPercent: "0" });
+    // Build description in the same label format as the frontend dropdown
+    const code = r.materialCode ?? "";
+    let description: string;
+    let hsnCode = "";
+    let gstPercent = "0";
+    if (isFabric) {
+      const fab = fabMap.get(code);
+      description = fab
+        ? `${fab.fabricCode} · ${fab.fabricType} · ${fab.quality} · ${fab.colorName}`
+        : `[${code}] ${r.materialName ?? ""}`.trim();
+      hsnCode = fab?.hsnCode ?? "";
+      gstPercent = fab?.gstPercent ?? "0";
+    } else {
+      const mat = matMap.get(code);
+      description = mat
+        ? `${mat.materialCode} · ${mat.itemType} · ${mat.quality} · ${mat.colorName}`
+        : `[${code}] ${r.materialName ?? ""}`.trim();
+      hsnCode = mat?.hsnCode ?? "";
+      gstPercent = mat?.gstPercent ?? "0";
+    }
 
     items.push({
-      description: `[${r.materialCode}] ${r.materialName ?? ""}`.trim(),
+      description,
       category: isFabric ? "Fabric" : "Material",
       quantity: consumedQty,
       unitPrice: parseFloat(rate.toFixed(4)),
       total: parseFloat(total.toFixed(2)),
-      hsnCode: hsnInfo.hsnCode,
-      hsnGstPct: hsnInfo.gstPercent,
+      hsnCode,
+      hsnGstPct: gstPercent,
       unit: r.unitType ?? "",
       source: "bom",
     });

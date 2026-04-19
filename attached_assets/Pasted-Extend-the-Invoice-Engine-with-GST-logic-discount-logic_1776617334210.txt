@@ -1,0 +1,203 @@
+Extend the Invoice Engine with GST logic, discount logic, and client currency consistency rules.
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Invoice GST and Discount Engine
+
+---
+
+SECTION 1 — CLIENT DEFAULT CURRENCY ENGINE
+
+Add field inside:
+
+client_master table
+
+default_currency_code
+
+Example:
+
+Client A → USD
+
+Client B → INR
+
+Whenever invoice created for client:
+
+system must auto-load:
+
+default_currency_code
+
+Allow override only by admin users.
+
+Store snapshot inside:
+
+invoices.currency_code
+
+---
+
+SECTION 2 — CLIENT TAX REGION ENGINE
+
+Client master must store:
+
+client_country
+
+client_state
+
+client_gstin
+
+Vendor master must store:
+
+vendor_country
+
+vendor_state
+
+vendor_gstin
+
+Company profile must store:
+
+company_country
+
+company_state
+
+company_gstin
+
+---
+
+SECTION 3 — GST TYPE AUTO-SELECTION ENGINE
+
+GST types supported:
+
+CGST + SGST
+
+IGST
+
+Export zero-rated GST
+
+Reverse charge (vendor cases)
+
+Rules:
+
+If client_state = company_state
+
+Apply:
+
+CGST + SGST
+
+If client_state ≠ company_state
+
+Apply:
+
+IGST
+
+If client_country ≠ company_country
+
+Apply:
+
+Export GST = 0
+
+Vendor invoices may apply:
+
+reverse charge logic
+
+---
+
+SECTION 4 — INVOICE HEADER GST FIELDS
+
+Add fields inside invoices table:
+
+gst_type
+
+cgst_amount
+
+sgst_amount
+
+igst_amount
+
+total_gst_amount
+
+reverse_charge_applicable
+
+---
+
+SECTION 5 — ITEM LEVEL GST STRUCTURE
+
+Prepare invoice_items table to store:
+
+tax_type
+
+tax_rate
+
+cgst_rate
+
+sgst_rate
+
+igst_rate
+
+cgst_amount
+
+sgst_amount
+
+igst_amount
+
+total_tax_amount
+
+Each invoice item must calculate GST separately.
+
+---
+
+SECTION 6 — DISCOUNT ENGINE SUPPORT
+
+Add fields inside invoices table:
+
+invoice_discount_type
+
+invoice_discount_value
+
+invoice_discount_amount
+
+discount_type values:
+
+Percentage
+
+Flat
+
+---
+
+SECTION 7 — HEADER DISCOUNT APPLICATION ORDER
+
+Calculation sequence:
+
+Subtotal
+
+− Item discount
+
+= adjusted subtotal
+
+− Invoice discount
+
+= discounted subtotal
+
+* GST
+
+* Shipping
+
+* Adjustments
+
+= Final total_amount
+
+---
+
+SECTION 8 — VALIDATION RULE
+
+Prevent mismatch between:
+
+client default currency
+
+and invoice currency
+
+unless override permission exists.
+
+END OF PROMPT 2
