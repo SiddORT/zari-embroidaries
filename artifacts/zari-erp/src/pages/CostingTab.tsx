@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import * as XLSX from "xlsx";
@@ -1457,41 +1457,15 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [addForm, setAddForm] = useState({ bomRowId: "", consumedQty: "", notes: "" });
-  const [includeGst, setIncludeGst] = useState(true);
-
-  // ── HSN/GST master data ──────────────────────────────────────────────────────
-  type MatMasterRow = { materialCode: string; hsnCode: string; gstPercent: string };
-  type FabMasterRow = { fabricCode: string; hsnCode: string; gstPercent: string };
-  const [materialsMaster, setMaterialsMaster] = useState<MatMasterRow[]>([]);
-  const [fabricsMaster, setFabricsMaster] = useState<FabMasterRow[]>([]);
-  useEffect(() => {
-    const token = localStorage.getItem("zarierp_token");
-    const hdrs: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-    fetch("/api/materials/all", { headers: hdrs }).then(r => r.json()).then((d: MatMasterRow[] | { data: MatMasterRow[] }) => {
-      setMaterialsMaster(Array.isArray(d) ? d : (d as { data: MatMasterRow[] }).data ?? []);
-    }).catch(() => {});
-    fetch("/api/fabrics/all", { headers: hdrs }).then(r => r.json()).then((d: FabMasterRow[] | { data: FabMasterRow[] }) => {
-      setFabricsMaster(Array.isArray(d) ? d : (d as { data: FabMasterRow[] }).data ?? []);
-    }).catch(() => {});
-  }, []);
-
-  function getBomHsnGst(r: { materialCode: string; materialType: string }): { hsnCode: string; gstPct: number } {
-    const master = r.materialType === "fabric"
-      ? fabricsMaster.find(f => f.fabricCode === r.materialCode)
-      : materialsMaster.find(m => m.materialCode === r.materialCode);
-    return { hsnCode: master?.hsnCode ?? "", gstPct: master ? (parseFloat(master.gstPercent) || 0) : 0 };
-  }
 
   const displayRows = filterBomRowId === "all" ? bomRows : bomRows.filter(r => String(r.id) === filterBomRowId);
   const logForDisplay = filterBomRowId === "all" ? consumptionLog : consumptionLog.filter(e => String(e.bomRowId) === filterBomRowId);
 
   const totals = displayRows.reduce((acc, r) => {
     const m = computeRowMetrics(r, pos, prs);
-    const { gstPct } = getBomHsnGst(r);
-    const effectiveGst = includeGst ? gstPct : 0;
     acc.stockInclPr += m.stockNum + m.prQty;
     acc.consumedQty += m.consumedQtyNum;
-    acc.consumedTotal += m.consumedTotal * (1 + effectiveGst / 100);
+    acc.consumedTotal += m.consumedTotal;
     return acc;
   }, { stockInclPr: 0, consumedQty: 0, consumedTotal: 0 });
 
@@ -1544,18 +1518,6 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
               ))}
             </select>
           )}
-          <button
-            onClick={() => setIncludeGst(v => !v)}
-            className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all ${
-              includeGst
-                ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
-                : "bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200"
-            }`}>
-            <span className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full transition-colors ${includeGst ? "bg-emerald-500" : "bg-gray-300"}`}>
-              <span className={`absolute top-0.5 left-0.5 h-2.5 w-2.5 rounded-full bg-white shadow transition-transform ${includeGst ? "translate-x-2.5" : "translate-x-0"}`} />
-            </span>
-            {includeGst ? "HSN / GST On" : "HSN / GST Off"}
-          </button>
           {bomRows.length > 0 && (
             <button onClick={openAddModal}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
