@@ -649,7 +649,10 @@ export default function Reservations() {
         const w = parseFloat(convertModal.wastage) || 0;
         const allocated = c + r + w;
         const remaining = +(reserved - allocated).toFixed(3);
-        const valid = Math.abs(remaining) < 0.001 && c >= 0 && r >= 0 && w >= 0;
+        const cOver = c > reserved;
+        const rOver = r > reserved;
+        const wOver = w > reserved;
+        const valid = Math.abs(remaining) < 0.001 && c >= 0 && r >= 0 && w >= 0 && !cOver && !rOver && !wOver;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className={`${card} w-full max-w-md`}>
@@ -688,7 +691,7 @@ export default function Reservations() {
                     <input type="number" min="0" step="0.001"
                       value={convertModal.consumed}
                       onChange={e => setConvertModal(m => m ? { ...m, consumed: e.target.value } : null)}
-                      className="flex-1 px-3 py-1.5 text-sm text-right rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                      className={`flex-1 px-3 py-1.5 text-sm text-gray-900 text-right rounded-lg border focus:outline-none focus:ring-2 ${cOver ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-blue-200"}`} />
                     <span className="text-xs text-gray-400 w-12 flex-shrink-0">{convertModal.resv.unit_type || ""}</span>
                   </div>
                   <p className="text-[11px] text-blue-600 -mt-1 pl-36">Material actually used in production — consumption will deduct stock separately.</p>
@@ -702,7 +705,7 @@ export default function Reservations() {
                     <input type="number" min="0" step="0.001"
                       value={convertModal.released}
                       onChange={e => setConvertModal(m => m ? { ...m, released: e.target.value } : null)}
-                      className="flex-1 px-3 py-1.5 text-sm text-right rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                      className={`flex-1 px-3 py-1.5 text-sm text-gray-900 text-right rounded-lg border focus:outline-none focus:ring-2 ${rOver ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-green-200"}`} />
                     <span className="text-xs text-gray-400 w-12 flex-shrink-0">{convertModal.resv.unit_type || ""}</span>
                   </div>
                   <p className="text-[11px] text-green-600 -mt-1 pl-36">Unused material — freed back to available stock.</p>
@@ -716,7 +719,7 @@ export default function Reservations() {
                     <input type="number" min="0" step="0.001"
                       value={convertModal.wastage}
                       onChange={e => setConvertModal(m => m ? { ...m, wastage: e.target.value } : null)}
-                      className="flex-1 px-3 py-1.5 text-sm text-right rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-200" />
+                      className={`flex-1 px-3 py-1.5 text-sm text-gray-900 text-right rounded-lg border focus:outline-none focus:ring-2 ${wOver ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-red-200"}`} />
                     <span className="text-xs text-gray-400 w-12 flex-shrink-0">{convertModal.resv.unit_type || ""}</span>
                   </div>
                   <p className="text-[11px] text-red-500 -mt-1 pl-36">Material damaged or discarded — written off from stock.</p>
