@@ -150,6 +150,9 @@ export default function StockAdjustments() {
   const [invOpen,   setInvOpen]     = useState(false);
   const invRef = useRef<HTMLDivElement>(null);
 
+  const [styleOrders,  setStyleOrders]  = useState<{ id: number; orderCode: string; styleName: string }[]>([]);
+  const [swatchOrders, setSwatchOrders] = useState<{ id: number; orderCode: string; swatchName: string }[]>([]);
+
   const [deleteTarget, setDeleteTarget] = useState<AdjRow | null>(null);
   const [deleting,     setDeleting]     = useState(false);
 
@@ -180,6 +183,12 @@ export default function StockAdjustments() {
     customFetch("/api/inventory/items?limit=500&page=1").then((r: unknown) => {
       setInvItems(((r as { data: InvItem[] }).data ?? []));
     }).catch(() => {});
+    customFetch("/api/style-orders?limit=100&page=1").then((r: unknown) => {
+      setStyleOrders((r as { data: { id: number; orderCode: string; styleName: string }[] }).data ?? []);
+    }).catch(() => {});
+    customFetch("/api/swatch-orders?limit=100&page=1").then((r: unknown) => {
+      setSwatchOrders((r as { data: { id: number; orderCode: string; swatchName: string }[] }).data ?? []);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -195,7 +204,11 @@ export default function StockAdjustments() {
     it.item_code.toLowerCase().includes(invSearch.toLowerCase())
   ).slice(0, 30);
 
-  const setField = (k: keyof FormState, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const setField = (k: keyof FormState, v: string) => setForm(f => ({
+    ...f,
+    [k]: v,
+    ...(k === "referenceType" ? { referenceId: "" } : {}),
+  }));
 
   const previewLoss = (() => {
     if (!selItem || form.adjustmentDirection !== "Decrease") return null;
@@ -673,8 +686,36 @@ export default function StockAdjustments() {
                 </div>
                 <div>
                   <label className={labelCls}>Reference ID</label>
-                  <input type="text" className={inputCls} placeholder="e.g. ZST-2597 or Audit-001"
-                    value={form.referenceId} onChange={e => setField("referenceId", e.target.value)} />
+                  {form.referenceType === "Style" ? (
+                    <div className="relative">
+                      <select
+                        value={form.referenceId}
+                        onChange={e => setField("referenceId", e.target.value)}
+                        className={`${inputCls} appearance-none pr-8 text-gray-900`}>
+                        <option value="">— Select Style Order —</option>
+                        {styleOrders.map(o => (
+                          <option key={o.id} value={o.orderCode}>{o.orderCode} — {o.styleName}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                    </div>
+                  ) : form.referenceType === "Swatch" ? (
+                    <div className="relative">
+                      <select
+                        value={form.referenceId}
+                        onChange={e => setField("referenceId", e.target.value)}
+                        className={`${inputCls} appearance-none pr-8 text-gray-900`}>
+                        <option value="">— Select Swatch Order —</option>
+                        {swatchOrders.map(o => (
+                          <option key={o.id} value={o.orderCode}>{o.orderCode} — {o.swatchName}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                    </div>
+                  ) : (
+                    <input type="text" className={inputCls} placeholder="e.g. Audit-001 or Inv-005"
+                      value={form.referenceId} onChange={e => setField("referenceId", e.target.value)} />
+                  )}
                 </div>
               </div>
 
