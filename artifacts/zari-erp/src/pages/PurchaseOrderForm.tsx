@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Plus, Trash2, Save, CheckCircle2, XCircle, Clock,
-  ShoppingCart, PackageCheck, Search, Building2, CreditCard,
+  ShoppingCart, PackageCheck, Building2, CreditCard,
   Phone, Mail, MapPin, BadgePercent,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
@@ -27,6 +27,7 @@ interface InventoryOption {
   id: number;
   item_name: string;
   item_code: string;
+  source_type: string;
   unit_type: string | null;
   available_stock: string;
   average_price: string;
@@ -54,8 +55,11 @@ interface Vendor {
   pincode: string | null;
 }
 
+type ItemCategory = "all" | "fabric" | "material" | "packaging";
+
 interface LineItem {
   key: string;
+  itemCategory: ItemCategory;
   inventoryItemId: number | null;
   itemName: string;
   itemCode: string;
@@ -125,16 +129,16 @@ export default function PurchaseOrderForm() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [inventoryItems, setInventoryItems] = useState<InventoryOption[]>([]);
-  const [itemSearch, setItemSearch] = useState<Record<string, string>>({});
 
   // Form state
   const [vendorId, setVendorId]           = useState<number | "">("");
   const [poDate, setPoDate]               = useState(new Date().toISOString().slice(0, 10));
   const [referenceType, setReferenceType] = useState("Inventory");
+  const [referenceId, setReferenceId]     = useState("");
   const [notes, setNotes]                 = useState("");
   const [includeGst, setIncludeGst]       = useState(false);
   const [lineItems, setLineItems]         = useState<LineItem[]>([
-    { key: mkKey(), inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
+    { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [actioning, setActioning]   = useState(false);
@@ -164,7 +168,7 @@ export default function PurchaseOrderForm() {
 
   const addLine = () => setLineItems(ls => [
     ...ls,
-    { key: mkKey(), inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
+    { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
   ]);
 
   const removeLine = (key: string) => setLineItems(ls => ls.filter(l => l.key !== key));
@@ -172,19 +176,23 @@ export default function PurchaseOrderForm() {
   const updateLine = (key: string, field: keyof LineItem, value: string | number | null) =>
     setLineItems(ls => ls.map(l => l.key === key ? { ...l, [field]: value } : l));
 
-  const selectItem = (key: string, item: InventoryOption) => {
+  const selectItem = (key: string, item: InventoryOption | null) => {
     setLineItems(ls => ls.map(l => l.key === key ? {
       ...l,
-      inventoryItemId: item.id,
-      itemName: item.item_name,
-      itemCode: item.item_code,
-      unitType: item.unit_type ?? "",
-      availableStock: item.available_stock,
-      targetPrice: parseFloat(item.average_price).toFixed(2),
-      hsnCode: item.hsn_code ?? "",
-      gstPercent: item.gst_percent ?? "0",
+      inventoryItemId: item?.id ?? null,
+      itemName: item?.item_name ?? "",
+      itemCode: item?.item_code ?? "",
+      unitType: item?.unit_type ?? "",
+      availableStock: item?.available_stock ?? "0",
+      targetPrice: item ? parseFloat(item.average_price).toFixed(2) : "",
+      hsnCode: item?.hsn_code ?? "",
+      gstPercent: item?.gst_percent ?? "0",
     } : l));
-    setItemSearch(s => ({ ...s, [key]: item.item_name }));
+  };
+
+  const itemsForCategory = (cat: ItemCategory) => {
+    if (cat === "all") return inventoryItems;
+    return inventoryItems.filter(i => i.source_type === cat);
   };
 
   // Totals
@@ -239,7 +247,9 @@ export default function PurchaseOrderForm() {
         vendorName: selectedVendor?.brandName ?? "",
         poDate,
         referenceType,
-        notes,
+        notes: referenceType === "Swatch" || referenceType === "Style"
+          ? `${referenceType} Ref: ${referenceId}`
+          : notes,
         includeGst,
         items: validItems.map(l => ({
           inventoryItemId: l.inventoryItemId,
@@ -413,14 +423,6 @@ export default function PurchaseOrderForm() {
 
   // ── CREATE mode ────────────────────────────────────────────────────────────
 
-  const filteredItems = (key: string) => {
-    const q = (itemSearch[key] ?? "").toLowerCase();
-    if (!q) return inventoryItems.slice(0, 20);
-    return inventoryItems.filter(i =>
-      i.item_name.toLowerCase().includes(q) || i.item_code.toLowerCase().includes(q)
-    ).slice(0, 20);
-  };
-
   const inputCls = "w-full px-2.5 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
 
   return (
@@ -471,18 +473,30 @@ export default function PurchaseOrderForm() {
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Reference Type</label>
-              <select value={referenceType} onChange={e => setReferenceType(e.target.value)}
+              <select value={referenceType} onChange={e => { setReferenceType(e.target.value); setReferenceId(""); }}
                 className={`${inputCls} bg-white appearance-none`}>
                 <option value="Inventory">Inventory</option>
+                <option value="Swatch">Swatch</option>
+                <option value="Style">Style</option>
                 <option value="Manual">Manual</option>
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-                placeholder="Optional notes…" className={inputCls} />
-            </div>
+            {(referenceType === "Swatch" || referenceType === "Style") ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {referenceType} ID <span className="text-red-500">*</span>
+                </label>
+                <input type="text" value={referenceId} onChange={e => setReferenceId(e.target.value)}
+                  placeholder={`Enter ${referenceType} ID…`} className={inputCls} />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="Optional notes…" className={inputCls} />
+              </div>
+            )}
           </div>
 
           {/* GST toggle */}
@@ -609,7 +623,8 @@ export default function PurchaseOrderForm() {
               <thead className="bg-[#F8F6F0]">
                 <tr>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-8">#</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[220px]">Item</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Category</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[200px]">Item</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Unit</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Ordered Qty</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Target Price (₹)</th>
@@ -634,39 +649,38 @@ export default function PurchaseOrderForm() {
                   return (
                     <tr key={line.key}>
                       <td className="px-3 py-2 text-xs text-gray-400">{idx+1}</td>
+
+                      {/* Category */}
                       <td className="px-3 py-2">
-                        <div className="relative">
-                          <div className="flex items-center gap-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white">
-                            <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                            <input
-                              className="flex-1 outline-none text-sm text-gray-900 min-w-0"
-                              placeholder="Search item…"
-                              value={itemSearch[line.key] ?? line.itemName}
-                              onChange={e => {
-                                setItemSearch(s => ({ ...s, [line.key]: e.target.value }));
-                                if (!e.target.value) updateLine(line.key, "inventoryItemId", null);
-                              }}
-                            />
-                          </div>
-                          {(itemSearch[line.key] !== undefined && itemSearch[line.key] !== line.itemName) && (
-                            <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                              {filteredItems(line.key).length === 0 ? (
-                                <div className="px-3 py-2 text-xs text-gray-400">No items found</div>
-                              ) : filteredItems(line.key).map(item => (
-                                <button key={item.id} type="button"
-                                  className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
-                                  onMouseDown={e => { e.preventDefault(); selectItem(line.key, item); }}>
-                                  <div className="font-medium text-gray-900">{item.item_name}</div>
-                                  <div className="text-xs text-gray-400">
-                                    {item.item_code} · Stock: {parseFloat(item.available_stock).toFixed(3)}
-                                    {item.hsn_code && ` · HSN: ${item.hsn_code}`}
-                                    {item.gst_percent && ` · GST: ${item.gst_percent}%`}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <select
+                          value={line.itemCategory}
+                          onChange={e => {
+                            updateLine(line.key, "itemCategory", e.target.value as ItemCategory);
+                            selectItem(line.key, null);
+                          }}
+                          className={`${inputCls} bg-white appearance-none text-xs`}>
+                          <option value="all">All</option>
+                          <option value="fabric">Fabric</option>
+                          <option value="material">Material</option>
+                          <option value="packaging">Item Master</option>
+                        </select>
+                      </td>
+
+                      {/* Item */}
+                      <td className="px-3 py-2">
+                        <select
+                          value={line.inventoryItemId ?? ""}
+                          onChange={e => {
+                            const id = parseInt(e.target.value);
+                            const item = inventoryItems.find(i => i.id === id) ?? null;
+                            selectItem(line.key, item);
+                          }}
+                          className={`${inputCls} bg-white appearance-none`}>
+                          <option value="">— Select item —</option>
+                          {itemsForCategory(line.itemCategory).map(item => (
+                            <option key={item.id} value={item.id}>{item.item_name}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-500">{line.unitType || "—"}</td>
                       <td className="px-3 py-2">

@@ -18,9 +18,9 @@ const thCls = "px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase
 const tdCls = "px-3 py-3 text-sm text-gray-900";
 
 const STATUS_MAP: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
-  Open:      { label: "Open",      color: "bg-gray-100 text-gray-700",   Icon: Clock },
-  Received:  { label: "Received",  color: "bg-green-100 text-green-700", Icon: CheckCircle2 },
-  Cancelled: { label: "Cancelled", color: "bg-red-100 text-red-700",     Icon: XCircle },
+  Open:      { label: "OPEN",      color: "bg-gray-100 text-gray-700",   Icon: Clock },
+  Received:  { label: "RECEIVED",  color: "bg-green-100 text-green-700", Icon: CheckCircle2 },
+  Cancelled: { label: "CANCELLED", color: "bg-red-100 text-red-700",     Icon: XCircle },
 };
 
 const REF_BADGE: Record<string, { label: string; color: string }> = {
