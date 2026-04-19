@@ -162,7 +162,16 @@ export default function InvoiceForm() {
     customFetch<any>("/api/hsn/all").then(rows => setHsnList(Array.isArray(rows) ? rows : [])).catch(() => {});
     customFetch<any>("/api/fabrics/all").then(rows => setFabricMaster(Array.isArray(rows) ? rows : [])).catch(() => {});
     customFetch<any>("/api/materials/all").then(rows => setMaterialMaster(Array.isArray(rows) ? rows : [])).catch(() => {});
-    customFetch<any>("/api/settings/currencies").then(j => setCurrencies((j.data ?? []).filter((c: any) => c.is_active || c.is_base))).catch(() => {});
+    customFetch<any>("/api/settings/currencies").then(j => {
+      const all = j.data ?? [];
+      const active = all.filter((c: any) => c.is_active || c.is_base);
+      setCurrencies(active);
+      // For new invoices, default to the base currency
+      if (!isEdit) {
+        const base = active.find((c: any) => c.is_base);
+        if (base) setForm(f => ({ ...f, currencyCode: base.code }));
+      }
+    }).catch(() => {});
     customFetch<any>("/api/settings/exchange-rates").then(j => {
       const map: Record<string, number> = {};
       for (const r of (j.data ?? [])) map[r.currency_code] = parseFloat(r.rate);
@@ -170,6 +179,19 @@ export default function InvoiceForm() {
     }).catch(() => {});
     // Fetch saved bank accounts, auto-fill the default one for new invoices
     if (!isEdit) {
+      // Auto-apply GST settings (CGST + SGST)
+      customFetch<any>("/api/settings/gst").then(j => {
+        const g = j.data;
+        if (!g) return;
+        const totalGst = parseFloat(g.default_service_gst_rate ?? "0");
+        const half = (totalGst / 2).toFixed(2);
+        setForm(f => ({
+          ...f,
+          cgstRate: half,
+          sgstRate: half,
+        }));
+      }).catch(() => {});
+
       customFetch<any>("/api/settings/bank-accounts").then(j => {
         const accounts: BankAccount[] = j.data ?? [];
         setBankAccounts(accounts);
