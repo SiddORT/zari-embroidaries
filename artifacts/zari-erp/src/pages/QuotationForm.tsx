@@ -101,14 +101,14 @@ export default function QuotationForm() {
   // ── Load Master Data (clients + hsn) ──────────────────────────────────────
   useEffect(() => {
     Promise.all([
-      customFetch(`/clients/all`).then((r) => r.json()),
-      customFetch(`/hsn/all`).then((r) => r.json()),
+      customFetch<ClientRecord[]>(`/clients/all`),
+      customFetch<HsnRecord[]>(`/hsn/all`),
     ])
       .then(([c, h]) => {
-        setAllClients(Array.isArray(c) ? c : (c.data ?? []));
-        setAllHsn(Array.isArray(h) ? h : (h.data ?? []));
+        setAllClients(Array.isArray(c) ? c : []);
+        setAllHsn(Array.isArray(h) ? h : []);
       })
-      .catch(() => {})
+      .catch(console.error)
       .finally(() => setMasterLoading(false));
   }, []);
 
@@ -116,8 +116,7 @@ export default function QuotationForm() {
   useEffect(() => {
     if (!isEdit) return;
     setLoadingData(true);
-    customFetch(`/quotations/${id}`)
-      .then((r) => r.json())
+    customFetch<{ data: any }>(`/quotations/${id}`)
       .then((j) => {
         if (!j.data) return;
         const d = j.data;
@@ -187,14 +186,12 @@ export default function QuotationForm() {
         designs: validDesigns,
         charges: validCharges,
       };
-      const r = await customFetch(
+      const j = await customFetch<{ message?: string; data?: { id: number } }>(
         isEdit ? `/quotations/${id}` : `/quotations`,
         { method: isEdit ? "PUT" : "POST", body: JSON.stringify(payload) }
       );
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Save failed");
       toast({ title: "Saved", description: j.message || "Quotation saved successfully" });
-      navigate(isEdit ? `/quotation/${id}` : `/quotation/${j.data.id}`);
+      navigate(isEdit ? `/quotation/${id}` : `/quotation/${j.data?.id}`);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
