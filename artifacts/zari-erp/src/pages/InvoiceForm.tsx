@@ -563,16 +563,16 @@ export default function InvoiceForm() {
                     {items.map(it => (
                       <tr key={it.id} className="border-b border-gray-50">
                         <td className="px-3 py-2 w-[35%]">
-                          <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                          <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
                         </td>
                         <td className="px-3 py-2 w-[18%]">
-                          <input value={it.category} onChange={e => updateItem(it.id, "category", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]" placeholder="Category" />
+                          <input value={it.category} onChange={e => updateItem(it.id, "category", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Category" />
                         </td>
                         <td className="px-3 py-2 w-[10%]">
-                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right" />
+                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
                         </td>
                         <td className="px-3 py-2 w-[16%]">
-                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right" />
+                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
                         </td>
                         <td className="px-3 py-2 w-[14%] font-semibold text-gray-900 text-right pr-4">
                           {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -704,7 +704,7 @@ export default function InvoiceForm() {
                     <option value="flat">Flat Discount</option>
                     <option value="percent">% Discount</option>
                   </select>
-                  <input type="number" min="0" value={form.discountValue} onChange={e => setF("discountValue", e.target.value)} className="flex-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right" />
+                  <input type="number" min="0" value={form.discountValue} onChange={e => setF("discountValue", e.target.value)} className="flex-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
                 </div>
                 {totals.discount > 0 && (
                   <div className="flex justify-between text-sm text-red-500">
@@ -715,11 +715,11 @@ export default function InvoiceForm() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-400">CGST %</label>
-                    <input type="number" min="0" value={form.cgstRate} onChange={e => setF("cgstRate", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
+                    <input type="number" min="0" value={form.cgstRate} onChange={e => setF("cgstRate", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-400">SGST %</label>
-                    <input type="number" min="0" value={form.sgstRate} onChange={e => setF("sgstRate", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
+                    <input type="number" min="0" value={form.sgstRate} onChange={e => setF("sgstRate", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                   </div>
                 </div>
                 {(totals.cgstAmt > 0 || totals.sgstAmt > 0) && (
@@ -735,11 +735,11 @@ export default function InvoiceForm() {
 
                 <div>
                   <label className="text-xs text-gray-400">Shipping Amount</label>
-                  <input type="number" min="0" step="0.01" value={form.shippingAmount} onChange={e => setF("shippingAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
+                  <input type="number" min="0" step="0.01" value={form.shippingAmount} onChange={e => setF("shippingAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-400">Adjustment (+ / −)</label>
-                  <input type="number" step="0.01" value={form.adjustmentAmount} onChange={e => setF("adjustmentAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
+                  <input type="number" step="0.01" value={form.adjustmentAmount} onChange={e => setF("adjustmentAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                 </div>
 
                 <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
