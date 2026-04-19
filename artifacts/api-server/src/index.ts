@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminUser, seedDummyData } from "./lib/seed";
 import { ensureShippingTables } from "./routes/shipping";
+import { ensureSettingsTables } from "./routes/settings";
 
 const rawPort = process.env["PORT"];
 
@@ -29,6 +30,12 @@ app.listen(port, async (err) => {
     await ensureShippingTables();
   } catch (seedErr) {
     logger.error({ err: seedErr }, "Failed to create shipping tables");
+  }
+
+  try {
+    await ensureSettingsTables();
+  } catch (seedErr) {
+    logger.error({ err: seedErr }, "Failed to create settings tables");
   }
 
   try {

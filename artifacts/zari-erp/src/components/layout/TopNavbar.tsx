@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, User, Users } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, User, Users, Settings } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -275,6 +275,13 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                       Profile
                     </button>
                     <button
+                      onClick={() => { setProfileOpen(false); navigate("/settings"); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
+                    >
+                      <Settings className="h-4 w-4 text-gray-400 shrink-0" />
+                      Settings
+                    </button>
+                    <button
                       onClick={() => { setProfileOpen(false); navigate("/user-management"); }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
                     >
@@ -436,6 +443,10 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 <Link href="/profile" onClick={() => setMobileOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <User className="h-4 w-4 text-gray-400" /> Profile
+                </Link>
+                <Link href="/settings" onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <Settings className="h-4 w-4 text-gray-400" /> Settings
                 </Link>
                 <Link href="/user-management" onClick={() => setMobileOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">

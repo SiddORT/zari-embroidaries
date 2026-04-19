@@ -28,6 +28,7 @@ import inventoryRouter from "./inventory";
 import procurementRouter from "./procurement";
 import quotationsRouter from "./quotations";
 import shippingRouter from "./shipping";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(inventoryRouter);
 router.use(procurementRouter);
 router.use(quotationsRouter);
 router.use(shippingRouter);
+router.use(settingsRouter);
 
 export default router;
