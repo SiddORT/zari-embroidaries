@@ -184,8 +184,12 @@ router.get("/shipping/details", requireAuth, async (req, res) => {
 
     const [rows, count] = await Promise.all([
       pool.query(
-        `SELECT d.*, sv.vendor_name FROM order_shipping_details d
+        `SELECT d.*, sv.vendor_name,
+                COALESCE(sw.order_code, so.order_code) AS order_code
+         FROM order_shipping_details d
          LEFT JOIN shipping_vendors sv ON sv.id = d.shipping_vendor_id
+         LEFT JOIN swatch_orders sw ON d.reference_type = 'Swatch' AND sw.id = d.reference_id
+         LEFT JOIN style_orders so  ON d.reference_type = 'Style'  AND so.id = d.reference_id
          ${where} ORDER BY d.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, parseInt(limit), offset]
       ),

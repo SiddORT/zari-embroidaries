@@ -332,7 +332,7 @@ export default function Reservations() {
             <div className="relative">
               <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}
                 className="appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[150px]">
-                <option value="all">All Statuses</option>
+                <option value="all">All Status</option>
                 <option value="Active">Active</option>
                 <option value="Released">Released</option>
                 <option value="Converted">Converted</option>
