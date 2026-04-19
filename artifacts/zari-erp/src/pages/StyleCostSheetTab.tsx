@@ -98,6 +98,7 @@ export default function StyleCostSheetTab({
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("all");
+  const [includeGst, setIncludeGst] = useState(true);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   const { data: productsRes } = useStyleOrderProducts(styleOrderId);
@@ -193,7 +194,7 @@ export default function StyleCostSheetTab({
   const artisanTotal     = filteredArtisan.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
   const outsourceTotal   = filteredOutsource.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
   const customTotal      = filteredCustom.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-  const grandTotal       = bomConsumedTotal + bomGstTotal + artisanTotal + outsourceTotal + customTotal;
+  const grandTotal       = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal;
 
   const SHIFT_LABELS: Record<string, string> = { regular: "Regular", night: "Night", sunday: "Sunday", overtime: "Overtime" };
 
@@ -311,17 +312,32 @@ export default function StyleCostSheetTab({
         </div>
 
         {/* ── 1. Material Consumption ─────────────────────────────────────── */}
+        <div className="no-print flex items-center justify-end mb-1.5">
+          <button
+            onClick={() => setIncludeGst(v => !v)}
+            className={`flex items-center gap-2 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all ${
+              includeGst
+                ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                : "bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200"
+            }`}>
+            <span className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${includeGst ? "bg-emerald-500" : "bg-gray-300"}`}>
+              <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${includeGst ? "translate-x-3" : "translate-x-0"}`} />
+            </span>
+            {includeGst ? "HSN / GST Applied" : "HSN / GST Excluded"}
+          </button>
+        </div>
         <SheetSection title="Material Consumption">
           <SheetTable
             headers={[
               ...((!isFiltered && products.length > 0) ? ["Product"] : []),
               "Code", "Material / Fabric", "Type",
-              "Consumed Qty", "Avg Price ₹", "HSN", "GST%", "Final Rate ₹", "Total (incl. GST) ₹", "Consumed By",
+              "Consumed Qty", "Avg Price ₹", "HSN", "GST%", "Final Rate ₹", includeGst ? "Total (incl. GST) ₹" : "Total ₹", "Consumed By",
             ]}
             rows={bomWithMetrics.filter(({ m }) => m.consumedQtyNum > 0).map(({ r, m }) => {
               const { hsnCode, gstPct } = getBomHsnGst(r);
-              const finalRate = m.weightedAvg * (1 + gstPct / 100);
-              const totalWithGst = m.consumedTotal * (1 + gstPct / 100);
+              const effectiveGst = includeGst ? gstPct : 0;
+              const finalRate = m.weightedAvg * (1 + effectiveGst / 100);
+              const totalWithGst = m.consumedTotal * (1 + effectiveGst / 100);
               const entries = filteredConsumptionLog.filter(e => e.bomRowId === r.id);
               const productNames = isFiltered
                 ? (entries[0] ? ((entries[0] as any).styleOrderProductName ?? "—") : "—")
@@ -333,8 +349,8 @@ export default function StyleCostSheetTab({
                 r.materialType === "fabric" ? "Fabric" : "Material",
                 `${fmt(m.consumedQtyNum)} ${r.unitType}`,
                 rupee(m.weightedAvg),
-                hsnCode || "—",
-                gstPct > 0 ? `${gstPct}%` : "—",
+                includeGst ? (hsnCode || "—") : "—",
+                includeGst && gstPct > 0 ? `${gstPct}%` : "—",
                 rupee(finalRate),
                 rupee(totalWithGst),
                 lastEntry?.consumedBy ?? "—",
@@ -345,7 +361,7 @@ export default function StyleCostSheetTab({
             footer={bomWithMetrics.filter(({ m }) => m.consumedQtyNum > 0).length > 0 ? [
               ...(!isFiltered && products.length > 0 ? [""] : []),
               "", "", "Total", "", "", "", "", "",
-              rupee(bomConsumedTotal + bomGstTotal),
+              rupee(bomConsumedTotal + (includeGst ? bomGstTotal : 0)),
               "",
             ] : undefined}
           />
@@ -441,8 +457,8 @@ export default function StyleCostSheetTab({
             <div className="w-80">
               <div className="space-y-1.5">
                 {[
-                  { label: "Material Consumed (excl. GST)", value: bomConsumedTotal },
-                  { label: "Material GST", value: bomGstTotal },
+                  { label: includeGst ? "Material Consumed (excl. GST)" : "Material Consumed", value: bomConsumedTotal },
+                  ...(includeGst ? [{ label: "Material GST", value: bomGstTotal }] : []),
                   { label: "Artisan Labour", value: artisanTotal },
                   { label: "Outsource Jobs", value: outsourceTotal },
                   { label: "Custom Charges", value: customTotal },
