@@ -278,7 +278,7 @@ function addContentPage(doc: jsPDF, data: QuotationPdfData) {
     curY += 6;
     autoTable(doc, {
       startY: curY,
-      head: [["Charge", "HSN", "Unit", "Qty", "Price", "Amount"]],
+      head: [["Charge / Description", "HSN", "Unit", "Qty", "Price", "Amount"]],
       body: data.charges.map((c) => [
         c.charge_name,
         c.hsn_code || "—",
@@ -291,11 +291,15 @@ function addContentPage(doc: jsPDF, data: QuotationPdfData) {
       bodyStyles: { fontSize: 9, textColor: DARK_RGB },
       alternateRowStyles: { fillColor: [252, 250, 240] },
       columnStyles: {
-        3: { halign: "right" },
-        4: { halign: "right" },
-        5: { halign: "right", fontStyle: "bold" },
+        0: { cellWidth: 58, halign: "left" },
+        1: { cellWidth: 24, halign: "center" },
+        2: { cellWidth: 20, halign: "center" },
+        3: { cellWidth: 18, halign: "right" },
+        4: { cellWidth: 30, halign: "right" },
+        5: { cellWidth: 32, halign: "right", fontStyle: "bold" },
       },
       margin: { left: 14, right: 14 },
+      tableWidth: "wrap",
     });
     curY = (doc as any).lastAutoTable.finalY + 6;
   }
