@@ -473,39 +473,47 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">Edit Required Quantity</h3>
+              <h3 className="text-base font-bold text-gray-900">Edit Req / Reserved Qty</h3>
               <button onClick={() => setEditRow(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"><X className="h-4 w-4" /></button>
             </div>
             <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm">
               <div className="font-semibold text-gray-800">[{editRow.materialCode}] {editRow.materialName}</div>
               <div className="text-xs text-violet-700 mt-1">Current Req / Reserved: <span className="font-semibold">{editRow.requiredQty} {editRow.unitType}</span></div>
             </div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">New Required Quantity *</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Add to Req / Reserved Qty *</label>
             <input type="number" min="0.001" step="any" value={editQty}
               onChange={e => setEditQty(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 mb-3" />
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 mb-1" />
+            {editQty && parseFloat(editQty) > 0 && (
+              <p className="text-xs text-violet-700 mb-3">
+                New total: <span className="font-bold">{(parseFloat(editRow.requiredQty) + parseFloat(editQty)).toFixed(4)} {editRow.unitType}</span>
+                <span className="text-gray-400 ml-1">(current {editRow.requiredQty} + {parseFloat(editQty).toFixed(4)})</span>
+              </p>
+            )}
+            {(!editQty || parseFloat(editQty) <= 0) && <div className="mb-3" />}
             <label className="block text-xs font-semibold text-gray-700 mb-1">Reason / Notes</label>
             <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
               placeholder="Why is the qty changing? (optional)"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none h-20 mb-4" />
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none h-20 mb-4" />
             <div className="flex gap-2 justify-end">
               <button onClick={() => setEditRow(null)} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
               <button disabled={updateBomQty.isPending || !editQty || parseFloat(editQty) <= 0}
                 onClick={() => {
+                  const newTotal = String(parseFloat(editRow!.requiredQty) + parseFloat(editQty));
                   updateBomQty.mutate(
-                    { id: editRow!.id, requiredQty: editQty, notes: editNotes || undefined },
+                    { id: editRow!.id, requiredQty: newTotal, notes: editNotes || undefined },
                     {
                       onSuccess: (res) => {
-                        toast({ title: res.changed ? "BOM quantity updated" : "No change made" });
+                        toast({ title: res.changed ? "Req / Reserved qty updated" : "No change made" });
                         setEditRow(null);
                       },
                       onError: (err: any) => toast({ title: err?.message ?? "Failed to update qty", variant: "destructive" }),
                     }
                   );
                 }}
-                className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1.5">
+                className="px-4 py-2 rounded-xl bg-violet-700 text-white text-sm font-semibold hover:bg-violet-800 disabled:opacity-50 flex items-center gap-1.5">
                 {updateBomQty.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Save Changes
+                Add Qty
               </button>
             </div>
           </div>
