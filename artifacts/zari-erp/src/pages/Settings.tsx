@@ -493,6 +493,38 @@ function CurrencyTab({ card, inp, label, toast }: any) {
 
       {/* Inner tab strip */}
       <div className={`${card} overflow-hidden`}>
+        {/* Base Currency — always visible above tabs */}
+        <div className="px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-3 mb-4">
+            <Globe size={16} style={{ color: G }} />
+            <div>
+              <p className="font-bold text-gray-900 text-sm">Base Currency</p>
+              <p className="text-xs text-gray-400">All exchange rates are calculated relative to this currency</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <select
+                value={baseCurrency?.code ?? ""}
+                onChange={e => handleSetBase(e.target.value)}
+                disabled={baseSaving || loading}
+                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] bg-white disabled:opacity-60"
+              >
+                {currencies.filter(c => c.is_active || c.is_base).map(c => (
+                  <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
+                ))}
+              </select>
+            </div>
+            {baseCurrency && (
+              <div className="px-4 py-2 rounded-xl border border-[#C6AF4B]/30 bg-[#C6AF4B]/8 text-center min-w-[60px]">
+                <p className="text-2xl font-bold" style={{ color: G }}>{baseCurrency.symbol}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{baseCurrency.code}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tab strip */}
         <div className="flex items-center gap-1 px-4 pt-3 border-b border-gray-100">
           {tabBtn("currencies", "Active Currencies")}
           {tabBtn("rates", "Exchange Rates")}
@@ -501,37 +533,6 @@ function CurrencyTab({ card, inp, label, toast }: any) {
         {/* ── TAB: Currencies ──────────────────────────────── */}
         {innerTab === "currencies" && (
           <div>
-            {/* Base Currency selector */}
-            <div className="px-6 py-5 border-b border-gray-50">
-              <div className="flex items-center gap-3 mb-4">
-                <Globe size={16} style={{ color: G }} />
-                <div>
-                  <p className="font-bold text-gray-900 text-sm">Base Currency</p>
-                  <p className="text-xs text-gray-400">All exchange rates are calculated relative to this currency</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <select
-                    value={baseCurrency?.code ?? ""}
-                    onChange={e => handleSetBase(e.target.value)}
-                    disabled={baseSaving || loading}
-                    className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] bg-white disabled:opacity-60"
-                  >
-                    {currencies.filter(c => c.is_active || c.is_base).map(c => (
-                      <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
-                    ))}
-                  </select>
-                </div>
-                {baseCurrency && (
-                  <div className="px-4 py-2 rounded-xl border border-[#C6AF4B]/30 bg-[#C6AF4B]/8 text-center min-w-[60px]">
-                    <p className="text-2xl font-bold" style={{ color: G }}>{baseCurrency.symbol}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{baseCurrency.code}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Currencies table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
