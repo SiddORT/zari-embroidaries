@@ -9,6 +9,7 @@ import {
 import { downloadBomPdf } from "@/utils/pdfExport";
 import { logActivity } from "@/utils/logActivity";
 import CostingPaymentsPanel from "@/components/CostingPaymentsPanel";
+import { useCostingPaymentTotals } from "@/hooks/useCostingPayments";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -1836,6 +1837,7 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
   const [showVendorDrop, setShowVendorDrop] = useState(false);
   const [showHsnDrop, setShowHsnDrop] = useState(false);
   const [expandedPayRow, setExpandedPayRow] = useState<number | null>(null);
+  const outsourcePaidTotals = useCostingPaymentTotals("outsource_job", { styleOrderId });
 
   const { data: vendorResults = [] } = useVendorSearch(form.vendorQuery);
   const { data: hsnResults = [] } = useHsnSearch(form.hsnQuery);
@@ -1925,10 +1927,16 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
                     <td className="px-3 py-2.5 text-gray-400 max-w-[120px] truncate" title={r.notes ?? ""}>{r.notes ?? "—"}</td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
-                          className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-                          <CreditCard className="h-3 w-3" /> Pay
-                        </button>
+                        {(() => { const cost = parseFloat(r.totalCost); const paid = outsourcePaidTotals.get(r.id) ?? 0; const fullyPaid = cost > 0 && paid >= cost; return fullyPaid ? (
+                          <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-green-200 bg-green-50 text-green-700 cursor-not-allowed select-none">
+                            <CreditCard className="h-3 w-3" /> Paid
+                          </span>
+                        ) : (
+                          <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
+                            className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                            <CreditCard className="h-3 w-3" /> Pay
+                          </button>
+                        ); })()}
                         <button onClick={() => deleteMutation.mutate(r.id, {
                           onSuccess: () => toast({ title: "Job deleted" }),
                           onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
@@ -2121,6 +2129,7 @@ function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
   const [showVendorDrop, setShowVendorDrop] = useState(false);
   const [showHsnDrop, setShowHsnDrop] = useState(false);
   const [expandedPayRow, setExpandedPayRow] = useState<number | null>(null);
+  const customChargePaidTotals = useCostingPaymentTotals("custom_charge", { styleOrderId });
 
   const { data: vendorResults = [] } = useVendorSearch(form.vendorQuery);
   const { data: hsnResults = [] } = useHsnSearch(form.hsnQuery);
@@ -2208,10 +2217,16 @@ function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
                   <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalAmount).toFixed(2)}</td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="flex items-center gap-1 justify-end">
-                      <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
-                        className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-                        <CreditCard className="h-3 w-3" /> Pay
-                      </button>
+                      {(() => { const amt = parseFloat(r.totalAmount); const paid = customChargePaidTotals.get(r.id) ?? 0; const fullyPaid = amt > 0 && paid >= amt; return fullyPaid ? (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-green-200 bg-green-50 text-green-700 cursor-not-allowed select-none">
+                          <CreditCard className="h-3 w-3" /> Paid
+                        </span>
+                      ) : (
+                        <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
+                          className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                          <CreditCard className="h-3 w-3" /> Pay
+                        </button>
+                      ); })()}
                       <button onClick={() => deleteMutation.mutate(r.id, {
                         onSuccess: () => toast({ title: "Charge deleted" }),
                         onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),

@@ -1692,6 +1692,28 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
 // COSTING PAYMENTS  (credits against outsource jobs / custom charges / artworks)
 // ──────────────────────────────────────────────────────────────────────────────
 
+// GET /costing/costing-payments-totals?referenceType=outsource_job&swatchOrderId=5
+// Returns { referenceId: number, totalPaid: number }[] for all rows in an order
+router.get("/costing-payments-totals", requireAuth, async (req, res) => {
+  try {
+    const { referenceType, swatchOrderId, styleOrderId } = req.query as Record<string, string>;
+    if (!referenceType) return res.status(400).json({ error: "referenceType required" });
+    const params: (string | number)[] = [referenceType];
+    let where = "reference_type = $1";
+    if (swatchOrderId) { params.push(parseInt(swatchOrderId)); where += ` AND swatch_order_id = $${params.length}`; }
+    if (styleOrderId)  { params.push(parseInt(styleOrderId));  where += ` AND style_order_id = $${params.length}`; }
+    const { rows } = await pool.query(
+      `SELECT reference_id, COALESCE(SUM(payment_amount), 0) AS total_paid
+       FROM costing_payments WHERE ${where}
+       GROUP BY reference_id`,
+      params
+    );
+    res.json({ data: rows.map(r => ({ referenceId: Number(r.reference_id), totalPaid: parseFloat(r.total_paid) })) });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch payment totals" });
+  }
+});
+
 // GET /costing/costing-payments?referenceType=outsource_job&referenceId=5
 router.get("/costing-payments", requireAuth, async (req, res) => {
   try {

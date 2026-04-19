@@ -97,6 +97,7 @@ export default function CostingPaymentsPanel({
         }),
       });
       qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["costing-payments-totals"] });
       setForm(DEFAULT_FORM);
       setShowForm(false);
       toast({ title: "Vendor payment recorded in vendor ledger" });
@@ -110,6 +111,7 @@ export default function CostingPaymentsPanel({
     try {
       await customFetch(`/api/costing/costing-payments/${id}`, { method: "DELETE" });
       qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["costing-payments-totals"] });
       toast({ title: "Payment deleted" });
     } catch (e: any) {
       toast({ title: e?.message ?? "Error deleting payment", variant: "destructive" });
