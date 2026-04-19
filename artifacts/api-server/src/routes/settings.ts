@@ -74,6 +74,25 @@ export async function ensureSettingsTables() {
       ip_address   TEXT NOT NULL DEFAULT '',
       created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS warehouse_locations (
+      id             SERIAL PRIMARY KEY,
+      name           TEXT NOT NULL,
+      code           TEXT NOT NULL DEFAULT '',
+      address_line1  TEXT NOT NULL DEFAULT '',
+      address_line2  TEXT NOT NULL DEFAULT '',
+      city           TEXT NOT NULL DEFAULT '',
+      state          TEXT NOT NULL DEFAULT '',
+      pincode        TEXT NOT NULL DEFAULT '',
+      country        TEXT NOT NULL DEFAULT 'India',
+      contact_name   TEXT NOT NULL DEFAULT '',
+      contact_phone  TEXT NOT NULL DEFAULT '',
+      contact_email  TEXT NOT NULL DEFAULT '',
+      is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+      notes          TEXT NOT NULL DEFAULT '',
+      created_by     TEXT NOT NULL DEFAULT '',
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 
   const { rows } = await pool.query(`SELECT COUNT(*) FROM currencies`);
@@ -409,6 +428,71 @@ router.get("/settings/activity-logs/users", requireAuth, async (req: AuthRequest
       `SELECT DISTINCT user_email, user_name FROM activity_logs ORDER BY user_email`
     );
     res.json({ data: rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// WAREHOUSE LOCATIONS
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/settings/warehouses
+router.get("/settings/warehouses", requireAuth, async (req: AuthRequest, res) => {
+  if (!adminOnly(req, res)) return;
+  try {
+    const { rows } = await pool.query(`SELECT * FROM warehouse_locations ORDER BY name ASC`);
+    res.json({ data: rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/settings/warehouses
+router.post("/settings/warehouses", requireAuth, async (req: AuthRequest, res) => {
+  if (!adminOnly(req, res)) return;
+  const { name, code, address_line1, address_line2, city, state, pincode, country, contact_name, contact_phone, contact_email, is_active, notes } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: "Warehouse name is required" });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO warehouse_locations
+        (name, code, address_line1, address_line2, city, state, pincode, country, contact_name, contact_phone, contact_email, is_active, notes, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [name.trim(), code?.trim() ?? "", address_line1?.trim() ?? "", address_line2?.trim() ?? "",
+       city?.trim() ?? "", state?.trim() ?? "", pincode?.trim() ?? "", country?.trim() || "India",
+       contact_name?.trim() ?? "", contact_phone?.trim() ?? "", contact_email?.trim() ?? "",
+       is_active !== false, notes?.trim() ?? "", req.user?.email ?? ""]
+    );
+    res.status(201).json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/settings/warehouses/:id
+router.put("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res) => {
+  if (!adminOnly(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const { name, code, address_line1, address_line2, city, state, pincode, country, contact_name, contact_phone, contact_email, is_active, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE warehouse_locations SET
+        name=$1, code=$2, address_line1=$3, address_line2=$4, city=$5, state=$6, pincode=$7,
+        country=$8, contact_name=$9, contact_phone=$10, contact_email=$11, is_active=$12, notes=$13, updated_at=NOW()
+       WHERE id=$14 RETURNING *`,
+      [name?.trim(), code?.trim() ?? "", address_line1?.trim() ?? "", address_line2?.trim() ?? "",
+       city?.trim() ?? "", state?.trim() ?? "", pincode?.trim() ?? "", country?.trim() || "India",
+       contact_name?.trim() ?? "", contact_phone?.trim() ?? "", contact_email?.trim() ?? "",
+       is_active !== false, notes?.trim() ?? "", id]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Not found" });
+    res.json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/settings/warehouses/:id
+router.delete("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res) => {
+  if (!adminOnly(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    await pool.query(`DELETE FROM warehouse_locations WHERE id = $1`, [id]);
+    res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

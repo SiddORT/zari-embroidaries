@@ -4,7 +4,7 @@ import {
   User, Lock, Globe, ChevronDown, ChevronUp, Save, RefreshCw,
   Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X,
   Building2, Activity, Trash2, Star, Plus, Filter, Search,
-  CreditCard, Landmark
+  CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import AppLayout from "@/components/layout/AppLayout";
 
 const G = "#C6AF4B";
 
-type Tab = "profile" | "currency" | "banks" | "logs";
+type Tab = "profile" | "currency" | "banks" | "logs" | "warehouses";
 
 const STATUS_COLORS: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -82,6 +82,9 @@ export default function Settings() {
                 <NavItem icon={<Landmark size={16} />} label="Bank Details" active={tab === "banks"} onClick={() => setTab("banks")} />
               )}
               <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
+              {isAdmin && (
+                <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
+              )}
             </div>
           </aside>
 
@@ -91,6 +94,7 @@ export default function Settings() {
             {tab === "currency" && isAdmin && <CurrencyTab card={card} inp={inp} label={label} toast={toast} />}
             {tab === "banks" && isAdmin && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} />}
             {tab === "logs" && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} />}
+            {tab === "warehouses" && isAdmin && <WarehouseTab card={card} inp={inp} label={label} toast={toast} />}
           </div>
         </div>
       </div>
@@ -975,6 +979,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [users, setUsers] = useState<{ user_email: string; user_name: string }[]>([]);
   const [filters, setFilters] = useState({ user_email: "", from: "", to: "" });
   const [page, setPage] = useState(1);
@@ -1011,6 +1016,28 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
 
   const totalPages = Math.ceil(total / PER_PAGE);
 
+  async function handleExportCSV() {
+    setExporting(true);
+    try {
+      const q = new URLSearchParams({ page: "1", limit: "10000" });
+      if (filters.user_email) q.set("user_email", filters.user_email);
+      if (filters.from) q.set("from", filters.from);
+      if (filters.to) q.set("to", filters.to);
+      const r = await fetch(`/api/settings/activity-logs?${q}`, { headers: hdrs });
+      const j = await r.json();
+      const all: ActivityLog[] = j.data ?? [];
+      const header = ["#", "User Email", "User Name", "Method", "Action", "URL", "Status", "IP Address", "Date & Time"];
+      const rows = all.map((l, i) => [
+        i + 1, l.user_email, l.user_name, l.method, l.action, l.url, l.status_code, l.ip_address, fmtDateTime(l.created_at)
+      ]);
+      const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = `activity-logs-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    } catch {}
+    finally { setExporting(false); }
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -1018,7 +1045,18 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
         <div className="flex items-center gap-2 mb-1">
           <Activity size={18} style={{ color: G }} />
           <h2 className="text-base font-bold text-gray-900">Activity Logs</h2>
-          {total > 0 && <span className="ml-auto text-xs text-gray-400 font-medium">{total.toLocaleString()} total entries</span>}
+          <div className="ml-auto flex items-center gap-3">
+            {total > 0 && <span className="text-xs text-gray-400 font-medium">{total.toLocaleString()} total entries</span>}
+            {isAdmin && (
+              <button
+                onClick={handleExportCSV}
+                disabled={exporting || logs.length === 0}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-sm text-gray-500">
           {isAdmin ? "View all user activity across the system. Filter by user, date, or time range." : "Your recent activity in the system."}
@@ -1038,7 +1076,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
               <select
                 value={filters.user_email}
                 onChange={e => setF("user_email", e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
               >
                 <option value="">All users</option>
                 {users.map(u => (
@@ -1054,7 +1092,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
               type="datetime-local"
               value={filters.from}
               onChange={e => setF("from", e.target.value)}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20"
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
             />
           </div>
 
@@ -1064,7 +1102,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
               type="datetime-local"
               value={filters.to}
               onChange={e => setF("to", e.target.value)}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20"
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
             />
           </div>
 
@@ -1157,6 +1195,350 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// WAREHOUSE LOCATIONS TAB
+// ─────────────────────────────────────────────────────────
+
+interface WarehouseLocation {
+  id: number;
+  name: string;
+  code: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string;
+  is_active: boolean;
+  notes: string;
+  created_at: string;
+}
+
+const BLANK_WH: Omit<WarehouseLocation, "id" | "created_at"> = {
+  name: "", code: "", address_line1: "", address_line2: "", city: "", state: "",
+  pincode: "", country: "India", contact_name: "", contact_phone: "", contact_email: "",
+  is_active: true, notes: "",
+};
+
+function WarehouseTab({ card, inp, label, toast }: any) {
+  const token = localStorage.getItem("zarierp_token");
+  const hdrs = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+  const [warehouses, setWarehouses] = useState<WarehouseLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ ...BLANK_WH });
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/settings/warehouses", { headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json();
+      setWarehouses(j.data ?? []);
+    } catch { toast({ title: "Failed to load warehouses", variant: "destructive" }); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  function openNew() { setForm({ ...BLANK_WH }); setEditId(null); setShowForm(true); }
+  function openEdit(w: WarehouseLocation) {
+    const { id: _id, created_at: _ca, ...rest } = w;
+    setForm(rest); setEditId(w.id); setShowForm(true);
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { toast({ title: "Warehouse name required", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const method = editId ? "PUT" : "POST";
+      const url = editId ? `/api/settings/warehouses/${editId}` : "/api/settings/warehouses";
+      const r = await fetch(url, { method, headers: hdrs, body: JSON.stringify(form) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      toast({ title: editId ? "Warehouse updated" : "Warehouse added" });
+      setShowForm(false); load();
+    } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    try {
+      await fetch(`/api/settings/warehouses/${id}`, { method: "DELETE", headers: hdrs });
+      toast({ title: "Warehouse deleted" });
+      load();
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+    finally { setDeletingId(null); }
+  }
+
+  async function handleExportPDF() {
+    setExportingPdf(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const G_HEX = [198, 175, 75] as [number, number, number];
+
+      // Header
+      doc.setFillColor(...G_HEX);
+      doc.rect(0, 0, 297, 18, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("ZARI EMBROIDERIES — Warehouse Locations", 14, 12);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Generated on ${new Date().toLocaleString("en-IN")}`, 283, 12, { align: "right" });
+
+      // Table
+      autoTable(doc, {
+        startY: 24,
+        head: [["Code", "Name", "Address", "City / State", "Pincode", "Country", "Contact Person", "Phone", "Email", "Status", "Notes"]],
+        body: warehouses.map(w => [
+          w.code || "—",
+          w.name,
+          [w.address_line1, w.address_line2].filter(Boolean).join(", ") || "—",
+          [w.city, w.state].filter(Boolean).join(", ") || "—",
+          w.pincode || "—",
+          w.country || "—",
+          w.contact_name || "—",
+          w.contact_phone || "—",
+          w.contact_email || "—",
+          w.is_active ? "Active" : "Inactive",
+          w.notes || "—",
+        ]),
+        headStyles: { fillColor: G_HEX, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
+        alternateRowStyles: { fillColor: [252, 248, 235] },
+        columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 30 }, 2: { cellWidth: 40 }, 10: { cellWidth: 30 } },
+        styles: { cellPadding: 3, lineColor: [230, 220, 190], lineWidth: 0.2 },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(180, 160, 80);
+        doc.text(`Page ${i} of ${pageCount} — Confidential — ZARI EMBROIDERIES`, 148.5, 205, { align: "center" });
+      }
+
+      doc.save(`warehouses-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e: any) {
+      toast({ title: "PDF export failed: " + e.message, variant: "destructive" });
+    } finally { setExportingPdf(false); }
+  }
+
+  const lbl = label;
+  const inpClass = inp;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className={`${card} p-5`}>
+        <div className="flex items-center gap-2 mb-1">
+          <Warehouse size={18} style={{ color: G }} />
+          <h2 className="text-base font-bold text-gray-900">Warehouse Locations</h2>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={handleExportPDF}
+              disabled={exportingPdf || warehouses.length === 0}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              <FileText size={13} /> {exportingPdf ? "Generating…" : "Export PDF"}
+            </button>
+            <button
+              onClick={openNew}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition"
+              style={{ backgroundColor: G }}
+            >
+              <Plus size={15} /> Add Warehouse
+            </button>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500">Manage all warehouse and storage locations used in shipping and inventory operations.</p>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className={`${card} p-5`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">{editId ? "Edit Warehouse" : "Add Warehouse"}</h3>
+            <button onClick={() => setShowForm(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X size={16} /></button>
+          </div>
+
+          {/* Basic info */}
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="col-span-2">
+              <label className={lbl}>Warehouse Name *</label>
+              <input className={inpClass} value={form.name} onChange={e => setF("name", e.target.value)} placeholder="e.g. Surat Main Warehouse" />
+            </div>
+            <div>
+              <label className={lbl}>Code / Short Name</label>
+              <input className={inpClass} value={form.code} onChange={e => setF("code", e.target.value.toUpperCase())} placeholder="e.g. SRT-01" />
+            </div>
+          </div>
+
+          {/* Address */}
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5"><MapPin size={12} /> Address</p>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className={lbl}>Address Line 1</label>
+              <input className={inpClass} value={form.address_line1} onChange={e => setF("address_line1", e.target.value)} placeholder="Street / Building" />
+            </div>
+            <div>
+              <label className={lbl}>Address Line 2</label>
+              <input className={inpClass} value={form.address_line2} onChange={e => setF("address_line2", e.target.value)} placeholder="Area / Landmark" />
+            </div>
+            <div>
+              <label className={lbl}>City</label>
+              <input className={inpClass} value={form.city} onChange={e => setF("city", e.target.value)} placeholder="e.g. Surat" />
+            </div>
+            <div>
+              <label className={lbl}>State</label>
+              <input className={inpClass} value={form.state} onChange={e => setF("state", e.target.value)} placeholder="e.g. Gujarat" />
+            </div>
+            <div>
+              <label className={lbl}>Pincode</label>
+              <input className={inpClass} value={form.pincode} onChange={e => setF("pincode", e.target.value)} placeholder="e.g. 395003" />
+            </div>
+            <div>
+              <label className={lbl}>Country</label>
+              <input className={inpClass} value={form.country} onChange={e => setF("country", e.target.value)} placeholder="India" />
+            </div>
+          </div>
+
+          {/* Contact */}
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5"><Phone size={12} /> Contact Details</p>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className={lbl}>Contact Person</label>
+              <input className={inpClass} value={form.contact_name} onChange={e => setF("contact_name", e.target.value)} placeholder="Full name" />
+            </div>
+            <div>
+              <label className={lbl}>Contact Phone</label>
+              <input className={inpClass} value={form.contact_phone} onChange={e => setF("contact_phone", e.target.value)} placeholder="+91 9999999999" />
+            </div>
+            <div>
+              <label className={lbl}>Contact Email</label>
+              <input className={inpClass} value={form.contact_email} onChange={e => setF("contact_email", e.target.value)} placeholder="warehouse@example.com" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Notes</label>
+              <textarea className={`${inpClass} resize-none`} rows={2} value={form.notes} onChange={e => setF("notes", e.target.value)} placeholder="Optional notes about this warehouse" />
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={form.is_active} onChange={e => setF("is_active", e.target.checked)} className="w-4 h-4 rounded accent-[#C6AF4B]" />
+                <span className="text-sm font-medium text-gray-700">Active warehouse</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition">Cancel</button>
+            <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60" style={{ backgroundColor: G }}>
+              {saving ? "Saving…" : "Save Warehouse"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Warehouse cards */}
+      {loading ? (
+        <div className={`${card} p-10 flex items-center justify-center`}>
+          <RefreshCw size={20} className="animate-spin text-gray-300" />
+        </div>
+      ) : warehouses.length === 0 ? (
+        <div className={`${card} p-14 text-center`}>
+          <Warehouse size={36} className="mx-auto text-gray-200 mb-3" />
+          <p className="text-gray-400 text-sm">No warehouses added yet.</p>
+          <button onClick={openNew} className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first warehouse</button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {warehouses.map(w => (
+            <div key={w.id} className={`${card} p-5`}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4 flex-1">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${G}18` }}>
+                    <Warehouse size={18} style={{ color: G }} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-bold text-gray-900">{w.name}</span>
+                      {w.code && <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-500">{w.code}</span>}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${w.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-50 text-gray-400 border-gray-200"}`}>
+                        {w.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 mt-2">
+                      {(w.address_line1 || w.city) && (
+                        <div className="flex items-start gap-1.5 text-xs text-gray-600">
+                          <MapPin size={12} className="text-gray-400 mt-0.5 shrink-0" />
+                          <span>
+                            {[w.address_line1, w.address_line2, w.city, w.state, w.pincode, w.country].filter(Boolean).join(", ")}
+                          </span>
+                        </div>
+                      )}
+                      {w.contact_phone && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Phone size={12} className="text-gray-400 shrink-0" />
+                          <span>{w.contact_name ? `${w.contact_name} · ` : ""}{w.contact_phone}</span>
+                        </div>
+                      )}
+                      {w.contact_email && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <span className="text-gray-400">Email:</span> {w.contact_email}
+                        </div>
+                      )}
+                      {w.notes && (
+                        <div className="flex items-start gap-1.5 text-xs text-gray-400 italic col-span-2">
+                          {w.notes}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <button onClick={() => openEdit(w)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition" title="Edit">
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(w.id)}
+                    disabled={deletingId === w.id}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
