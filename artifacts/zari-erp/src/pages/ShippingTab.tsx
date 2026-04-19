@@ -124,9 +124,9 @@ export default function ShippingTab({ referenceType, referenceId, clientName, or
       shipment_weight: r.shipment_weight,
       manual_shipping_amount_override: r.manual_shipping_amount_override ?? "",
       shipment_status: r.shipment_status,
-      shipment_date: r.shipment_date ?? "",
-      expected_delivery_date: r.expected_delivery_date ?? "",
-      actual_delivery_date: r.actual_delivery_date ?? "",
+      shipment_date: r.shipment_date ? r.shipment_date.slice(0, 10) : "",
+      expected_delivery_date: r.expected_delivery_date ? r.expected_delivery_date.slice(0, 10) : "",
+      actual_delivery_date: r.actual_delivery_date ? r.actual_delivery_date.slice(0, 10) : "",
       remarks: r.remarks ?? "",
     });
     setErrors({});
@@ -305,6 +305,7 @@ export default function ShippingTab({ referenceType, referenceId, clientName, or
       {/* Delete confirm */}
       {deleteTarget && (
         <ConfirmModal
+          open={true}
           title="Delete Shipment"
           message="Are you sure you want to delete this shipping record? This action cannot be undone."
           confirmLabel="Delete"
