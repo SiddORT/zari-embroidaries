@@ -740,8 +740,15 @@ export default function PurchaseReceiptForm() {
                                 </div>
                               </div>
                             ) : (
-                              <label className="w-10 h-10 rounded-lg border-2 border-dashed border-[#C6AF4B]/40 flex items-center justify-center hover:border-[#C6AF4B] cursor-pointer transition-colors">
-                                <Camera className="h-3.5 w-3.5 text-[#A8943E]" />
+                              <label className="relative w-10 h-10 rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center cursor-pointer group hover:border-[#C6AF4B] transition-colors">
+                                <div className="absolute inset-0 bg-gray-50 flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 20.25h18a.75.75 0 00.75-.75V5.25A.75.75 0 0021 4.5H3A.75.75 0 002.25 5.25v14.25c0 .414.336.75.75.75zM12 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+                                  </svg>
+                                </div>
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                  <Camera className="h-3.5 w-3.5 text-white" />
+                                </div>
                                 <input type="file" accept="image/*" className="hidden" onChange={e => {
                                   const file = e.target.files?.[0];
                                   if (!file) return;

@@ -265,7 +265,13 @@ export default function MaterialsMaster() {
       key: "image", label: "Image", className: "w-14",
       render: (r) => {
         const imgs = asMat(r).images ?? [];
-        if (!imgs.length) return <span className="text-gray-200 text-xs">—</span>;
+        if (!imgs.length) return (
+          <div className="w-9 h-9 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
+            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 20.25h18a.75.75 0 00.75-.75V5.25A.75.75 0 0021 4.5H3A.75.75 0 002.25 5.25v14.25c0 .414.336.75.75.75zM12 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+            </svg>
+          </div>
+        );
         return (
           <button type="button" onClick={() => setLightboxUrl(imgs[0].data)}
             className="w-9 h-9 rounded-lg overflow-hidden border border-gray-200 hover:border-[#C6AF4B] transition-colors relative group">

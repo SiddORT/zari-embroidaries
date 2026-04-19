@@ -865,9 +865,18 @@ export default function PurchaseOrderForm() {
                             </div>
                           ) : (
                             <button type="button" onClick={() => setImagePickerKey(imagePickerKey === line.key ? null : line.key)}
-                              className={`w-10 h-10 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${line.inventoryItemId ? "border-[#C6AF4B]/40 hover:border-[#C6AF4B] text-[#A8943E]" : "border-gray-200 text-gray-300 cursor-not-allowed"}`}
+                              className={`relative w-10 h-10 rounded-lg border overflow-hidden flex items-center justify-center transition-colors group ${line.inventoryItemId ? "border-gray-200 hover:border-[#C6AF4B] cursor-pointer" : "border-gray-200 cursor-not-allowed"}`}
                               disabled={!line.inventoryItemId}>
-                              <Camera className="h-3.5 w-3.5" />
+                              <div className="absolute inset-0 bg-gray-50 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 20.25h18a.75.75 0 00.75-.75V5.25A.75.75 0 0021 4.5H3A.75.75 0 002.25 5.25v14.25c0 .414.336.75.75.75zM12 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+                                </svg>
+                              </div>
+                              {line.inventoryItemId && (
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                  <Camera className="h-3.5 w-3.5 text-white" />
+                                </div>
+                              )}
                             </button>
                           )}
                           {/* Image picker dropdown */}
