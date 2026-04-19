@@ -19,7 +19,7 @@ function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
   });
 }
 
-const ITEM_CATEGORIES = ["Material", "Fabric", "Item", "Artwork", "Outsource", "Artisan", "Custom"] as const;
+const ITEM_CATEGORIES = ["Material", "Fabric", "Item", "Artwork", "Outsource", "Artisan", "Custom", "Shipping"] as const;
 const HSN_CATEGORIES = new Set(["Material", "Fabric", "Item"]);
 
 const DIRECTIONS = ["Client", "Vendor"] as const;
@@ -369,16 +369,31 @@ export default function InvoiceForm() {
         showHsn: !!(r.hsnCode),
       }));
 
-      setItems(loaded);
-
-      // Auto-fill shipping if the order has a shipping record
+      // If order has a shipping record, append it as a line item
       const shippingAmt = parseFloat(j.shippingAmount ?? "0") || 0;
       if (shippingAmt > 0) {
-        setF("shippingAmount", shippingAmt.toFixed(2));
-        toast({ title: `${loaded.length} item${loaded.length !== 1 ? "s" : ""} loaded from cost sheet`, description: `Shipping ₹${shippingAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })} auto-filled.` });
-      } else {
-        toast({ title: `${loaded.length} item${loaded.length !== 1 ? "s" : ""} loaded from cost sheet` });
+        loaded.push({
+          id: crypto.randomUUID(),
+          description: "Shipping & Handling",
+          category: "Shipping",
+          quantity: 1,
+          unitPrice: shippingAmt,
+          total: shippingAmt,
+          hsnCode: "",
+          hsnGstPct: "",
+          showHsn: false,
+        });
       }
+
+      setItems(loaded);
+
+      const totalLoaded = loaded.length;
+      toast({
+        title: `${totalLoaded} item${totalLoaded !== 1 ? "s" : ""} loaded from cost sheet`,
+        description: shippingAmt > 0
+          ? `Includes shipping ₹${shippingAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })} as a line item.`
+          : undefined,
+      });
     } catch (e: any) {
       toast({ title: "Failed to load cost sheet", description: e.message, variant: "destructive" });
     } finally {
