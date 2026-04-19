@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,6 +25,7 @@ import {
   useDeleteFabric,
   type FabricRecord,
   type FabricFormData,
+  type MasterImage,
   type StatusFilter,
 } from "@/hooks/useFabrics";
 import { useWidthUnitTypes, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
@@ -35,7 +36,7 @@ const EMPTY_FORM: FabricFormData = {
   fabricType: "", quality: "", color: "#c9b45c", hexCode: "#c9b45c",
   colorName: "", width: "", widthUnitType: "", pricePerMeter: "",
   unitType: "", currentStock: "", hsnCode: "", gstPercent: "",
-  vendor: "", location: "", isActive: true,
+  vendor: "", location: "", isActive: true, images: [],
 };
 
 type FormErrors = Partial<Record<keyof FabricFormData, string>>;
@@ -117,6 +118,8 @@ export default function FabricMaster() {
   const [form, setForm] = useState<FabricFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<FabricRecord | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
 
   const [addFabricTypeOpen, setAddFabricTypeOpen] = useState(false);
   const [newFabricTypeName, setNewFabricTypeName] = useState("");
@@ -133,9 +136,32 @@ export default function FabricMaster() {
       hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, width: r.width,
       widthUnitType: r.widthUnitType, pricePerMeter: r.pricePerMeter, unitType: r.unitType,
       currentStock: r.currentStock, hsnCode: r.hsnCode, gstPercent: r.gstPercent,
-      vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive });
+      vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive, images: r.images ?? [] });
     setErrors({});
     setModalOpen(true);
+  };
+
+  const handleImageFiles = (files: FileList | null) => {
+    if (!files) return;
+    const remaining = 5 - form.images.length;
+    const toAdd = Array.from(files).slice(0, remaining);
+    toAdd.forEach(file => {
+      if (file.size > 3 * 1024 * 1024) {
+        toast({ title: "File too large", description: `${file.name} exceeds 3MB`, variant: "destructive" });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = e.target?.result as string;
+        const img: MasterImage = { id: Math.random().toString(36).slice(2), name: file.name, data, size: file.size };
+        setForm(f => ({ ...f, images: [...f.images, img] }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (id: string) => {
+    setForm(f => ({ ...f, images: f.images.filter(img => img.id !== id) }));
   };
 
   const validate = (): boolean => {
@@ -235,6 +261,22 @@ export default function FabricMaster() {
       render: (r) => {
         const idx = rows.findIndex((row) => row.id === asFab(r).id);
         return <span className="text-gray-400 text-xs font-medium">{(page - 1) * limit + (idx === -1 ? 0 : idx) + 1}</span>;
+      },
+    },
+    {
+      key: "image", label: "Image", className: "w-14",
+      render: (r) => {
+        const imgs = asFab(r).images ?? [];
+        if (!imgs.length) return <span className="text-gray-200 text-xs">—</span>;
+        return (
+          <button type="button" onClick={() => setLightboxUrl(imgs[0].data)}
+            className="w-9 h-9 rounded-lg overflow-hidden border border-gray-200 hover:border-[#C6AF4B] transition-colors relative group">
+            <img src={imgs[0].data} alt="" className="w-full h-full object-cover" />
+            {imgs.length > 1 && (
+              <span className="absolute bottom-0 right-0 text-[9px] font-bold bg-black/60 text-white px-0.5 rounded-tl-md">+{imgs.length - 1}</span>
+            )}
+          </button>
+        );
       },
     },
     { key: "fabricCode", label: "Code", render: (r) => <span className="font-mono font-semibold text-gray-900">{asFab(r).fabricCode}</span> },
@@ -419,6 +461,54 @@ export default function FabricMaster() {
             onChange={(v) => setForm((f) => ({ ...f, location: v }))}
             options={LOCATION_OPTIONS} placeholder="Select location" clearable />
 
+          {/* Images */}
+          <div className="col-span-2 pt-1">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">
+                Item Images <span className="text-xs font-normal text-gray-400">({form.images.length}/5, max 3 MB each)</span>
+              </label>
+              {form.images.length < 5 && (
+                <button type="button" onClick={() => imgInputRef.current?.click()}
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-dashed border-[#C6AF4B] text-[#8a7a2e] hover:bg-[#C6AF4B]/10 transition-colors">
+                  <ImagePlus className="h-3.5 w-3.5" /> Add Image
+                </button>
+              )}
+              <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden"
+                onChange={e => handleImageFiles(e.target.files)} />
+            </div>
+            {form.images.length === 0 ? (
+              <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-6 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
+                onClick={() => imgInputRef.current?.click()}>
+                <ImagePlus className="h-7 w-7 text-gray-300" />
+                <p className="text-xs text-gray-400">Click to add item images (JPG, PNG, WebP)</p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {form.images.map(img => (
+                  <div key={img.id} className="relative group w-20 h-20 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                    <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                      <button type="button" onClick={() => setLightboxUrl(img.data)}
+                        className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors">
+                        <ZoomIn className="h-3 w-3 text-gray-700" />
+                      </button>
+                      <button type="button" onClick={() => removeImage(img.id)}
+                        className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors">
+                        <XIcon className="h-3 w-3 text-red-500" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {form.images.length < 5 && (
+                  <button type="button" onClick={() => imgInputRef.current?.click()}
+                    className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center hover:border-[#C6AF4B]/50 transition-colors">
+                    <ImagePlus className="h-5 w-5 text-gray-300" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3 pt-3">
             <label className="text-sm font-medium text-gray-700">Status</label>
             <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
@@ -474,6 +564,19 @@ export default function FabricMaster() {
           onChange={(e) => setHsnForm((f) => ({ ...f, govtDescription: e.target.value }))} error={hsnErrors.govtDescription} />
       </MasterFormModal>
 
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4"
+          onClick={() => setLightboxUrl(null)}>
+          <div className="relative max-w-3xl max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <img src={lightboxUrl} alt="Preview" className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain" />
+            <button onClick={() => setLightboxUrl(null)}
+              className="absolute -top-3 -right-3 p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors">
+              <XIcon className="h-4 w-4 text-gray-700" />
+            </button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

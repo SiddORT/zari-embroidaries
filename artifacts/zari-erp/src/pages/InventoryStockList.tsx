@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, ChevronUp, ChevronDown,
   Edit2, X, ChevronLeft, ChevronRight, Boxes,
   Clock, CalendarRange, ArrowUpCircle, ArrowDownCircle,
-  MinusCircle, Info, BookOpen,
+  MinusCircle, Info, BookOpen, ZoomIn,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ interface InventoryItem {
   maximum_level: string;
   preferred_vendor: string | null;
   last_updated_at: string;
+  images: Array<{ id: string; name: string; data: string; size: number }> | null;
 }
 
 interface SummaryData {
@@ -352,7 +353,9 @@ export default function InventoryStockList() {
     );
   }
 
-  const colSpan = isAdmin ? 17 : 16;
+  const [lightboxImages, setLightboxImages] = useState<Array<{ id: string; name: string; data: string; size: number }> | null>(null);
+  const [lightboxIdx, setLightboxIdx] = useState(0);
+  const colSpan = isAdmin ? 18 : 17;
 
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #FAFAF7 0%, #F5F2E8 100%)" }}>
@@ -480,6 +483,7 @@ export default function InventoryStockList() {
                   <th className={thCls} onClick={() => toggleSort("item_name")} style={{ cursor: "pointer" }}>
                     <span className="flex items-center gap-1">Item Name <SortIcon col="item_name" sort={sort} order={order} /></span>
                   </th>
+                  <th className={thCls}>Image</th>
                   <th className={thCls}>Code</th>
                   <th className={thCls} onClick={() => toggleSort("category")} style={{ cursor: "pointer" }}>
                     <span className="flex items-center gap-1">Category <SortIcon col="category" sort={sort} order={order} /></span>
@@ -544,6 +548,19 @@ export default function InventoryStockList() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full w-fit font-medium"
                             style={{ color: src.color, background: src.bg }}>{item.source_label}</span>
                         </div>
+                      </td>
+                      <td className={tdCls}>
+                        {item.images && item.images.length > 0 ? (
+                          <button type="button" onClick={() => { setLightboxImages(item.images!); setLightboxIdx(0); }}
+                            className="relative w-9 h-9 rounded-lg overflow-hidden border border-gray-200 hover:border-[#C6AF4B] transition-colors">
+                            <img src={item.images[0].data} alt="" className="w-full h-full object-cover" />
+                            {item.images.length > 1 && (
+                              <span className="absolute bottom-0 right-0 text-[9px] font-bold bg-black/60 text-white px-0.5 rounded-tl-md">+{item.images.length - 1}</span>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-gray-200 text-xs">—</span>
+                        )}
                       </td>
                       <td className={tdCls}><span className="font-mono text-xs text-gray-900">{item.item_code}</span></td>
                       <td className={tdCls}><span className="text-xs text-gray-900">{item.category ?? "—"}</span></td>
@@ -920,6 +937,43 @@ export default function InventoryStockList() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImages && lightboxImages.length > 0 && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxImages(null)}>
+          <div className="relative flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+            <img src={lightboxImages[lightboxIdx].data} alt={lightboxImages[lightboxIdx].name}
+              className="max-w-[85vw] max-h-[80vh] rounded-2xl shadow-2xl object-contain" />
+            {lightboxImages.length > 1 && (
+              <div className="flex items-center gap-2">
+                {lightboxImages.map((img, i) => (
+                  <button key={img.id} onClick={() => setLightboxIdx(i)}
+                    className={`w-10 h-10 rounded-lg overflow-hidden border-2 transition-all ${i === lightboxIdx ? "border-[#C6AF4B] scale-110" : "border-transparent opacity-60"}`}>
+                    <img src={img.data} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setLightboxImages(null)}
+              className="absolute -top-3 -right-3 p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors">
+              <X className="h-4 w-4 text-gray-700" />
+            </button>
+            {lightboxImages.length > 1 && lightboxIdx > 0 && (
+              <button onClick={() => setLightboxIdx(i => i - 1)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-white/90 rounded-full shadow hover:bg-white transition-colors">
+                <ChevronLeft className="h-5 w-5 text-gray-700" />
+              </button>
+            )}
+            {lightboxImages.length > 1 && lightboxIdx < lightboxImages.length - 1 && (
+              <button onClick={() => setLightboxIdx(i => i + 1)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/90 rounded-full shadow hover:bg-white transition-colors">
+                <ChevronRight className="h-5 w-5 text-gray-700" />
+              </button>
+            )}
           </div>
         </div>
       )}

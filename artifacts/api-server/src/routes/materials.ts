@@ -4,7 +4,7 @@ import { db, materialsTable } from "@workspace/db";
 import { insertMaterialSchema, updateMaterialSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
-import { ensureInventoryRecord } from "../services/inventoryService";
+import { ensureInventoryRecord, updateInventoryImages } from "../services/inventoryService";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -79,6 +79,7 @@ router.post("/materials", requireAuth, async (req: AuthRequest, res): Promise<vo
     unitType: record.unitType,
     averagePrice: record.unitPrice,
     preferredVendor: record.vendor ?? undefined,
+    images: (record.images as { id: string; name: string; data: string; size: number }[]) ?? [],
   });
   res.status(201).json(record);
 });
@@ -102,6 +103,9 @@ router.put("/materials/:id", requireAuth, async (req: AuthRequest, res): Promise
 
   if (!record) { res.status(404).json({ error: "Material not found" }); return; }
   logger.info({ id: record.id }, "Material updated");
+  if (parsed.data.images !== undefined) {
+    updateInventoryImages("material", record.id, (record.images as { id: string; name: string; data: string; size: number }[]) ?? []);
+  }
   res.json(record);
 });
 

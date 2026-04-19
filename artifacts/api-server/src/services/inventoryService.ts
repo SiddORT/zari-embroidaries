@@ -11,6 +11,7 @@ export interface InventoryAutoCreateData {
   unitType?: string | null;
   averagePrice?: string | number | null;
   preferredVendor?: string | null;
+  images?: { id: string; name: string; data: string; size: number }[] | null;
 }
 
 export async function ensureInventoryRecord(
@@ -20,14 +21,15 @@ export async function ensureInventoryRecord(
 ): Promise<void> {
   try {
     const avgPrice = data.averagePrice ? (parseFloat(String(data.averagePrice)) || 0) : 0;
+    const images = JSON.stringify(data.images ?? []);
     await pool.query(
       `INSERT INTO inventory_items (
          source_type, source_id, item_name, item_code, category, department,
          warehouse_location, unit_type, current_stock, style_reserved_qty,
          swatch_reserved_qty, available_stock, average_price, last_purchase_price,
-         preferred_vendor, last_updated_at, created_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,0,0,0,$9,0,$10,NOW(),NOW())
-       ON CONFLICT (source_type, source_id) DO NOTHING`,
+         preferred_vendor, images, last_updated_at, created_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,0,0,0,$9,0,$10,$11,NOW(),NOW())
+       ON CONFLICT (source_type, source_id) DO UPDATE SET images = EXCLUDED.images, last_updated_at = NOW()`,
       [
         sourceType,
         sourceId,
@@ -39,10 +41,27 @@ export async function ensureInventoryRecord(
         data.unitType ?? null,
         avgPrice,
         data.preferredVendor ?? null,
+        images,
       ]
     );
   } catch (err) {
     console.error("[InventoryService] Failed to create inventory record:", err);
+  }
+}
+
+export async function updateInventoryImages(
+  sourceType: InventorySourceType,
+  sourceId: number,
+  images: { id: string; name: string; data: string; size: number }[]
+): Promise<void> {
+  try {
+    await pool.query(
+      `UPDATE inventory_items SET images = $1, last_updated_at = NOW()
+       WHERE source_type = $2 AND source_id = $3`,
+      [JSON.stringify(images), sourceType, sourceId]
+    );
+  } catch (err) {
+    console.error("[InventoryService] Failed to update inventory images:", err);
   }
 }
 

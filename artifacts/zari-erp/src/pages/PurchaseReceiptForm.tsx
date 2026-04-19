@@ -3,6 +3,7 @@ import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, PackageCheck,
   AlertTriangle, Save, ChevronDown, Edit2, X, FileDown, TrendingUp,
+  Camera,
 } from "lucide-react";
 import { downloadPrPdf } from "@/utils/pdfExport";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
@@ -65,6 +66,7 @@ interface ReceiptLine {
   targetPrice: string;
   warehouseLocation: string;
   remarks: string;
+  itemImage: string;
 }
 
 interface PRItem {
@@ -168,6 +170,7 @@ export default function PurchaseReceiptForm() {
             unitPrice: i.unit_price,
             warehouseLocation: i.warehouse_location ?? "",
             remarks: "",
+            itemImage: "",
           }));
         setLines(ls);
       })
@@ -216,6 +219,7 @@ export default function PurchaseReceiptForm() {
           unitPrice: parseFloat(l.unitPrice) || 0,
           warehouseLocation: l.warehouseLocation || null,
           remarks: l.remarks || null,
+          itemImage: l.itemImage || null,
         })),
       };
       const r = await customFetch("/api/procurement/purchase-receipts", {
@@ -278,6 +282,7 @@ export default function PurchaseReceiptForm() {
       unitPrice: parseFloat(item.unit_price).toFixed(2),
       warehouseLocation: item.warehouse_location ?? "",
       remarks: "",
+      itemImage: "",
     })));
     setEditMode(true);
   };
@@ -672,6 +677,7 @@ export default function PurchaseReceiptForm() {
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-amber-700 w-28">Target Price (₹)</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Received Rate (₹)</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Location</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-16">Image</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -723,6 +729,28 @@ export default function PurchaseReceiptForm() {
                               onChange={e => updateLine(idx, "warehouseLocation", e.target.value)}
                               placeholder="Bin / shelf…"
                               className="w-full px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                          </td>
+                          <td className="px-3 py-3">
+                            {line.itemImage ? (
+                              <div className="relative group w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
+                                <img src={line.itemImage} alt="" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                  <button type="button" onClick={() => updateLine(idx, "itemImage", "")}
+                                    className="p-0.5 rounded-full bg-white/90"><X className="h-2.5 w-2.5 text-red-500" /></button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label className="w-10 h-10 rounded-lg border-2 border-dashed border-[#C6AF4B]/40 flex items-center justify-center hover:border-[#C6AF4B] cursor-pointer transition-colors">
+                                <Camera className="h-3.5 w-3.5 text-[#A8943E]" />
+                                <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const reader = new FileReader();
+                                  reader.onload = ev => updateLine(idx, "itemImage", ev.target?.result as string);
+                                  reader.readAsDataURL(file);
+                                }} />
+                              </label>
+                            )}
                           </td>
                         </tr>
                       );

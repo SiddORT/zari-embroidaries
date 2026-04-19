@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const fabricsTable = pgTable("fabrics", {
@@ -18,6 +18,7 @@ export const fabricsTable = pgTable("fabrics", {
   gstPercent: text("gst_percent").notNull(),
   vendor: text("vendor"),
   location: text("location"),
+  images: jsonb("images").$type<{ id: string; name: string; data: string; size: number }[]>().notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -27,6 +28,13 @@ export const fabricsTable = pgTable("fabrics", {
 });
 
 export type FabricRecord = typeof fabricsTable.$inferSelect;
+
+export const fabricImageSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  data: z.string(),
+  size: z.number(),
+});
 
 export const insertFabricSchema = z.object({
   fabricType: z.string().min(1, "Fabric Type is required"),
@@ -44,6 +52,7 @@ export const insertFabricSchema = z.object({
   vendor: z.string().optional(),
   location: z.string().optional(),
   isActive: z.boolean().default(true),
+  images: z.array(fabricImageSchema).optional().default([]),
 });
 
 export const updateFabricSchema = insertFabricSchema.partial().extend({

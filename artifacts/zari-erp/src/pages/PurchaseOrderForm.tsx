@@ -4,6 +4,7 @@ import {
   ArrowLeft, Plus, Trash2, Save, CheckCircle2, XCircle, Clock,
   ShoppingCart, PackageCheck, Building2, CreditCard,
   Phone, Mail, MapPin, BadgePercent, FileDown,
+  Camera, X as XIcon, ZoomIn,
 } from "lucide-react";
 import { downloadPoPdf } from "@/utils/pdfExport";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
@@ -34,6 +35,7 @@ interface InventoryOption {
   average_price: string;
   hsn_code: string | null;
   gst_percent: string | null;
+  images?: Array<{ id: string; name: string; data: string; size: number }>;
 }
 
 interface Vendor {
@@ -71,6 +73,7 @@ interface LineItem {
   orderedQuantity: string;
   targetPrice: string;
   remarks: string;
+  itemImage: string;
 }
 
 interface POItem {
@@ -156,8 +159,9 @@ export default function PurchaseOrderForm() {
   const [notes, setNotes]                 = useState("");
   const [includeGst, setIncludeGst]       = useState(false);
   const [lineItems, setLineItems]         = useState<LineItem[]>([
-    { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
+    { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "", itemImage: "" },
   ]);
+  const [imagePickerKey, setImagePickerKey] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actioning, setActioning]   = useState(false);
 
@@ -192,7 +196,7 @@ export default function PurchaseOrderForm() {
 
   const addLine = () => setLineItems(ls => [
     ...ls,
-    { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
+    { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "", itemImage: "" },
   ]);
 
   const removeLine = (key: string) => setLineItems(ls => ls.filter(l => l.key !== key));
@@ -291,6 +295,7 @@ export default function PurchaseOrderForm() {
           hsnCode: l.hsnCode || null,
           gstPercent: parseFloat(l.gstPercent) || 0,
           remarks: l.remarks || null,
+          itemImage: l.itemImage || null,
         })),
       };
       const r = await customFetch("/api/procurement/purchase-orders", {
@@ -756,6 +761,7 @@ export default function PurchaseOrderForm() {
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">GST Amt</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Incl. GST</th>
                   </>}
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Image</th>
                   <th className="px-3 py-2.5 w-10"></th>
                 </tr>
               </thead>
@@ -846,6 +852,64 @@ export default function PurchaseOrderForm() {
                           {lineTotal > 0 ? `₹${fmt(lineTotal)}` : "—"}
                         </td>
                       </>}
+                      {/* Image picker */}
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-1">
+                          {line.itemImage ? (
+                            <div className="relative group w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
+                              <img src={line.itemImage} alt="" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
+                                <button type="button" onClick={() => updateLine(line.key, "itemImage", "")}
+                                  className="p-0.5 rounded-full bg-white/90"><XIcon className="h-2.5 w-2.5 text-red-500" /></button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => setImagePickerKey(imagePickerKey === line.key ? null : line.key)}
+                              className={`w-10 h-10 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${line.inventoryItemId ? "border-[#C6AF4B]/40 hover:border-[#C6AF4B] text-[#A8943E]" : "border-gray-200 text-gray-300 cursor-not-allowed"}`}
+                              disabled={!line.inventoryItemId}>
+                              <Camera className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {/* Image picker dropdown */}
+                          {imagePickerKey === line.key && (() => {
+                            const masterImgs = inventoryItems.find(i => i.id === line.inventoryItemId)?.images ?? [];
+                            return (
+                              <div className="fixed z-50 mt-1 w-48 bg-white rounded-xl border border-gray-200 shadow-xl p-2">
+                                {masterImgs.length > 0 ? (
+                                  <>
+                                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2 px-1">Master Images</p>
+                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                      {masterImgs.map(img => (
+                                        <button key={img.id} type="button"
+                                          onClick={() => { updateLine(line.key, "itemImage", img.data); setImagePickerKey(null); }}
+                                          className="w-10 h-10 rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C6AF4B] transition-colors">
+                                          <img src={img.data} alt="" className="w-full h-full object-cover" />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <p className="text-[10px] text-gray-400 italic px-1 mb-2">No master images</p>
+                                )}
+                                <label className="flex items-center gap-1.5 text-[10px] text-[#8a7a2e] font-medium cursor-pointer px-1 py-1 hover:bg-gray-50 rounded-lg">
+                                  <Camera className="h-3 w-3" /> Upload custom
+                                  <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = ev => { updateLine(line.key, "itemImage", ev.target?.result as string); setImagePickerKey(null); };
+                                    reader.readAsDataURL(file);
+                                  }} />
+                                </label>
+                                <button type="button" onClick={() => setImagePickerKey(null)}
+                                  className="text-[10px] text-gray-400 px-1 py-1 hover:bg-gray-50 rounded-lg w-full text-left mt-0.5">
+                                  Cancel
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </td>
                       <td className="px-3 py-2">
                         {lineItems.length > 1 && (
                           <button onClick={() => removeLine(line.key)}

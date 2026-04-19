@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+export interface MasterImage {
+  id: string;
+  name: string;
+  data: string;
+  size: number;
+}
+
 export interface MaterialRecord {
   id: number;
   materialCode: string;
@@ -18,6 +25,7 @@ export interface MaterialRecord {
   gstPercent: string;
   vendor: string | null;
   location: string | null;
+  images: MasterImage[];
   isActive: boolean;
   isDeleted: boolean;
   createdBy: string;
@@ -49,6 +57,7 @@ export interface MaterialFormData {
   vendor?: string;
   location?: string;
   isActive: boolean;
+  images: MasterImage[];
 }
 
 export type StatusFilter = "all" | "active" | "inactive";

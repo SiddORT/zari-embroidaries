@@ -308,29 +308,34 @@ export default function ClientForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            {CURRENCY_OPTIONS.map(curr => (
-              <button key={curr.value} type="button"
-                onClick={() => setForm(f => ({ ...f, invoiceCurrency: curr.value }))}
-                className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border text-left transition-all ${
-                  form.invoiceCurrency === curr.value
-                    ? "border-[#C6AF4B] bg-[#C6AF4B]/10 shadow-sm"
-                    : "border-gray-200 bg-gray-50 hover:border-gray-300"
-                }`}>
-                <span className={`text-lg font-bold w-6 text-center ${form.invoiceCurrency === curr.value ? "text-[#8a7a2e]" : "text-gray-400"}`}>
-                  {curr.symbol}
-                </span>
-                <div>
-                  <p className={`text-sm font-semibold ${form.invoiceCurrency === curr.value ? "text-[#5a4e1e]" : "text-gray-700"}`}>
-                    {curr.value}
+          <div className="grid grid-cols-3 gap-2">
+            {CURRENCY_OPTIONS.map(curr => {
+              const selected = form.invoiceCurrency === curr.value;
+              return (
+                <button key={curr.value} type="button"
+                  onClick={() => setForm(f => ({ ...f, invoiceCurrency: curr.value }))}
+                  className={`relative flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                    selected
+                      ? "border-[#C6AF4B] bg-[#C6AF4B]/10 shadow-sm"
+                      : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
+                  }`}>
+                  {selected && (
+                    <CheckCircle2 className="absolute top-2 right-2 h-3.5 w-3.5 shrink-0" style={{ color: G }} />
+                  )}
+                  <div className="flex items-baseline gap-1.5 pr-5">
+                    <span className={`text-base font-bold leading-none ${selected ? "text-[#8a7a2e]" : "text-gray-500"}`}>
+                      {curr.symbol}
+                    </span>
+                    <span className={`text-sm font-bold ${selected ? "text-[#5a4e1e]" : "text-gray-700"}`}>
+                      {curr.value}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-tight">
+                    {curr.label.split("—")[1]?.trim()}
                   </p>
-                  <p className="text-[10px] text-gray-400 leading-tight">{curr.label.split("—")[1]?.trim()}</p>
-                </div>
-                {form.invoiceCurrency === curr.value && (
-                  <CheckCircle2 className="h-4 w-4 ml-auto" style={{ color: G }} />
-                )}
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
 
           <div className="mt-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, timestamp, boolean, integer, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, timestamp, boolean, integer, unique, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const inventoryItemsTable = pgTable(
@@ -24,6 +24,7 @@ export const inventoryItemsTable = pgTable(
     maximumLevel: numeric("maximum_level", { precision: 14, scale: 3 }).notNull().default("0"),
     preferredVendor: text("preferred_vendor"),
     lastVendor: text("last_vendor"),
+    images: jsonb("images").$type<{ id: string; name: string; data: string; size: number }[]>().notNull().default([]),
     isActive: boolean("is_active").notNull().default(true),
     lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -161,7 +161,7 @@ router.post("/procurement/purchase-orders", requireAuth, async (req: AuthRequest
       referenceType?: string;
       referenceId?: number | null;
       notes?: string;
-      items: { inventoryItemId: number; itemName: string; itemCode: string; orderedQuantity: number; unitPrice: number; warehouseLocation?: string; remarks?: string }[];
+      items: { inventoryItemId: number; itemName: string; itemCode: string; orderedQuantity: number; unitPrice: number; warehouseLocation?: string; remarks?: string; itemImage?: string | null }[];
     };
 
     if (!vendorId) { res.status(400).json({ error: "Vendor is required" }); return; }
@@ -190,12 +190,12 @@ router.post("/procurement/purchase-orders", requireAuth, async (req: AuthRequest
       await client.query(
         `INSERT INTO purchase_order_items
            (po_id, inventory_item_id, item_name, item_code,
-            ordered_quantity, received_quantity, unit_price, warehouse_location, remarks)
-         VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8)`,
+            ordered_quantity, received_quantity, unit_price, warehouse_location, remarks, item_image)
+         VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8,$9)`,
         [
           po.id, item.inventoryItemId, item.itemName, item.itemCode,
           item.orderedQuantity, item.unitPrice,
-          item.warehouseLocation ?? null, item.remarks ?? null,
+          item.warehouseLocation ?? null, item.remarks ?? null, item.itemImage ?? null,
         ]
       );
     }
@@ -428,12 +428,12 @@ router.post("/procurement/purchase-receipts", requireAuth, async (req: AuthReque
       await client.query(
         `INSERT INTO purchase_receipt_items
            (pr_id, po_item_id, inventory_item_id, item_name, item_code,
-            quantity, unit_price, warehouse_location, remarks)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            quantity, unit_price, warehouse_location, remarks, item_image)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           pr.id, item.poItemId, item.inventoryItemId,
           item.itemName, item.itemCode, item.quantity, item.unitPrice,
-          item.warehouseLocation ?? null, item.remarks ?? null,
+          item.warehouseLocation ?? null, item.remarks ?? null, (item as any).itemImage ?? null,
         ]
       );
     }

@@ -138,8 +138,10 @@ Centralized procurement across Inventory, Swatch Costing, and Style Planning via
 
 - `users` table: id, username, email, hashed_password, role, is_active, created_at
 - `hsn_master` table: id, hsn_code (unique), gst_percentage, govt_description, remarks, is_active, is_deleted, created_by, created_at, updated_by, updated_at
-- `materials` table: id, material_code (auto MAT0001...), item_type, quality, type, color, hex_code, color_name, size, unit_price, unit_type, current_stock, hsn_code, gst_percent, vendor, location, is_active, is_deleted, created_by/at, updated_by/at
-- `fabrics` table: id, fabric_code (auto FAB0001...), fabric_type, quality, color, hex_code, color_name, width, width_unit_type, price_per_meter, unit_type, current_stock, hsn_code, gst_percent, vendor, location, is_active, is_deleted, created_by/at, updated_by/at
+- `materials` table: id, material_code (auto MAT0001...), item_type, quality, type, color, hex_code, color_name, size, unit_price, unit_type, current_stock, hsn_code, gst_percent, vendor, location, images (jsonb, default '[]'), is_active, is_deleted, created_by/at, updated_by/at
+- `fabrics` table: id, fabric_code (auto FAB0001...), fabric_type, quality, color, hex_code, color_name, width, width_unit_type, price_per_meter, unit_type, current_stock, hsn_code, gst_percent, vendor, location, images (jsonb, default '[]'), is_active, is_deleted, created_by/at, updated_by/at
+- `inventory_items` table: images column (jsonb, default '[]') synced from master on material/fabric update
+- `purchase_order_items` + `purchase_receipt_items`: item_image (text, nullable) — per-line base64 image
 - `orders` table: id, order_id (auto ORD0001...), order_type (swatch|style), client, status, priority, assigned_to, delivery_date, remarks, production_mode, cost_status, approval_status, invoice_status, invoice_number, payment_status, plus swatch fields (fabric/length/width/quantity/refs), style fields (product/pattern/size/colors), making process, artwork, costing, client centre, is_deleted, audit columns
 - `item_types` table: id, name (unique), is_active, created_at
 - `unit_types` table: id, name (unique), is_active, created_at

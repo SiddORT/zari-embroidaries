@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const materialsTable = pgTable("materials", {
@@ -18,6 +18,7 @@ export const materialsTable = pgTable("materials", {
   gstPercent: text("gst_percent").notNull(),
   vendor: text("vendor"),
   location: text("location"),
+  images: jsonb("images").$type<{ id: string; name: string; data: string; size: number }[]>().notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -27,6 +28,13 @@ export const materialsTable = pgTable("materials", {
 });
 
 export type MaterialRecord = typeof materialsTable.$inferSelect;
+
+export const masterImageSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  data: z.string(),
+  size: z.number(),
+});
 
 export const insertMaterialSchema = z.object({
   itemType: z.string().min(1, "Item Type is required"),
@@ -44,6 +52,7 @@ export const insertMaterialSchema = z.object({
   vendor: z.string().optional(),
   location: z.string().optional(),
   isActive: z.boolean().default(true),
+  images: z.array(masterImageSchema).optional().default([]),
 });
 
 export const updateMaterialSchema = insertMaterialSchema.partial().extend({
