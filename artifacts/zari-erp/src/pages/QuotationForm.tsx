@@ -83,6 +83,7 @@ export default function QuotationForm() {
   const [clientNotes, setClientNotes] = useState("");
   const [gstTaxType, setGstTaxType] = useState("IGST");
   const [gstRate, setGstRate] = useState("18");
+  const [coverPage, setCoverPage] = useState("classic");
   const [designs, setDesigns] = useState<Design[]>([emptyDesign()]);
   const [charges, setCharges] = useState<Charge[]>([emptyCharge()]);
   const [saving, setSaving] = useState(false);
@@ -118,6 +119,7 @@ export default function QuotationForm() {
         setShippingRatePerKg(weight > 0 ? String((savedShipping / weight).toFixed(2)) : "0");
         if (d.gst_type) setGstTaxType(d.gst_type);
         if (d.gst_rate != null) setGstRate(String(d.gst_rate));
+        if (d.cover_page) setCoverPage(d.cover_page);
         setInternalNotes(d.internal_notes || "");
         setClientNotes(d.client_notes || "");
         setDesigns(
@@ -181,6 +183,7 @@ export default function QuotationForm() {
             estimatedShippingCharges: estimatedShippingCharges,
             gstType: gstTaxType,
             gstRate: parseFloat(gstRate) || 18,
+            coverPage,
             internalNotes: internalNotes.trim(),
             clientNotes: clientNotes.trim(),
             designs: validDesigns,
@@ -540,7 +543,7 @@ export default function QuotationForm() {
               <div className="flex items-center justify-between w-72 gap-2">
                 <div className="flex items-center gap-2 flex-1">
                   <select
-                    className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-700"
+                    className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-900"
                     value={gstTaxType} onChange={(e) => setGstTaxType(e.target.value)}>
                     <option value="GST">GST</option>
                     <option value="CGST+SGST">CGST+SGST</option>
@@ -548,9 +551,9 @@ export default function QuotationForm() {
                   </select>
                   <div className="flex items-center gap-1">
                     <input type="number" min="0" max="100" step="0.01"
-                      className="w-16 text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-700"
+                      className="w-16 text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-900"
                       value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
-                    <span className="text-gray-400 text-xs">%</span>
+                    <span className="text-gray-500 text-xs">%</span>
                   </div>
                 </div>
                 <span className="font-semibold">{fmt(gstAmount)}</span>
@@ -564,6 +567,85 @@ export default function QuotationForm() {
                 <span className="font-bold text-[#C6AF4B] text-lg">{fmt(total)}</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ─── Cover Page ──────────────────────────────────────────────────── */}
+        <div className={`${card} p-5 mb-5`}>
+          <h2 className="text-sm font-bold uppercase tracking-wide mb-4" style={{ color: G }}>Cover Page Style</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                id: "classic",
+                label: "Classic",
+                preview: (
+                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
+                    <div className="h-8 w-full" style={{ background: "#C6AF4B" }} />
+                    <div className="p-1.5 space-y-1">
+                      <div className="h-1.5 w-3/4 rounded bg-gray-300" />
+                      <div className="h-1.5 w-1/2 rounded bg-gray-200" />
+                      <div className="h-1.5 w-2/3 rounded bg-gray-200" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "modern",
+                label: "Modern",
+                preview: (
+                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
+                    <div className="h-20 w-full flex flex-col justify-end p-2" style={{ background: "linear-gradient(135deg,#1a1a2e 60%,#C6AF4B)" }}>
+                      <div className="h-1.5 w-3/4 rounded bg-white/60 mb-1" />
+                      <div className="h-1 w-1/2 rounded bg-white/30" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "corporate",
+                label: "Corporate",
+                preview: (
+                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
+                    <div className="h-10 w-full bg-gray-900 flex items-center px-2">
+                      <div className="h-2 w-2 rounded-full bg-[#C6AF4B] mr-1.5" />
+                      <div className="h-1.5 w-1/2 rounded bg-white/50" />
+                    </div>
+                    <div className="p-1.5 space-y-1 bg-gray-50">
+                      <div className="h-1.5 w-3/4 rounded bg-gray-300" />
+                      <div className="h-1.5 w-1/2 rounded bg-gray-200" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "minimal",
+                label: "Minimal",
+                preview: (
+                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100 bg-white flex flex-col items-center justify-center gap-1.5 p-2">
+                    <div className="h-1.5 w-12 rounded bg-gray-800" />
+                    <div className="h-px w-16 bg-[#C6AF4B]" />
+                    <div className="h-1 w-8 rounded bg-gray-300" />
+                    <div className="h-1 w-10 rounded bg-gray-200" />
+                  </div>
+                ),
+              },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setCoverPage(opt.id)}
+                className={`rounded-xl border-2 p-2 text-left transition focus:outline-none ${
+                  coverPage === opt.id
+                    ? "border-[#C6AF4B] shadow-md"
+                    : "border-gray-200 hover:border-[#C6AF4B]/40"
+                }`}
+              >
+                {opt.preview}
+                <p className={`text-xs font-semibold mt-2 text-center ${coverPage === opt.id ? "text-[#C6AF4B]" : "text-gray-600"}`}>
+                  {opt.label}
+                </p>
+              </button>
+            ))}
           </div>
         </div>
 

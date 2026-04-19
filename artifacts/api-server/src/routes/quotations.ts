@@ -129,6 +129,7 @@ router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
       estimatedWeight, estimatedShippingCharges, internalNotes, clientNotes,
       designs = [], charges = [],
       gstType: gstTypeOverride, gstRate: gstRateOverride,
+      coverPage = "classic",
     } = req.body;
 
     await client.query("BEGIN");
@@ -151,13 +152,13 @@ router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
          (quotation_number, client_id, client_name, client_state,
           requirement_summary, estimated_weight, estimated_shipping_charges,
           subtotal_amount, gst_type, gst_rate, gst_amount, total_amount,
-          internal_notes, client_notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          internal_notes, client_notes, cover_page, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING id`,
       [qNum, clientId || null, clientName || null, clientState || null,
        requirementSummary || null, estimatedWeight || 0,
        estimatedShippingCharges || 0, subtotal, gst.type, gst.rate,
-       gst.amount, total, internalNotes || null, clientNotes || null, actor]
+       gst.amount, total, internalNotes || null, clientNotes || null, coverPage, actor]
     );
     const qId = qRes.rows[0].id;
 
@@ -197,6 +198,7 @@ router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
       estimatedWeight, estimatedShippingCharges, internalNotes, clientNotes,
       designs = [], charges = [],
       gstType: gstTypeOverride, gstRate: gstRateOverride,
+      coverPage = "classic",
     } = req.body;
 
     const existing = await client.query(`SELECT status FROM quotations WHERE id = $1`, [id]);
@@ -220,12 +222,12 @@ router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
          client_id=$1, client_name=$2, client_state=$3,
          requirement_summary=$4, estimated_weight=$5, estimated_shipping_charges=$6,
          subtotal_amount=$7, gst_type=$8, gst_rate=$9, gst_amount=$10, total_amount=$11,
-         internal_notes=$12, client_notes=$13, updated_at=NOW()
-       WHERE id=$14`,
+         internal_notes=$12, client_notes=$13, cover_page=$14, updated_at=NOW()
+       WHERE id=$15`,
       [clientId || null, clientName || null, clientState || null,
        requirementSummary || null, estimatedWeight || 0, estimatedShippingCharges || 0,
        subtotal, gst.type, gst.rate, gst.amount, total,
-       internalNotes || null, clientNotes || null, id]
+       internalNotes || null, clientNotes || null, coverPage, id]
     );
 
     await client.query(`DELETE FROM quotation_designs WHERE quotation_id = $1`, [id]);
@@ -331,13 +333,13 @@ router.post("/quotations/:id/revise", requireAuth, async (req: AuthRequest, res)
           requirement_summary, estimated_weight, estimated_shipping_charges,
           subtotal_amount, gst_type, gst_rate, gst_amount, total_amount,
           status, revision_number, parent_quotation_id,
-          internal_notes, client_notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Draft',$13,$14,$15,$16,$17)
+          internal_notes, client_notes, cover_page, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Draft',$13,$14,$15,$16,$17,$18)
        RETURNING id`,
       [qNum, o.client_id, o.client_name, o.client_state,
        o.requirement_summary, o.estimated_weight, o.estimated_shipping_charges,
        o.subtotal_amount, o.gst_type, o.gst_rate, o.gst_amount, o.total_amount,
-       newRev, rootId, o.internal_notes, o.client_notes, actor]
+       newRev, rootId, o.internal_notes, o.client_notes, o.cover_page ?? "classic", actor]
     );
     const newId = newRes.rows[0].id;
 
