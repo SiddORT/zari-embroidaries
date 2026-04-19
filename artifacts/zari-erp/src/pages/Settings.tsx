@@ -1064,56 +1064,62 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
       </div>
 
       {/* Filters */}
-      <div className={`${card} p-4`}>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-            <Filter size={13} /> Filters
+      <div className={`${card} px-4 py-3`}>
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Label */}
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">
+            <Filter size={12} /> Filters
           </div>
 
-          {isAdmin && (
-            <div className="flex-1 min-w-40">
-              <label className="block text-xs font-medium text-gray-500 mb-1">User</label>
-              <select
-                value={filters.user_email}
-                onChange={e => setF("user_email", e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
-              >
-                <option value="">All users</option>
-                {users.map(u => (
-                  <option key={u.user_email} value={u.user_email}>{u.user_name || u.user_email}</option>
-                ))}
-              </select>
+          <div className="w-px h-5 bg-gray-200 shrink-0" />
+
+          {/* Fields row */}
+          <div className="flex items-center gap-3 flex-wrap flex-1">
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-500 whitespace-nowrap">User</span>
+                <select
+                  value={filters.user_email}
+                  onChange={e => setF("user_email", e.target.value)}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white min-w-36"
+                >
+                  <option value="">All users</option>
+                  {users.map(u => (
+                    <option key={u.user_email} value={u.user_email}>{u.user_name || u.user_email}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">From</span>
+              <input
+                type="datetime-local"
+                value={filters.from}
+                onChange={e => setF("from", e.target.value)}
+                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
+              />
             </div>
-          )}
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-            <input
-              type="datetime-local"
-              value={filters.from}
-              onChange={e => setF("from", e.target.value)}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
-            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">To</span>
+              <input
+                type="datetime-local"
+                value={filters.to}
+                onChange={e => setF("to", e.target.value)}
+                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
+              />
+            </div>
+
+            {(filters.user_email || filters.from || filters.to) && (
+              <button
+                onClick={() => { setFilters({ user_email: "", from: "", to: "" }); setPage(1); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X size={12} /> Clear
+              </button>
+            )}
           </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-            <input
-              type="datetime-local"
-              value={filters.to}
-              onChange={e => setF("to", e.target.value)}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white"
-            />
-          </div>
-
-          {(filters.user_email || filters.from || filters.to) && (
-            <button
-              onClick={() => { setFilters({ user_email: "", from: "", to: "" }); setPage(1); }}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition mt-4"
-            >
-              <X size={12} /> Clear
-            </button>
-          )}
         </div>
       </div>
 
