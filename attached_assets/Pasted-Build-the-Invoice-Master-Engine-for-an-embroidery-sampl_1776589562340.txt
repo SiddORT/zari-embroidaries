@@ -1,0 +1,279 @@
+Build the Invoice Master Engine for an embroidery sampling ERP system.
+
+This module must support:
+
+Client invoices
+
+Vendor bills
+
+Multi-currency support
+
+Exchange-rate snapshot locking
+
+Multiple invoices per order
+
+Invoice type classification
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Invoice Master Engine
+
+---
+
+SECTION 1 — INVOICE HEADER TABLE
+
+Create table:
+
+invoices
+
+Fields:
+
+invoice_id (primary key)
+
+invoice_number (auto generated)
+
+invoice_direction
+
+invoice_type
+
+client_id
+
+vendor_id
+
+reference_type
+
+reference_id
+
+currency_code
+
+exchange_rate_snapshot
+
+invoice_currency_amount
+
+base_currency_amount
+
+subtotal_amount
+
+shipping_amount
+
+adjustment_amount
+
+total_amount
+
+received_amount
+
+pending_amount
+
+invoice_status
+
+invoice_date
+
+due_date
+
+remarks
+
+created_by
+
+created_at
+
+updated_at
+
+---
+
+SECTION 2 — INVOICE NUMBER FORMAT
+
+Format:
+
+INV-YYYY-00001
+
+Example:
+
+INV-2026-00021
+
+Invoice number must be:
+
+unique
+
+sequential
+
+non-editable after creation
+
+---
+
+SECTION 3 — INVOICE DIRECTION SUPPORT
+
+invoice_direction values:
+
+Client
+
+Vendor
+
+Validation rules:
+
+If invoice_direction = Client
+
+client_id required
+
+vendor_id must be NULL
+
+If invoice_direction = Vendor
+
+vendor_id required
+
+client_id must be NULL
+
+---
+
+SECTION 4 — INVOICE TYPE CLASSIFICATION ENGINE
+
+Add field:
+
+invoice_type
+
+Supported values:
+
+Proforma
+
+Advance
+
+Partial
+
+Material Recovery
+
+Artwork Charges
+
+Courier Charges
+
+Final Invoice
+
+Custom
+
+System must allow:
+
+multiple invoices per reference_id
+
+Example:
+
+reference_type = Swatch
+
+reference_id = SW1023
+
+must support:
+
+multiple invoice records
+
+Do NOT restrict invoice creation to one per order.
+
+---
+
+SECTION 5 — REFERENCE LINKING ENGINE
+
+reference_type values:
+
+Swatch
+
+Style
+
+Quotation
+
+Purchase Receipt
+
+Shipping
+
+Artwork
+
+Manual
+
+reference_id stores related record ID.
+
+---
+
+SECTION 6 — MULTI-CURRENCY SUPPORT
+
+Store inside invoices table:
+
+currency_code
+
+exchange_rate_snapshot
+
+invoice_currency_amount
+
+base_currency_amount
+
+Formula:
+
+base_currency_amount =
+invoice_currency_amount × exchange_rate_snapshot
+
+Exchange rate must remain locked after save.
+
+Do NOT dynamically recalculate later.
+
+---
+
+SECTION 7 — PAYMENT TRACKING PREPARATION
+
+Store:
+
+received_amount
+
+pending_amount
+
+Calculation:
+
+pending_amount =
+total_amount − received_amount
+
+Default values:
+
+received_amount = 0
+
+pending_amount = total_amount
+
+---
+
+SECTION 8 — SHIPPING COST SUPPORT
+
+Allow storing:
+
+shipping_amount
+
+Shipping amount may come from:
+
+order_shipping_details table
+
+Allow manual override.
+
+---
+
+SECTION 9 — ADJUSTMENT AMOUNT SUPPORT
+
+Allow storing:
+
+adjustment_amount
+
+Used for:
+
+round-off
+
+manual correction
+
+credit adjustment
+
+Allow negative values.
+
+---
+
+SECTION 10 — SUCCESS MESSAGE
+
+After saving invoice:
+
+Display:
+
+Invoice saved successfully
+
+END OF PROMPT 1

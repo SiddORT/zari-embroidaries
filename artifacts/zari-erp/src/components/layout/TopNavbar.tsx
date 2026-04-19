@@ -56,14 +56,17 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [mastersOpen, setMastersOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [operationsOpen, setOperationsOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
   const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
   const [mobileOperationsOpen, setMobileOperationsOpen] = useState(false);
+  const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const mastersRef    = useRef<HTMLDivElement>(null);
   const ordersRef     = useRef<HTMLDivElement>(null);
   const operationsRef = useRef<HTMLDivElement>(null);
+  const accountsRef   = useRef<HTMLDivElement>(null);
   const profileRef    = useRef<HTMLDivElement>(null);
 
   const mastersActive    = location.startsWith("/masters");
@@ -96,6 +99,12 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     const h = (e: MouseEvent) => { if (operationsRef.current && !operationsRef.current.contains(e.target as Node)) setOperationsOpen(false); };
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, [operationsOpen]);
+
+  useEffect(() => {
+    if (!accountsOpen) return;
+    const h = (e: MouseEvent) => { if (accountsRef.current && !accountsRef.current.contains(e.target as Node)) setAccountsOpen(false); };
+    document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
+  }, [accountsOpen]);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -233,10 +242,37 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               Quotation
             </Link>
 
-            {/* Accounts — direct link */}
-            <Link href="/accounts/ledgers" className={navLink(accountsActive)}>
-              Accounts
-            </Link>
+            {/* Accounts — dropdown */}
+            <div className="relative" ref={accountsRef}>
+              <button
+                onClick={() => setAccountsOpen(v => !v)}
+                className={`flex items-center gap-1 ${navLink(accountsActive)}`}
+              >
+                Accounts
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {accountsOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                  {[
+                    { label: "Ledgers",  href: "/accounts/ledgers" },
+                    { label: "Invoices", href: "/accounts/invoices" },
+                  ].map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setAccountsOpen(false)}
+                      className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        location === href || location.startsWith(href + "/")
+                          ? "text-gray-900 bg-gray-50 font-semibold"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
 
           </nav>
 
@@ -428,16 +464,35 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 Quotation
               </Link>
 
-              {/* Accounts — direct link */}
-              <Link
-                href="/accounts/ledgers"
-                onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              {/* Mobile Accounts */}
+              <button
+                onClick={() => setMobileAccountsOpen(v => !v)}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
                   accountsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                Accounts
-              </Link>
+                <span>Accounts</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileAccountsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileAccountsOpen && (
+                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                  {[
+                    { label: "Ledgers",  href: "/accounts/ledgers" },
+                    { label: "Invoices", href: "/accounts/invoices" },
+                  ].map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                        location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-1">
                 <Link href="/profile" onClick={() => setMobileOpen(false)}

@@ -48,6 +48,8 @@ import QuotationDetail from "@/pages/QuotationDetail";
 import ShippingList from "@/pages/ShippingList";
 import ShippingVendors from "@/pages/ShippingVendors";
 import Settings from "@/pages/Settings";
+import InvoiceList from "@/pages/InvoiceList";
+import InvoiceForm from "@/pages/InvoiceForm";
 
 const queryClient = new QueryClient();
 
@@ -107,6 +109,10 @@ function Router() {
       <Route path="/client/:token" component={ClientPortal} />
       <Route path="/accounts/ledgers" component={VendorLedgers} />
       <Route path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} />
+      <Route path="/accounts/invoices/new" component={InvoiceForm} />
+      <Route path="/accounts/invoices/:id/edit" component={InvoiceForm} />
+      <Route path="/accounts/invoices/:id" component={InvoiceForm} />
+      <Route path="/accounts/invoices" component={InvoiceList} />
       <Route path="/inventory/items" component={InventoryStockList} />
       <Route path="/inventory/ledger" component={InventoryLedger} />
       <Route path="/inventory/reservations" component={Reservations} />
