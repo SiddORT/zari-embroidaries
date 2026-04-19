@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useLocation, useParams } from "wouter";
 import { Save, ArrowLeft, Plus, Trash2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,9 @@ function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
     return j as T;
   });
 }
+
+const ITEM_CATEGORIES = ["Material", "Fabric", "Item", "Artwork", "Outsource", "Artisan", "Custom"] as const;
+const HSN_CATEGORIES = new Set(["Material", "Fabric", "Item"]);
 
 const DIRECTIONS = ["Client", "Vendor"] as const;
 const TYPES = ["Proforma", "Advance", "Partial", "Final Invoice", "Custom"] as const;
@@ -40,7 +43,12 @@ const REF_LABELS: Record<string, string> = {
   "Manual": "Reference ID / Order No",
 };
 
-interface LineItem { id: string; description: string; category: string; quantity: number; unitPrice: number; total: number }
+interface LineItem {
+  id: string; description: string; category: string;
+  quantity: number; unitPrice: number; total: number;
+  hsnCode: string; hsnGstPct: string; showHsn: boolean;
+}
+interface HsnItem { id: number; hsnCode: string; govtDescription: string; gstPercentage: string }
 interface Client {
   id: number; brandName: string; contactName: string; email: string; contactNo: string;
   gstNo?: string; address1?: string; address2?: string; city?: string; state?: string; pincode?: string;
@@ -55,7 +63,7 @@ interface BankAccount {
   branch: string; account_name: string; bank_upi: string; is_default: boolean;
 }
 
-const blank = () => ({ id: crypto.randomUUID(), description: "", category: "", quantity: 1, unitPrice: 0, total: 0 });
+const blank = (): LineItem => ({ id: crypto.randomUUID(), description: "", category: "Item", quantity: 1, unitPrice: 0, total: 0, hsnCode: "", hsnGstPct: "", showHsn: true });
 
 function calcTotals(items: LineItem[], shipping: number, adjustment: number, discountType: string, discountValue: number, cgst: number, sgst: number) {
   const subtotal = items.reduce((s, i) => s + i.total, 0);
@@ -82,6 +90,8 @@ export default function InvoiceForm() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [refOrderOptions, setRefOrderOptions] = useState<{ value: string; label: string }[]>([]);
   const [refOrdersLoading, setRefOrdersLoading] = useState(false);
+  const [hsnList, setHsnList] = useState<HsnItem[]>([]);
+  const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
 
   const [form, setForm] = useState({
     invoiceNo: "",
@@ -138,6 +148,7 @@ export default function InvoiceForm() {
   useEffect(() => {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
     customFetch<any>("/api/vendors?limit=500").then(j => setVendors(j.data ?? [])).catch(() => {});
+    customFetch<any>("/api/hsn/all").then(rows => setHsnList(Array.isArray(rows) ? rows : [])).catch(() => {});
     customFetch<any>("/api/settings/currencies").then(j => setCurrencies((j.data ?? []).filter((c: any) => c.is_active || c.is_base))).catch(() => {});
     customFetch<any>("/api/settings/exchange-rates").then(j => {
       const map: Record<string, number> = {};
@@ -541,51 +552,137 @@ export default function InvoiceForm() {
             {/* Line Items */}
             <div className={`${card} overflow-hidden`}>
               <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="font-bold text-gray-900 text-sm">Line Items</h2>
-                <button
-                  onClick={() => setItems(prev => [...prev, blank()])}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
-                  style={{ color: G }}
-                >
-                  <Plus size={13} /> Add Item
-                </button>
+                <div>
+                  <h2 className="font-bold text-gray-900 text-sm">Line Items</h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showHsnOnInvoice}
+                      onChange={e => setShowHsnOnInvoice(e.target.checked)}
+                      className="rounded"
+                    />
+                    Show HSN on printed invoice
+                  </label>
+                  <button
+                    onClick={() => setItems(prev => [...prev, blank()])}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
+                    style={{ color: G }}
+                  >
+                    <Plus size={13} /> Add Item
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      {["Description", "Category", "Qty", "Unit Price", "Total", ""].map(h => (
-                        <th key={h} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
-                      ))}
+                      <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[32%]">Description</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[16%]">Category</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Qty</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[14%]">Unit Price</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">GST</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[12%]">Total</th>
+                      <th className="w-[4%]"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map(it => (
-                      <tr key={it.id} className="border-b border-gray-50">
-                        <td className="px-3 py-2 w-[35%]">
-                          <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
-                        </td>
-                        <td className="px-3 py-2 w-[18%]">
-                          <input value={it.category} onChange={e => updateItem(it.id, "category", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Category" />
-                        </td>
-                        <td className="px-3 py-2 w-[10%]">
-                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
-                        </td>
-                        <td className="px-3 py-2 w-[16%]">
-                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
-                        </td>
-                        <td className="px-3 py-2 w-[14%] font-semibold text-gray-900 text-right pr-4">
-                          {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-3 py-2 w-[7%]">
-                          {items.length > 1 && (
-                            <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                              <Trash2 size={13} />
-                            </button>
+                    {items.map(it => {
+                      const needsHsn = HSN_CATEGORIES.has(it.category);
+                      const itemGst = needsHsn && it.hsnGstPct ? (it.total * parseFloat(it.hsnGstPct)) / 100 : 0;
+                      return (
+                        <Fragment key={it.id}>
+                          <tr className="border-b border-gray-50">
+                            <td className="px-3 py-2">
+                              <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                value={it.category}
+                                onChange={e => {
+                                  const cat = e.target.value;
+                                  setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                    ...x, category: cat,
+                                    hsnCode: HSN_CATEGORIES.has(cat) ? x.hsnCode : "",
+                                    hsnGstPct: HSN_CATEGORIES.has(cat) ? x.hsnGstPct : "",
+                                  }));
+                                }}
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                              >
+                                {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                            </td>
+                            <td className="px-3 py-2 text-right text-sm text-gray-600">
+                              {needsHsn && it.hsnGstPct ? (
+                                <span className="text-xs">
+                                  <span className="text-gray-400">{it.hsnGstPct}%</span>
+                                  <br />
+                                  <span className="font-medium text-gray-700">{itemGst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                </span>
+                              ) : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="px-3 py-2 font-semibold text-gray-900 text-right pr-3">
+                              {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-2 py-2">
+                              {items.length > 1 && (
+                                <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {needsHsn && (
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <td colSpan={7} className="px-4 py-2">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">HSN:</span>
+                                  <select
+                                    value={it.hsnCode}
+                                    onChange={e => {
+                                      const code = e.target.value;
+                                      const hsn = hsnList.find(h => h.hsnCode === code);
+                                      setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                        ...x, hsnCode: code, hsnGstPct: hsn?.gstPercentage ?? "",
+                                      }));
+                                    }}
+                                    className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer min-w-[220px]"
+                                  >
+                                    <option value="">— Select HSN Code —</option>
+                                    {hsnList.map(h => (
+                                      <option key={h.id} value={h.hsnCode}>
+                                        {h.hsnCode} · {h.govtDescription} · GST {h.gstPercentage}%
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {it.hsnGstPct && (
+                                    <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-2 py-1">
+                                      GST: <strong>{it.hsnGstPct}%</strong>
+                                    </span>
+                                  )}
+                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer ml-auto">
+                                    <input
+                                      type="checkbox"
+                                      checked={it.showHsn}
+                                      onChange={e => updateItem(it.id, "showHsn", e.target.checked)}
+                                      className="rounded"
+                                    />
+                                    Show HSN for this item
+                                  </label>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                      </tr>
-                    ))}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -741,6 +838,24 @@ export default function InvoiceForm() {
                   <label className="text-xs text-gray-600">Adjustment (+ / −)</label>
                   <input type="number" step="0.01" value={form.adjustmentAmount} onChange={e => setF("adjustmentAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                 </div>
+
+                {(() => {
+                  const hsnGstTotal = items.reduce((s, it) => {
+                    if (HSN_CATEGORIES.has(it.category) && it.hsnGstPct) {
+                      return s + (it.total * parseFloat(it.hsnGstPct)) / 100;
+                    }
+                    return s;
+                  }, 0);
+                  if (hsnGstTotal <= 0) return null;
+                  return (
+                    <div className="flex justify-between text-sm text-gray-600 border-t border-dashed border-gray-100 pt-2">
+                      <span className="flex items-center gap-1">
+                        Item GST <span className="text-xs text-gray-400">(from HSN)</span>
+                      </span>
+                      <span className="font-medium">{hsnGstTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  );
+                })()}
 
                 <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
                   <span className="font-bold text-gray-900">Total</span>
