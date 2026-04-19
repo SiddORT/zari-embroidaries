@@ -44,14 +44,17 @@ router.get("/quotations", requireAuth, async (req, res) => {
       page = "1", limit = "20",
     } = req.query as Record<string, string>;
 
-    const conditions: string[] = ["1=1"];
+    const conditions: string[] = ["q.parent_quotation_id IS NULL"];
     const params: (string | number)[] = [];
 
     if (search) {
       params.push(`%${search}%`);
       conditions.push(`(q.quotation_number ILIKE $${params.length} OR q.client_name ILIKE $${params.length} OR q.requirement_summary ILIKE $${params.length})`);
     }
-    if (status !== "all") { params.push(status); conditions.push(`q.status = $${params.length}`); }
+    if (status !== "all") {
+      params.push(status);
+      conditions.push(`EXISTS (SELECT 1 FROM quotations r WHERE (r.parent_quotation_id = q.id OR r.id = q.id) AND r.status = $${params.length})`);
+    }
     if (clientId) { params.push(clientId); conditions.push(`q.client_id = $${params.length}`); }
     if (fromDate) { params.push(fromDate); conditions.push(`q.created_at::date >= $${params.length}::date`); }
     if (toDate)   { params.push(toDate);   conditions.push(`q.created_at::date <= $${params.length}::date`); }
@@ -63,7 +66,15 @@ router.get("/quotations", requireAuth, async (req, res) => {
 
     const [rows, total] = await Promise.all([
       pool.query(
-        `SELECT q.*, COUNT(qd.id)::int AS design_count, COUNT(qc.id)::int AS charge_count
+        `SELECT q.*,
+                COUNT(DISTINCT qd.id)::int AS design_count,
+                COUNT(DISTINCT qc.id)::int AS charge_count,
+                (SELECT COUNT(*) FROM quotations r WHERE r.parent_quotation_id = q.id OR r.id = q.id)::int AS revision_count,
+                (SELECT r2.status FROM quotations r2
+                 WHERE r2.parent_quotation_id = q.id OR r2.id = q.id
+                 ORDER BY r2.revision_number DESC LIMIT 1) AS latest_status,
+                (SELECT EXISTS (SELECT 1 FROM quotations r3
+                 WHERE (r3.parent_quotation_id = q.id OR r3.id = q.id) AND r3.status = 'Approved')) AS has_approval
          FROM quotations q
          LEFT JOIN quotation_designs qd ON qd.quotation_id = q.id
          LEFT JOIN quotation_custom_charges qc ON qc.quotation_id = q.id

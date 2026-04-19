@@ -1,20 +1,21 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useLocation } from "wouter";
 import {
   Search, Plus, ChevronLeft, ChevronRight, FileText,
-  Eye, Edit2, Trash2, RefreshCw, CheckCircle2, XCircle, Clock,
-  MoreHorizontal, ChevronDown,
+  Eye, Edit2, Trash2, RefreshCw, ChevronDown, ChevronUp,
+  CheckCircle2, GitBranch,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
+import { useAllClients } from "@/hooks/useClients";
 
 const G = "#C6AF4B";
 const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
 const thCls = "px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide whitespace-nowrap";
-const tdCls = "px-3 py-3 align-top text-sm";
+const tdCls = "px-3 py-3 align-middle text-sm";
 const inputCls = "w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 text-gray-900 bg-white";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -37,15 +38,25 @@ const ALL_STATUSES = [
 interface QuotRow {
   id: number;
   quotation_number: string;
+  client_id: number | null;
   client_name: string | null;
   requirement_summary: string | null;
   total_amount: string;
   status: string;
-  revision_number: number;
+  latest_status: string;
+  has_approval: boolean;
+  revision_count: number;
   design_count: number;
-  charge_count: number;
   created_at: string;
-  converted_to: string | null;
+}
+
+interface RevisionRow {
+  id: number;
+  quotation_number: string;
+  revision_number: number;
+  status: string;
+  total_amount: string;
+  created_at: string;
 }
 
 export default function QuotationList() {
@@ -56,6 +67,7 @@ export default function QuotationList() {
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
   const logoutMutation = useLogout();
+  const { data: allClients = [] } = useAllClients();
 
   const [rows, setRows] = useState<QuotRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -66,16 +78,17 @@ export default function QuotationList() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [clientFilter, setClientFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [actionOpen, setActionOpen] = useState<number | null>(null);
-  const actionRef = useRef<HTMLDivElement>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [revisions, setRevisions] = useState<RevisionRow[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
 
   const isAdmin = user?.role === "admin";
-
   const refresh = () => setRefreshKey((k) => k + 1);
 
   useEffect(() => {
@@ -85,26 +98,33 @@ export default function QuotationList() {
       search, status, fromDate, toDate,
       page: String(page), limit: String(limit),
     });
+    if (clientFilter) params.set("clientId", clientFilter);
     customFetch<{ data: QuotRow[]; total: number }>(`/api/quotations?${params}`)
-      .then((j) => {
-        if (cancelled) return;
-        setRows(j.data ?? []);
-        setTotal(j.total ?? 0);
-      })
+      .then((j) => { if (cancelled) return; setRows(j.data ?? []); setTotal(j.total ?? 0); })
       .catch(() => !cancelled && setRows([]))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [search, status, fromDate, toDate, page, refreshKey]);
+  }, [search, status, clientFilter, fromDate, toDate, page, refreshKey]);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (actionRef.current && !actionRef.current.contains(e.target as Node)) {
-        setActionOpen(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  async function toggleExpand(row: QuotRow) {
+    if (expandedId === row.id) { setExpandedId(null); setRevisions([]); return; }
+    setExpandedId(row.id);
+    setRevisions([]);
+    setLoadingRevisions(true);
+    try {
+      const j = await customFetch<{ data: any }>(`/api/quotations/${row.id}`);
+      const allRevs: RevisionRow[] = (j.data?.revisions ?? []).map((r: any) => ({
+        id: r.id,
+        quotation_number: r.quotation_number,
+        revision_number: r.revision_number,
+        status: r.status,
+        total_amount: r.total_amount,
+        created_at: r.created_at,
+      }));
+      setRevisions(allRevs.sort((a, b) => a.revision_number - b.revision_number));
+    } catch { setRevisions([]); }
+    finally { setLoadingRevisions(false); }
+  }
 
   async function handleDelete() {
     if (!deleteId) return;
@@ -113,12 +133,11 @@ export default function QuotationList() {
       await customFetch(`/api/quotations/${deleteId}`, { method: "DELETE" });
       toast({ title: "Deleted", description: "Quotation deleted." });
       setDeleteId(null);
+      if (expandedId === deleteId) { setExpandedId(null); setRevisions([]); }
       refresh();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setDeleting(false);
-    }
+    } finally { setDeleting(false); }
   }
 
   function handleLogout() {
@@ -145,8 +164,9 @@ export default function QuotationList() {
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="max-w-screen-xl mx-auto space-y-5">
+
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Quotations</h1>
             <p className="text-sm text-gray-500 mt-0.5">{total} quotation{total !== 1 ? "s" : ""}</p>
@@ -161,32 +181,39 @@ export default function QuotationList() {
         </div>
 
         {/* Filters */}
-        <div className={`${card} p-4 mb-5`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="relative">
+        <div className={`${card} p-4`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            {/* Search */}
+            <div className="relative xl:col-span-2">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by number, client…"
+                placeholder="Search by number or summary…"
                 className={`${inputCls} pl-8`}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               />
             </div>
-            <select
-              className={inputCls}
-              value={status}
-              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-            >
-              <option value="all">All Statuses</option>
+            {/* Client */}
+            <select className={inputCls} value={clientFilter} onChange={(e) => { setClientFilter(e.target.value); setPage(1); }}>
+              <option value="">All Clients</option>
+              {allClients.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.brandName}</option>
+              ))}
+            </select>
+            {/* Status */}
+            <select className={inputCls} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+              <option value="all">All Status</option>
               {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
+            {/* From */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">From Date</label>
+              <label className="block text-xs text-gray-500 mb-1">From</label>
               <input type="date" className={inputCls} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} />
             </div>
+            {/* To */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">To Date</label>
+              <label className="block text-xs text-gray-500 mb-1">To</label>
               <input type="date" className={inputCls} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} />
             </div>
           </div>
@@ -217,84 +244,204 @@ export default function QuotationList() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/60">
-                    <th className={thCls}>Quotation #</th>
+                    <th className={thCls + " w-10 text-center"}>#</th>
+                    <th className={thCls}>Quotation</th>
                     <th className={thCls}>Client</th>
                     <th className={thCls}>Summary</th>
-                    <th className={thCls}>Designs</th>
                     <th className={thCls}>Total</th>
-                    <th className={thCls}>Status</th>
-                    <th className={thCls}>Rev</th>
-                    <th className={thCls}>Date</th>
+                    <th className={thCls}>Latest Status</th>
+                    <th className={thCls + " text-center"}>Revisions</th>
+                    <th className={thCls}>Created</th>
                     <th className={thCls}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-50 hover:bg-[#C6AF4B]/[0.03] transition-colors">
-                      <td className={tdCls}>
-                        <button
-                          onClick={() => navigate(`/quotation/${row.id}`)}
-                          className="font-mono font-semibold text-[#C6AF4B] hover:underline"
-                        >
-                          {row.quotation_number}
-                        </button>
-                      </td>
-                      <td className={tdCls}>
-                        <span className="text-gray-800">{row.client_name || <span className="text-gray-400 italic">—</span>}</span>
-                      </td>
-                      <td className={tdCls}>
-                        <span className="text-gray-600 line-clamp-2 max-w-[200px] block">
-                          {row.requirement_summary || <span className="text-gray-400 italic">—</span>}
-                        </span>
-                      </td>
-                      <td className={tdCls}>
-                        <span className="text-gray-600">{row.design_count ?? 0}</span>
-                      </td>
-                      <td className={tdCls}>
-                        <span className="font-semibold text-gray-900">{fmt(row.total_amount)}</span>
-                      </td>
-                      <td className={tdCls}>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[row.status] ?? "bg-gray-100 text-gray-600"}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className={tdCls}>
-                        <span className="text-gray-500">R{row.revision_number}</span>
-                      </td>
-                      <td className={tdCls}>
-                        <span className="text-gray-500 text-xs">{fmtDate(row.created_at)}</span>
-                      </td>
-                      <td className={tdCls}>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => navigate(`/quotation/${row.id}`)}
-                            className="p-1.5 rounded-lg hover:bg-[#C6AF4B]/10 text-gray-500 hover:text-[#C6AF4B] transition"
-                            title="View"
-                          >
-                            <Eye size={15} />
-                          </button>
-                          {(row.status === "Draft" || row.status === "Revised") && (
+                  {rows.map((row, idx) => {
+                    const isExpanded = expandedId === row.id;
+                    const srNo = (page - 1) * limit + idx + 1;
+                    return (
+                      <Fragment key={row.id}>
+                        {/* ── Main row ── */}
+                        <tr className={`border-b border-gray-100 transition-colors ${isExpanded ? "bg-[#C6AF4B]/[0.05]" : "hover:bg-[#C6AF4B]/[0.03]"}`}>
+                          {/* Sr */}
+                          <td className={tdCls + " text-center text-gray-400 font-mono text-xs"}>{srNo}</td>
+                          {/* Quotation # */}
+                          <td className={tdCls}>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => navigate(`/quotation/${row.id}`)}
+                                className="font-mono font-semibold text-[#C6AF4B] hover:underline text-sm"
+                              >
+                                {row.quotation_number}
+                              </button>
+                              {row.has_approval && (
+                                <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0" title="Has an approved revision" />
+                              )}
+                            </div>
+                          </td>
+                          {/* Client */}
+                          <td className={tdCls}>
+                            <span className="text-gray-800">{row.client_name || <span className="text-gray-400 italic">—</span>}</span>
+                          </td>
+                          {/* Summary */}
+                          <td className={tdCls}>
+                            <span className="text-gray-600 line-clamp-2 max-w-[180px] block">
+                              {row.requirement_summary || <span className="text-gray-400 italic">—</span>}
+                            </span>
+                          </td>
+                          {/* Total */}
+                          <td className={tdCls}>
+                            <span className="font-semibold text-gray-900">{fmt(row.total_amount)}</span>
+                          </td>
+                          {/* Latest status */}
+                          <td className={tdCls}>
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[row.latest_status ?? row.status] ?? "bg-gray-100 text-gray-600"}`}>
+                              {row.latest_status ?? row.status}
+                            </span>
+                          </td>
+                          {/* Revisions */}
+                          <td className={tdCls + " text-center"}>
                             <button
-                              onClick={() => navigate(`/quotation/${row.id}/edit`)}
-                              className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
-                              title="Edit"
+                              onClick={() => toggleExpand(row)}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition ${
+                                isExpanded
+                                  ? "bg-[#C6AF4B]/20 text-[#C6AF4B]"
+                                  : "bg-gray-100 text-gray-600 hover:bg-[#C6AF4B]/10 hover:text-[#C6AF4B]"
+                              }`}
+                              title={isExpanded ? "Collapse revisions" : "View revisions"}
                             >
-                              <Edit2 size={15} />
+                              <GitBranch size={11} />
+                              {row.revision_count}
+                              {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                             </button>
-                          )}
-                          {isAdmin && (
-                            <button
-                              onClick={() => setDeleteId(row.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
-                              title="Delete"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </td>
+                          {/* Date */}
+                          <td className={tdCls}>
+                            <span className="text-gray-500 text-xs">{fmtDate(row.created_at)}</span>
+                          </td>
+                          {/* Actions */}
+                          <td className={tdCls}>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => navigate(`/quotation/${row.id}`)}
+                                className="p-1.5 rounded-lg hover:bg-[#C6AF4B]/10 text-gray-500 hover:text-[#C6AF4B] transition"
+                                title="View"
+                              >
+                                <Eye size={15} />
+                              </button>
+                              {(row.status === "Draft" || row.status === "Revised") && (
+                                <button
+                                  onClick={() => navigate(`/quotation/${row.id}/edit`)}
+                                  className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
+                                  title="Edit"
+                                >
+                                  <Edit2 size={15} />
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button
+                                  onClick={() => setDeleteId(row.id)}
+                                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* ── Revisions sub-panel ── */}
+                        {isExpanded && (
+                          <tr key={`${row.id}-revisions`} className="border-b border-gray-100">
+                            <td colSpan={9} className="px-0 py-0">
+                              <div className="bg-gray-50/70 border-t border-[#C6AF4B]/10 px-6 py-3">
+                                {loadingRevisions ? (
+                                  <div className="flex items-center gap-2 py-3 text-gray-400 text-xs">
+                                    <RefreshCw size={13} className="animate-spin" /> Loading revisions…
+                                  </div>
+                                ) : revisions.length === 0 ? (
+                                  <p className="text-xs text-gray-400 py-2">No revisions found.</p>
+                                ) : (
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-gray-500 font-semibold uppercase tracking-wide">
+                                        <th className="text-left pb-2 pr-4 w-8">Rev</th>
+                                        <th className="text-left pb-2 pr-4">Quotation #</th>
+                                        <th className="text-left pb-2 pr-4">Status</th>
+                                        <th className="text-left pb-2 pr-4">Total</th>
+                                        <th className="text-left pb-2 pr-4">Date</th>
+                                        <th className="text-left pb-2">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {revisions.map((rev) => {
+                                        const isApproved = rev.status === "Approved";
+                                        return (
+                                          <tr key={rev.id} className={`border-t border-gray-100 ${isApproved ? "bg-emerald-50/60" : ""}`}>
+                                            <td className="py-2 pr-4 text-gray-500 font-mono">R{rev.revision_number}</td>
+                                            <td className="py-2 pr-4">
+                                              <button
+                                                onClick={() => navigate(`/quotation/${rev.id}`)}
+                                                className="font-mono font-semibold text-[#C6AF4B] hover:underline"
+                                              >
+                                                {rev.quotation_number}
+                                              </button>
+                                            </td>
+                                            <td className="py-2 pr-4">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[rev.status] ?? "bg-gray-100 text-gray-600"}`}>
+                                                  {rev.status}
+                                                </span>
+                                                {isApproved && (
+                                                  <CheckCircle2 size={12} className="text-emerald-600" title="Client Approved" />
+                                                )}
+                                              </div>
+                                            </td>
+                                            <td className="py-2 pr-4 font-semibold text-gray-800">{fmt(rev.total_amount)}</td>
+                                            <td className="py-2 pr-4 text-gray-500">{fmtDate(rev.created_at)}</td>
+                                            <td className="py-2">
+                                              <div className="flex items-center gap-1">
+                                                <button
+                                                  onClick={() => navigate(`/quotation/${rev.id}`)}
+                                                  className="p-1 rounded hover:bg-[#C6AF4B]/10 text-gray-500 hover:text-[#C6AF4B] transition"
+                                                  title="View"
+                                                >
+                                                  <Eye size={13} />
+                                                </button>
+                                                {(rev.status === "Draft" || rev.status === "Revised") && (
+                                                  <button
+                                                    onClick={() => navigate(`/quotation/${rev.id}/edit`)}
+                                                    className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
+                                                    title="Edit"
+                                                  >
+                                                    <Edit2 size={13} />
+                                                  </button>
+                                                )}
+                                                {isAdmin && (
+                                                  <button
+                                                    onClick={() => setDeleteId(rev.id)}
+                                                    className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
+                                                    title="Delete"
+                                                  >
+                                                    <Trash2 size={13} />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
