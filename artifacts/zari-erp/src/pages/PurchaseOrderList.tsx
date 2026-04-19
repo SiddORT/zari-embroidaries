@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, Plus, ChevronDown, ChevronLeft, ChevronRight,
   ShoppingCart, CheckCircle2, XCircle, Clock, AlertTriangle,
-  Eye, Trash2, X, PackageCheck, RefreshCw, List,
+  Eye, Trash2, X, PackageCheck, RefreshCw, List, MoreHorizontal,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -105,6 +105,10 @@ export default function PurchaseOrderList() {
   const [itemsPopover, setItemsPopover] = useState<{ poId: number; items: POItem[] | null; loading: boolean } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
+  // Action menu
+  const [openActionMenu, setOpenActionMenu] = useState<number | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
 
   const buildQs = useCallback(() => {
@@ -136,6 +140,9 @@ export default function PurchaseOrderList() {
     const fn = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         setItemsPopover(null);
+      }
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionMenu(null);
       }
     };
     document.addEventListener("mousedown", fn);
@@ -407,50 +414,67 @@ export default function PurchaseOrderList() {
                       <td className={tdCls}><StatusBadge s={po.status} /></td>
                       <td className={tdCls}><span className="text-xs">{fmtDate(po.po_date ?? po.created_at)}</span></td>
 
-                      {/* Actions */}
+                      {/* Actions — single dropdown */}
                       <td className={tdCls}>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <button onClick={() => navigate(`/procurement/purchase-orders/${po.id}`)}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap">
-                            <Eye className="h-3 w-3" /> View
+                        <div className="relative" ref={openActionMenu === po.id ? actionMenuRef : undefined}>
+                          <button
+                            onClick={() => setOpenActionMenu(openActionMenu === po.id ? null : po.id)}
+                            className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors">
+                            <MoreHorizontal className="h-4 w-4" />
                           </button>
 
-                          {canCreatePr && (
-                            <button onClick={() => navigate(`/procurement/purchase-receipts/new?poId=${po.id}`)}
-                              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border text-white whitespace-nowrap transition-colors"
-                              style={{ background: "linear-gradient(135deg,#059669,#047857)", borderColor: "#047857" }}>
-                              <PackageCheck className="h-3 w-3" /> Create PR
-                            </button>
-                          )}
+                          {openActionMenu === po.id && (
+                            <div className="absolute right-0 z-30 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[160px] py-1">
 
-                          {transitions.length > 0 && (
-                            <div className="relative group">
+                              {/* View */}
                               <button
-                                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 whitespace-nowrap transition-colors">
-                                <RefreshCw className="h-3 w-3" /> Status
-                                <ChevronDown className="h-3 w-3" />
+                                onClick={() => { setOpenActionMenu(null); navigate(`/procurement/purchase-orders/${po.id}`); }}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5">
+                                <Eye className="h-3.5 w-3.5 text-gray-400" /> View Details
                               </button>
-                              <div className="absolute right-0 z-20 top-full mt-1 hidden group-hover:block bg-white border border-gray-200 rounded-xl shadow-lg min-w-[140px]">
-                                {transitions.map(newSt => {
-                                  const info = STATUS_MAP[newSt] ?? STATUS_MAP.Draft;
-                                  return (
-                                    <button key={newSt}
-                                      onClick={() => setStatusModal({ po, newStatus: newSt })}
-                                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2`}>
-                                      <info.Icon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: newSt === "Cancelled" ? "#dc2626" : newSt === "Approved" ? "#1d4ed8" : "#059669" }} />
-                                      <span>{newSt}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
 
-                          {isAdmin && !["Closed", "Partially Received"].includes(po.status) && (
-                            <button onClick={() => setDeleteConfirm(po)}
-                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              {/* Create PR */}
+                              {canCreatePr && (
+                                <button
+                                  onClick={() => { setOpenActionMenu(null); navigate(`/procurement/purchase-receipts/new?poId=${po.id}`); }}
+                                  className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-green-50 flex items-center gap-2.5">
+                                  <PackageCheck className="h-3.5 w-3.5" /> Create Receipt
+                                </button>
+                              )}
+
+                              {/* Status transitions */}
+                              {transitions.length > 0 && (
+                                <>
+                                  <div className="mx-2 my-1 border-t border-gray-100" />
+                                  <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Change Status</p>
+                                  {transitions.map(newSt => {
+                                    const info = STATUS_MAP[newSt] ?? STATUS_MAP.Draft;
+                                    const col = newSt === "Cancelled" ? "text-red-600" : newSt === "Approved" ? "text-blue-700" : "text-green-700";
+                                    const bg  = newSt === "Cancelled" ? "hover:bg-red-50" : newSt === "Approved" ? "hover:bg-blue-50" : "hover:bg-green-50";
+                                    return (
+                                      <button key={newSt}
+                                        onClick={() => { setOpenActionMenu(null); setStatusModal({ po, newStatus: newSt }); }}
+                                        className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 ${col} ${bg}`}>
+                                        <info.Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                                        <span>→ {newSt}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </>
+                              )}
+
+                              {/* Delete */}
+                              {isAdmin && !["Closed", "Partially Received"].includes(po.status) && (
+                                <>
+                                  <div className="mx-2 my-1 border-t border-gray-100" />
+                                  <button
+                                    onClick={() => { setOpenActionMenu(null); setDeleteConfirm(po); }}
+                                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5">
+                                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
