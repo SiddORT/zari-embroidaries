@@ -4,7 +4,8 @@ import {
   User, Lock, Globe, ChevronDown, ChevronUp, Save, RefreshCw,
   Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X,
   Building2, Activity, Trash2, Star, Plus, Filter, Search,
-  CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText, Receipt, ToggleLeft, ToggleRight, Info
+  CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText, Receipt, ToggleLeft, ToggleRight, Info,
+  Layers, Check, ChevronRight
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ import AppLayout from "@/components/layout/AppLayout";
 
 const G = "#C6AF4B";
 
-type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses";
+type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses" | "templates";
 
 const STATUS_COLORS: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -86,7 +87,10 @@ export default function Settings() {
               )}
               <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
               {isAdmin && (
-                <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
+                <>
+                  <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
+                  <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => setTab("templates")} />
+                </>
               )}
             </div>
           </aside>
@@ -99,6 +103,7 @@ export default function Settings() {
             {tab === "gst" && isAdmin && <GSTSettingsTab card={card} inp={inp} label={label} toast={toast} />}
             {tab === "logs" && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} />}
             {tab === "warehouses" && isAdmin && <WarehouseTab card={card} inp={inp} label={label} toast={toast} />}
+            {tab === "templates" && isAdmin && <InvoiceTemplatesTab card={card} toast={toast} />}
           </div>
         </div>
       </div>
@@ -2101,6 +2106,320 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
           Save GST Settings
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Invoice Templates Tab ─────────────────────────────────────────────────────
+
+interface InvoiceTemplate {
+  id: number;
+  name: string;
+  layout: string;
+  payment_terms: string;
+  notes: string;
+  is_default: boolean;
+}
+
+function TemplatePreview({ layout }: { layout: string }) {
+  if (layout === "classic") {
+    return (
+      <div className="w-full h-32 bg-white border border-gray-100 rounded-lg overflow-hidden p-2 flex flex-col gap-1">
+        <div className="h-5 rounded" style={{ backgroundColor: G, opacity: 0.9 }} />
+        <div className="h-px bg-gray-200" />
+        <div className="flex gap-1 mt-0.5">
+          <div className="flex-1 flex flex-col gap-1">
+            <div className="h-1.5 bg-gray-200 rounded w-3/4" />
+            <div className="h-1.5 bg-gray-100 rounded w-1/2" />
+          </div>
+          <div className="flex flex-col gap-1 items-end">
+            <div className="h-1.5 bg-gray-200 rounded w-10" />
+            <div className="h-1.5 bg-gray-100 rounded w-8" />
+          </div>
+        </div>
+        <div className="mt-1 border border-gray-100 rounded overflow-hidden">
+          {[0,1,2].map(i => (
+            <div key={i} className="flex gap-1 px-1 py-0.5 border-b border-gray-50">
+              <div className="h-1 bg-gray-200 rounded flex-1" />
+              <div className="h-1 bg-gray-100 rounded w-5" />
+              <div className="h-1 bg-gray-100 rounded w-5" />
+            </div>
+          ))}
+        </div>
+        <div className="h-px bg-gray-200 mt-auto" />
+        <div className="h-1.5 bg-gray-100 rounded w-2/3" />
+      </div>
+    );
+  }
+  if (layout === "modern") {
+    return (
+      <div className="w-full h-32 bg-white border border-gray-100 rounded-lg overflow-hidden flex">
+        <div className="w-1/3 h-full flex flex-col gap-1 p-2" style={{ backgroundColor: "#1a1a2e" }}>
+          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: G }} />
+          <div className="h-1 bg-white/20 rounded w-full mt-1" />
+          <div className="h-1 bg-white/10 rounded w-3/4" />
+          <div className="h-1 bg-white/10 rounded w-1/2" />
+          <div className="mt-auto h-1 bg-white/20 rounded w-full" />
+        </div>
+        <div className="flex-1 p-2 flex flex-col gap-1">
+          <div className="h-3 rounded" style={{ backgroundColor: G, opacity: 0.15 }} />
+          <div className="h-px bg-gray-100 mt-1" />
+          {[0,1,2].map(i => (
+            <div key={i} className="flex gap-1">
+              <div className="h-1 bg-gray-200 rounded flex-1" />
+              <div className="h-1 bg-gray-100 rounded w-4" />
+            </div>
+          ))}
+          <div className="mt-auto flex justify-end">
+            <div className="h-2 w-10 rounded" style={{ backgroundColor: G, opacity: 0.6 }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // premium
+  return (
+    <div className="w-full h-32 bg-white border border-gray-100 rounded-lg overflow-hidden flex flex-col">
+      <div className="h-8 flex items-center justify-between px-2" style={{ background: `linear-gradient(135deg, #1a1a2e 60%, ${G})` }}>
+        <div className="h-2 w-12 bg-white/80 rounded" />
+        <div className="text-[7px] font-bold text-white/80 tracking-widest">INVOICE</div>
+      </div>
+      <div className="flex gap-1.5 px-2 py-1">
+        <div className="flex-1 flex flex-col gap-0.5">
+          <div className="h-1 bg-gray-200 rounded w-2/3" />
+          <div className="h-1 bg-gray-100 rounded w-1/2" />
+        </div>
+        <div className="flex flex-col gap-0.5 items-end">
+          <div className="h-1 bg-gray-200 rounded w-8" />
+          <div className="h-1 bg-gray-100 rounded w-6" />
+        </div>
+      </div>
+      <div className="mx-2 border border-gray-100 rounded overflow-hidden">
+        <div className="h-2 px-1" style={{ backgroundColor: G, opacity: 0.2 }}>
+          <div className="flex gap-1 items-center h-full">
+            <div className="h-0.5 bg-gray-400 rounded flex-1" />
+            <div className="h-0.5 bg-gray-400 rounded w-4" />
+            <div className="h-0.5 bg-gray-400 rounded w-4" />
+          </div>
+        </div>
+        {[0,1].map(i => (
+          <div key={i} className="flex gap-1 px-1 py-0.5">
+            <div className="h-0.5 bg-gray-200 rounded flex-1" />
+            <div className="h-0.5 bg-gray-100 rounded w-4" />
+            <div className="h-0.5 bg-gray-100 rounded w-4" />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end px-2 mt-1">
+        <div className="h-2 w-12 rounded" style={{ backgroundColor: G, opacity: 0.7 }} />
+      </div>
+    </div>
+  );
+}
+
+function InvoiceTemplatesTab({ card, toast }: any) {
+  const token = localStorage.getItem("zarierp_token");
+  const hdrs = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+  const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [form, setForm] = useState({ payment_terms: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+  const [settingDefault, setSettingDefault] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/settings/invoice-templates", { headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json();
+      const tpls: InvoiceTemplate[] = j.data ?? [];
+      setTemplates(tpls);
+      const def = tpls.find(t => t.is_default) ?? tpls[0] ?? null;
+      if (def) {
+        setSelected(def.id);
+        setForm({ payment_terms: def.payment_terms, notes: def.notes });
+      }
+    } catch { toast({ title: "Failed to load templates", variant: "destructive" }); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const selectTemplate = (t: InvoiceTemplate) => {
+    setSelected(t.id);
+    setForm({ payment_terms: t.payment_terms, notes: t.notes });
+  };
+
+  const handleSave = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/settings/invoice-templates/${selected}`, {
+        method: "PATCH",
+        headers: hdrs,
+        body: JSON.stringify(form),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setTemplates(ts => ts.map(t => t.id === selected ? { ...t, ...j.data } : t));
+      toast({ title: "Template saved successfully" });
+    } catch (err: any) {
+      toast({ title: err.message ?? "Save failed", variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const handleSetDefault = async () => {
+    if (!selected) return;
+    setSettingDefault(true);
+    try {
+      const r = await fetch(`/api/settings/invoice-templates/${selected}/set-default`, {
+        method: "POST", headers: hdrs,
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setTemplates(ts => ts.map(t => ({ ...t, is_default: t.id === selected })));
+      toast({ title: "Default template updated" });
+    } catch (err: any) {
+      toast({ title: err.message ?? "Failed", variant: "destructive" });
+    } finally { setSettingDefault(false); }
+  };
+
+  const selectedTpl = templates.find(t => t.id === selected);
+  const LAYOUT_LABELS: Record<string, string> = {
+    classic: "Classic",
+    modern: "Modern",
+    premium: "Premium",
+  };
+  const LAYOUT_DESC: Record<string, string> = {
+    classic: "Traditional full-width layout with formal header, line items table, and payment summary at bottom.",
+    modern: "Two-column design with dark sidebar for company info and clean content area on the right.",
+    premium: "Bold gradient header with branded styling — ideal for high-value and export invoices.",
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">Invoice Templates</h2>
+        <p className="text-sm text-gray-500 mt-0.5">Choose a default layout and configure payment terms and notes printed on every invoice.</p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading templates…</div>
+      ) : (
+        <>
+          {/* Template cards */}
+          <div className="grid grid-cols-3 gap-4">
+            {templates.map(t => {
+              const isSelected = t.id === selected;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => selectTemplate(t)}
+                  className={`relative text-left rounded-2xl border-2 p-3 transition-all group ${
+                    isSelected
+                      ? "border-[#C6AF4B] shadow-md shadow-[#C6AF4B]/20"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {/* Default badge */}
+                  {t.is_default && (
+                    <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: "#C6AF4B22", color: G }}>
+                      <Check size={9} /> Default
+                    </span>
+                  )}
+
+                  {/* Visual preview */}
+                  <TemplatePreview layout={t.layout} />
+
+                  <div className="mt-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-gray-800">{LAYOUT_LABELS[t.layout] ?? t.name}</span>
+                      {isSelected && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: G }}>
+                          Selected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5 leading-tight line-clamp-2">
+                      {LAYOUT_DESC[t.layout] ?? ""}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Edit panel */}
+          {selectedTpl && (
+            <div className={`${card} space-y-4`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <ChevronRight size={14} style={{ color: G }} />
+                    Editing: {LAYOUT_LABELS[selectedTpl.layout] ?? selectedTpl.name} Template
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5 ml-5">These fields will be printed on every invoice using this template.</p>
+                </div>
+                <button
+                  onClick={handleSetDefault}
+                  disabled={settingDefault || selectedTpl.is_default}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+                    selectedTpl.is_default
+                      ? "border-[#C6AF4B40] text-[#C6AF4B] bg-[#C6AF4B0D] cursor-default"
+                      : "border-gray-200 text-gray-600 hover:border-[#C6AF4B] hover:text-[#C6AF4B]"
+                  }`}
+                >
+                  {settingDefault
+                    ? <span className="h-3 w-3 border border-current border-t-transparent rounded-full animate-spin" />
+                    : <Check size={12} />}
+                  {selectedTpl.is_default ? "Default Template" : "Set as Default"}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-gray-600">Payment Terms</label>
+                  <textarea
+                    rows={4}
+                    value={form.payment_terms}
+                    onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))}
+                    placeholder="e.g. Payment due within 30 days of invoice date…"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 focus:border-[#C6AF4B] placeholder:text-gray-400"
+                  />
+                  <p className="text-[11px] text-gray-400">Printed in the Payment Terms section of the invoice.</p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-gray-600">Notes / Footer Message</label>
+                  <textarea
+                    rows={4}
+                    value={form.notes}
+                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="e.g. Thank you for your business. Cheques payable to…"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 focus:border-[#C6AF4B] placeholder:text-gray-400"
+                  />
+                  <p className="text-[11px] text-gray-400">Appears at the bottom of the printed invoice.</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
+                  style={{ backgroundColor: G }}
+                >
+                  {saving
+                    ? <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <Save size={14} />}
+                  Save Template
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

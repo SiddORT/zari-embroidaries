@@ -107,6 +107,38 @@ export async function ensureSettingsTables() {
   }
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS invoice_templates (
+      id             SERIAL PRIMARY KEY,
+      name           TEXT NOT NULL,
+      layout         TEXT NOT NULL DEFAULT 'classic',
+      payment_terms  TEXT NOT NULL DEFAULT '',
+      notes          TEXT NOT NULL DEFAULT '',
+      is_default     BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  const { rows: tplCheck } = await pool.query(`SELECT COUNT(*) FROM invoice_templates`);
+  if (parseInt(tplCheck[0].count) === 0) {
+    await pool.query(`
+      INSERT INTO invoice_templates (name, layout, payment_terms, notes, is_default) VALUES
+      ('Classic', 'classic',
+        'Payment due within 30 days of invoice date. Late payments attract 2% interest per month.',
+        'Thank you for your business. Please make all cheques payable to Zari Embroideries.',
+        TRUE),
+      ('Modern', 'modern',
+        'Net 15 — Payment due within 15 days of invoice date. Bank transfer preferred.',
+        'We value your partnership. For billing queries contact accounts@zariembroideries.com.',
+        FALSE),
+      ('Premium', 'premium',
+        'Advance payment required prior to dispatch. 50% on order, 50% before shipment.',
+        'Goods once dispatched are non-returnable. Subject to jurisdiction of local courts only.',
+        FALSE)
+    `);
+  }
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS company_gst_settings (
       gst_settings_id       SERIAL PRIMARY KEY,
       company_gstin         TEXT NOT NULL DEFAULT '',
@@ -597,6 +629,43 @@ router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
     }
 
     res.json({ message: "GST settings updated successfully" });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Invoice Templates ────────────────────────────────────────────────────────
+
+// GET /api/settings/invoice-templates
+router.get("/settings/invoice-templates", requireAuth, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM invoice_templates ORDER BY id ASC`);
+    res.json({ data: rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/settings/invoice-templates/:id  (update payment_terms & notes)
+router.patch("/settings/invoice-templates/:id", requireAuth, async (req: AuthRequest, res) => {
+  const id = parseInt(req.params.id);
+  const { payment_terms, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE invoice_templates SET payment_terms=$1, notes=$2, updated_at=NOW() WHERE id=$3 RETURNING *`,
+      [payment_terms ?? "", notes ?? "", id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Template not found" });
+    res.json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/settings/invoice-templates/:id/set-default
+router.post("/settings/invoice-templates/:id/set-default", requireAuth, async (req: AuthRequest, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    await pool.query(`UPDATE invoice_templates SET is_default = FALSE, updated_at=NOW()`);
+    const { rows } = await pool.query(
+      `UPDATE invoice_templates SET is_default = TRUE, updated_at=NOW() WHERE id=$1 RETURNING *`, [id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Template not found" });
+    res.json({ data: rows[0] });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
