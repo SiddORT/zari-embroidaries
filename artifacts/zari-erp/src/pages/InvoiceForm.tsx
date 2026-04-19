@@ -839,20 +839,22 @@ export default function InvoiceForm() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[32%]">Description</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[16%]">Category</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Qty</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[14%]">Unit Price</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">GST</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[12%]">Total</th>
-                  <th className="w-[4%]"></th>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[26%]">Description</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">Category</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[7%]">Qty</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[11%]">Rate ₹</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">HSN Code</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[8%]">GST %</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">GST Amt</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Amount ₹</th>
+                  <th className="w-[3%]"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center">
+                    <td colSpan={9} className="px-6 py-10 text-center">
                       <p className="text-sm text-gray-400 mb-1">No line items yet</p>
                       <p className="text-xs text-gray-300">
                         Select a Swatch or Style reference and click <strong>Load from Cost Sheet</strong>, or click <strong>+ Add Item</strong> to add manually.
@@ -861,11 +863,12 @@ export default function InvoiceForm() {
                   </tr>
                 )}
                 {items.map(it => {
-                  const needsHsn = HSN_CATEGORIES.has(it.category);
-                  const itemGst = needsHsn && it.hsnGstPct ? (it.total * parseFloat(it.hsnGstPct)) / 100 : 0;
+                  const gstPct = parseFloat(it.hsnGstPct || "0");
+                  const itemGst = gstPct > 0 ? (it.total * gstPct) / 100 : 0;
                   return (
                     <Fragment key={it.id}>
-                      <tr className="border-b border-gray-50">
+                      <tr className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
+                        {/* Description */}
                         <td className="px-3 py-2">
                           {it.category === "Fabric" ? (
                             <select
@@ -876,13 +879,13 @@ export default function InvoiceForm() {
                                 if (fab) {
                                   const hsn = hsnList.find(h => h.hsnCode === fab.hsnCode);
                                   setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                    ...x, description: label, hsnCode: fab.hsnCode, hsnGstPct: hsn?.gstPercentage ?? "",
+                                    ...x, description: label, hsnCode: fab.hsnCode, hsnGstPct: hsn?.gstPercentage ?? fab.hsnCode ? String(parseFloat(hsn?.gstPercentage ?? "0")) : "",
                                   }));
                                 } else {
                                   updateItem(it.id, "description", label);
                                 }
                               }}
-                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
                             >
                               <option value="">— Select Fabric —</option>
                               {fabricMaster.map(f => {
@@ -905,7 +908,7 @@ export default function InvoiceForm() {
                                   updateItem(it.id, "description", label);
                                 }
                               }}
-                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
                             >
                               <option value="">— Select {it.category} —</option>
                               {materialMaster.map(m => {
@@ -914,92 +917,80 @@ export default function InvoiceForm() {
                               })}
                             </select>
                           ) : (
-                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
                           )}
                         </td>
+                        {/* Category */}
                         <td className="px-3 py-2">
                           <select
                             value={it.category}
                             onChange={e => {
                               const cat = e.target.value;
-                              setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                ...x, category: cat,
-                                hsnCode: HSN_CATEGORIES.has(cat) ? x.hsnCode : "",
-                                hsnGstPct: HSN_CATEGORIES.has(cat) ? x.hsnGstPct : "",
-                              }));
+                              setItems(prev => prev.map(x => x.id !== it.id ? x : { ...x, category: cat }));
                             }}
-                            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
                           >
                             {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </td>
+                        {/* Qty */}
                         <td className="px-3 py-2">
-                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
                         </td>
+                        {/* Rate */}
                         <td className="px-3 py-2">
-                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
                         </td>
-                        <td className="px-3 py-2 text-right text-sm text-gray-600">
-                          {needsHsn && it.hsnGstPct ? (
-                            <span className="text-xs">
-                              <span className="text-gray-400">{it.hsnGstPct}%</span>
-                              <br />
-                              <span className="font-medium text-gray-700">{itemGst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                            </span>
-                          ) : <span className="text-gray-300">—</span>}
+                        {/* HSN Code */}
+                        <td className="px-3 py-2">
+                          <input
+                            value={it.hsnCode}
+                            onChange={e => {
+                              const code = e.target.value;
+                              const hsn = hsnList.find(h => h.hsnCode === code);
+                              setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                ...x, hsnCode: code,
+                                hsnGstPct: hsn ? hsn.gstPercentage : x.hsnGstPct,
+                              }));
+                            }}
+                            list={`hsn-list-${it.id}`}
+                            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]"
+                            placeholder="e.g. 63019090"
+                          />
+                          <datalist id={`hsn-list-${it.id}`}>
+                            {hsnList.map(h => (
+                              <option key={h.id} value={h.hsnCode}>{h.govtDescription} — {h.gstPercentage}%</option>
+                            ))}
+                          </datalist>
                         </td>
-                        <td className="px-3 py-2 font-semibold text-gray-900 text-right pr-3">
+                        {/* GST % */}
+                        <td className="px-3 py-2">
+                          <input
+                            type="number" min="0" max="100" step="0.01"
+                            value={it.hsnGstPct}
+                            onChange={e => updateItem(it.id, "hsnGstPct", e.target.value)}
+                            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
+                            placeholder="0"
+                          />
+                        </td>
+                        {/* GST Amount */}
+                        <td className="px-3 py-2 text-right text-xs text-gray-600">
+                          {gstPct > 0
+                            ? <span className="font-medium text-amber-700">{itemGst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                            : <span className="text-gray-300">—</span>
+                          }
+                        </td>
+                        {/* Amount */}
+                        <td className="px-3 py-2 font-semibold text-gray-900 text-right text-xs">
                           {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
+                        {/* Delete */}
                         <td className="px-2 py-2">
-                          {items.length > 1 && (
-                            <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                              <Trash2 size={13} />
-                            </button>
-                          )}
+                          <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                            <Trash2 size={12} />
+                          </button>
                         </td>
                       </tr>
-                      {needsHsn && (
-                        <tr className="bg-gray-50 border-b border-gray-100">
-                          <td colSpan={7} className="px-4 py-2">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">HSN:</span>
-                              <select
-                                value={it.hsnCode}
-                                onChange={e => {
-                                  const code = e.target.value;
-                                  const hsn = hsnList.find(h => h.hsnCode === code);
-                                  setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                    ...x, hsnCode: code, hsnGstPct: hsn?.gstPercentage ?? "",
-                                  }));
-                                }}
-                                className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer min-w-[220px]"
-                              >
-                                <option value="">— Select HSN Code —</option>
-                                {hsnList.map(h => (
-                                  <option key={h.id} value={h.hsnCode}>
-                                    {h.hsnCode} · {h.govtDescription} · GST {h.gstPercentage}%
-                                  </option>
-                                ))}
-                              </select>
-                              {it.hsnGstPct && (
-                                <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-2 py-1">
-                                  GST: <strong>{it.hsnGstPct}%</strong>
-                                </span>
-                              )}
-                              <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer ml-auto">
-                                <input
-                                  type="checkbox"
-                                  checked={it.showHsn}
-                                  onChange={e => updateItem(it.id, "showHsn", e.target.checked)}
-                                  className="rounded"
-                                />
-                                Show HSN for this item
-                              </label>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </Fragment>
                   );
                 })}

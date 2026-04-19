@@ -1528,10 +1528,10 @@ router.post("/style-custom-charges", requireAuth, async (req, res) => {
 
 // ─── Invoice Items Aggregate ─────────────────────────────────────────────────
 // GET /api/costing/invoice-items?type=Swatch&orderId=123
-// Returns all cost-sheet components for an order as normalised invoice line items,
-// plus the final_shipping_amount if a shipping record exists for that reference.
+// Returns all cost-sheet components for an order as normalised invoice line items.
+// BOM rows: uses consumedQty (not requiredQty) + weighted avg price from PRs + HSN from master.
 router.get("/invoice-items", requireAuth, async (req, res) => {
-  const type = String(req.query.type ?? "").trim();          // "Swatch" | "Style"
+  const type = String(req.query.type ?? "").trim();
   const orderId = Number(req.query.orderId);
   if (!orderId || (type !== "Swatch" && type !== "Style")) {
     res.status(400).json({ error: "type (Swatch|Style) and orderId are required" }); return;
@@ -1539,36 +1539,51 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
 
   const isSwatch = type === "Swatch";
 
-  // Fetch all cost components in parallel
-  const [bomRows, artisanRows, outsourceRows, customRows, shippingR] = await Promise.all([
-    // BOM (materials + fabrics)
+  // Fetch everything in parallel
+  const [bomRows, artisanRows, outsourceRows, customRows, allMaterials, allFabrics, allPRs, shippingR] = await Promise.all([
     isSwatch
       ? db.select().from(swatchBomTable).where(eq(swatchBomTable.swatchOrderId, orderId)).orderBy(swatchBomTable.createdAt)
       : db.select().from(swatchBomTable).where(eq(swatchBomTable.styleOrderId, orderId)).orderBy(swatchBomTable.createdAt),
 
-    // Artisan timesheets
     isSwatch
       ? db.select().from(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.swatchOrderId, orderId))
       : db.select().from(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.styleOrderId, orderId)),
 
-    // Outsource jobs
     isSwatch
       ? db.select().from(outsourceJobsTable).where(eq(outsourceJobsTable.swatchOrderId, orderId))
       : db.select().from(outsourceJobsTable).where(eq(outsourceJobsTable.styleOrderId, orderId)),
 
-    // Custom charges
     isSwatch
       ? db.select().from(customChargesTable).where(eq(customChargesTable.swatchOrderId, orderId))
       : db.select().from(customChargesTable).where(eq(customChargesTable.styleOrderId, orderId)),
 
-    // Shipping (if exists)
+    // HSN master lookup
+    db.select({ materialCode: materialsTable.materialCode, hsnCode: materialsTable.hsnCode, gstPercent: materialsTable.gstPercent }).from(materialsTable),
+    db.select({ fabricCode: fabricsTable.fabricCode, hsnCode: fabricsTable.hsnCode, gstPercent: fabricsTable.gstPercent }).from(fabricsTable),
+
+    // PRs for weighted avg calculation
+    isSwatch
+      ? db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.swatchOrderId as any, orderId)).catch(() => [] as any[])
+      : db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.styleOrderId, orderId)).catch(() => [] as any[]),
+
     pool.query(
-      `SELECT final_shipping_amount FROM order_shipping_details
-       WHERE reference_type = $1 AND reference_id = $2
-       ORDER BY created_at DESC LIMIT 1`,
+      `SELECT final_shipping_amount FROM order_shipping_details WHERE reference_type = $1 AND reference_id = $2 ORDER BY created_at DESC LIMIT 1`,
       [type, orderId]
     ).catch(() => ({ rows: [] as any[] })),
   ]);
+
+  // Build HSN lookup maps
+  const matHsnMap = new Map(allMaterials.map(m => [m.materialCode, { hsnCode: m.hsnCode ?? "", gstPercent: m.gstPercent ?? "0" }]));
+  const fabHsnMap = new Map(allFabrics.map(f => [f.fabricCode, { hsnCode: f.hsnCode ?? "", gstPercent: f.gstPercent ?? "0" }]));
+
+  // Build PR lookup for weighted avg: map bomRowId → list of {receivedQty, actualPrice}
+  const prsByBomRow = new Map<number, { qty: number; price: number }[]>();
+  for (const pr of (allPRs ?? [])) {
+    if (pr.bomRowId == null) continue;
+    const existing = prsByBomRow.get(pr.bomRowId) ?? [];
+    existing.push({ qty: parseFloat(pr.receivedQty ?? "0"), price: parseFloat(pr.actualPrice ?? "0") });
+    prsByBomRow.set(pr.bomRowId, existing);
+  }
 
   const items: {
     description: string; category: string;
@@ -1576,19 +1591,38 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
     hsnCode: string; hsnGstPct: string; unit: string; source: string;
   }[] = [];
 
-  // BOM rows → Material or Fabric
+  // BOM rows → Material or Fabric — use consumedQty + weighted avg price
   for (const r of bomRows) {
+    const consumedQty = parseFloat(r.consumedQty ?? "0");
+    if (consumedQty <= 0) continue;  // only include actually consumed items
+
     const isFabric = (r.materialType ?? "").toLowerCase() === "fabric";
-    const qty = parseFloat(r.requiredQty ?? "1") || 1;
-    const rate = parseFloat(r.avgUnitPrice ?? "0") || 0;
+    const stockNum = parseFloat(r.currentStock ?? "0");
+    const avgPrice = parseFloat(r.avgUnitPrice ?? "0");
+
+    // Compute weighted average price from PRs
+    const prs = prsByBomRow.get(r.id) ?? [];
+    const prTotal = prs.reduce((s, p) => s + p.qty * p.price, 0);
+    const prQty = prs.reduce((s, p) => s + p.qty, 0);
+    const weightedAvg = (stockNum + prQty) > 0
+      ? (stockNum * avgPrice + prTotal) / (stockNum + prQty)
+      : avgPrice;
+    const rate = weightedAvg > 0 ? weightedAvg : avgPrice;
+    const total = consumedQty * rate;
+
+    // HSN + GST from master
+    const hsnInfo = isFabric
+      ? (fabHsnMap.get(r.materialCode ?? "") ?? { hsnCode: "", gstPercent: "0" })
+      : (matHsnMap.get(r.materialCode ?? "") ?? { hsnCode: "", gstPercent: "0" });
+
     items.push({
       description: `[${r.materialCode}] ${r.materialName ?? ""}`.trim(),
       category: isFabric ? "Fabric" : "Material",
-      quantity: qty,
-      unitPrice: rate,
-      total: parseFloat(r.estimatedAmount ?? String(qty * rate)) || qty * rate,
-      hsnCode: "",
-      hsnGstPct: "",
+      quantity: consumedQty,
+      unitPrice: parseFloat(rate.toFixed(4)),
+      total: parseFloat(total.toFixed(2)),
+      hsnCode: hsnInfo.hsnCode,
+      hsnGstPct: hsnInfo.gstPercent,
       unit: r.unitType ?? "",
       source: "bom",
     });
@@ -1603,7 +1637,7 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
     items.push({
       description: `${r.shiftType} Labour — ${n} artisan${n !== 1 ? "s" : ""} (${r.startDate} to ${r.endDate})`,
       category: "Artisan",
-      quantity: hrs * n,
+      quantity: parseFloat((hrs * n).toFixed(2)),
       unitPrice: rate,
       total,
       hsnCode: "",
