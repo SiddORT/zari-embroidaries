@@ -158,6 +158,7 @@ export function useUpdateBomQty() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+      void qc.invalidateQueries({ queryKey: ["style-bom"] });
       void qc.invalidateQueries({ queryKey: ["inventory-items"] });
       void qc.invalidateQueries({ queryKey: ["reservations"] });
     },
