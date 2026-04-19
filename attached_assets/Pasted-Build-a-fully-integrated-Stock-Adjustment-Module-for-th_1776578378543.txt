@@ -1,0 +1,540 @@
+Build a fully integrated Stock Adjustment Module for the Inventory system of an embroidery sampling ERP.
+
+This module must support:
+
+Damage entries
+Loss entries
+Manual corrections
+Audit corrections
+Opening stock corrections
+
+Stock adjustment entries must automatically update:
+
+inventory_items.current_stock
+inventory_items.available_stock
+stock_ledger
+reservation safety validation
+consumption availability validation
+costing visibility
+loss analytics
+
+System uses single-location inventory structure.
+
+Do NOT implement multi-location stock adjustment logic.
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+---
+
+Inventory Stock Adjustment Module
+
+---
+
+SECTION 1 — DATABASE TABLE STRUCTURE
+
+---
+
+Create table:
+
+stock_adjustments
+
+Fields:
+
+adjustment_id (primary key)
+
+item_id (foreign key → item master)
+
+inventory_id (foreign key → inventory_items)
+
+adjustment_type
+
+adjustment_direction
+
+adjustment_quantity
+
+unit
+
+average_price_at_adjustment
+
+revenue_loss_amount
+
+reference_type
+
+reference_id
+
+reason
+
+remarks
+
+adjusted_by
+
+adjustment_date
+
+created_at
+
+updated_at
+
+adjustment_type values:
+
+Damage
+Loss
+Manual Correction
+Audit Correction
+Opening Correction
+
+adjustment_direction values:
+
+Increase
+Decrease
+
+reference_type values:
+
+Inventory
+Swatch
+Style
+Audit
+Manual
+
+---
+
+SECTION 2 — STOCK UPDATE ENGINE
+
+---
+
+When adjustment entry created:
+
+IF adjustment_direction = Decrease
+
+inventory_items.current_stock -= adjustment_quantity
+
+IF adjustment_direction = Increase
+
+inventory_items.current_stock += adjustment_quantity
+
+Immediately recalculate:
+
+available_stock
+
+Formula:
+
+available_stock =
+current_stock
+− style_reserved_qty
+− swatch_reserved_qty
+
+Update:
+
+inventory_items.last_updated_at
+
+---
+
+SECTION 3 — SINGLE LOCATION STOCK SUPPORT
+
+---
+
+System uses single stock record per item.
+
+Stock adjustment must apply directly to:
+
+inventory_items.current_stock
+
+Warehouse location must NOT create separate stock layers.
+
+Adjustment must affect only the mapped inventory_items record.
+
+---
+
+SECTION 4 — STOCK LEDGER ENTRY CREATION
+
+---
+
+Create ledger entry automatically:
+
+transaction_type = Adjustment
+
+reference_type = adjustment_type
+
+reference_number = adjustment_id
+
+IF adjustment_direction = Decrease
+
+out_quantity = adjustment_quantity
+
+IF adjustment_direction = Increase
+
+in_quantity = adjustment_quantity
+
+balance_quantity = updated_stock
+
+remarks:
+
+Auto generated from stock adjustment entry
+
+Ledger entry must not be editable.
+
+---
+
+SECTION 5 — REVENUE LOSS CALCULATION ENGINE
+
+---
+
+If adjustment_direction = Decrease
+
+AND adjustment_type is:
+
+Damage
+Loss
+Audit Correction
+
+Calculate:
+
+revenue_loss_amount =
+adjustment_quantity × inventory_items.average_price
+
+Store:
+
+average_price_at_adjustment
+
+and
+
+revenue_loss_amount
+
+inside stock_adjustments table
+
+If adjustment_direction = Increase
+
+revenue_loss_amount = 0
+
+---
+
+SECTION 6 — REAL-TIME LOSS PREVIEW IN UI
+
+---
+
+Before saving adjustment entry:
+
+Display:
+
+average_price
+
+adjustment_quantity
+
+estimated revenue_loss_amount
+
+Example:
+
+Damage = 5 units
+
+Avg price = 120
+
+Loss = 600
+
+---
+
+SECTION 7 — RESERVATION SAFETY VALIDATION
+
+---
+
+Before reducing stock:
+
+System must validate:
+
+adjustment_quantity <= available_stock
+
+If violation detected:
+
+Block adjustment
+
+Display error:
+
+Cannot reduce stock below reserved quantity
+
+---
+
+SECTION 8 — CONSUMPTION SAFETY VALIDATION
+
+---
+
+Prevent adjustment that causes:
+
+available_stock < 0
+
+Display error:
+
+Adjustment exceeds available stock
+
+---
+
+SECTION 9 — INVENTORY SCREEN AUTO UPDATE
+
+---
+
+Immediately refresh:
+
+current_stock
+
+available_stock
+
+last_updated_at
+
+without manual reload
+
+---
+
+SECTION 10 — COSTING MODULE VISIBILITY UPDATE
+
+---
+
+If adjusted item linked with:
+
+Swatch costing
+
+Style costing
+
+Update:
+
+available material quantity visibility
+
+inside costing screens
+
+Do NOT modify:
+
+past costing calculations
+
+Only update forward availability
+
+---
+
+SECTION 11 — ADJUSTMENT HISTORY SCREEN
+
+---
+
+Create page:
+
+Inventory → Stock Adjustments
+
+Columns:
+
+Item Name
+
+Adjustment Type
+
+Adjustment Direction
+
+Adjustment Quantity
+
+Average Price
+
+Revenue Loss Amount
+
+Reference Type
+
+Reference ID
+
+Adjusted By
+
+Adjustment Date
+
+Remarks
+
+---
+
+SECTION 12 — FILTER ENGINE
+
+---
+
+Provide filters:
+
+Item Name
+
+Adjustment Type
+
+Adjustment Direction
+
+Date Range
+
+Adjusted By
+
+Loss Amount Range
+
+Reference Type
+
+---
+
+SECTION 13 — EDIT ADJUSTMENT ENTRY HANDLING
+
+---
+
+If adjustment edited:
+
+System must:
+
+reverse previous stock impact
+
+reverse previous ledger entry
+
+apply new adjustment values
+
+recalculate revenue_loss_amount
+
+update inventory stock
+
+update ledger entry
+
+update available_stock
+
+update timestamp
+
+---
+
+SECTION 14 — DELETE ADJUSTMENT ENTRY HANDLING
+
+---
+
+If adjustment deleted:
+
+System must:
+
+restore inventory stock
+
+restore available_stock
+
+remove ledger entry
+
+remove revenue_loss_amount record
+
+update timestamp
+
+Deletion allowed only for Admin users.
+
+---
+
+SECTION 15 — PERMISSION CONTROL SYSTEM
+
+---
+
+Create adjustment entry:
+
+Authorized users
+
+Edit adjustment entry:
+
+Authorized users
+
+Delete adjustment entry:
+
+Admin users only
+
+View adjustment history:
+
+All users
+
+---
+
+SECTION 16 — LOSS ANALYTICS SUMMARY PANEL
+
+---
+
+Create summary panel:
+
+Inventory → Adjustment Summary Panel
+
+Display:
+
+Total Damage Loss This Month
+
+Total Loss Entries This Month
+
+Total Audit Corrections This Month
+
+Total Manual Corrections
+
+Total Opening Corrections
+
+Calculate using:
+
+stock_adjustments table
+
+Grouped by:
+
+adjustment_type
+
+---
+
+SECTION 17 — DUPLICATE ENTRY PROTECTION
+
+---
+
+Prevent duplicate adjustments with:
+
+same item_id
+
+same adjustment_type
+
+same adjustment_date
+
+same reference_id
+
+Instead:
+
+update existing record
+
+---
+
+SECTION 18 — TRANSACTION SAFETY ENGINE
+
+---
+
+Adjustment save operation must be transactional:
+
+If ledger update fails
+
+Rollback inventory update
+
+If inventory update fails
+
+Rollback adjustment save
+
+Prevent partial updates
+
+---
+
+SECTION 19 — AUDIT TRAIL SUPPORT
+
+---
+
+Store automatically:
+
+created_at
+
+updated_at
+
+adjusted_by
+
+for each adjustment entry
+
+Maintain history integrity
+
+---
+
+SECTION 20 — SUCCESS MESSAGE
+
+---
+
+After adjustment saved:
+
+Display message:
+
+Stock adjustment applied successfully and inventory updated
+
+---
+
+END OF STOCK ADJUSTMENT MODULE REQUIREMENTS
+
+---
+
+Build backend logic and frontend UI accordingly.

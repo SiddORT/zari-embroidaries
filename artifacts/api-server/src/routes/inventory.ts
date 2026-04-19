@@ -860,4 +860,310 @@ router.delete("/inventory/reservations/:id", requireAuth, async (req, res) => {
   }
 });
 
+// ─── STOCK ADJUSTMENTS ──────────────────────────────────────────────────────
+
+const LOSS_TYPES = new Set(["Damage", "Loss", "Audit Correction"]);
+
+router.get("/inventory/adjustments/summary", requireAuth, async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN adjustment_type='Damage'           AND adjustment_direction='Decrease' AND adjustment_date >= date_trunc('month', CURRENT_DATE)::text THEN revenue_loss_amount::numeric ELSE 0 END),0)::text AS damage_loss_month,
+        COALESCE(SUM(CASE WHEN adjustment_type='Loss'             AND adjustment_direction='Decrease' AND adjustment_date >= date_trunc('month', CURRENT_DATE)::text THEN revenue_loss_amount::numeric ELSE 0 END),0)::text AS loss_amount_month,
+        COUNT(CASE WHEN adjustment_type='Damage'           AND adjustment_date >= date_trunc('month', CURRENT_DATE)::text THEN 1 END)::int AS damage_count_month,
+        COUNT(CASE WHEN adjustment_type='Loss'             AND adjustment_date >= date_trunc('month', CURRENT_DATE)::text THEN 1 END)::int AS loss_count_month,
+        COUNT(CASE WHEN adjustment_type='Audit Correction' AND adjustment_date >= date_trunc('month', CURRENT_DATE)::text THEN 1 END)::int AS audit_count_month,
+        COUNT(CASE WHEN adjustment_type='Manual Correction' THEN 1 END)::int AS manual_count_total,
+        COUNT(CASE WHEN adjustment_type='Opening Correction' THEN 1 END)::int AS opening_count_total,
+        COALESCE(SUM(revenue_loss_amount::numeric),0)::text AS total_revenue_loss
+      FROM stock_adjustments
+    `);
+    res.json({ data: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load adjustment summary" });
+  }
+});
+
+router.get("/inventory/adjustments", requireAuth, async (req, res) => {
+  try {
+    const {
+      search = "", adjustmentType = "all", adjustmentDirection = "all",
+      referenceType = "all", adjustedBy = "", fromDate = "", toDate = "",
+      minLoss = "", maxLoss = "",
+      page = "1", limit = "20", sort = "newest",
+    } = req.query as Record<string, string>;
+
+    const conditions: string[] = ["1=1"];
+    const params: (string | number)[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(ii.item_name ILIKE $${params.length} OR ii.item_code ILIKE $${params.length} OR sa.reason ILIKE $${params.length})`);
+    }
+    if (adjustmentType !== "all") { params.push(adjustmentType); conditions.push(`sa.adjustment_type = $${params.length}`); }
+    if (adjustmentDirection !== "all") { params.push(adjustmentDirection); conditions.push(`sa.adjustment_direction = $${params.length}`); }
+    if (referenceType !== "all") { params.push(referenceType); conditions.push(`sa.reference_type = $${params.length}`); }
+    if (adjustedBy) { params.push(`%${adjustedBy}%`); conditions.push(`sa.adjusted_by ILIKE $${params.length}`); }
+    if (fromDate) { params.push(fromDate); conditions.push(`sa.adjustment_date >= $${params.length}`); }
+    if (toDate)   { params.push(toDate);   conditions.push(`sa.adjustment_date <= $${params.length}`); }
+    if (minLoss)  { params.push(minLoss);  conditions.push(`sa.revenue_loss_amount::numeric >= $${params.length}`); }
+    if (maxLoss)  { params.push(maxLoss);  conditions.push(`sa.revenue_loss_amount::numeric <= $${params.length}`); }
+
+    const where = `WHERE ${conditions.join(" AND ")}`;
+    const orderBy = sort === "oldest" ? "sa.created_at ASC" : "sa.created_at DESC";
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const [rows, total] = await Promise.all([
+      pool.query(
+        `SELECT sa.*, ii.item_name, ii.item_code, ii.unit_type
+         FROM stock_adjustments sa
+         JOIN inventory_items ii ON ii.id = sa.inventory_id
+         ${where} ORDER BY ${orderBy}
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limitNum, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*) FROM stock_adjustments sa JOIN inventory_items ii ON ii.id = sa.inventory_id ${where}`,
+        params
+      ),
+    ]);
+
+    res.json({ data: rows.rows, total: parseInt(total.rows[0].count), page: pageNum, limit: limitNum });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load adjustments" });
+  }
+});
+
+router.post("/inventory/adjustments", requireAuth, async (req: AuthRequest, res) => {
+  const auth = req;
+  const actor = auth.user?.name || auth.user?.email || "System";
+  try {
+    const {
+      inventoryId, adjustmentType, adjustmentDirection, adjustmentQuantity,
+      referenceType = "Manual", referenceId, reason, remarks, adjustmentDate,
+    } = req.body as {
+      inventoryId: number; adjustmentType: string; adjustmentDirection: string;
+      adjustmentQuantity: number; referenceType?: string; referenceId?: string;
+      reason?: string; remarks?: string; adjustmentDate: string;
+    };
+
+    const qty = Number(adjustmentQuantity);
+    if (!qty || qty <= 0) return res.status(400).json({ error: "Adjustment quantity must be positive" });
+
+    const itemR = await pool.query(
+      `SELECT id, item_code, current_stock, available_stock, average_price, style_reserved_qty, swatch_reserved_qty, unit_type, source_id
+       FROM inventory_items WHERE id = $1 AND is_active = true`, [inventoryId]);
+    if (!itemR.rows.length) return res.status(404).json({ error: "Inventory item not found" });
+    const item = itemR.rows[0];
+
+    if (adjustmentDirection === "Decrease") {
+      const available = parseFloat(item.available_stock);
+      if (qty > available) {
+        return res.status(400).json({
+          error: `Cannot reduce stock below reserved quantity. Available: ${available.toFixed(3)}, Requested: ${qty.toFixed(3)}`
+        });
+      }
+    }
+
+    const avgPrice = parseFloat(item.average_price) || 0;
+    const revenueLoss = (adjustmentDirection === "Decrease" && LOSS_TYPES.has(adjustmentType))
+      ? qty * avgPrice : 0;
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+
+      const stockDelta = adjustmentDirection === "Increase" ? qty : -qty;
+      const newStock = parseFloat(item.current_stock) + stockDelta;
+      const newAvailable = newStock - parseFloat(item.style_reserved_qty) - parseFloat(item.swatch_reserved_qty);
+
+      await client.query(
+        `UPDATE inventory_items
+         SET current_stock = $1, available_stock = GREATEST(0, $2), last_updated_at = NOW()
+         WHERE id = $3`,
+        [newStock, newAvailable, inventoryId]
+      );
+
+      const adjR = await client.query(
+        `INSERT INTO stock_adjustments
+           (item_id, inventory_id, adjustment_type, adjustment_direction, adjustment_quantity,
+            unit, average_price_at_adjustment, revenue_loss_amount,
+            reference_type, reference_id, reason, remarks, adjusted_by, adjustment_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         RETURNING id`,
+        [item.source_id, inventoryId, adjustmentType, adjustmentDirection, qty,
+         item.unit_type, avgPrice, revenueLoss,
+         referenceType, referenceId || null, reason || null, remarks || null,
+         actor, adjustmentDate]
+      );
+      const adjId = adjR.rows[0].id;
+
+      const inQty  = adjustmentDirection === "Increase" ? qty : 0;
+      const outQty = adjustmentDirection === "Decrease" ? qty : 0;
+      await client.query(
+        `INSERT INTO stock_ledger
+           (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+         VALUES ($1,'adjustment',$2,$3,$4,$5,$6,$7,$8)`,
+        [inventoryId, String(adjId), adjustmentType,
+         inQty, outQty, newStock,
+         `${adjustmentType} adjustment (${adjustmentDirection}) — ${reason || remarks || ""}`,
+         actor]
+      );
+
+      await client.query("COMMIT");
+      res.json({ data: { id: adjId, revenueLoss }, message: "Stock adjustment applied successfully and inventory updated" });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to save adjustment" });
+  }
+});
+
+router.put("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, res) => {
+  const auth = req;
+  const actor = auth.user?.name || auth.user?.email || "System";
+  try {
+    const { id } = req.params;
+    const {
+      adjustmentType, adjustmentDirection, adjustmentQuantity,
+      referenceType, referenceId, reason, remarks, adjustmentDate,
+    } = req.body as {
+      adjustmentType: string; adjustmentDirection: string; adjustmentQuantity: number;
+      referenceType?: string; referenceId?: string; reason?: string; remarks?: string; adjustmentDate: string;
+    };
+
+    const adjR = await pool.query(`SELECT * FROM stock_adjustments WHERE id = $1`, [id]);
+    if (!adjR.rows.length) return res.status(404).json({ error: "Adjustment not found" });
+    const old = adjR.rows[0];
+
+    const itemR = await pool.query(
+      `SELECT id, current_stock, available_stock, average_price, style_reserved_qty, swatch_reserved_qty, unit_type, source_id
+       FROM inventory_items WHERE id = $1`, [old.inventory_id]);
+    if (!itemR.rows.length) return res.status(404).json({ error: "Inventory item not found" });
+    const item = itemR.rows[0];
+
+    const oldDelta = old.adjustment_direction === "Increase" ? parseFloat(old.adjustment_quantity) : -parseFloat(old.adjustment_quantity);
+    const stockAfterReversal = parseFloat(item.current_stock) - oldDelta;
+
+    const newQty = Number(adjustmentQuantity);
+    if (!newQty || newQty <= 0) return res.status(400).json({ error: "Adjustment quantity must be positive" });
+    const newDelta = adjustmentDirection === "Increase" ? newQty : -newQty;
+    const newStock = stockAfterReversal + newDelta;
+    const newAvailable = newStock - parseFloat(item.style_reserved_qty) - parseFloat(item.swatch_reserved_qty);
+
+    if (adjustmentDirection === "Decrease") {
+      const availAfterReversal = stockAfterReversal - parseFloat(item.style_reserved_qty) - parseFloat(item.swatch_reserved_qty);
+      if (newQty > availAfterReversal) {
+        return res.status(400).json({
+          error: `Cannot reduce stock below reserved quantity. Available after reversal: ${availAfterReversal.toFixed(3)}`
+        });
+      }
+    }
+
+    const avgPrice = parseFloat(item.average_price) || 0;
+    const revenueLoss = (adjustmentDirection === "Decrease" && LOSS_TYPES.has(adjustmentType))
+      ? newQty * avgPrice : 0;
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `UPDATE inventory_items SET current_stock = $1, available_stock = GREATEST(0, $2), last_updated_at = NOW() WHERE id = $3`,
+        [newStock, newAvailable, old.inventory_id]
+      );
+
+      await client.query(
+        `UPDATE stock_adjustments
+         SET adjustment_type=$1, adjustment_direction=$2, adjustment_quantity=$3,
+             average_price_at_adjustment=$4, revenue_loss_amount=$5,
+             reference_type=COALESCE($6, reference_type), reference_id=$7,
+             reason=$8, remarks=$9, adjustment_date=$10, updated_at=NOW()
+         WHERE id=$11`,
+        [adjustmentType, adjustmentDirection, newQty,
+         avgPrice, revenueLoss,
+         referenceType || null, referenceId || null,
+         reason || null, remarks || null, adjustmentDate, id]
+      );
+
+      await client.query(
+        `UPDATE stock_ledger
+         SET transaction_type='adjustment', reference_type=$1,
+             in_quantity=$2, out_quantity=$3, balance_quantity=$4,
+             remarks=$5
+         WHERE reference_number=$6 AND transaction_type='adjustment'`,
+        [adjustmentType,
+         adjustmentDirection === "Increase" ? newQty : 0,
+         adjustmentDirection === "Decrease" ? newQty : 0,
+         newStock,
+         `${adjustmentType} adjustment (${adjustmentDirection}) — ${reason || remarks || ""}`,
+         String(id)]
+      );
+
+      await client.query("COMMIT");
+      res.json({ data: { revenueLoss }, message: "Adjustment updated successfully" });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to update adjustment" });
+  }
+});
+
+router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, res) => {
+  const auth = req;
+  if ((auth.user as any)?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  try {
+    const { id } = req.params;
+    const adjR = await pool.query(`SELECT * FROM stock_adjustments WHERE id = $1`, [id]);
+    if (!adjR.rows.length) return res.status(404).json({ error: "Adjustment not found" });
+    const old = adjR.rows[0];
+
+    const itemR = await pool.query(
+      `SELECT current_stock, style_reserved_qty, swatch_reserved_qty FROM inventory_items WHERE id = $1`,
+      [old.inventory_id]);
+    if (!itemR.rows.length) return res.status(404).json({ error: "Inventory item not found" });
+    const item = itemR.rows[0];
+
+    const reversalDelta = old.adjustment_direction === "Increase"
+      ? -parseFloat(old.adjustment_quantity) : parseFloat(old.adjustment_quantity);
+    const newStock = parseFloat(item.current_stock) + reversalDelta;
+    const newAvailable = newStock - parseFloat(item.style_reserved_qty) - parseFloat(item.swatch_reserved_qty);
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE inventory_items SET current_stock=$1, available_stock=GREATEST(0,$2), last_updated_at=NOW() WHERE id=$3`,
+        [newStock, newAvailable, old.inventory_id]
+      );
+      await client.query(`DELETE FROM stock_ledger WHERE reference_number=$1 AND transaction_type='adjustment'`, [String(id)]);
+      await client.query(`DELETE FROM stock_adjustments WHERE id=$1`, [id]);
+      await client.query("COMMIT");
+      res.json({ success: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to delete adjustment" });
+  }
+});
+
 export default router;

@@ -32,9 +32,10 @@ const ACCOUNTS_ITEMS = [
 ];
 
 const INVENTORY_ITEMS = [
-  { label: "Item Stock List", href: "/inventory/items" },
-  { label: "Stock Ledger",    href: "/inventory/ledger" },
-  { label: "Reservations",    href: "/inventory/reservations" },
+  { label: "Item Stock List",   href: "/inventory/items" },
+  { label: "Stock Ledger",      href: "/inventory/ledger" },
+  { label: "Reservations",      href: "/inventory/reservations" },
+  { label: "Stock Adjustments", href: "/inventory/adjustments" },
 ];
 
 const PROCUREMENT_ITEMS = [

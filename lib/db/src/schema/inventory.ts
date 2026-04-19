@@ -82,6 +82,28 @@ export const materialReservationsTable = pgTable("material_reservations", {
 
 export type MaterialReservation = typeof materialReservationsTable.$inferSelect;
 
+export const stockAdjustmentsTable = pgTable("stock_adjustments", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").notNull(),
+  inventoryId: integer("inventory_id").notNull(),
+  adjustmentType: text("adjustment_type").notNull(),
+  adjustmentDirection: text("adjustment_direction").notNull(),
+  adjustmentQuantity: numeric("adjustment_quantity", { precision: 14, scale: 3 }).notNull(),
+  unit: text("unit"),
+  averagePriceAtAdjustment: numeric("average_price_at_adjustment", { precision: 14, scale: 2 }).notNull().default("0"),
+  revenueLossAmount: numeric("revenue_loss_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  referenceType: text("reference_type").notNull().default("Manual"),
+  referenceId: text("reference_id"),
+  reason: text("reason"),
+  remarks: text("remarks"),
+  adjustedBy: text("adjusted_by"),
+  adjustmentDate: text("adjustment_date").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type StockAdjustment = typeof stockAdjustmentsTable.$inferSelect;
+
 export const updateInventoryStockSchema = z.object({
   warehouseLocation: z.string().optional(),
   currentStock: z.string().min(1, "Opening quantity is required"),
