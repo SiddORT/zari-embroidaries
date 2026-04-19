@@ -1526,4 +1526,132 @@ router.post("/style-custom-charges", requireAuth, async (req, res) => {
   res.status(201).json({ data: row });
 });
 
+// ─── Invoice Items Aggregate ─────────────────────────────────────────────────
+// GET /api/costing/invoice-items?type=Swatch&orderId=123
+// Returns all cost-sheet components for an order as normalised invoice line items,
+// plus the final_shipping_amount if a shipping record exists for that reference.
+router.get("/invoice-items", requireAuth, async (req, res) => {
+  const type = String(req.query.type ?? "").trim();          // "Swatch" | "Style"
+  const orderId = Number(req.query.orderId);
+  if (!orderId || (type !== "Swatch" && type !== "Style")) {
+    res.status(400).json({ error: "type (Swatch|Style) and orderId are required" }); return;
+  }
+
+  const isSwatch = type === "Swatch";
+
+  // Fetch all cost components in parallel
+  const [bomRows, artisanRows, outsourceRows, customRows, shippingR] = await Promise.all([
+    // BOM (materials + fabrics)
+    isSwatch
+      ? db.select().from(swatchBomTable).where(eq(swatchBomTable.swatchOrderId, orderId)).orderBy(swatchBomTable.createdAt)
+      : db.select().from(swatchBomTable).where(eq(swatchBomTable.styleOrderId, orderId)).orderBy(swatchBomTable.createdAt),
+
+    // Artisan timesheets
+    isSwatch
+      ? db.select().from(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.swatchOrderId, orderId))
+      : db.select().from(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.styleOrderId, orderId)),
+
+    // Outsource jobs
+    isSwatch
+      ? db.select().from(outsourceJobsTable).where(eq(outsourceJobsTable.swatchOrderId, orderId))
+      : db.select().from(outsourceJobsTable).where(eq(outsourceJobsTable.styleOrderId, orderId)),
+
+    // Custom charges
+    isSwatch
+      ? db.select().from(customChargesTable).where(eq(customChargesTable.swatchOrderId, orderId))
+      : db.select().from(customChargesTable).where(eq(customChargesTable.styleOrderId, orderId)),
+
+    // Shipping (if exists)
+    pool.query(
+      `SELECT final_shipping_amount FROM order_shipping_details
+       WHERE reference_type = $1 AND reference_id = $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [type, orderId]
+    ).catch(() => ({ rows: [] as any[] })),
+  ]);
+
+  const items: {
+    description: string; category: string;
+    quantity: number; unitPrice: number; total: number;
+    hsnCode: string; hsnGstPct: string; unit: string; source: string;
+  }[] = [];
+
+  // BOM rows → Material or Fabric
+  for (const r of bomRows) {
+    const isFabric = (r.materialType ?? "").toLowerCase() === "fabric";
+    const qty = parseFloat(r.requiredQty ?? "1") || 1;
+    const rate = parseFloat(r.avgUnitPrice ?? "0") || 0;
+    items.push({
+      description: `[${r.materialCode}] ${r.materialName ?? ""}`.trim(),
+      category: isFabric ? "Fabric" : "Material",
+      quantity: qty,
+      unitPrice: rate,
+      total: parseFloat(r.estimatedAmount ?? String(qty * rate)) || qty * rate,
+      hsnCode: "",
+      hsnGstPct: "",
+      unit: r.unitType ?? "",
+      source: "bom",
+    });
+  }
+
+  // Artisan timesheets → Artisan
+  for (const r of artisanRows) {
+    const hrs = parseFloat(r.totalHours ?? "0") || 0;
+    const n = Number(r.noOfArtisans) || 1;
+    const rate = parseFloat(r.hourlyRate ?? "0") || 0;
+    const total = parseFloat(r.totalRate ?? "0") || hrs * rate * n;
+    items.push({
+      description: `${r.shiftType} Labour — ${n} artisan${n !== 1 ? "s" : ""} (${r.startDate} to ${r.endDate})`,
+      category: "Artisan",
+      quantity: hrs * n,
+      unitPrice: rate,
+      total,
+      hsnCode: "",
+      hsnGstPct: "",
+      unit: "hours",
+      source: "artisan",
+    });
+  }
+
+  // Outsource jobs → Outsource
+  for (const r of outsourceRows) {
+    const total = parseFloat(r.totalCost ?? "0") || 0;
+    items.push({
+      description: `Outsource: ${r.vendorName ?? ""}`,
+      category: "Outsource",
+      quantity: 1,
+      unitPrice: total,
+      total,
+      hsnCode: r.hsnCode ?? "",
+      hsnGstPct: r.gstPercentage ?? "",
+      unit: "job",
+      source: "outsource",
+    });
+  }
+
+  // Custom charges → Custom
+  for (const r of customRows) {
+    const qty = parseFloat(r.quantity ?? "1") || 1;
+    const rate = parseFloat(r.unitPrice ?? "0") || 0;
+    const total = parseFloat(r.totalAmount ?? String(qty * rate)) || qty * rate;
+    items.push({
+      description: r.description ?? "Custom Charge",
+      category: "Custom",
+      quantity: qty,
+      unitPrice: rate,
+      total,
+      hsnCode: r.hsnCode ?? "",
+      hsnGstPct: r.gstPercentage ?? "",
+      unit: "",
+      source: "custom",
+    });
+  }
+
+  const shippingAmount = shippingR.rows.length > 0
+    ? parseFloat(shippingR.rows[0].final_shipping_amount ?? "0") || 0
+    : 0;
+
+  res.json({ data: items, shippingAmount, orderId, type });
+});
+
 export default router;

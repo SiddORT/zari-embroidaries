@@ -1,0 +1,323 @@
+Build functionality to load invoice line items automatically from the costing sheet when creating an invoice.
+
+This feature must work inside:
+
+Accounts → Create Invoice screen
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Load Invoice Items From Cost Sheet
+
+---
+
+SECTION 1 — BUTTON ACTIVATION LOGIC
+
+---
+
+Inside invoice creation page:
+
+Enable button:
+
+Load from Cost Sheet
+
+ONLY when:
+
+reference_type = Swatch
+
+OR
+
+reference_type = Style
+
+AND
+
+reference_id is selected
+
+Disable button otherwise.
+
+---
+
+SECTION 2 — COST SHEET DATA SOURCE
+
+---
+
+Fetch costing data from:
+
+Swatch Cost Sheet
+
+OR
+
+Style Cost Sheet
+
+depending on:
+
+reference_type
+
+Example:
+
+reference_type = Swatch
+
+reference_id = SW1023
+
+Fetch:
+
+all cost sheet components linked with SW1023
+
+---
+
+SECTION 3 — COST COMPONENTS TO FETCH
+
+---
+
+Fetch following entries:
+
+Fabric / Material Cost
+
+Artwork Cost
+
+Outsource Job Cost
+
+Artisan Labor Cost
+
+Custom Charges
+
+Shipping Cost (if available)
+
+Each component must become:
+
+one invoice line item
+
+---
+
+SECTION 4 — LINE ITEM FIELD MAPPING
+
+---
+
+Map costing fields into invoice_items table:
+
+Cost Sheet Component → Invoice Item Field Mapping
+
+component_name → description
+
+hsn_code → hsn_code
+
+unit → unit
+
+quantity → quantity
+
+unit_cost → rate
+
+total_cost → amount
+
+reference_type → reference_type
+
+reference_id → reference_id
+
+Example:
+
+Material Cost → description = Fabric Material
+
+---
+
+SECTION 5 — CATEGORY AUTO ASSIGNMENT
+
+---
+
+Assign invoice category automatically:
+
+Material Cost → Material
+
+Artwork Cost → Artwork
+
+Labor Cost → Labor
+
+Outsource Cost → Outsource
+
+Shipping Cost → Courier
+
+Custom Charges → Custom
+
+---
+
+SECTION 6 — DUPLICATE PREVENTION
+
+---
+
+Prevent duplicate loading of same cost sheet items.
+
+If line items already loaded:
+
+Show confirmation popup:
+
+Cost sheet items already exist.
+
+Reload and replace existing items?
+
+Buttons:
+
+Yes
+
+Cancel
+
+If user selects Yes:
+
+Clear existing cost-sheet-loaded rows
+
+Reload fresh rows
+
+---
+
+SECTION 7 — PARTIAL LOADING SUPPORT
+
+---
+
+Allow user to:
+
+delete unwanted line items manually after loading
+
+System must NOT reload deleted rows automatically
+
+unless button clicked again.
+
+---
+
+SECTION 8 — GST AUTO APPLICATION
+
+---
+
+After loading cost sheet items:
+
+Apply GST automatically using:
+
+HSN code
+
+client location
+
+company location
+
+Populate:
+
+cgst_rate
+
+sgst_rate
+
+igst_rate
+
+inside invoice_items table
+
+---
+
+SECTION 9 — DISCOUNT SUPPORT AFTER LOADING
+
+---
+
+Allow user to apply:
+
+item-level discount
+
+invoice-level discount
+
+after cost sheet loading
+
+Do NOT overwrite discount values when recalculating totals.
+
+---
+
+SECTION 10 — SHIPPING COST LINKING
+
+---
+
+If shipping exists inside:
+
+order_shipping_details table
+
+AND reference matches:
+
+reference_type
+
+reference_id
+
+Auto-fill:
+
+shipping_amount field inside invoice totals panel
+
+---
+
+SECTION 11 — TOTALS AUTO RECALCULATION
+
+---
+
+After cost sheet items loaded:
+
+Recalculate automatically:
+
+subtotal
+
+GST
+
+discount
+
+shipping
+
+adjustments
+
+final total_amount
+
+Update totals panel immediately.
+
+---
+
+SECTION 12 — UI SUCCESS MESSAGE
+
+---
+
+After loading cost sheet items:
+
+Display message:
+
+Cost sheet items loaded successfully
+
+---
+
+SECTION 13 — PERFORMANCE OPTIMIZATION
+
+---
+
+Fetch only:
+
+latest finalized cost sheet version
+
+Ignore:
+
+draft costing sheets
+
+Ensure loading completes within:
+
+single request cycle
+
+Avoid duplicate database queries.
+
+---
+
+SECTION 14 — PERMISSIONS CONTROL
+
+---
+
+Allow:
+
+authorized users to load cost sheet items
+
+Prevent:
+
+users without invoice create permission
+
+from accessing button.
+
+---
+
+END OF MODULE REQUIREMENTS
+
+Implement backend logic and frontend UI integration accordingly.

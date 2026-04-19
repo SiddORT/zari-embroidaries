@@ -94,6 +94,7 @@ export default function InvoiceForm() {
   const [refOrdersLoading, setRefOrdersLoading] = useState(false);
   const [refOrderFullData, setRefOrderFullData] = useState<{ id: number; orderCode: string }[]>([]);
   const [loadingCostSheet, setLoadingCostSheet] = useState(false);
+  const [showCostSheetConfirm, setShowCostSheetConfirm] = useState(false);
   const [hsnList, setHsnList] = useState<HsnItem[]>([]);
   const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
   const [fabricMaster, setFabricMaster] = useState<FabricMaster[]>([]);
@@ -313,45 +314,58 @@ export default function InvoiceForm() {
     }
   }
 
-  async function handleLoadFromCostSheet() {
+  async function doLoadFromCostSheet() {
     if (!form.referenceId) return;
     const order = refOrderFullData.find(o => o.orderCode === form.referenceId);
     if (!order) { toast({ title: "Order not found", variant: "destructive" }); return; }
 
     setLoadingCostSheet(true);
+    setShowCostSheetConfirm(false);
     try {
-      const endpoint = form.referenceType === "Swatch"
-        ? `/api/costing/swatch-bom/${order.id}`
-        : `/api/costing/style-bom/${order.id}`;
-      const j = await customFetch<any>(endpoint);
-      const rows: any[] = Array.isArray(j) ? j : (j.data ?? []);
-      if (rows.length === 0) { toast({ title: "No BOM rows found on this cost sheet", variant: "destructive" }); return; }
+      const j = await customFetch<any>(
+        `/api/costing/invoice-items?type=${encodeURIComponent(form.referenceType)}&orderId=${order.id}`
+      );
+      const rows: any[] = j.data ?? [];
+      if (rows.length === 0) {
+        toast({ title: "No cost-sheet items found", description: "Add materials, artisan timesheets, outsource jobs or custom charges to the cost sheet first.", variant: "destructive" });
+        return;
+      }
 
-      const loaded: LineItem[] = rows.map((r: any) => {
-        const cat = r.materialType === "fabric" ? "Fabric" : "Material";
-        const qty = parseFloat(r.requiredQty || r.consumedQty || "1") || 1;
-        const rate = parseFloat(r.ratePerUnit || r.avgRate || r.unitRate || "0") || 0;
-        const hsn = r.hsnCode ?? "";
-        const gst = r.gstPercent ?? r.gstPercentage ?? "";
-        return {
-          id: crypto.randomUUID(),
-          description: `[${r.materialCode}] ${r.materialName ?? ""}`.trim(),
-          category: cat,
-          quantity: qty,
-          unitPrice: rate,
-          total: qty * rate,
-          hsnCode: hsn,
-          hsnGstPct: String(gst),
-          showHsn: !!hsn,
-        };
-      });
+      const loaded: LineItem[] = rows.map((r: any) => ({
+        id: crypto.randomUUID(),
+        description: r.description ?? "",
+        category: r.category ?? "Item",
+        quantity: r.quantity ?? 1,
+        unitPrice: r.unitPrice ?? 0,
+        total: r.total ?? 0,
+        hsnCode: r.hsnCode ?? "",
+        hsnGstPct: r.hsnGstPct ?? "",
+        showHsn: !!(r.hsnCode),
+      }));
 
       setItems(loaded);
-      toast({ title: `Loaded ${loaded.length} line item${loaded.length !== 1 ? "s" : ""} from cost sheet` });
+
+      // Auto-fill shipping if the order has a shipping record
+      const shippingAmt = parseFloat(j.shippingAmount ?? "0") || 0;
+      if (shippingAmt > 0) {
+        setF("shippingAmount", shippingAmt.toFixed(2));
+        toast({ title: `${loaded.length} item${loaded.length !== 1 ? "s" : ""} loaded from cost sheet`, description: `Shipping ₹${shippingAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })} auto-filled.` });
+      } else {
+        toast({ title: `${loaded.length} item${loaded.length !== 1 ? "s" : ""} loaded from cost sheet` });
+      }
     } catch (e: any) {
       toast({ title: "Failed to load cost sheet", description: e.message, variant: "destructive" });
     } finally {
       setLoadingCostSheet(false);
+    }
+  }
+
+  function handleLoadFromCostSheet() {
+    // Section 6 — duplicate prevention: if items already exist, confirm before replacing
+    if (items.length > 0) {
+      setShowCostSheetConfirm(true);
+    } else {
+      doLoadFromCostSheet();
     }
   }
 
@@ -1020,6 +1034,33 @@ export default function InvoiceForm() {
         </div>
 
       </div>
+
+      {/* Cost Sheet Duplicate Confirmation Modal */}
+      {showCostSheetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-md mx-4 p-6">
+            <h3 className="font-bold text-gray-900 text-base mb-2">Replace existing line items?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Cost sheet items are already loaded. Reloading will clear the current {items.length} line item{items.length !== 1 ? "s" : ""} and replace them with the latest cost sheet data.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowCostSheetConfirm(false)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doLoadFromCostSheet}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white transition"
+                style={{ backgroundColor: G }}
+              >
+                Yes, Reload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
