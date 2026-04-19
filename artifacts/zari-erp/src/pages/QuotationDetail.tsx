@@ -440,9 +440,9 @@ export default function QuotationDetail() {
                   </table>
                 </div>
                 <div className="mt-3 border-t border-gray-100 pt-3 flex flex-col items-end gap-1 text-sm">
-                  <div className="flex justify-between w-52"><span className="text-gray-500">Subtotal</span><span className="font-semibold">{fmt(q.subtotal_amount)}</span></div>
-                  <div className="flex justify-between w-52"><span className="text-gray-500">GST ({q.gst_type} @ {q.gst_rate}%)</span><span className="font-semibold">{fmt(q.gst_amount)}</span></div>
-                  <div className="flex justify-between w-52"><span className="text-gray-500">Shipping</span><span className="font-semibold">{fmt(q.estimated_shipping_charges)}</span></div>
+                  <div className="flex justify-between w-52"><span className="text-gray-500">Subtotal</span><span className="font-semibold text-gray-900">{fmt(q.subtotal_amount)}</span></div>
+                  <div className="flex justify-between w-52"><span className="text-gray-500">GST ({q.gst_type} @ {q.gst_rate}%)</span><span className="font-semibold text-gray-900">{fmt(q.gst_amount)}</span></div>
+                  <div className="flex justify-between w-52"><span className="text-gray-500">Shipping</span><span className="font-semibold text-gray-900">{fmt(q.estimated_shipping_charges)}</span></div>
                   <div className="flex justify-between w-52 border-t border-gray-200 pt-1 mt-1">
                     <span className="font-bold text-gray-900">Total</span>
                     <span className="font-bold text-[#C6AF4B] text-base">{fmt(q.total_amount)}</span>
@@ -477,9 +477,9 @@ export default function QuotationDetail() {
             <div className={`${card} p-5`}>
               <h3 className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: G }}>Amount Summary</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium">{fmt(q.subtotal_amount)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">GST ({q.gst_type})</span><span className="font-medium">{fmt(q.gst_amount)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Shipping</span><span className="font-medium">{fmt(q.estimated_shipping_charges)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium text-gray-900">{fmt(q.subtotal_amount)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">GST ({q.gst_type})</span><span className="font-medium text-gray-900">{fmt(q.gst_amount)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Shipping</span><span className="font-medium text-gray-900">{fmt(q.estimated_shipping_charges)}</span></div>
                 <div className="flex justify-between pt-2 border-t border-gray-100">
                   <span className="font-bold text-gray-900">Total</span>
                   <span className="font-bold text-[#C6AF4B] text-base">{fmt(q.total_amount)}</span>
