@@ -1,0 +1,615 @@
+Build a Quotation Module for an embroidery sampling ERP system.
+
+This module must support:
+
+Client requirement capture
+Suggested design attachments
+Custom charge entries
+Estimated costing summary
+GST calculation
+Revision tracking
+Client feedback logging
+Quotation approval workflow
+Conversion to Swatch order
+Conversion to Style order
+Quotation PDF generation
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Quotation Management
+
+---
+
+SECTION 1 — QUOTATION HEADER TABLE
+
+Create table:
+
+quotations
+
+Fields:
+
+quotation_id (primary key)
+
+quotation_number (auto generated)
+
+client_id
+
+requirement_summary
+
+estimated_weight
+
+estimated_shipping_charges
+
+subtotal_amount
+
+gst_amount
+
+total_amount
+
+status
+
+revision_number
+
+parent_quotation_id
+
+internal_notes
+
+client_notes
+
+converted_to
+
+converted_reference_id
+
+converted_at
+
+created_by
+
+created_at
+
+updated_at
+
+status values:
+
+Draft
+
+Sent
+
+Client Reviewing
+
+Correction Requested
+
+Revised
+
+Approved
+
+Rejected
+
+Converted to Style
+
+Converted to Swatch
+
+quotation_number format:
+
+QT-YYYY-00001
+
+Example:
+
+QT-2026-00012
+
+---
+
+SECTION 2 — SUGGESTED DESIGNS TABLE
+
+Create table:
+
+quotation_designs
+
+Fields:
+
+design_id
+
+quotation_id
+
+design_name
+
+hsn_code
+
+design_image
+
+remarks
+
+created_at
+
+Support:
+
+multiple design rows per quotation
+
+Allow:
+
+upload image
+
+edit image
+
+delete image
+
+Support multiple images per quotation.
+
+---
+
+SECTION 3 — CUSTOM CHARGES TABLE
+
+Create table:
+
+quotation_custom_charges
+
+Fields:
+
+charge_id
+
+quotation_id
+
+charge_name
+
+hsn_code
+
+unit
+
+quantity
+
+price
+
+amount
+
+Calculation:
+
+amount = quantity × price
+
+Auto-update subtotal when modified.
+
+---
+
+SECTION 4 — CLIENT REQUIREMENT SECTION
+
+Fields inside quotation form:
+
+requirement_summary
+
+estimated_weight
+
+estimated_shipping_charges
+
+client_notes
+
+internal_notes
+
+Internal notes must NOT appear in client PDF.
+
+---
+
+SECTION 5 — GST CALCULATION ENGINE
+
+System must support:
+
+CGST + SGST
+
+OR
+
+IGST
+
+Determine GST type automatically using:
+
+client billing state vs company state
+
+Store:
+
+gst_amount
+
+inside quotations table
+
+Auto calculate:
+
+total_amount = subtotal + gst + shipping_charges
+
+---
+
+SECTION 6 — QUOTATION REVISION SYSTEM
+
+When quotation edited after being:
+
+Sent
+
+Client Reviewing
+
+Correction Requested
+
+System must:
+
+create new revision record
+
+Increment:
+
+revision_number
+
+Example:
+
+QT-2026-00012 v1
+
+QT-2026-00012 v2
+
+QT-2026-00012 v3
+
+Previous versions must remain:
+
+locked
+
+viewable
+
+downloadable
+
+Link revisions using:
+
+parent_quotation_id
+
+---
+
+SECTION 7 — CLIENT FEEDBACK LOG TABLE
+
+Create table:
+
+quotation_feedback_logs
+
+Fields:
+
+feedback_id
+
+quotation_id
+
+feedback_text
+
+feedback_by
+
+feedback_date
+
+revision_reference
+
+Allow:
+
+multiple feedback entries per quotation
+
+Display:
+
+feedback timeline inside quotation detail page.
+
+---
+
+SECTION 8 — QUOTATION STATUS WORKFLOW ENGINE
+
+Allow transitions:
+
+Draft → Sent
+
+Sent → Client Reviewing
+
+Client Reviewing → Correction Requested
+
+Correction Requested → Revised
+
+Revised → Sent
+
+Sent → Approved
+
+Sent → Rejected
+
+Approved → Converted to Style
+
+Approved → Converted to Swatch
+
+Track:
+
+status change timestamp
+
+status change user
+
+---
+
+SECTION 9 — QUOTATION LIST PAGE
+
+Create page:
+
+Sales → Quotations
+
+Columns:
+
+Quotation Number
+
+Client Name
+
+Status
+
+Revision Number
+
+Estimated Total
+
+Created Date
+
+Last Updated Date
+
+Filters:
+
+Client
+
+Status
+
+Date Range
+
+Search:
+
+Quotation Number
+
+Client Name
+
+---
+
+SECTION 10 — QUOTATION PDF GENERATION ENGINE
+
+Generate quotation PDF using system theme colors.
+
+PDF must include:
+
+COVER PAGE
+
+Company logo
+
+Company name
+
+Client name
+
+Quotation number
+
+Quotation date
+
+CLIENT REQUIREMENT SECTION
+
+requirement_summary
+
+SUGGESTED DESIGNS GRID
+
+Design name
+
+Design image
+
+HSN code
+
+CUSTOM CHARGES TABLE
+
+Charge name
+
+HSN code
+
+Unit
+
+Quantity
+
+Amount
+
+SUMMARY SECTION
+
+Subtotal
+
+GST
+
+Estimated shipping charges
+
+Estimated weight
+
+Final total amount
+
+TERMS AND CONDITIONS SECTION
+
+SIGNATURE BLOCK
+
+Authorized signatory
+
+Footer must include:
+
+company contact details
+
+---
+
+SECTION 11 — PDF DESIGN REQUIREMENTS
+
+PDF must support:
+
+theme color header strip
+
+section separators
+
+image thumbnails grid layout
+
+proper typography spacing
+
+clean export-house professional layout
+
+---
+
+SECTION 12 — REVISION HISTORY VIEW PAGE
+
+Create page:
+
+Quotation → Revision History
+
+Display:
+
+revision_number
+
+updated_by
+
+updated_date
+
+change_summary
+
+Allow:
+
+open previous revision
+
+download previous revision PDF
+
+---
+
+SECTION 13 — PERMISSION CONTROL
+
+Allow:
+
+Create quotation → authorized users
+
+Edit quotation → authorized users
+
+Delete quotation → admin users only
+
+Approve quotation → admin users
+
+View quotation → all users
+
+---
+
+SECTION 14 — AUTO TIMESTAMP TRACKING
+
+Store automatically:
+
+created_at
+
+updated_at
+
+created_by
+
+revision_number
+
+for each quotation revision
+
+---
+
+SECTION 15 — QUOTATION TO SWATCH CONVERSION ENGINE
+
+When quotation status = Approved
+
+Enable button:
+
+Convert to Swatch
+
+System must create:
+
+swatch_order record
+
+Auto-fill:
+
+client_id
+
+requirement_summary
+
+reference_images from quotation_designs
+
+quotation_reference = quotation_id
+
+status = Draft
+
+Store:
+
+converted_to = Swatch
+
+converted_reference_id = swatch_id
+
+converted_at timestamp
+
+---
+
+SECTION 16 — QUOTATION TO STYLE CONVERSION ENGINE
+
+When quotation status = Approved
+
+Enable button:
+
+Convert to Style
+
+System must create:
+
+style_master record
+
+Auto-fill:
+
+client_id
+
+requirement_summary
+
+reference_images from quotation_designs
+
+quotation_reference = quotation_id
+
+status = Draft
+
+Store:
+
+converted_to = Style
+
+converted_reference_id = style_id
+
+converted_at timestamp
+
+---
+
+SECTION 17 — DUPLICATE CONVERSION PROTECTION
+
+Prevent duplicate conversions.
+
+Example:
+
+If quotation already converted to Style
+
+Disable:
+
+Convert to Style button
+
+Same rule applies for Swatch conversion.
+
+---
+
+SECTION 18 — TRACEABILITY ENGINE
+
+Store:
+
+quotation_reference inside:
+
+swatch_orders table
+
+style_master table
+
+Maintain relationship:
+
+Quotation → Style → Swatch
+
+for reporting and analytics support.
+
+---
+
+SECTION 19 — UI SUCCESS MESSAGE
+
+After quotation saved:
+
+Display:
+
+Quotation saved successfully
+
+After conversion:
+
+Display:
+
+Quotation converted successfully
+
+---
+
+END OF QUOTATION MODULE REQUIREMENTS
+
+Build backend logic and frontend UI accordingly.

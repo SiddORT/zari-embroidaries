@@ -147,6 +147,37 @@ Centralized procurement across Inventory, Swatch Costing, and Style Planning via
 - `unit_types` table: id, name (unique), is_active, created_at
 - `width_unit_types` table: id, name (unique), is_active, created_at
 
+## Quotation Module
+
+**Tables (created via raw SQL):**
+- `quotations`: id, quotation_number (QT-YYYY-NNNNN), client_id, client_name, client_state, requirement_summary, estimated_weight, estimated_shipping_charges, subtotal_amount, gst_type, gst_rate, gst_amount, total_amount, status, revision_number, parent_quotation_id, internal_notes, client_notes, converted_to, converted_reference_id, converted_at, created_by, created/updated_at
+- `quotation_designs`: id, quotation_id, design_name, hsn_code, design_image (base64), remarks, created_at
+- `quotation_custom_charges`: id, quotation_id, charge_name, hsn_code, unit, quantity, price, amount, created_at
+- `quotation_feedback_logs`: id, quotation_id, feedback_text, feedback_by, feedback_date, revision_reference, created_at
+- `quotation_number_seq`: PostgreSQL sequence for unique quotation numbers
+
+**Backend routes** (`artifacts/api-server/src/routes/quotations.ts`):
+- GET /quotations — list with filters (search, status, clientId, fromDate, toDate, page, limit)
+- POST /quotations — create new
+- GET /quotations/:id — get single with designs, charges, feedback, revisions
+- PUT /quotations/:id — update
+- DELETE /quotations/:id — admin only
+- POST /quotations/:id/status — status transition (validated against allowed transitions map)
+- POST /quotations/:id/feedback — add feedback log
+- POST /quotations/:id/revise — create revision (copies all data, increments revision_number, links parent_quotation_id)
+- POST /quotations/:id/convert-swatch — creates swatch_orders record, marks converted_to=Swatch
+- POST /quotations/:id/convert-style — creates style_orders record, marks converted_to=Style
+
+**Status workflow**: Draft → Sent → Client Reviewing → [Correction Requested → Revised → Sent | Approved | Rejected]
+When Approved: Convert to Swatch or Convert to Style (with duplicate protection — cannot convert to same type twice)
+
+**Frontend pages:**
+- `QuotationList.tsx` (`/quotation`) — list with search/status/date filters, pagination, status badges
+- `QuotationForm.tsx` (`/quotation/new`, `/quotation/:id/edit`) — create/edit with designs (base64 images) + charges table + auto-computed totals
+- `QuotationDetail.tsx` (`/quotation/:id`) — view + status transitions + feedback modal + revision creation + convert to Swatch/Style (with confirmation and duplicate protection)
+
+**GST logic**: `COMPANY_STATE` env var (default "Maharashtra"); CGST+SGST for same state, IGST for different state. Rate: 18%.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

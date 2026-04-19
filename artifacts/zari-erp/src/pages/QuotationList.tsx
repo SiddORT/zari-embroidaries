@@ -1,0 +1,362 @@
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
+import {
+  Search, Plus, ChevronLeft, ChevronRight, FileText,
+  Eye, Edit2, Trash2, RefreshCw, CheckCircle2, XCircle, Clock,
+  MoreHorizontal, ChevronDown,
+} from "lucide-react";
+import { useGetMe, useLogout } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+import TopNavbar from "@/components/layout/TopNavbar";
+import { useToast } from "@/hooks/use-toast";
+
+const G = "#C6AF4B";
+const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
+const thCls = "px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide whitespace-nowrap";
+const tdCls = "px-3 py-3 align-top text-sm";
+const inputCls = "w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 text-gray-900 bg-white";
+
+const STATUS_COLORS: Record<string, string> = {
+  "Draft":                 "bg-gray-100 text-gray-600",
+  "Sent":                  "bg-blue-100 text-blue-700",
+  "Client Reviewing":      "bg-indigo-100 text-indigo-700",
+  "Correction Requested":  "bg-yellow-100 text-yellow-700",
+  "Revised":               "bg-amber-100 text-amber-700",
+  "Approved":              "bg-emerald-100 text-emerald-700",
+  "Rejected":              "bg-red-100 text-red-600",
+  "Converted to Style":    "bg-purple-100 text-purple-700",
+  "Converted to Swatch":   "bg-teal-100 text-teal-700",
+};
+
+const ALL_STATUSES = [
+  "Draft", "Sent", "Client Reviewing", "Correction Requested",
+  "Revised", "Approved", "Rejected", "Converted to Style", "Converted to Swatch",
+];
+
+interface QuotRow {
+  id: number;
+  quotation_number: string;
+  client_name: string | null;
+  requirement_summary: string | null;
+  total_amount: string;
+  status: string;
+  revision_number: number;
+  design_count: number;
+  charge_count: number;
+  created_at: string;
+  converted_to: string | null;
+}
+
+export default function QuotationList() {
+  const [, navigate] = useLocation();
+  const qc = useQueryClient();
+  const { data: meData } = useGetMe();
+  const { mutateAsync: logout } = useLogout();
+  const { toast } = useToast();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [rows, setRows] = useState<QuotRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const limit = 20;
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [actionOpen, setActionOpen] = useState<number | null>(null);
+  const actionRef = useRef<HTMLDivElement>(null);
+
+  const user = meData?.data;
+  const isAdmin = user?.role === "admin";
+
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const params = new URLSearchParams({
+      search, status, fromDate, toDate,
+      page: String(page), limit: String(limit),
+    });
+    customFetch(`/quotations?${params}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        setRows(j.data ?? []);
+        setTotal(j.total ?? 0);
+      })
+      .catch(() => !cancelled && setRows([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [search, status, fromDate, toDate, page, refreshKey]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (actionRef.current && !actionRef.current.contains(e.target as Node)) {
+        setActionOpen(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  async function handleDelete() {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      const r = await customFetch(`/quotations/${deleteId}`, { method: "DELETE" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Delete failed");
+      toast({ title: "Deleted", description: "Quotation deleted." });
+      setDeleteId(null);
+      refresh();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await logout({});
+      localStorage.removeItem("zarierp_token");
+      qc.clear();
+      navigate("/login");
+    } catch {
+      setIsLoggingOut(false);
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const fmt = (v: string | number | null) => {
+    const n = parseFloat(String(v ?? 0));
+    return isNaN(n) ? "₹0.00" : `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  };
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  return (
+    <div className="min-h-screen bg-[#F8F6F0]">
+      <TopNavbar
+        username={user?.name || user?.email || ""}
+        role={user?.role || ""}
+        onLogout={handleLogout}
+        isLoggingOut={isLoggingOut}
+      />
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pt-24 pb-10">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Quotations</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{total} quotation{total !== 1 ? "s" : ""}</p>
+          </div>
+          <button
+            onClick={() => navigate("/quotation/new")}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition"
+            style={{ background: G }}
+          >
+            <Plus size={16} /> New Quotation
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className={`${card} p-4 mb-5`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by number, client…"
+                className={`${inputCls} pl-8`}
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              />
+            </div>
+            <select
+              className={inputCls}
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+            >
+              <option value="all">All Statuses</option>
+              {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">From Date</label>
+              <input type="date" className={inputCls} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">To Date</label>
+              <input type="date" className={inputCls} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className={`${card} overflow-hidden`}>
+          {loading && (
+            <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+              <RefreshCw size={18} className="animate-spin" /> Loading…
+            </div>
+          )}
+          {!loading && rows.length === 0 && (
+            <div className="flex flex-col items-center py-16 text-gray-400 gap-2">
+              <FileText size={36} strokeWidth={1.2} />
+              <p className="text-sm">No quotations found</p>
+              <button
+                onClick={() => navigate("/quotation/new")}
+                className="mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                style={{ background: G }}
+              >
+                Create First Quotation
+              </button>
+            </div>
+          )}
+          {!loading && rows.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                    <th className={thCls}>Quotation #</th>
+                    <th className={thCls}>Client</th>
+                    <th className={thCls}>Summary</th>
+                    <th className={thCls}>Designs</th>
+                    <th className={thCls}>Total</th>
+                    <th className={thCls}>Status</th>
+                    <th className={thCls}>Rev</th>
+                    <th className={thCls}>Date</th>
+                    <th className={thCls}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-50 hover:bg-[#C6AF4B]/[0.03] transition-colors">
+                      <td className={tdCls}>
+                        <button
+                          onClick={() => navigate(`/quotation/${row.id}`)}
+                          className="font-mono font-semibold text-[#C6AF4B] hover:underline"
+                        >
+                          {row.quotation_number}
+                        </button>
+                      </td>
+                      <td className={tdCls}>
+                        <span className="text-gray-800">{row.client_name || <span className="text-gray-400 italic">—</span>}</span>
+                      </td>
+                      <td className={tdCls}>
+                        <span className="text-gray-600 line-clamp-2 max-w-[200px] block">
+                          {row.requirement_summary || <span className="text-gray-400 italic">—</span>}
+                        </span>
+                      </td>
+                      <td className={tdCls}>
+                        <span className="text-gray-600">{row.design_count ?? 0}</span>
+                      </td>
+                      <td className={tdCls}>
+                        <span className="font-semibold text-gray-900">{fmt(row.total_amount)}</span>
+                      </td>
+                      <td className={tdCls}>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[row.status] ?? "bg-gray-100 text-gray-600"}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className={tdCls}>
+                        <span className="text-gray-500">R{row.revision_number}</span>
+                      </td>
+                      <td className={tdCls}>
+                        <span className="text-gray-500 text-xs">{fmtDate(row.created_at)}</span>
+                      </td>
+                      <td className={tdCls}>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => navigate(`/quotation/${row.id}`)}
+                            className="p-1.5 rounded-lg hover:bg-[#C6AF4B]/10 text-gray-500 hover:text-[#C6AF4B] transition"
+                            title="View"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          {(row.status === "Draft" || row.status === "Revised") && (
+                            <button
+                              onClick={() => navigate(`/quotation/${row.id}/edit`)}
+                              className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
+                              title="Edit"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => setDeleteId(row.id)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
+                              title="Delete"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              <span className="text-xs text-gray-500">Page {page} of {totalPages} · {total} total</span>
+              <div className="flex gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Delete Confirm */}
+      {deleteId !== null && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className={`${card} max-w-sm w-full p-6`}>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Quotation?</h3>
+            <p className="text-sm text-gray-600 mb-5">This action cannot be undone. All designs, charges and feedback will be deleted.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteId(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

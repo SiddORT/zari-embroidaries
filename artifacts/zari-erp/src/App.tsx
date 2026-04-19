@@ -42,6 +42,9 @@ import PurchaseOrderList from "@/pages/PurchaseOrderList";
 import PurchaseOrderForm from "@/pages/PurchaseOrderForm";
 import Reservations from "@/pages/Reservations";
 import StockAdjustments from "@/pages/StockAdjustments";
+import QuotationList from "@/pages/QuotationList";
+import QuotationForm from "@/pages/QuotationForm";
+import QuotationDetail from "@/pages/QuotationDetail";
 
 const queryClient = new QueryClient();
 
@@ -105,6 +108,10 @@ function Router() {
       <Route path="/inventory/ledger" component={InventoryLedger} />
       <Route path="/inventory/reservations" component={Reservations} />
       <Route path="/inventory/adjustments" component={StockAdjustments} />
+      <Route path="/quotation/new" component={QuotationForm} />
+      <Route path="/quotation/:id/edit" component={QuotationForm} />
+      <Route path="/quotation/:id" component={QuotationDetail} />
+      <Route path="/quotation" component={QuotationList} />
       <Route path="/inventory/purchase-receipts/:id" component={PurchaseReceiptForm} />
       <Route path="/inventory/purchase-receipts" component={PurchaseReceipts} />
       <Route path="/procurement/purchase-orders/:id" component={PurchaseOrderForm} />
