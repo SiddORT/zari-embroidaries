@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Search, Plus, ChevronDown, ChevronLeft, ChevronRight,
   ShoppingCart, CheckCircle2, XCircle, Clock, AlertTriangle,
-  Eye, Trash2, X, PackageCheck,
+  Eye, Trash2, X, PackageCheck, RefreshCw, List,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,14 @@ const STATUS_MAP: Record<string, { label: string; color: string; Icon: React.Ele
   "Partially Received":{ label: "Partially Received",   color: "bg-amber-100 text-amber-700",  Icon: PackageCheck },
   Closed:              { label: "Closed",               color: "bg-green-100 text-green-700",  Icon: CheckCircle2 },
   Cancelled:           { label: "Cancelled",            color: "bg-red-100 text-red-700",      Icon: XCircle },
+};
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  Draft:               ["Approved", "Cancelled"],
+  Approved:            ["Cancelled"],
+  "Partially Received":["Closed", "Cancelled"],
+  Closed:              [],
+  Cancelled:           [],
 };
 
 const REF_BADGE: Record<string, { label: string; color: string }> = {
@@ -45,6 +53,16 @@ interface PO {
   total_received_qty: string;
   created_by: string;
   created_at: string;
+}
+
+interface POItem {
+  id: number;
+  item_name: string;
+  item_code: string;
+  ordered_quantity: string;
+  received_quantity: string;
+  unit_type: string | null;
+  unit_price: string;
 }
 
 function fmtDate(s: string) {
@@ -79,15 +97,20 @@ export default function PurchaseOrderList() {
   const [referenceType, setReferenceType] = useState("all");
   const [sort,          setSort]          = useState("newest");
 
-  const [deleteConfirm, setDeleteConfirm] = useState<PO | null>(null);
-  const [actioning, setActioning] = useState(false);
+  const [deleteConfirm, setDeleteConfirm]   = useState<PO | null>(null);
+  const [statusModal,   setStatusModal]     = useState<{ po: PO; newStatus: string } | null>(null);
+  const [actioning, setActioning]           = useState(false);
+
+  // Items popover
+  const [itemsPopover, setItemsPopover] = useState<{ poId: number; items: POItem[] | null; loading: boolean } | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
 
   const buildQs = useCallback(() => {
     const p = new URLSearchParams({ sort, page: String(page), limit: String(limit) });
-    if (search)        p.set("search",        search);
-    if (status !== "all") p.set("status",     status);
+    if (search)               p.set("search",        search);
+    if (status !== "all")     p.set("status",        status);
     if (referenceType !== "all") p.set("referenceType", referenceType);
     return p.toString();
   }, [search, status, referenceType, sort, page]);
@@ -108,6 +131,28 @@ export default function PurchaseOrderList() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Close popover on outside click
+  useEffect(() => {
+    const fn = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setItemsPopover(null);
+      }
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const openItemsPopover = (po: PO) => {
+    if (itemsPopover?.poId === po.id) { setItemsPopover(null); return; }
+    setItemsPopover({ poId: po.id, items: null, loading: true });
+    customFetch(`/api/procurement/purchase-orders/${po.id}`)
+      .then((r: unknown) => {
+        const detail = r as { items: POItem[] };
+        setItemsPopover({ poId: po.id, items: detail.items ?? [], loading: false });
+      })
+      .catch(() => setItemsPopover(null));
+  };
+
   const handleDelete = async (po: PO) => {
     setActioning(true);
     try {
@@ -117,6 +162,25 @@ export default function PurchaseOrderList() {
       loadData(true);
     } catch (e: unknown) {
       toast({ title: (e as { message?: string })?.message ?? "Failed to delete", variant: "destructive" });
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const handleStatusChange = async () => {
+    if (!statusModal) return;
+    setActioning(true);
+    try {
+      await customFetch(`/api/procurement/purchase-orders/${statusModal.po.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: statusModal.newStatus }),
+      });
+      toast({ title: `Status updated to ${statusModal.newStatus}` });
+      setStatusModal(null);
+      loadData(true);
+    } catch (e: unknown) {
+      toast({ title: (e as { message?: string })?.message ?? "Failed to update status", variant: "destructive" });
     } finally {
       setActioning(false);
     }
@@ -251,6 +315,10 @@ export default function PurchaseOrderList() {
                   const received = parseFloat(po.total_received_qty || "0");
                   const pending  = Math.max(0, ordered - received);
                   const isCosting = po.reference_type === "Swatch" || po.reference_type === "Style";
+                  const transitions = ALLOWED_TRANSITIONS[po.status] ?? [];
+                  const canCreatePr = po.status === "Approved" || po.status === "Partially Received";
+                  const isPopoverOpen = itemsPopover?.poId === po.id;
+
                   return (
                     <tr key={po.id} className="hover:bg-[#C6AF4B]/5 transition-colors">
                       <td className={tdCls}><span className="text-xs text-gray-400">{(page-1)*limit+idx+1}</span></td>
@@ -269,12 +337,67 @@ export default function PurchaseOrderList() {
                         )}
                       </td>
                       <td className={tdCls}><span className="text-xs">{po.vendor_name}</span></td>
+
+                      {/* Items column — clickable to show popover */}
                       <td className={tdCls}>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700">
-                          {po.item_count} item{po.item_count !== 1 ? "s" : ""}
-                        </span>
+                        <div className="relative inline-block">
+                          <button
+                            onClick={() => openItemsPopover(po)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                              isPopoverOpen
+                                ? "bg-[#C6AF4B]/15 border-[#C6AF4B]/40 text-gray-900"
+                                : "bg-gray-100 border-gray-100 text-gray-700 hover:bg-[#C6AF4B]/10 hover:border-[#C6AF4B]/30"
+                            }`}>
+                            <List className="h-3 w-3" />
+                            {po.item_count} item{po.item_count !== 1 ? "s" : ""}
+                          </button>
+
+                          {isPopoverOpen && (
+                            <div ref={popoverRef}
+                              className="absolute z-30 top-full left-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-xl min-w-[280px] max-w-[360px]">
+                              <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-700">Items in {po.po_number}</span>
+                                <button onClick={() => setItemsPopover(null)}
+                                  className="p-0.5 rounded text-gray-400 hover:text-gray-700">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              {itemsPopover?.loading ? (
+                                <div className="px-4 py-6 flex justify-center">
+                                  <div className="h-5 w-5 rounded-full border-2 border-[#C6AF4B] border-t-transparent animate-spin" />
+                                </div>
+                              ) : (itemsPopover?.items ?? []).length === 0 ? (
+                                <div className="px-4 py-4 text-xs text-gray-400 text-center">No items</div>
+                              ) : (
+                                <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+                                  {(itemsPopover?.items ?? []).map((item, i) => (
+                                    <div key={item.id} className="px-3 py-2.5 flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <span className="text-[10px] text-gray-400 mr-1.5">{i+1}.</span>
+                                        <span className="text-xs font-medium text-gray-900">{item.item_name}</span>
+                                        <div className="text-[10px] text-gray-400 font-mono mt-0.5">{item.item_code}</div>
+                                      </div>
+                                      <div className="text-right flex-shrink-0">
+                                        <div className="text-xs font-mono font-semibold text-gray-900">
+                                          {parseFloat(item.ordered_quantity).toFixed(3)}
+                                          {item.unit_type && <span className="text-gray-400 font-normal ml-0.5">{item.unit_type}</span>}
+                                        </div>
+                                        {parseFloat(item.received_quantity) > 0 && (
+                                          <div className="text-[10px] text-green-600 font-mono">
+                                            Rcvd: {parseFloat(item.received_quantity).toFixed(3)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td className={tdCls}><span className="text-xs font-mono">{ordered.toFixed(3)}</span></td>
+
+                      <td className={tdCls}><span className="text-xs font-mono font-semibold text-gray-900">{ordered.toFixed(3)}</span></td>
                       <td className={tdCls}><span className="text-xs font-mono text-green-700">{received.toFixed(3)}</span></td>
                       <td className={tdCls}>
                         <span className={`text-xs font-mono font-semibold ${pending > 0 ? "text-amber-600" : "text-gray-400"}`}>
@@ -283,13 +406,47 @@ export default function PurchaseOrderList() {
                       </td>
                       <td className={tdCls}><StatusBadge s={po.status} /></td>
                       <td className={tdCls}><span className="text-xs">{fmtDate(po.po_date ?? po.created_at)}</span></td>
+
+                      {/* Actions */}
                       <td className={tdCls}>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <button onClick={() => navigate(`/procurement/purchase-orders/${po.id}`)}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors">
+                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap">
                             <Eye className="h-3 w-3" /> View
                           </button>
-                          {isAdmin && po.status === "Draft" && (
+
+                          {canCreatePr && (
+                            <button onClick={() => navigate(`/procurement/purchase-receipts/new?poId=${po.id}`)}
+                              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border text-white whitespace-nowrap transition-colors"
+                              style={{ background: "linear-gradient(135deg,#059669,#047857)", borderColor: "#047857" }}>
+                              <PackageCheck className="h-3 w-3" /> Create PR
+                            </button>
+                          )}
+
+                          {transitions.length > 0 && (
+                            <div className="relative group">
+                              <button
+                                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 whitespace-nowrap transition-colors">
+                                <RefreshCw className="h-3 w-3" /> Status
+                                <ChevronDown className="h-3 w-3" />
+                              </button>
+                              <div className="absolute right-0 z-20 top-full mt-1 hidden group-hover:block bg-white border border-gray-200 rounded-xl shadow-lg min-w-[140px]">
+                                {transitions.map(newSt => {
+                                  const info = STATUS_MAP[newSt] ?? STATUS_MAP.Draft;
+                                  return (
+                                    <button key={newSt}
+                                      onClick={() => setStatusModal({ po, newStatus: newSt })}
+                                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2`}>
+                                      <info.Icon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: newSt === "Cancelled" ? "#dc2626" : newSt === "Approved" ? "#1d4ed8" : "#059669" }} />
+                                      <span>{newSt}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {isAdmin && !["Closed", "Partially Received"].includes(po.status) && (
                             <button onClick={() => setDeleteConfirm(po)}
                               className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                               <Trash2 className="h-3.5 w-3.5" />
@@ -339,7 +496,7 @@ export default function PurchaseOrderList() {
         </div>
       </div>
 
-      {/* Delete Confirm */}
+      {/* Delete Confirm Modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className={`${card} w-full max-w-sm p-6`}>
@@ -359,6 +516,48 @@ export default function PurchaseOrderList() {
               <button onClick={() => handleDelete(deleteConfirm)} disabled={actioning}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
                 {actioning ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Modal */}
+      {statusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className={`${card} w-full max-w-sm p-6`}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                <RefreshCw className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Change PO Status</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Change <span className="font-semibold">{statusModal.po.po_number}</span> from{" "}
+                  <span className="font-semibold">{statusModal.po.status}</span> to{" "}
+                  <span className="font-semibold">{statusModal.newStatus}</span>?
+                </p>
+                {statusModal.newStatus === "Cancelled" && (
+                  <p className="text-xs text-red-600 mt-2 bg-red-50 px-2 py-1.5 rounded-lg">
+                    Cancelling a PO cannot be undone. Any pending receipts must be cancelled separately.
+                  </p>
+                )}
+                {statusModal.newStatus === "Approved" && (
+                  <p className="text-xs text-blue-700 mt-2 bg-blue-50 px-2 py-1.5 rounded-lg">
+                    Approving enables purchase receipts to be created against this PO.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setStatusModal(null)} disabled={actioning}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleStatusChange} disabled={actioning}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${
+                  statusModal.newStatus === "Cancelled" ? "bg-red-600 hover:bg-red-700" : "hover:opacity-90"
+                }`}
+                style={statusModal.newStatus !== "Cancelled" ? { background: `linear-gradient(135deg,${G},${G_DIM})` } : {}}>
+                {actioning ? "Updating…" : `Set to ${statusModal.newStatus}`}
               </button>
             </div>
           </div>

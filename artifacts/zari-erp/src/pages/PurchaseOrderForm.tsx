@@ -129,12 +129,14 @@ export default function PurchaseOrderForm() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [inventoryItems, setInventoryItems] = useState<InventoryOption[]>([]);
+  const [swatchOrders, setSwatchOrders] = useState<Array<{ id: number; orderCode: string; swatchName: string; clientName: string }>>([]);
+  const [styleOrders, setStyleOrders] = useState<Array<{ id: number; orderCode: string; styleName: string; clientName: string }>>([]);
 
   // Form state
   const [vendorId, setVendorId]           = useState<number | "">("");
   const [poDate, setPoDate]               = useState(new Date().toISOString().slice(0, 10));
   const [referenceType, setReferenceType] = useState("Inventory");
-  const [referenceId, setReferenceId]     = useState("");
+  const [referenceId, setReferenceId]     = useState<number | "">("");
   const [notes, setNotes]                 = useState("");
   const [includeGst, setIncludeGst]       = useState(false);
   const [lineItems, setLineItems]         = useState<LineItem[]>([
@@ -152,6 +154,12 @@ export default function PurchaseOrderForm() {
       .catch(() => {});
     customFetch(`/api/inventory/items?limit=500&sort=item_name&order=asc&_t=${Date.now()}`)
       .then((r: unknown) => setInventoryItems((r as { data: InventoryOption[] }).data ?? []))
+      .catch(() => {});
+    customFetch(`/api/swatch-orders?limit=500&_t=${Date.now()}`)
+      .then((r: unknown) => setSwatchOrders((r as { data: Array<{ id: number; orderCode: string; swatchName: string; clientName: string }> }).data ?? []))
+      .catch(() => {});
+    customFetch(`/api/style-orders?limit=500&_t=${Date.now()}`)
+      .then((r: unknown) => setStyleOrders((r as { data: Array<{ id: number; orderCode: string; styleName: string; clientName: string }> }).data ?? []))
       .catch(() => {});
   }, [token]);
 
@@ -248,7 +256,14 @@ export default function PurchaseOrderForm() {
         poDate,
         referenceType,
         notes: referenceType === "Swatch" || referenceType === "Style"
-          ? `${referenceType} Ref: ${referenceId}`
+          ? (() => {
+              if (referenceType === "Swatch") {
+                const s = swatchOrders.find(o => o.id === Number(referenceId));
+                return s ? `Swatch Ref: ${s.orderCode} — ${s.swatchName}` : notes;
+              }
+              const s = styleOrders.find(o => o.id === Number(referenceId));
+              return s ? `Style Ref: ${s.orderCode} — ${s.styleName}` : notes;
+            })()
           : notes,
         includeGst,
         items: validItems.map(l => ({
@@ -482,13 +497,31 @@ export default function PurchaseOrderForm() {
               </select>
             </div>
 
-            {(referenceType === "Swatch" || referenceType === "Style") ? (
+            {referenceType === "Swatch" ? (
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  {referenceType} ID <span className="text-red-500">*</span>
+                  Swatch Order <span className="text-red-500">*</span>
                 </label>
-                <input type="text" value={referenceId} onChange={e => setReferenceId(e.target.value)}
-                  placeholder={`Enter ${referenceType} ID…`} className={inputCls} />
+                <select value={referenceId} onChange={e => setReferenceId(Number(e.target.value) || "")}
+                  className={`${inputCls} bg-white appearance-none`}>
+                  <option value="">— Select swatch order —</option>
+                  {swatchOrders.map(s => (
+                    <option key={s.id} value={s.id}>{s.orderCode} · {s.swatchName} ({s.clientName})</option>
+                  ))}
+                </select>
+              </div>
+            ) : referenceType === "Style" ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Style Order <span className="text-red-500">*</span>
+                </label>
+                <select value={referenceId} onChange={e => setReferenceId(Number(e.target.value) || "")}
+                  className={`${inputCls} bg-white appearance-none`}>
+                  <option value="">— Select style order —</option>
+                  {styleOrders.map(s => (
+                    <option key={s.id} value={s.id}>{s.orderCode} · {s.styleName} ({s.clientName})</option>
+                  ))}
+                </select>
               </div>
             ) : (
               <div>
@@ -627,12 +660,13 @@ export default function PurchaseOrderForm() {
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[200px]">Item</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Unit</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Ordered Qty</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Target Price (₹)</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Price / Unit (₹)</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Total (₹)</th>
                   {includeGst && <>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">HSN Code</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">GST %</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">GST Amt</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Total</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Incl. GST</th>
                   </>}
                   <th className="px-3 py-2.5 w-10"></th>
                 </tr>
@@ -690,10 +724,18 @@ export default function PurchaseOrderForm() {
                           className={`${inputCls} text-right`} />
                       </td>
                       <td className="px-3 py-2">
-                        <input type="number" min="0" step="0.01"
-                          value={line.targetPrice}
-                          onChange={e => updateLine(line.key, "targetPrice", e.target.value)}
-                          className={`${inputCls} text-right`} />
+                        <div>
+                          <input type="number" min="0" step="0.01"
+                            value={line.targetPrice}
+                            onChange={e => updateLine(line.key, "targetPrice", e.target.value)}
+                            className={`${inputCls} text-right`} />
+                          {line.unitType && (
+                            <span className="text-[10px] text-gray-400 mt-0.5 block text-right">per {line.unitType}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-sm font-mono font-semibold text-gray-900 text-right pr-4">
+                        {lineAmt > 0 ? `₹${fmt(lineAmt)}` : "—"}
                       </td>
                       {includeGst && <>
                         <td className="px-3 py-2">
