@@ -32,9 +32,9 @@ interface Charge {
 
 interface HsnRecord {
   id: number;
-  hsn_code: string;
-  gst_percentage: string;
-  govt_description: string;
+  hsnCode: string;
+  gstPercentage: string;
+  govtDescription: string;
 }
 
 const emptyDesign = (): Design => ({ designName: "", hsnCode: "", designImage: "", remarks: "" });
@@ -381,8 +381,8 @@ export default function QuotationForm() {
                       onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
                       <option value="">— Select HSN —</option>
                       {allHsn.map((h) => (
-                        <option key={h.id} value={h.hsn_code}>
-                          {h.hsn_code}{h.govt_description ? ` — ${h.govt_description.length > 40 ? h.govt_description.slice(0, 40) + "…" : h.govt_description}` : ""} ({h.gst_percentage}%)
+                        <option key={h.id} value={h.hsnCode}>
+                          {h.hsnCode}{h.govtDescription ? ` — ${h.govtDescription.length > 40 ? h.govtDescription.slice(0, 40) + "…" : h.govtDescription}` : ""} ({h.gstPercentage}%)
                         </option>
                       ))}
                     </select>
@@ -454,8 +454,8 @@ export default function QuotationForm() {
                           onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
                           <option value="">— HSN —</option>
                           {allHsn.map((h) => (
-                            <option key={h.id} value={h.hsn_code}>
-                              {h.hsn_code} ({h.gst_percentage}%)
+                            <option key={h.id} value={h.hsnCode}>
+                              {h.hsnCode} ({h.gstPercentage}%)
                             </option>
                           ))}
                         </select>
