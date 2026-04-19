@@ -20,7 +20,6 @@ import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 import StyleCostingTab from "./StyleCostingTab";
 import StyleCostSheetTab from "./StyleCostSheetTab";
 import StyleClientLinkTab from "./StyleClientLinkTab";
-import StyleInvoiceTab from "./StyleInvoiceTab";
 import ShippingTab from "@/pages/ShippingTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -64,7 +63,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TABS = [
   "Basic Info", "References", "Products", "Artworks",
-  "Client Link", "Estimate", "Costing", "Cost Sheet", "Invoice", "Shipping",
+  "Client Link", "Estimate", "Costing", "Cost Sheet", "Shipping",
 ];
 
 // ── Form ──────────────────────────────────────────────────────────────────────
@@ -955,20 +954,9 @@ export default function StyleOrderDetail() {
             />
           )}
 
-          {/* ══ TAB 8: Invoice ═════════════════════════════════════════════ */}
-          {activeTab === 8 && isNew && <PlaceholderTab icon="🧾" label="Invoice (save order first)" />}
+          {/* ══ TAB 8: Shipping ═════════════════════════════════════════════ */}
+          {activeTab === 8 && isNew && <PlaceholderTab icon="🚚" label="Shipping (save order first)" />}
           {activeTab === 8 && !isNew && numId && (
-            <StyleInvoiceTab
-              styleOrderId={numId}
-              orderCode={orderData?.data?.orderCode}
-              styleName={orderData?.data?.styleName}
-              clientName={form.clientName}
-            />
-          )}
-
-          {/* ══ TAB 9: Shipping ═════════════════════════════════════════════ */}
-          {activeTab === 9 && isNew && <PlaceholderTab icon="🚚" label="Shipping (save order first)" />}
-          {activeTab === 9 && !isNew && numId && (
             <ShippingTab
               referenceType="Style"
               referenceId={numId}

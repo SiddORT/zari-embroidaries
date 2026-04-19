@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Printer, Loader2, RefreshCw, ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -113,6 +113,37 @@ export default function StyleCostSheetTab({
 
   const isLoading = loadingBom || loadingPos || loadingPrs;
 
+  // ── HSN/GST master data ──────────────────────────────────────────────────────
+  type HsnRow = { hsnCode: string; gstPercentage: string };
+  type MatRow = { code: string; hsnCode?: string };
+  const [hsnList, setHsnList] = useState<HsnRow[]>([]);
+  const [materialsMaster, setMaterialsMaster] = useState<MatRow[]>([]);
+  const [fabricsMaster, setFabricsMaster] = useState<MatRow[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const hdrs: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch("/api/hsn/all", { headers: hdrs }).then(r => r.json()).then((d: HsnRow[] | { data: HsnRow[] }) => {
+      setHsnList(Array.isArray(d) ? d : (d as { data: HsnRow[] }).data ?? []);
+    }).catch(() => {});
+    fetch("/api/materials/all", { headers: hdrs }).then(r => r.json()).then((d: MatRow[] | { data: MatRow[] }) => {
+      setMaterialsMaster(Array.isArray(d) ? d : (d as { data: MatRow[] }).data ?? []);
+    }).catch(() => {});
+    fetch("/api/fabrics/all", { headers: hdrs }).then(r => r.json()).then((d: MatRow[] | { data: MatRow[] }) => {
+      setFabricsMaster(Array.isArray(d) ? d : (d as { data: MatRow[] }).data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  function getBomHsnGst(r: BomRecord): { hsnCode: string; gstPct: number } {
+    const master = r.materialType === "fabric"
+      ? fabricsMaster.find(f => f.code === r.materialCode)
+      : materialsMaster.find(m => m.code === r.materialCode);
+    const hsnCode = master?.hsnCode ?? "";
+    const hsnRow = hsnCode ? hsnList.find(h => h.hsnCode === hsnCode) : undefined;
+    const gstPct = hsnRow ? (parseFloat(hsnRow.gstPercentage) || 0) : 0;
+    return { hsnCode, gstPct };
+  }
+
   async function handleRefresh() {
     setRefreshing(true);
     await qc.invalidateQueries({ queryKey: ["style-bom", styleOrderId] });
@@ -160,10 +191,14 @@ export default function StyleCostSheetTab({
 
   // ── Totals ───────────────────────────────────────────────────────────────────
   const bomConsumedTotal = bomWithMetrics.reduce((s, { m }) => s + m.consumedTotal, 0);
+  const bomGstTotal = bomWithMetrics.reduce((s, { r, m }) => {
+    const { gstPct } = getBomHsnGst(r);
+    return s + m.consumedTotal * (gstPct / 100);
+  }, 0);
   const artisanTotal     = filteredArtisan.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
   const outsourceTotal   = filteredOutsource.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
   const customTotal      = filteredCustom.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-  const grandTotal       = bomConsumedTotal + artisanTotal + outsourceTotal + customTotal;
+  const grandTotal       = bomConsumedTotal + bomGstTotal + artisanTotal + outsourceTotal + customTotal;
 
   const SHIFT_LABELS: Record<string, string> = { regular: "Regular", night: "Night", sunday: "Sunday", overtime: "Overtime" };
 
@@ -286,9 +321,12 @@ export default function StyleCostSheetTab({
             headers={[
               ...((!isFiltered && products.length > 0) ? ["Product"] : []),
               "Code", "Material / Fabric", "Type",
-              "Consumed Qty", "Avg Price ₹", "Consumed Total ₹", "Consumed By",
+              "Consumed Qty", "Avg Price ₹", "HSN", "GST%", "Final Rate ₹", "Total (incl. GST) ₹", "Consumed By",
             ]}
             rows={bomWithMetrics.filter(({ m }) => m.consumedQtyNum > 0).map(({ r, m }) => {
+              const { hsnCode, gstPct } = getBomHsnGst(r);
+              const finalRate = m.weightedAvg * (1 + gstPct / 100);
+              const totalWithGst = m.consumedTotal * (1 + gstPct / 100);
               const entries = filteredConsumptionLog.filter(e => e.bomRowId === r.id);
               const productNames = isFiltered
                 ? (entries[0] ? ((entries[0] as any).styleOrderProductName ?? "—") : "—")
@@ -300,7 +338,10 @@ export default function StyleCostSheetTab({
                 r.materialType === "fabric" ? "Fabric" : "Material",
                 `${fmt(m.consumedQtyNum)} ${r.unitType}`,
                 rupee(m.weightedAvg),
-                rupee(m.consumedTotal),
+                hsnCode || "—",
+                gstPct > 0 ? `${gstPct}%` : "—",
+                rupee(finalRate),
+                rupee(totalWithGst),
                 lastEntry?.consumedBy ?? "—",
               ];
               if (!isFiltered && products.length > 0) row.unshift(productNames);
@@ -308,8 +349,8 @@ export default function StyleCostSheetTab({
             })}
             footer={bomWithMetrics.filter(({ m }) => m.consumedQtyNum > 0).length > 0 ? [
               ...(!isFiltered && products.length > 0 ? [""] : []),
-              "", "", "Total", "", "",
-              rupee(bomConsumedTotal),
+              "", "", "Total", "", "", "", "", "",
+              rupee(bomConsumedTotal + bomGstTotal),
               "",
             ] : undefined}
           />
@@ -405,7 +446,8 @@ export default function StyleCostSheetTab({
             <div className="w-80">
               <div className="space-y-1.5">
                 {[
-                  { label: "Material Consumed", value: bomConsumedTotal },
+                  { label: "Material Consumed (excl. GST)", value: bomConsumedTotal },
+                  { label: "Material GST", value: bomGstTotal },
                   { label: "Artisan Labour", value: artisanTotal },
                   { label: "Outsource Jobs", value: outsourceTotal },
                   { label: "Custom Charges", value: customTotal },

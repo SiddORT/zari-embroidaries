@@ -22,7 +22,6 @@ import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
 import ClientLinkTab from "@/pages/ClientLinkTab";
 import CostingTab from "@/pages/CostingTab";
 import CostSheetTab from "@/pages/CostSheetTab";
-import InvoiceTab from "@/pages/InvoiceTab";
 import ShippingTab from "@/pages/ShippingTab";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -71,7 +70,6 @@ const TABS = [
   { label: "Estimate",     icon: "📊" },
   { label: "Costing",      icon: "💰" },
   { label: "Cost Sheet",   icon: "📋" },
-  { label: "Invoice",      icon: "🧾" },
   { label: "Shipping",     icon: "🚚" },
 ];
 
@@ -1242,18 +1240,8 @@ export default function SwatchOrderDetail() {
           />
         )}
 
-        {/* ══ TAB 7: Invoice ══ */}
+        {/* ══ TAB 7: Shipping ══ */}
         {activeTab === 7 && numId && (
-          <InvoiceTab
-            swatchOrderId={numId}
-            orderCode={orderData?.data?.orderCode ?? undefined}
-            swatchName={orderData?.data?.swatchName ?? undefined}
-            clientName={orderData?.data?.clientName ?? undefined}
-          />
-        )}
-
-        {/* ══ TAB 8: Shipping ══ */}
-        {activeTab === 8 && numId && (
           <ShippingTab
             referenceType="Swatch"
             referenceId={numId}
