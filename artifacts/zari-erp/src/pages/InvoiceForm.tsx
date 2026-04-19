@@ -151,6 +151,10 @@ export default function InvoiceForm() {
   const rate = parseFloat(form.exchangeRateSnapshot || "1");
   const baseCurrencyAmount = totals.total * rate;
 
+  const CURRENCY_SYMBOLS: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "د.إ", SAR: "﷼" };
+  const sym = CURRENCY_SYMBOLS[form.currencyCode] ?? form.currencyCode;
+  const toInvCcy = (inrVal: number) => (rate > 0 ? inrVal / rate : inrVal);
+
   // Load supporting data
   useEffect(() => {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
@@ -843,12 +847,12 @@ export default function InvoiceForm() {
                   <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[22%]">Description</th>
                   <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[11%]">Category</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[7%]">Qty</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Rate ₹</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Rate {sym}</th>
                   <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[11%]">HSN Code</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[7%]">GST %</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">GST Amt</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Amount ₹</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Total (w/ GST)</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">GST Amt {sym}</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Amount {sym}</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Total w/ GST {sym}</th>
                   <th className="w-[4%]"></th>
                 </tr>
               </thead>
@@ -940,7 +944,12 @@ export default function InvoiceForm() {
                         </td>
                         {/* Rate */}
                         <td className="px-3 py-2">
-                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                          <input
+                            type="number" min="0" step="0.0001"
+                            value={parseFloat(toInvCcy(it.unitPrice).toFixed(4))}
+                            onChange={e => updateItem(it.id, "unitPrice", (parseFloat(e.target.value) || 0) * rate)}
+                            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
+                          />
                         </td>
                         {/* HSN Code */}
                         <td className="px-3 py-2">
@@ -977,17 +986,17 @@ export default function InvoiceForm() {
                         {/* GST Amount */}
                         <td className="px-3 py-2 text-right text-xs text-gray-600">
                           {gstPct > 0
-                            ? <span className="font-medium text-amber-700">{itemGst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                            ? <span className="font-medium text-amber-700">{toInvCcy(itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             : <span className="text-gray-300">—</span>
                           }
                         </td>
                         {/* Amount */}
                         <td className="px-3 py-2 font-semibold text-gray-900 text-right text-xs">
-                          {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          {toInvCcy(it.total).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
                         {/* Total w/ GST */}
                         <td className="px-3 py-2 text-right text-xs font-bold text-[#C9B45C]">
-                          {(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          {toInvCcy(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
                         {/* Delete */}
                         <td className="px-2 py-2">
@@ -1007,11 +1016,11 @@ export default function InvoiceForm() {
                   return s + (pct > 0 ? (i.total * pct) / 100 : 0);
                 }, 0);
                 const grandTotal = totalAmt + totalGst;
-                const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
+                const fmt = (n: number) => toInvCcy(n).toLocaleString("en-IN", { minimumFractionDigits: 2 });
                 return (
                   <tfoot>
                     <tr className="border-t-2 border-gray-900 bg-gray-900">
-                      <td colSpan={6} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-300 uppercase tracking-wide">Grand Total (Amt + GST)</td>
+                      <td colSpan={6} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-300 uppercase tracking-wide">Grand Total (Amt + GST) {sym}</td>
                       <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-500">{fmt(totalGst)}</td>
                       <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-500">{fmt(totalAmt)}</td>
                       <td className="px-3 py-2.5 text-right text-sm font-bold text-[#C9B45C]">{fmt(grandTotal)}</td>
