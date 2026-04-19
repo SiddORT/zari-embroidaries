@@ -54,6 +54,13 @@ interface InvItem {
   available_stock: string;
 }
 
+interface OrderOption {
+  id: number;
+  orderCode: string;
+  label: string;
+  clientName: string | null;
+}
+
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -103,6 +110,9 @@ export default function Reservations() {
   const [showForm, setShowForm] = useState(false);
   const [invItems, setInvItems] = useState<InvItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [styleOrders, setStyleOrders] = useState<OrderOption[]>([]);
+  const [swatchOrders, setSwatchOrders] = useState<OrderOption[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [form, setForm] = useState({
     inventoryId: "" as number | "",
     reservationType: "Style",
@@ -152,7 +162,24 @@ export default function Reservations() {
       .finally(() => setLoadingItems(false));
   };
 
-  const openForm = () => { loadInvItems(); setShowForm(true); };
+  const loadOrders = () => {
+    if (!token || (styleOrders.length && swatchOrders.length)) return;
+    setLoadingOrders(true);
+    Promise.all([
+      customFetch(`/api/style-orders?limit=500&_t=${Date.now()}`),
+      customFetch(`/api/swatch-orders?limit=500&_t=${Date.now()}`),
+    ])
+      .then(([sr, sw]) => {
+        const sd = sr as { data: Array<{ id: number; orderCode: string; styleName: string; clientName: string | null }> };
+        const wd = sw as { data: Array<{ id: number; orderCode: string; swatchName: string; clientName: string | null }> };
+        setStyleOrders((sd.data ?? []).map(o => ({ id: o.id, orderCode: o.orderCode, label: o.styleName, clientName: o.clientName })));
+        setSwatchOrders((wd.data ?? []).map(o => ({ id: o.id, orderCode: o.orderCode, label: o.swatchName, clientName: o.clientName })));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOrders(false));
+  };
+
+  const openForm = () => { loadInvItems(); loadOrders(); setShowForm(true); };
 
   const handleSubmit = async () => {
     if (!form.inventoryId || !form.referenceId || !form.reservedQuantity || !form.reservationDate) {
@@ -458,18 +485,28 @@ export default function Reservations() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Reservation Type <span className="text-red-500">*</span></label>
                   <select value={form.reservationType}
-                    onChange={e => setForm(f => ({ ...f, reservationType: e.target.value }))}
+                    onChange={e => setForm(f => ({ ...f, reservationType: e.target.value, referenceId: "" }))}
                     className="w-full appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white">
                     <option value="Style">Style</option>
                     <option value="Swatch">Swatch</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Reference ID <span className="text-red-500">*</span></label>
-                  <input type="number" min="1" value={form.referenceId}
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    {form.reservationType === "Style" ? "Style Order" : "Swatch Order"} <span className="text-red-500">*</span>
+                  </label>
+                  <select value={form.referenceId}
                     onChange={e => setForm(f => ({ ...f, referenceId: e.target.value }))}
-                    placeholder="Style or Swatch ID"
-                    className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                    className="w-full appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white">
+                    <option value="">
+                      {loadingOrders ? "Loading…" : `Select ${form.reservationType === "Style" ? "style" : "swatch"} order…`}
+                    </option>
+                    {(form.reservationType === "Style" ? styleOrders : swatchOrders).map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.orderCode} — {o.label}{o.clientName ? ` (${o.clientName})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
