@@ -305,7 +305,7 @@ function addContentPage(doc: jsPDF, data: QuotationPdfData) {
 export async function generateQuotationPdf(data: QuotationPdfData): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-  if (data.cover_page_image) {
+  if (data.cover_page === "custom" && data.cover_page_image) {
     const W = doc.internal.pageSize.getWidth();
     const H = doc.internal.pageSize.getHeight();
     const imgData = data.cover_page_image;
