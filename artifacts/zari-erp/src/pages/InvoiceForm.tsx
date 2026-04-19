@@ -1010,13 +1010,6 @@ export default function InvoiceForm() {
                 const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
                 return (
                   <tfoot>
-                    <tr className="border-t border-gray-200 bg-gray-50/40">
-                      <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Subtotal</td>
-                      <td className="px-3 py-2 text-right text-xs font-semibold text-amber-700">{fmt(totalGst)}</td>
-                      <td className="px-3 py-2 text-right text-xs font-semibold text-gray-800">{fmt(totalAmt)}</td>
-                      <td className="px-3 py-2 text-right text-xs font-bold text-[#C9B45C]">{fmt(grandTotal)}</td>
-                      <td />
-                    </tr>
                     <tr className="border-t-2 border-gray-900 bg-gray-900">
                       <td colSpan={6} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-300 uppercase tracking-wide">Grand Total (Amt + GST)</td>
                       <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-500">{fmt(totalGst)}</td>
