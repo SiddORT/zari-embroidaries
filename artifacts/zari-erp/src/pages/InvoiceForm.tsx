@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useLocation, useParams } from "wouter";
-import { Save, ArrowLeft, Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -92,6 +92,8 @@ export default function InvoiceForm() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [refOrderOptions, setRefOrderOptions] = useState<{ value: string; label: string }[]>([]);
   const [refOrdersLoading, setRefOrdersLoading] = useState(false);
+  const [refOrderFullData, setRefOrderFullData] = useState<{ id: number; orderCode: string }[]>([]);
+  const [loadingCostSheet, setLoadingCostSheet] = useState(false);
   const [hsnList, setHsnList] = useState<HsnItem[]>([]);
   const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
   const [fabricMaster, setFabricMaster] = useState<FabricMaster[]>([]);
@@ -187,6 +189,7 @@ export default function InvoiceForm() {
   useEffect(() => {
     if (form.referenceType !== "Swatch" && form.referenceType !== "Style") {
       setRefOrderOptions([]);
+      setRefOrderFullData([]);
       return;
     }
     setRefOrdersLoading(true);
@@ -199,7 +202,8 @@ export default function InvoiceForm() {
         ? rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.swatchName ?? ""}`.trim() }))
         : rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.styleName ?? r.styleNo ?? ""}`.trim() }));
       setRefOrderOptions(opts);
-    }).catch(() => setRefOrderOptions([])).finally(() => setRefOrdersLoading(false));
+      setRefOrderFullData(rows.map((r: any) => ({ id: r.id, orderCode: r.orderCode })));
+    }).catch(() => { setRefOrderOptions([]); setRefOrderFullData([]); }).finally(() => setRefOrdersLoading(false));
   }, [form.referenceType]);
 
   // Auto-set exchange rate when currency changes
@@ -272,7 +276,7 @@ export default function InvoiceForm() {
     }));
   }
 
-  async function handleSave() {
+  async function handleSave(overrideStatus?: string) {
     if (!form.invoiceDate) { toast({ title: "Invoice date is required", variant: "destructive" }); return; }
     if (form.invoiceDirection === "Client" && !form.clientName && !form.clientId) {
       toast({ title: "Client is required for client invoices", variant: "destructive" }); return;
@@ -282,6 +286,7 @@ export default function InvoiceForm() {
     try {
       const payload = {
         ...form,
+        ...(overrideStatus ? { invoiceStatus: overrideStatus } : {}),
         items,
         totalAmount: String(totals.total.toFixed(2)),
         subtotalAmount: String(totals.subtotal.toFixed(2)),
@@ -305,6 +310,48 @@ export default function InvoiceForm() {
       toast({ title: "Save failed", description: e.message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleLoadFromCostSheet() {
+    if (!form.referenceId) return;
+    const order = refOrderFullData.find(o => o.orderCode === form.referenceId);
+    if (!order) { toast({ title: "Order not found", variant: "destructive" }); return; }
+
+    setLoadingCostSheet(true);
+    try {
+      const endpoint = form.referenceType === "Swatch"
+        ? `/api/costing/swatch-bom/${order.id}`
+        : `/api/costing/style-bom/${order.id}`;
+      const j = await customFetch<any>(endpoint);
+      const rows: any[] = Array.isArray(j) ? j : (j.data ?? []);
+      if (rows.length === 0) { toast({ title: "No BOM rows found on this cost sheet", variant: "destructive" }); return; }
+
+      const loaded: LineItem[] = rows.map((r: any) => {
+        const cat = r.materialType === "fabric" ? "Fabric" : "Material";
+        const qty = parseFloat(r.requiredQty || r.consumedQty || "1") || 1;
+        const rate = parseFloat(r.ratePerUnit || r.avgRate || r.unitRate || "0") || 0;
+        const hsn = r.hsnCode ?? "";
+        const gst = r.gstPercent ?? r.gstPercentage ?? "";
+        return {
+          id: crypto.randomUUID(),
+          description: `[${r.materialCode}] ${r.materialName ?? ""}`.trim(),
+          category: cat,
+          quantity: qty,
+          unitPrice: rate,
+          total: qty * rate,
+          hsnCode: hsn,
+          hsnGstPct: String(gst),
+          showHsn: !!hsn,
+        };
+      });
+
+      setItems(loaded);
+      toast({ title: `Loaded ${loaded.length} line item${loaded.length !== 1 ? "s" : ""} from cost sheet` });
+    } catch (e: any) {
+      toast({ title: "Failed to load cost sheet", description: e.message, variant: "destructive" });
+    } finally {
+      setLoadingCostSheet(false);
     }
   }
 
@@ -555,6 +602,25 @@ export default function InvoiceForm() {
               </div>
             </div>
 
+            {/* Remarks & Notes */}
+            <div className={`${card} p-6`}>
+              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Remarks & Notes</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Remarks</label>
+                  <textarea value={form.remarks} onChange={e => setF("remarks", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Internal remarks" />
+                </div>
+                <div>
+                  <label className={lbl}>Notes (printed on invoice)</label>
+                  <textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Payment terms, thank you note…" />
+                </div>
+                <div>
+                  <label className={lbl}>Payment Terms</label>
+                  <input value={form.paymentTerms} onChange={e => setF("paymentTerms", e.target.value)} className={inp} placeholder="e.g. Net 30, Advance 50%" />
+                </div>
+              </div>
+            </div>
+
           </div>
 
           {/* RIGHT — Sidebar */}
@@ -710,35 +776,6 @@ export default function InvoiceForm() {
               </div>
             </div>
 
-            {/* Remarks & Notes */}
-            <div className={`${card} p-5`}>
-              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Remarks & Notes</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className={lbl}>Remarks</label>
-                  <textarea value={form.remarks} onChange={e => setF("remarks", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Internal remarks" />
-                </div>
-                <div>
-                  <label className={lbl}>Notes (printed on invoice)</label>
-                  <textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Payment terms, thank you note…" />
-                </div>
-                <div>
-                  <label className={lbl}>Payment Terms</label>
-                  <input value={form.paymentTerms} onChange={e => setF("paymentTerms", e.target.value)} className={inp} placeholder="e.g. Net 30, Advance 50%" />
-                </div>
-              </div>
-            </div>
-
-            {/* Save */}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white shadow-sm transition disabled:opacity-60"
-              style={{ backgroundColor: G }}
-            >
-              {saving ? <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={15} />}
-              {saving ? "Saving…" : "Save Invoice"}
-            </button>
           </div>
         </div>
 
@@ -756,6 +793,26 @@ export default function InvoiceForm() {
                 />
                 Show HSN on printed invoice
               </label>
+              {(form.referenceType === "Swatch" || form.referenceType === "Style") && form.referenceId ? (
+                <button
+                  onClick={handleLoadFromCostSheet}
+                  disabled={loadingCostSheet}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition disabled:opacity-60"
+                >
+                  {loadingCostSheet
+                    ? <><span className="h-3 w-3 border-2 border-emerald-400/30 border-t-emerald-600 rounded-full animate-spin" /> Loading…</>
+                    : <><Download size={13} /> Load from Cost Sheet</>
+                  }
+                </button>
+              ) : (
+                <button
+                  disabled
+                  title="Select a Swatch or Style reference first"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed"
+                >
+                  <Download size={13} /> Load from Cost Sheet
+                </button>
+              )}
               <button
                 onClick={() => setItems(prev => [...prev, blank()])}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
@@ -927,22 +984,38 @@ export default function InvoiceForm() {
           </div>
         </div>
 
-        {/* Payment Tracking — full width */}
-        <div className={`${card} p-6`}>
-          <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Payment Tracking</h2>
-          <div className="grid grid-cols-3 gap-6 items-start">
-            <div>
-              <label className={lbl}>Amount Received</label>
-              <input type="number" min="0" step="0.01" value={form.receivedAmount} onChange={e => setF("receivedAmount", e.target.value)} className={inp} />
-            </div>
-            <div className="pt-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Pending Amount</span>
-                <span className={`font-bold text-base ${Math.max(0, totals.total - parseFloat(form.receivedAmount || "0")) > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                  {Math.max(0, totals.total - parseFloat(form.receivedAmount || "0")).toLocaleString("en-IN", { minimumFractionDigits: 2 })} {form.currencyCode}
-                </span>
-              </div>
-            </div>
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between gap-3 pt-1 pb-4">
+          <button
+            onClick={() => navigate("/accounts/invoices")}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleSave("Draft")}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition disabled:opacity-60"
+            >
+              {saving ? <span className="h-3.5 w-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> : <FileText size={14} />}
+              Save as Draft
+            </button>
+            <button
+              onClick={() => toast({ title: "Preview coming soon", description: "Invoice preview will be available after saving." })}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition"
+            >
+              <Eye size={14} /> Preview Invoice
+            </button>
+            <button
+              onClick={() => handleSave()}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm transition disabled:opacity-60"
+              style={{ backgroundColor: G }}
+            >
+              {saving ? <span className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />}
+              {isEdit ? "Save Changes" : "Generate Invoice"}
+            </button>
           </div>
         </div>
 
