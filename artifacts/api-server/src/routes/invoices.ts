@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, invoicesTable } from "@workspace/db";
+import { db, invoicesTable, pool } from "@workspace/db";
 import { eq, like, desc, ilike, and, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import type { Request } from "express";
@@ -92,10 +92,13 @@ router.get("/invoices/:id", requireAuth, async (req, res) => {
 router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
   const id = parseInt(req.params.swatchOrderId);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const codeRes = await pool.query(`SELECT order_code FROM swatch_orders WHERE id = $1`, [id]);
+  const orderCode: string | undefined = codeRes.rows[0]?.order_code;
   const rows = await db.select().from(invoicesTable).where(
     or(
       eq(invoicesTable.swatchOrderId, id),
-      and(eq(invoicesTable.referenceType, "Swatch"), eq(invoicesTable.referenceId, String(id)))
+      and(eq(invoicesTable.referenceType, "Swatch"), eq(invoicesTable.referenceId, String(id))),
+      ...(orderCode ? [and(eq(invoicesTable.referenceType, "Swatch"), eq(invoicesTable.referenceId, orderCode))!] : [])
     )
   ).orderBy(desc(invoicesTable.createdAt));
   res.json({ data: rows });
@@ -105,10 +108,13 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
 router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
   const id = parseInt(req.params.styleOrderId);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const codeRes = await pool.query(`SELECT order_code FROM style_orders WHERE id = $1`, [id]);
+  const orderCode: string | undefined = codeRes.rows[0]?.order_code;
   const rows = await db.select().from(invoicesTable).where(
     or(
       eq(invoicesTable.styleOrderId, id),
-      and(eq(invoicesTable.referenceType, "Style"), eq(invoicesTable.referenceId, String(id)))
+      and(eq(invoicesTable.referenceType, "Style"), eq(invoicesTable.referenceId, String(id))),
+      ...(orderCode ? [and(eq(invoicesTable.referenceType, "Style"), eq(invoicesTable.referenceId, orderCode))!] : [])
     )
   ).orderBy(desc(invoicesTable.createdAt));
   res.json({ data: rows });
