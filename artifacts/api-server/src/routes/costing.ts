@@ -3,9 +3,9 @@ import { db } from "@workspace/db";
 import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
   consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable, customChargesTable,
-  materialsTable, fabricsTable, vendorsTable, hsnTable,
+  materialsTable, fabricsTable, vendorsTable, hsnTable, inventoryItemsTable,
 } from "@workspace/db/schema";
-import { eq, ilike, or, desc } from "drizzle-orm";
+import { eq, ilike, or, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
@@ -507,15 +507,19 @@ router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
 
   // Enrich each row with live stock figures from inventory_items
   const enriched = await Promise.all(rows.map(async (r) => {
-    const inv = await pool.query(
-      `SELECT current_stock, available_stock FROM inventory_items WHERE source_type = $1 AND source_id = $2 LIMIT 1`,
-      [r.materialType, r.materialId]
-    );
-    const live = inv.rows[0] ?? null;
+    const invRows = await db
+      .select({ currentStock: inventoryItemsTable.currentStock, availableStock: inventoryItemsTable.availableStock })
+      .from(inventoryItemsTable)
+      .where(and(
+        eq(inventoryItemsTable.sourceType, r.materialType ?? ""),
+        eq(inventoryItemsTable.sourceId, r.materialId ?? 0),
+      ))
+      .limit(1);
+    const live = invRows[0] ?? null;
     return {
       ...r,
-      liveCurrentStock: live ? live.current_stock : null,
-      liveAvailableStock: live ? live.available_stock : null,
+      liveCurrentStock: live ? live.currentStock : null,
+      liveAvailableStock: live ? live.availableStock : null,
     };
   }));
 

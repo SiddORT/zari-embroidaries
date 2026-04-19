@@ -5,6 +5,8 @@ import {
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
   ArrowRight, Paperclip, Package, Info, Download, Clock, Truck,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useAllMaterials } from "@/hooks/useMaterials";
@@ -101,6 +103,22 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
     currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "",
+  });
+
+  // Live inventory lookup for the currently-selected material/fabric
+  const { data: selectedInv } = useQuery({
+    queryKey: ["inv-by-source", form.materialType, form.materialId],
+    queryFn: async () => {
+      if (!form.materialType || !form.materialId) return null;
+      const r = await customFetch<{ data: { current_stock: string; available_stock: string }[] }>(
+        `/api/inventory/items?sourceType=${form.materialType}&search=${encodeURIComponent(form.materialCode)}&limit=5`
+      );
+      return r.data?.find(
+        (i: any) => i.source_type === form.materialType && String(i.source_id) === String(form.materialId)
+      ) ?? null;
+    },
+    enabled: !!form.materialType && form.materialId > 0,
+    staleTime: 30_000,
   });
 
   const estimatedAmount = (parseFloat(form.requiredQty) || 0) * (parseFloat(form.avgUnitPrice) || 0);
@@ -229,8 +247,25 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
           {form.materialId > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
-                <p className="text-[10px] text-gray-400">Stock</p>
-                <p className="font-semibold text-gray-800">{form.currentStock} {form.unitType}</p>
+                <p className="text-[10px] text-gray-400 mb-1">Inventory Stock</p>
+                {selectedInv ? (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-gray-400 w-10 shrink-0">Current</span>
+                      <span className="font-semibold text-gray-800">{parseFloat(selectedInv.current_stock).toFixed(3)}</span>
+                      <span className="text-[10px] text-gray-400">{form.unitType}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[9px] text-gray-400 w-10 shrink-0">Avail</span>
+                      <span className={`font-semibold ${parseFloat(selectedInv.available_stock) <= 0 ? "text-red-600" : "text-green-700"}`}>
+                        {parseFloat(selectedInv.available_stock).toFixed(3)}
+                      </span>
+                      <span className="text-[10px] text-gray-400">{form.unitType}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-[10px] text-gray-400 italic">not in inventory</p>
+                )}
               </div>
               <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
                 <p className="text-[10px] text-gray-400">Avg Price</p>
