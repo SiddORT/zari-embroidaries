@@ -126,7 +126,7 @@ export default function CostSheetTab({
   const [fabricsMaster, setFabricsMaster] = useState<FabMasterRow[]>([]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("zarierp_token");
     const hdrs: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
     fetch("/api/materials/all", { headers: hdrs }).then(r => r.json()).then((d: MatMasterRow[] | { data: MatMasterRow[] }) => {
       setMaterialsMaster(Array.isArray(d) ? d : (d as { data: MatMasterRow[] }).data ?? []);
