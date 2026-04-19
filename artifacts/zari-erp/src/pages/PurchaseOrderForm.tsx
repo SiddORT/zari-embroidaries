@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Plus, Trash2, Save, CheckCircle2, XCircle, Clock,
-  ShoppingCart, PackageCheck, AlertTriangle, Search,
+  ShoppingCart, PackageCheck, Search, Building2, CreditCard,
+  Phone, Mail, MapPin, BadgePercent,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,10 +30,29 @@ interface InventoryOption {
   unit_type: string | null;
   available_stock: string;
   average_price: string;
-  warehouse_location: string | null;
+  hsn_code: string | null;
+  gst_percent: string | null;
 }
 
-interface Vendor { id: number; brand_name: string; }
+interface Vendor {
+  id: number;
+  brandName: string;
+  vendorCode: string;
+  contactName: string | null;
+  email: string | null;
+  contactNo: string | null;
+  hasGst: boolean;
+  gstNo: string | null;
+  bankName: string | null;
+  accountNo: string | null;
+  ifscCode: string | null;
+  bankAccounts: Array<{ bankName: string; accountNo: string; ifscCode?: string }> | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+}
 
 interface LineItem {
   key: string;
@@ -41,9 +61,10 @@ interface LineItem {
   itemCode: string;
   unitType: string;
   availableStock: string;
+  hsnCode: string;
+  gstPercent: string;
   orderedQuantity: string;
-  unitPrice: string;
-  warehouseLocation: string;
+  targetPrice: string;
   remarks: string;
 }
 
@@ -58,8 +79,6 @@ interface POItem {
   unit_price: string;
   unit_type: string | null;
   warehouse_location: string | null;
-  available_stock: string;
-  current_stock: string;
 }
 
 interface PODetail {
@@ -77,6 +96,10 @@ interface PODetail {
 }
 
 function mkKey() { return Math.random().toString(36).slice(2); }
+
+function fmt(n: number) {
+  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function PurchaseOrderForm() {
   const [, navigate] = useLocation();
@@ -100,26 +123,27 @@ export default function PurchaseOrderForm() {
   const [po, setPo] = useState<PODetail | null>(null);
   const [loadingPo, setLoadingPo] = useState(!isNew);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [inventoryItems, setInventoryItems] = useState<InventoryOption[]>([]);
   const [itemSearch, setItemSearch] = useState<Record<string, string>>({});
 
   // Form state
-  const [vendorId, setVendorId]         = useState<number | "">("");
-  const [vendorName, setVendorName]     = useState("");
-  const [poDate, setPoDate]             = useState(new Date().toISOString().slice(0, 10));
+  const [vendorId, setVendorId]           = useState<number | "">("");
+  const [poDate, setPoDate]               = useState(new Date().toISOString().slice(0, 10));
   const [referenceType, setReferenceType] = useState("Inventory");
-  const [notes, setNotes]               = useState("");
-  const [lineItems, setLineItems]       = useState<LineItem[]>([
-    { key: mkKey(), inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", orderedQuantity: "", unitPrice: "", warehouseLocation: "", remarks: "" },
+  const [notes, setNotes]                 = useState("");
+  const [includeGst, setIncludeGst]       = useState(false);
+  const [lineItems, setLineItems]         = useState<LineItem[]>([
+    { key: mkKey(), inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
   ]);
-  const [submitting, setSubmitting]     = useState(false);
-  const [actioning, setActioning]       = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [actioning, setActioning]   = useState(false);
 
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
 
   useEffect(() => {
     if (!token) return;
-    customFetch(`/api/vendors?limit=200&_t=${Date.now()}`)
+    customFetch(`/api/vendors?limit=500&_t=${Date.now()}`)
       .then((r: unknown) => setVendors((r as { data: Vendor[] }).data ?? []))
       .catch(() => {});
     customFetch(`/api/inventory/items?limit=500&sort=item_name&order=asc&_t=${Date.now()}`)
@@ -131,7 +155,7 @@ export default function PurchaseOrderForm() {
     if (!poId || !token) return;
     setLoadingPo(true);
     customFetch(`/api/procurement/purchase-orders/${poId}`)
-      .then((r: unknown) => { setPo(r as PODetail); })
+      .then((r: unknown) => setPo(r as PODetail))
       .catch(() => toast({ title: "Failed to load PO", variant: "destructive" }))
       .finally(() => setLoadingPo(false));
   }, [poId, token, toast]);
@@ -140,7 +164,7 @@ export default function PurchaseOrderForm() {
 
   const addLine = () => setLineItems(ls => [
     ...ls,
-    { key: mkKey(), inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", orderedQuantity: "", unitPrice: "", warehouseLocation: "", remarks: "" },
+    { key: mkKey(), inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "" },
   ]);
 
   const removeLine = (key: string) => setLineItems(ls => ls.filter(l => l.key !== key));
@@ -156,11 +180,29 @@ export default function PurchaseOrderForm() {
       itemCode: item.item_code,
       unitType: item.unit_type ?? "",
       availableStock: item.available_stock,
-      unitPrice: parseFloat(item.average_price).toFixed(2),
-      warehouseLocation: item.warehouse_location ?? "",
+      targetPrice: parseFloat(item.average_price).toFixed(2),
+      hsnCode: item.hsn_code ?? "",
+      gstPercent: item.gst_percent ?? "0",
     } : l));
     setItemSearch(s => ({ ...s, [key]: item.item_name }));
   };
+
+  // Totals
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let totalGst = 0;
+    let itemCount = 0;
+    for (const l of lineItems) {
+      const qty   = parseFloat(l.orderedQuantity) || 0;
+      const price = parseFloat(l.targetPrice) || 0;
+      const gst   = parseFloat(l.gstPercent) || 0;
+      const lineAmt = qty * price;
+      if (qty > 0 && price > 0) itemCount++;
+      subtotal += lineAmt;
+      if (includeGst) totalGst += lineAmt * gst / 100;
+    }
+    return { subtotal, totalGst, grand: subtotal + totalGst, itemCount };
+  }, [lineItems, includeGst]);
 
   const handleApprove = async () => {
     if (!po) return;
@@ -194,17 +236,19 @@ export default function PurchaseOrderForm() {
     try {
       const body = {
         vendorId: Number(vendorId),
-        vendorName,
+        vendorName: selectedVendor?.brandName ?? "",
         poDate,
         referenceType,
         notes,
+        includeGst,
         items: validItems.map(l => ({
           inventoryItemId: l.inventoryItemId,
           itemName: l.itemName,
           itemCode: l.itemCode,
           orderedQuantity: parseFloat(l.orderedQuantity),
-          unitPrice: parseFloat(l.unitPrice) || 0,
-          warehouseLocation: l.warehouseLocation || null,
+          unitPrice: parseFloat(l.targetPrice) || 0,
+          hsnCode: l.hsnCode || null,
+          gstPercent: parseFloat(l.gstPercent) || 0,
           remarks: l.remarks || null,
         })),
       };
@@ -222,7 +266,7 @@ export default function PurchaseOrderForm() {
     }
   };
 
-  // ── VIEW mode (existing PO) ───────────────────────────────────────────────
+  // ── VIEW mode ─────────────────────────────────────────────────────────────
 
   if (!isNew) {
     if (loadingPo) {
@@ -248,8 +292,6 @@ export default function PurchaseOrderForm() {
       <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
         <TopNavbar username={(me as any)?.name ?? ""} role={(me as any)?.role ?? ""} onLogout={handleLogout} isLoggingOut={false} />
         <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-5">
-
-          {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <button onClick={() => navigate("/procurement/purchase-orders")}
@@ -284,7 +326,6 @@ export default function PurchaseOrderForm() {
             </div>
           </div>
 
-          {/* Summary cards */}
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: "Total Ordered", value: totalOrdered.toFixed(3), color: "text-gray-900" },
@@ -298,7 +339,6 @@ export default function PurchaseOrderForm() {
             ))}
           </div>
 
-          {/* Info */}
           <div className={`${card} p-5`}>
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Order Details</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -318,7 +358,6 @@ export default function PurchaseOrderForm() {
             </div>
           </div>
 
-          {/* Items */}
           <div className={card}>
             <div className="px-4 py-3 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-700">Order Items</h3>
@@ -327,14 +366,14 @@ export default function PurchaseOrderForm() {
               <table className="w-full">
                 <thead className="bg-[#F8F6F0]">
                   <tr>
-                    {["#","Item","Code","Unit","Ordered","Received","Pending","Unit Price","Location"].map(h => (
+                    {["#","Item","Code","Unit","Ordered","Received","Pending","Target Price"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {po.items.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">No items on this PO (costing-linked PO)</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">No items on this PO (costing-linked PO)</td></tr>
                   ) : po.items.map((item, i) => {
                     const pct = parseFloat(item.ordered_quantity) > 0
                       ? Math.min(100, (parseFloat(item.received_quantity) / parseFloat(item.ordered_quantity)) * 100)
@@ -360,7 +399,6 @@ export default function PurchaseOrderForm() {
                           </span>
                         </td>
                         <td className="px-3 py-3 text-xs font-mono text-gray-500">₹{parseFloat(item.unit_price).toFixed(2)}</td>
-                        <td className="px-3 py-3 text-xs text-gray-500">{item.warehouse_location ?? "—"}</td>
                       </tr>
                     );
                   })}
@@ -368,13 +406,12 @@ export default function PurchaseOrderForm() {
               </table>
             </div>
           </div>
-
         </div>
       </div>
     );
   }
 
-  // ── CREATE mode ───────────────────────────────────────────────────────────
+  // ── CREATE mode ────────────────────────────────────────────────────────────
 
   const filteredItems = (key: string) => {
     const q = (itemSearch[key] ?? "").toLowerCase();
@@ -384,10 +421,12 @@ export default function PurchaseOrderForm() {
     ).slice(0, 20);
   };
 
+  const inputCls = "w-full px-2.5 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
+
   return (
     <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
       <TopNavbar username={(me as any)?.name ?? ""} role={(me as any)?.role ?? ""} onLogout={handleLogout} isLoggingOut={false} />
-      <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-5">
+      <div className="max-w-[1280px] mx-auto px-4 py-6 space-y-5">
 
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -407,41 +446,154 @@ export default function PurchaseOrderForm() {
         {/* Order Info */}
         <div className={`${card} p-5`}>
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Order Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+
+            {/* Vendor */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Vendor <span className="text-red-500">*</span></label>
               <select value={vendorId}
                 onChange={e => {
-                  const v = vendors.find(v => v.id === Number(e.target.value));
-                  setVendorId(Number(e.target.value));
-                  setVendorName(v?.brand_name ?? "");
+                  const id = Number(e.target.value);
+                  setVendorId(id || "");
+                  const v = vendors.find(v => v.id === id) ?? null;
+                  setSelectedVendor(v);
                 }}
-                className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white">
+                className={`${inputCls} bg-white appearance-none`}>
                 <option value="">Select vendor…</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.brand_name}</option>)}
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
               </select>
             </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">PO Date</label>
-              <input type="date" value={poDate} onChange={e => setPoDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+              <input type="date" value={poDate} onChange={e => setPoDate(e.target.value)} className={inputCls} />
             </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Reference Type</label>
               <select value={referenceType} onChange={e => setReferenceType(e.target.value)}
-                className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white">
+                className={`${inputCls} bg-white appearance-none`}>
                 <option value="Inventory">Inventory</option>
                 <option value="Manual">Manual</option>
               </select>
             </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-                placeholder="Optional notes…"
-                className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                placeholder="Optional notes…" className={inputCls} />
             </div>
           </div>
+
+          {/* GST toggle */}
+          <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
+            <BadgePercent className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <span className="text-sm text-gray-700 font-medium">GST Applicable?</span>
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button type="button"
+                onClick={() => setIncludeGst(false)}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                  !includeGst ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}>
+                Without GST
+              </button>
+              <button type="button"
+                onClick={() => setIncludeGst(true)}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                  includeGst ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}>
+                With GST (as per HSN)
+              </button>
+            </div>
+            {includeGst && (
+              <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-lg">
+                GST will be calculated per item based on its HSN code
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Vendor Details Card */}
+        {selectedVendor && (
+          <div className={`${card} p-5`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Building2 className="h-4 w-4" style={{ color: G }} />
+              <h3 className="text-sm font-semibold text-gray-700">Vendor Details</h3>
+              <span className="text-xs text-gray-400 font-mono">{selectedVendor.vendorCode}</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Business Name</p>
+                <p className="text-sm font-semibold text-gray-900">{selectedVendor.brandName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Contact Person</p>
+                <p className="text-sm text-gray-800">{selectedVendor.contactName ?? "—"}</p>
+              </div>
+              {selectedVendor.gstNo && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">GSTIN</p>
+                  <p className="text-sm font-mono text-gray-800">{selectedVendor.gstNo}</p>
+                </div>
+              )}
+              {!selectedVendor.hasGst && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">GST</p>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">Unregistered</span>
+                </div>
+              )}
+              {(selectedVendor.contactNo || selectedVendor.email) && (
+                <div className="flex flex-col gap-1">
+                  {selectedVendor.contactNo && (
+                    <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <Phone className="h-3.5 w-3.5 text-gray-400" /> {selectedVendor.contactNo}
+                    </div>
+                  )}
+                  {selectedVendor.email && (
+                    <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <Mail className="h-3.5 w-3.5 text-gray-400" /> {selectedVendor.email}
+                    </div>
+                  )}
+                </div>
+              )}
+              {(selectedVendor.address1 || selectedVendor.city) && (
+                <div className="flex items-start gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-700">
+                    {[selectedVendor.address1, selectedVendor.city, selectedVendor.state, selectedVendor.pincode]
+                      .filter(Boolean).join(", ")}
+                  </p>
+                </div>
+              )}
+              {selectedVendor.bankName && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Bank</p>
+                  <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                    <CreditCard className="h-3.5 w-3.5 text-gray-400" />
+                    <span>{selectedVendor.bankName}</span>
+                    {selectedVendor.accountNo && <span className="font-mono text-xs">· {selectedVendor.accountNo}</span>}
+                  </div>
+                  {selectedVendor.ifscCode && (
+                    <p className="text-xs text-gray-500 mt-0.5 font-mono">IFSC: {selectedVendor.ifscCode}</p>
+                  )}
+                </div>
+              )}
+              {selectedVendor.bankAccounts?.length && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-1">Bank Accounts</p>
+                  {selectedVendor.bankAccounts.map((ba, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-sm text-gray-700 mt-0.5">
+                      <CreditCard className="h-3 w-3 text-gray-400" />
+                      <span>{ba.bankName}</span>
+                      <span className="font-mono text-xs">· {ba.accountNo}</span>
+                      {ba.ifscCode && <span className="text-xs text-gray-400">{ba.ifscCode}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Line Items */}
         <div className={card}>
@@ -458,85 +610,147 @@ export default function PurchaseOrderForm() {
                 <tr>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-8">#</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[220px]">Item</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">Unit</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Unit</th>
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Ordered Qty</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Unit Price (₹)</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Location</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Target Price (₹)</th>
+                  {includeGst && <>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">HSN Code</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">GST %</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">GST Amt</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Total</th>
+                  </>}
                   <th className="px-3 py-2.5 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {lineItems.map((line, idx) => (
-                  <tr key={line.key}>
-                    <td className="px-3 py-2 text-xs text-gray-400">{idx+1}</td>
-                    <td className="px-3 py-2">
-                      <div className="relative">
-                        <div className="flex items-center gap-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white">
-                          <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                          <input
-                            className="flex-1 outline-none text-sm text-gray-900 min-w-0"
-                            placeholder="Search item…"
-                            value={itemSearch[line.key] ?? line.itemName}
-                            onChange={e => {
-                              setItemSearch(s => ({ ...s, [line.key]: e.target.value }));
-                              if (!e.target.value) updateLine(line.key, "inventoryItemId", null);
-                            }}
-                          />
-                        </div>
-                        {(itemSearch[line.key] !== undefined && itemSearch[line.key] !== line.itemName) && (
-                          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                            {filteredItems(line.key).length === 0 ? (
-                              <div className="px-3 py-2 text-xs text-gray-400">No items found</div>
-                            ) : filteredItems(line.key).map(item => (
-                              <button key={item.id} type="button"
-                                className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
-                                onClick={() => selectItem(line.key, item)}>
-                                <div className="font-medium text-gray-900">{item.item_name}</div>
-                                <div className="text-xs text-gray-400">{item.item_code} · Stock: {parseFloat(item.available_stock).toFixed(3)}</div>
-                              </button>
-                            ))}
+                {lineItems.map((line, idx) => {
+                  const qty   = parseFloat(line.orderedQuantity) || 0;
+                  const price = parseFloat(line.targetPrice) || 0;
+                  const gstPct = parseFloat(line.gstPercent) || 0;
+                  const lineAmt = qty * price;
+                  const gstAmt  = includeGst ? lineAmt * gstPct / 100 : 0;
+                  const lineTotal = lineAmt + gstAmt;
+
+                  return (
+                    <tr key={line.key}>
+                      <td className="px-3 py-2 text-xs text-gray-400">{idx+1}</td>
+                      <td className="px-3 py-2">
+                        <div className="relative">
+                          <div className="flex items-center gap-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white">
+                            <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                            <input
+                              className="flex-1 outline-none text-sm text-gray-900 min-w-0"
+                              placeholder="Search item…"
+                              value={itemSearch[line.key] ?? line.itemName}
+                              onChange={e => {
+                                setItemSearch(s => ({ ...s, [line.key]: e.target.value }));
+                                if (!e.target.value) updateLine(line.key, "inventoryItemId", null);
+                              }}
+                            />
                           </div>
+                          {(itemSearch[line.key] !== undefined && itemSearch[line.key] !== line.itemName) && (
+                            <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                              {filteredItems(line.key).length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-gray-400">No items found</div>
+                              ) : filteredItems(line.key).map(item => (
+                                <button key={item.id} type="button"
+                                  className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                                  onMouseDown={e => { e.preventDefault(); selectItem(line.key, item); }}>
+                                  <div className="font-medium text-gray-900">{item.item_name}</div>
+                                  <div className="text-xs text-gray-400">
+                                    {item.item_code} · Stock: {parseFloat(item.available_stock).toFixed(3)}
+                                    {item.hsn_code && ` · HSN: ${item.hsn_code}`}
+                                    {item.gst_percent && ` · GST: ${item.gst_percent}%`}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{line.unitType || "—"}</td>
+                      <td className="px-3 py-2">
+                        <input type="number" min="0" step="0.001"
+                          value={line.orderedQuantity}
+                          onChange={e => updateLine(line.key, "orderedQuantity", e.target.value)}
+                          className={`${inputCls} text-right`} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" min="0" step="0.01"
+                          value={line.targetPrice}
+                          onChange={e => updateLine(line.key, "targetPrice", e.target.value)}
+                          className={`${inputCls} text-right`} />
+                      </td>
+                      {includeGst && <>
+                        <td className="px-3 py-2">
+                          <input type="text"
+                            value={line.hsnCode}
+                            onChange={e => updateLine(line.key, "hsnCode", e.target.value)}
+                            placeholder="HSN…"
+                            className={inputCls} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="number" min="0" max="100" step="0.01"
+                            value={line.gstPercent}
+                            onChange={e => updateLine(line.key, "gstPercent", e.target.value)}
+                            className={`${inputCls} text-right`} />
+                        </td>
+                        <td className="px-3 py-2 text-xs font-mono text-amber-600 text-right pr-4">
+                          {gstAmt > 0 ? `₹${fmt(gstAmt)}` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs font-mono font-semibold text-gray-900 text-right pr-4">
+                          {lineTotal > 0 ? `₹${fmt(lineTotal)}` : "—"}
+                        </td>
+                      </>}
+                      <td className="px-3 py-2">
+                        {lineItems.length > 1 && (
+                          <button onClick={() => removeLine(line.key)}
+                            className="p-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="text-xs text-gray-500">{line.unitType || "—"}</span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="number" min="0" step="0.001"
-                        value={line.orderedQuantity}
-                        onChange={e => updateLine(line.key, "orderedQuantity", e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 text-right" />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="number" min="0" step="0.01"
-                        value={line.unitPrice}
-                        onChange={e => updateLine(line.key, "unitPrice", e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 text-right" />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="text"
-                        value={line.warehouseLocation}
-                        onChange={e => updateLine(line.key, "warehouseLocation", e.target.value)}
-                        placeholder="Bin / shelf…"
-                        className="w-full px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
-                    </td>
-                    <td className="px-3 py-2">
-                      {lineItems.length > 1 && (
-                        <button onClick={() => removeLine(line.key)}
-                          className="p-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          {/* Totals */}
+          {(totals.subtotal > 0 || lineItems.length > 1) && (
+            <div className="border-t border-gray-100 px-4 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                    {totals.itemCount} item{totals.itemCount !== 1 ? "s" : ""}
+                  </span>
+                  <span>with quantity entered</span>
+                </div>
+                <div className="flex flex-col items-end gap-1 text-sm min-w-[200px]">
+                  <div className="flex items-center justify-between w-full gap-6">
+                    <span className="text-gray-500">Subtotal</span>
+                    <span className="font-mono font-semibold text-gray-900">₹{fmt(totals.subtotal)}</span>
+                  </div>
+                  {includeGst && totals.totalGst > 0 && (
+                    <div className="flex items-center justify-between w-full gap-6">
+                      <span className="text-amber-600">Total GST</span>
+                      <span className="font-mono font-semibold text-amber-600">₹{fmt(totals.totalGst)}</span>
+                    </div>
+                  )}
+                  {includeGst && (
+                    <div className="flex items-center justify-between w-full gap-6 pt-1 border-t border-gray-200">
+                      <span className="text-gray-900 font-semibold">Grand Total</span>
+                      <span className="font-mono font-bold text-gray-900 text-base">₹{fmt(totals.grand)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Save */}
+        {/* Actions */}
         <div className="flex justify-end gap-3">
           <button onClick={() => navigate("/procurement/purchase-orders")}
             className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">
@@ -549,7 +763,6 @@ export default function PurchaseOrderForm() {
             {submitting ? "Creating…" : "Create Purchase Order"}
           </button>
         </div>
-
       </div>
     </div>
   );

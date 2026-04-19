@@ -113,8 +113,12 @@ router.get("/inventory/items", requireAuth, async (req, res) => {
              WHEN 'fabric'    THEN 'Fabric'
              WHEN 'material'  THEN 'Material'
              WHEN 'packaging' THEN 'Item Master'
-           END AS source_label
+           END AS source_label,
+           COALESCE(f.hsn_code, m.hsn_code) AS hsn_code,
+           COALESCE(f.gst_percent::numeric, m.gst_percent::numeric)::text AS gst_percent
          FROM inventory_items ii
+         LEFT JOIN fabrics   f ON ii.source_type = 'fabric'   AND f.id = ii.source_id
+         LEFT JOIN materials m ON ii.source_type = 'material'  AND m.id = ii.source_id
          ${where}
          ORDER BY ${sortCol} ${sortDir}
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -144,8 +148,13 @@ router.get("/inventory/items/:id", requireAuth, async (req, res) => {
            WHEN 'fabric'    THEN 'Fabric'
            WHEN 'material'  THEN 'Material'
            WHEN 'packaging' THEN 'Item Master'
-         END AS source_label
-       FROM inventory_items ii WHERE ii.id = $1`,
+         END AS source_label,
+         COALESCE(f.hsn_code, m.hsn_code) AS hsn_code,
+         COALESCE(f.gst_percent::numeric, m.gst_percent::numeric)::text AS gst_percent
+       FROM inventory_items ii
+       LEFT JOIN fabrics   f ON ii.source_type = 'fabric'   AND f.id = ii.source_id
+       LEFT JOIN materials m ON ii.source_type = 'material'  AND m.id = ii.source_id
+       WHERE ii.id = $1`,
       [id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
