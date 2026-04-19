@@ -1,5 +1,19 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
+
+export interface ClientAddress {
+  id: string;
+  type: "Billing Address" | "Delivery Address" | "Other";
+  name: string;
+  contactNo: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isBillingDefault: boolean;
+}
 
 export const clientsTable = pgTable("clients", {
   id: serial("id").primaryKey(),
@@ -19,6 +33,8 @@ export const clientsTable = pgTable("clients", {
   state: text("state"),
   city: text("city"),
   pincode: text("pincode"),
+  addresses: jsonb("addresses").$type<ClientAddress[]>(),
+  invoiceCurrency: text("invoice_currency").default("INR"),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -28,6 +44,20 @@ export const clientsTable = pgTable("clients", {
 });
 
 export type ClientRecord = typeof clientsTable.$inferSelect;
+
+const clientAddressSchema = z.object({
+  id: z.string(),
+  type: z.enum(["Billing Address", "Delivery Address", "Other"]),
+  name: z.string(),
+  contactNo: z.string(),
+  address1: z.string(),
+  address2: z.string(),
+  city: z.string(),
+  state: z.string(),
+  pincode: z.string(),
+  country: z.string(),
+  isBillingDefault: z.boolean(),
+});
 
 export const insertClientSchema = z.object({
   brandName: z.string().min(1, "Brand Name is required"),
@@ -45,6 +75,8 @@ export const insertClientSchema = z.object({
   state: z.string().optional(),
   city: z.string().optional(),
   pincode: z.string().optional(),
+  addresses: z.array(clientAddressSchema).optional(),
+  invoiceCurrency: z.string().optional(),
   isActive: z.boolean().default(true),
 });
 

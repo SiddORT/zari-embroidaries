@@ -14,6 +14,20 @@ export interface PaymentAttachment {
   size: number;
 }
 
+export interface VendorAddress {
+  id: string;
+  type: "Home" | "Warehouse" | "Office" | "Factory" | "Other";
+  name: string;
+  contactNo: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isBillingDefault: boolean;
+}
+
 export type VendorRecord = {
   id: number; vendorCode: string; brandName: string; contactName: string;
   email: string | null; altEmail: string | null; contactNo: string | null; altContactNo: string | null;
@@ -23,6 +37,7 @@ export type VendorRecord = {
   bankAccounts: BankAccount[] | null;
   address1: string | null; address2: string | null; pincode: string | null;
   state: string | null; city: string | null;
+  addresses: VendorAddress[] | null;
   paymentAttachments: PaymentAttachment[] | null;
   isActive: boolean; isDeleted: boolean;
   createdBy: string; createdAt: string; updatedBy: string | null; updatedAt: string | null;
@@ -44,6 +59,7 @@ export type VendorFormData = {
   pincode: string;
   state: string;
   city: string;
+  addresses: VendorAddress[];
   paymentAttachments: PaymentAttachment[];
   isActive: boolean;
 };
@@ -64,6 +80,14 @@ export function useVendorList(p: { search: string; status: StatusFilter; page: n
 
 export function useAllVendors() {
   return useQuery({ queryKey: [QK, "all"], queryFn: () => customFetch<VendorRecord[]>(`${BASE}/all`) });
+}
+
+export function useVendor(id: number | null) {
+  return useQuery({
+    queryKey: [QK, id],
+    queryFn: () => customFetch<VendorRecord>(`${BASE}/${id}`),
+    enabled: id !== null && id > 0,
+  });
 }
 
 export function useCreateVendor() {

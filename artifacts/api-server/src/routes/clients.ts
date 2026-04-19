@@ -42,6 +42,14 @@ router.get("/clients/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
+router.get("/clients/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, id), eq(clientsTable.isDeleted, false)));
+  if (!record) { res.status(404).json({ error: "Client not found" }); return; }
+  res.json(record);
+});
+
 router.post("/clients", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertClientSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }

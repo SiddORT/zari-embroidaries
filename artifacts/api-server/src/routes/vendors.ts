@@ -41,6 +41,14 @@ router.get("/vendors/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
+router.get("/vendors/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.select().from(vendorsTable).where(and(eq(vendorsTable.id, id), eq(vendorsTable.isDeleted, false)));
+  if (!record) { res.status(404).json({ error: "Vendor not found" }); return; }
+  res.json(record);
+});
+
 router.post("/vendors", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertVendorSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }

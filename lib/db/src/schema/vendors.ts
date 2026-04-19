@@ -14,6 +14,20 @@ export interface PaymentAttachment {
   size: number;
 }
 
+export interface VendorAddress {
+  id: string;
+  type: "Home" | "Warehouse" | "Office" | "Factory" | "Other";
+  name: string;
+  contactNo: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isBillingDefault: boolean;
+}
+
 export const vendorsTable = pgTable("vendors", {
   id: serial("id").primaryKey(),
   vendorCode: text("vendor_code").notNull().unique(),
@@ -35,6 +49,7 @@ export const vendorsTable = pgTable("vendors", {
   pincode: text("pincode"),
   state: text("state"),
   city: text("city"),
+  addresses: jsonb("addresses").$type<VendorAddress[]>(),
   paymentAttachments: jsonb("payment_attachments").$type<PaymentAttachment[]>(),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
@@ -59,6 +74,20 @@ const paymentAttachmentSchema = z.object({
   size: z.number(),
 });
 
+const vendorAddressSchema = z.object({
+  id: z.string(),
+  type: z.enum(["Home", "Warehouse", "Office", "Factory", "Other"]),
+  name: z.string(),
+  contactNo: z.string(),
+  address1: z.string(),
+  address2: z.string(),
+  city: z.string(),
+  state: z.string(),
+  pincode: z.string(),
+  country: z.string(),
+  isBillingDefault: z.boolean(),
+});
+
 export const insertVendorSchema = z.object({
   brandName: z.string().min(1, "Brand Name is required"),
   contactName: z.string().min(1, "Contact Name is required"),
@@ -78,6 +107,7 @@ export const insertVendorSchema = z.object({
   pincode: z.string().optional(),
   state: z.string().optional(),
   city: z.string().optional(),
+  addresses: z.array(vendorAddressSchema).optional(),
   paymentAttachments: z.array(paymentAttachmentSchema).optional(),
   isActive: z.boolean().default(true),
 });

@@ -106,6 +106,11 @@ interface PODetail {
   reference_id: number | null;
   notes: string | null;
   created_by: string;
+  created_at: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   items: POItem[];
   receipts?: POReceipt[];
 }
@@ -405,12 +410,26 @@ export default function PurchaseOrderForm() {
                 ["Vendor", po.vendor_name],
                 ["Source", po.reference_type],
                 ["Date", new Date(po.po_date).toLocaleDateString("en-IN")],
-                ["Created By", po.created_by],
                 ["Notes", po.notes ?? "—"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="text-xs text-gray-400 font-medium">{label}</p>
                   <p className="text-gray-900 mt-0.5 font-medium">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              {[
+                ["Created By", po.created_by],
+                ["Created On", po.created_at ? new Date(po.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                ["Approved By", po.approved_by ?? "—"],
+                ["Approved On", po.approved_at ? new Date(po.approved_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                ["Last Updated By", po.updated_by ?? "—"],
+                ["Last Updated", po.updated_at ? new Date(po.updated_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-xs text-gray-400 font-medium">{label}</p>
+                  <p className="text-gray-700 mt-0.5 text-xs">{value}</p>
                 </div>
               ))}
             </div>

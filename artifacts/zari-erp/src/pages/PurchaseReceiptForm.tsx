@@ -90,6 +90,9 @@ interface PRDetail {
   po_id: number | null;
   po_number: string | null;
   reference_type: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_by: string | null;
   items: PRItem[];
 }
 
@@ -438,6 +441,8 @@ export default function PurchaseReceiptForm() {
                   ? undefined
                   : new Date(pr.received_date).toLocaleDateString("en-IN")],
                 ["Status", pr.status],
+                ["Created By", pr.created_by ?? "—"],
+                ["Created On", pr.created_at ? new Date(pr.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
               ].map(([label, value]) => (
                 label === "Received Date" && editMode ? (
                   <div key={label}>

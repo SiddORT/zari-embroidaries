@@ -1,10 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+export interface ClientAddress {
+  id: string;
+  type: "Billing Address" | "Delivery Address" | "Other";
+  name: string;
+  contactNo: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isBillingDefault: boolean;
+}
+
 export type ClientRecord = {
   id: number; clientCode: string; brandName: string; contactName: string; email: string;
   altEmail: string | null; contactNo: string; altContactNo: string | null;
   country: string | null; countryOfOrigin: string | null;
+  addresses: ClientAddress[] | null;
+  invoiceCurrency: string | null;
   isActive: boolean; isDeleted: boolean;
   createdBy: string; createdAt: string; updatedBy: string | null; updatedAt: string | null;
 };
@@ -17,6 +33,8 @@ export type ClientFormData = {
   contactNo: string;
   altContactNo: string;
   country: string;
+  addresses: ClientAddress[];
+  invoiceCurrency: string;
   isActive: boolean;
 };
 
@@ -38,10 +56,21 @@ export function useAllClients() {
   return useQuery({ queryKey: [QK, "all"], queryFn: () => customFetch<ClientRecord[]>(`${BASE}/all`) });
 }
 
+export function useClient(id: number | null) {
+  return useQuery({
+    queryKey: [QK, id],
+    queryFn: () => customFetch<ClientRecord>(`${BASE}/${id}`),
+    enabled: id !== null && id > 0,
+  });
+}
+
 export function useCreateClient() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: ClientFormData) => customFetch<ClientRecord>(BASE, { method: "POST", body: JSON.stringify({ ...data, countryOfOrigin: data.country }) }),
+    mutationFn: (data: ClientFormData) => customFetch<ClientRecord>(BASE, {
+      method: "POST",
+      body: JSON.stringify({ ...data, countryOfOrigin: data.country }),
+    }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
@@ -50,7 +79,10 @@ export function useUpdateClient() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<ClientFormData> }) =>
-      customFetch<ClientRecord>(`${BASE}/${id}`, { method: "PUT", body: JSON.stringify({ ...data, countryOfOrigin: data.country }) }),
+      customFetch<ClientRecord>(`${BASE}/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ ...data, countryOfOrigin: data.country }),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

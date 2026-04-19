@@ -16,6 +16,8 @@ import Orders from "@/pages/Orders";
 import OrderDetails from "@/pages/OrderDetails";
 import ClientMaster from "@/pages/ClientMaster";
 import VendorMaster from "@/pages/VendorMaster";
+import VendorForm from "@/pages/VendorForm";
+import ClientForm from "@/pages/ClientForm";
 import StyleCategoryMaster from "@/pages/StyleCategoryMaster";
 import SwatchCategoryMaster from "@/pages/SwatchCategoryMaster";
 import SwatchMaster from "@/pages/SwatchMaster";
@@ -76,7 +78,9 @@ function Router() {
       <Route path="/masters/hsn" component={HSNMaster} />
       <Route path="/masters/materials" component={MaterialsMaster} />
       <Route path="/masters/fabric" component={FabricMaster} />
+      <Route path="/masters/clients/:id" component={ClientForm} />
       <Route path="/masters/clients" component={ClientMaster} />
+      <Route path="/masters/vendors/:id" component={VendorForm} />
       <Route path="/masters/vendors" component={VendorMaster} />
       <Route path="/masters/style-categories" component={StyleCategoryMaster} />
       <Route path="/masters/swatch-categories" component={SwatchCategoryMaster} />
