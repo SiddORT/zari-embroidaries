@@ -400,13 +400,14 @@ router.get("/material-search", requireAuth, async (req, res) => {
 
 // ─── BOM ─────────────────────────────────────────────────────────────────────
 router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
+  const swatchOrderId = Number(req.params.swatchOrderId);
   const rows = await db.select().from(swatchBomTable)
-    .where(eq(swatchBomTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(swatchBomTable.swatchOrderId, swatchOrderId))
     .orderBy(swatchBomTable.createdAt);
 
   const enriched = await Promise.all(rows.map(async (r) => {
     const invRows = await db
-      .select({ currentStock: inventoryItemsTable.currentStock, availableStock: inventoryItemsTable.availableStock })
+      .select({ id: inventoryItemsTable.id, currentStock: inventoryItemsTable.currentStock, availableStock: inventoryItemsTable.availableStock })
       .from(inventoryItemsTable)
       .where(and(
         eq(inventoryItemsTable.sourceType, r.materialType ?? ""),
@@ -414,10 +415,24 @@ router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
       ))
       .limit(1);
     const live = invRows[0] ?? null;
+
+    // Fetch active reservation for this swatch order + inventory item
+    let liveReservedQty: string | null = null;
+    if (live) {
+      const resvRows = await pool.query(
+        `SELECT reserved_quantity FROM material_reservations
+         WHERE inventory_id = $1 AND reservation_type = 'Swatch' AND reference_id = $2 AND status = 'Active'
+         ORDER BY id DESC LIMIT 1`,
+        [live.id, swatchOrderId]
+      );
+      if (resvRows.rows.length > 0) liveReservedQty = resvRows.rows[0].reserved_quantity;
+    }
+
     return {
       ...r,
       liveCurrentStock: live ? live.currentStock : null,
       liveAvailableStock: live ? live.availableStock : null,
+      liveReservedQty,
     };
   }));
 
@@ -701,21 +716,42 @@ router.post("/consumption", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, bomRowId, materialCode, materialName, materialType, unitType, consumedQty, notes } = req.body as Record<string, string | number>;
 
-  // Validate: consumed qty must not exceed available stock (initial stock + PR received - already consumed)
   const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, Number(bomRowId)));
   if (!bomRow) { res.status(404).json({ error: "BOM item not found" }); return; }
-  const currentStock = parseFloat(bomRow.currentStock || "0");
-  const existingConsumed = parseFloat(bomRow.consumedQty || "0");
   const newConsumedQty = parseFloat(String(consumedQty)) || 0;
-  // Include all PR received qty for this BOM row in the available stock calculation
-  const allPrsForRow = await db.select().from(purchaseReceiptsTable)
-    .where(eq(purchaseReceiptsTable.bomRowId, Number(bomRowId)));
-  const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
-  const liveStock = currentStock + totalPrReceived;
-  const available = liveStock - existingConsumed;
-  if (newConsumedQty > available) {
-    res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available (Base stock: ${currentStock}, PR received: ${totalPrReceived}, Already consumed: ${existingConsumed}).` });
-    return;
+
+  // Section 7 — prefer reservation-based validation, fall back to available stock
+  const invR = await db
+    .select({ id: inventoryItemsTable.id })
+    .from(inventoryItemsTable)
+    .where(and(eq(inventoryItemsTable.sourceType, bomRow.materialType ?? ""), eq(inventoryItemsTable.sourceId, bomRow.materialId ?? 0)))
+    .limit(1);
+  if (invR.length > 0) {
+    const invId = invR[0].id;
+    const resvR = await pool.query(
+      `SELECT reserved_quantity FROM material_reservations
+       WHERE inventory_id = $1 AND reservation_type = 'Swatch' AND reference_id = $2 AND status = 'Active'
+       ORDER BY id DESC LIMIT 1`,
+      [invId, Number(swatchOrderId)]
+    );
+    if (resvR.rows.length > 0) {
+      const reserved = parseFloat(resvR.rows[0].reserved_quantity);
+      if (newConsumedQty > reserved) {
+        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${reserved.toFixed(4)} is reserved for this order. Consume within the reserved quantity.` });
+        return;
+      }
+    } else {
+      // No reservation — fall back to available_stock check
+      const currentStock = parseFloat(bomRow.currentStock || "0");
+      const existingConsumed = parseFloat(bomRow.consumedQty || "0");
+      const allPrsForRow = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.bomRowId, Number(bomRowId)));
+      const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+      const available = currentStock + totalPrReceived - existingConsumed;
+      if (newConsumedQty > available) {
+        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available.` });
+        return;
+      }
+    }
   }
 
   const [entry] = await db.insert(consumptionLogTable).values({
@@ -929,14 +965,15 @@ router.delete("/custom-charges/:id", requireAuth, async (req, res) => {
 
 // ─── Style BOM ───────────────────────────────────────────────────────────────
 router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
+  const styleOrderId = Number(req.params.styleOrderId);
   const rows = await db.select().from(swatchBomTable)
-    .where(eq(swatchBomTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(swatchBomTable.styleOrderId, styleOrderId))
     .orderBy(swatchBomTable.createdAt);
 
-  // Enrich each row with live stock figures from inventory_items
+  // Enrich each row with live stock figures and active reservation for this order
   const enriched = await Promise.all(rows.map(async (r) => {
     const invRows = await db
-      .select({ currentStock: inventoryItemsTable.currentStock, availableStock: inventoryItemsTable.availableStock })
+      .select({ id: inventoryItemsTable.id, currentStock: inventoryItemsTable.currentStock, availableStock: inventoryItemsTable.availableStock })
       .from(inventoryItemsTable)
       .where(and(
         eq(inventoryItemsTable.sourceType, r.materialType ?? ""),
@@ -944,10 +981,23 @@ router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
       ))
       .limit(1);
     const live = invRows[0] ?? null;
+
+    let liveReservedQty: string | null = null;
+    if (live) {
+      const resvRows = await pool.query(
+        `SELECT reserved_quantity FROM material_reservations
+         WHERE inventory_id = $1 AND reservation_type = 'Style' AND reference_id = $2 AND status = 'Active'
+         ORDER BY id DESC LIMIT 1`,
+        [live.id, styleOrderId]
+      );
+      if (resvRows.rows.length > 0) liveReservedQty = resvRows.rows[0].reserved_quantity;
+    }
+
     return {
       ...r,
       liveCurrentStock: live ? live.currentStock : null,
       liveAvailableStock: live ? live.availableStock : null,
+      liveReservedQty,
     };
   }));
 
@@ -1119,17 +1169,39 @@ router.post("/style-consumption", requireAuth, async (req, res) => {
 
   const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, Number(bomRowId)));
   if (!bomRow) { res.status(404).json({ error: "BOM item not found" }); return; }
-  const currentStock = parseFloat(bomRow.currentStock || "0");
-  const existingConsumed = parseFloat(bomRow.consumedQty || "0");
   const newConsumedQty = parseFloat(String(consumedQty)) || 0;
-  const allPrsForRow = await db.select().from(purchaseReceiptsTable)
-    .where(eq(purchaseReceiptsTable.bomRowId, Number(bomRowId)));
-  const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
-  const liveStock = currentStock + totalPrReceived;
-  const available = liveStock - existingConsumed;
-  if (newConsumedQty > available) {
-    res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available (Base stock: ${currentStock}, PR received: ${totalPrReceived}, Already consumed: ${existingConsumed}).` });
-    return;
+
+  // Prefer reservation-based validation, fall back to available stock
+  const invRS = await db
+    .select({ id: inventoryItemsTable.id })
+    .from(inventoryItemsTable)
+    .where(and(eq(inventoryItemsTable.sourceType, bomRow.materialType ?? ""), eq(inventoryItemsTable.sourceId, bomRow.materialId ?? 0)))
+    .limit(1);
+  if (invRS.length > 0) {
+    const invId = invRS[0].id;
+    const resvRS = await pool.query(
+      `SELECT reserved_quantity FROM material_reservations
+       WHERE inventory_id = $1 AND reservation_type = 'Style' AND reference_id = $2 AND status = 'Active'
+       ORDER BY id DESC LIMIT 1`,
+      [invId, Number(styleOrderId)]
+    );
+    if (resvRS.rows.length > 0) {
+      const reserved = parseFloat(resvRS.rows[0].reserved_quantity);
+      if (newConsumedQty > reserved) {
+        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${reserved.toFixed(4)} is reserved for this order. Consume within the reserved quantity.` });
+        return;
+      }
+    } else {
+      const currentStock = parseFloat(bomRow.currentStock || "0");
+      const existingConsumed = parseFloat(bomRow.consumedQty || "0");
+      const allPrsForRow = await db.select().from(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.bomRowId, Number(bomRowId)));
+      const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
+      const available = currentStock + totalPrReceived - existingConsumed;
+      if (newConsumedQty > available) {
+        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available.` });
+        return;
+      }
+    }
   }
 
   const [entry] = await db.insert(consumptionLogTable).values({

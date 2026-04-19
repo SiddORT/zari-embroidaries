@@ -329,6 +329,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                 <span className="flex items-center gap-1">PO Rate ₹ <span title="Target unit price agreed in the Purchase Order" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
               </th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Req Qty</th>
+              <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Total ₹</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Qty</th>
               <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">PR Qty</th>
@@ -379,6 +380,13 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">₹{m.weightedAvg.toFixed(2)}</td>
                   <td className="px-3 py-2.5 text-amber-700 whitespace-nowrap">{m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.requiredQty}</td>
+                  <td className="px-3 py-2.5">
+                    {(r as any).liveReservedQty != null ? (
+                      <span className="font-semibold text-violet-700">{parseFloat((r as any).liveReservedQty).toFixed(3)}</span>
+                    ) : (
+                      <span className="text-gray-300 text-[10px]">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 font-semibold text-amber-700">{m.poTargetTotal > 0 ? `₹${m.poTargetTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 text-amber-700">{m.poQty > 0 ? m.poQty : <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-2.5 text-blue-700">{m.prQty > 0 ? m.prQty : <span className="text-gray-300">—</span>}</td>
@@ -398,6 +406,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
               <tr className="bg-gray-50 border-t border-gray-200">
                 <td colSpan={5} className="px-3 py-2 text-[10px] font-semibold text-gray-400">{filteredRows.length} item{filteredRows.length > 1 ? "s" : ""}</td>
                 <td className="px-3 py-2 font-bold text-gray-700 text-xs">{filteredRows.reduce((s, r) => s + (parseFloat(r.requiredQty) || 0), 0)}</td>
+                <td className="px-3 py-2" />
                 <td className="px-3 py-2 font-bold text-amber-700 text-xs">₹{filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).poTargetTotal, 0).toFixed(2)}</td>
                 <td className="px-3 py-2"></td>
                 <td className="px-3 py-2 font-bold text-blue-700 text-xs">{filteredRows.reduce((s, r) => s + computeRowMetrics(r, pos, prs).prQty, 0).toFixed(0)}</td>
@@ -1110,8 +1119,14 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
 
   const selectedRow = bomRows.find(r => String(r.id) === addForm.bomRowId);
   const selectedRowMetrics = selectedRow ? computeRowMetrics(selectedRow, pos, prs) : null;
+  const reservedQty = selectedRow && (selectedRow as any).liveReservedQty != null
+    ? parseFloat((selectedRow as any).liveReservedQty)
+    : null;
   const availableStock = selectedRowMetrics
-    ? Math.max(0, selectedRowMetrics.stockNum + selectedRowMetrics.prQty - selectedRowMetrics.consumedQtyNum) : null;
+    ? (reservedQty !== null
+        ? Math.max(0, reservedQty)
+        : Math.max(0, selectedRowMetrics.stockNum + selectedRowMetrics.prQty - selectedRowMetrics.consumedQtyNum))
+    : null;
 
   function handleAddConsumption() {
     if (!addForm.bomRowId) { toast({ title: "Select a material/fabric", variant: "destructive" }); return; }
@@ -1119,7 +1134,10 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
     const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
     if (!row) return;
     if (availableStock !== null && parseFloat(addForm.consumedQty) > availableStock) {
-      toast({ title: `Cannot consume more than available stock (${availableStock.toFixed(4)} ${row.unitType})`, variant: "destructive" }); return;
+      const msg = reservedQty !== null
+        ? `Cannot consume more than the reserved quantity (${availableStock.toFixed(4)} ${row.unitType})`
+        : `Cannot consume more than available stock (${availableStock.toFixed(4)} ${row.unitType})`;
+      toast({ title: msg, variant: "destructive" }); return;
     }
     addEntry.mutate({
       styleOrderId, bomRowId: Number(addForm.bomRowId),
@@ -1181,6 +1199,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">
                   <span className="flex items-center gap-1">Live Stock <span title="Base stock + all PR received quantities" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
                 </th>
+                <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved for Order</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Avg Price (₹)</th>
                 <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Consumed Qty</th>
                 <th className="text-left text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Consumed Total (₹)</th>
@@ -1210,6 +1229,13 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                       <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
                       {m.prQty > 0 && <span title={`Base: ${m.stockNum} + PR received: ${m.prQty.toFixed(2)}`} className="ml-1 text-[9px] text-blue-400 cursor-help">+PR</span>}
                     </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {(r as any).liveReservedQty != null ? (
+                        <span className="font-semibold text-violet-700">{parseFloat((r as any).liveReservedQty).toFixed(4)}</span>
+                      ) : (
+                        <span className="text-gray-300 text-[10px]">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-gray-700">₹{m.weightedAvg.toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-amber-700 font-medium">{m.consumedQtyNum.toFixed(2)} {r.unitType}</td>
                     <td className="px-3 py-2.5 font-semibold text-red-700">₹{m.consumedTotal.toFixed(2)}</td>
@@ -1238,6 +1264,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                 <tr className="bg-gray-50 border-t border-gray-200">
                   <td colSpan={2} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
                   <td className="px-3 py-2 font-bold text-blue-700">{totals.stockInclPr.toFixed(2)}</td>
+                  <td className="px-3 py-2" />
                   <td className="px-3 py-2" />
                   <td className="px-3 py-2 font-bold text-amber-700">{totals.consumedQty.toFixed(2)}</td>
                   <td className="px-3 py-2 font-bold text-red-700">₹{totals.consumedTotal.toFixed(2)}</td>
@@ -1283,25 +1310,49 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                 </select>
               </div>
               {selectedRow && selectedRowMetrics && (
-                <div className={`rounded-xl px-3 py-2 text-xs space-y-1.5 ${availableStock !== null && availableStock <= 0 ? "bg-red-50 border border-red-200" : "bg-blue-50 border border-blue-100"}`}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-gray-500">Base stock: </span>
-                    <span className="font-semibold text-gray-800">{selectedRowMetrics.stockNum.toFixed(2)}</span>
-                    {selectedRowMetrics.prQty > 0 && (<>
-                      <span className="text-blue-400">+</span>
-                      <span className="text-blue-600 font-semibold">PR received: {selectedRowMetrics.prQty.toFixed(2)}</span>
-                    </>)}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-gray-500">Already consumed: </span>
-                    <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(4)}</span>
-                    <span className="mx-1 text-gray-300">|</span>
-                    <span className="text-gray-500">Available: </span>
-                    <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-green-700"}`}>
-                      {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
-                    </span>
-                    {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600 ml-1">NO STOCK</span>}
-                  </div>
+                <div className={`rounded-xl px-3 py-2 text-xs space-y-1.5 ${availableStock !== null && availableStock <= 0 ? "bg-red-50 border border-red-200" : reservedQty !== null ? "bg-violet-50 border border-violet-200" : "bg-blue-50 border border-blue-100"}`}>
+                  {reservedQty !== null ? (
+                    <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">RESERVED</span>
+                        <span className="text-gray-500">Reserved for this order: </span>
+                        <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-violet-700"}`}>
+                          {reservedQty.toFixed(4)} {selectedRow.unitType}
+                        </span>
+                        {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600 ml-1">FULLY CONSUMED</span>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-gray-500">Already consumed: </span>
+                        <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(4)}</span>
+                        <span className="mx-1 text-gray-300">|</span>
+                        <span className="text-gray-500">Remaining cap: </span>
+                        <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-violet-700"}`}>
+                          {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-gray-500">Base stock: </span>
+                        <span className="font-semibold text-gray-800">{selectedRowMetrics.stockNum.toFixed(2)}</span>
+                        {selectedRowMetrics.prQty > 0 && (<>
+                          <span className="text-blue-400">+</span>
+                          <span className="text-blue-600 font-semibold">PR received: {selectedRowMetrics.prQty.toFixed(2)}</span>
+                        </>)}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-gray-500">Already consumed: </span>
+                        <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(4)}</span>
+                        <span className="mx-1 text-gray-300">|</span>
+                        <span className="text-gray-500">Available: </span>
+                        <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-green-700"}`}>
+                          {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
+                        </span>
+                        {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600 ml-1">NO STOCK</span>}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               <div>
@@ -1310,6 +1361,11 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                   onChange={e => setAddForm(f => ({ ...f, consumedQty: e.target.value }))}
                   className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                   placeholder="0" max={availableStock !== null ? availableStock : undefined} />
+                {selectedRow && availableStock !== null && availableStock > 0 && (
+                  <p className="text-[10px] mt-1" style={{ color: reservedQty !== null ? "#7c3aed" : "#9ca3af" }}>
+                    {reservedQty !== null ? "Reserved max" : "Max"}: {availableStock.toFixed(4)} {selectedRow.unitType}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Notes</label>

@@ -29,6 +29,7 @@ export interface BomRecord {
   createdAt: string;
   liveCurrentStock: string | null;
   liveAvailableStock: string | null;
+  liveReservedQty: string | null;
 }
 
 export interface PoLineItem {
