@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { Edit2, Power, Phone, Mail, ChevronDown } from "lucide-react";
+import { Pencil, Power, Phone, Mail, ChevronDown } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,7 @@ import MasterHeader from "@/components/master/MasterHeader";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
+import StatusToggle from "@/components/master/StatusToggle";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 
@@ -37,7 +38,7 @@ const COUNTRIES = [
   { code: "SA", dial: "+966", flag: "🇸🇦", name: "Saudi Arabia" },
 ];
 
-/* ─── Phone input component ─── */
+/* ─── Phone input ─── */
 interface PhoneInputProps {
   dialCode: string;
   number: string;
@@ -53,27 +54,33 @@ function PhoneInput({ dialCode, number, onDialChange, onNumberChange, error }: P
 
   useEffect(() => {
     if (!open) return;
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
   const selected = COUNTRIES.find(c => c.dial === dialCode) ?? COUNTRIES[0];
   const filtered = search
-    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.dial.includes(search))
+    ? COUNTRIES.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) || c.dial.includes(search)
+      )
     : COUNTRIES;
 
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-gray-700">Phone</label>
-      <div className="flex gap-2">
-        {/* Country code picker */}
+      <div className="flex gap-2 min-w-0">
+        {/* Country picker trigger */}
         <div className="relative shrink-0" ref={ref}>
           <button
             type="button"
             onClick={() => { setOpen(v => !v); setSearch(""); }}
-            className={`flex items-center gap-1.5 h-[42px] px-3 rounded-lg border bg-white text-sm transition focus:outline-none focus:ring-2 ${
-              error ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 focus:border-gray-900 focus:ring-gray-900/10"
+            className={`flex items-center gap-1.5 h-[42px] px-3 rounded-lg border bg-white text-sm transition focus:outline-none focus:ring-2 whitespace-nowrap ${
+              error
+                ? "border-red-400 focus:border-red-400 focus:ring-red-400/10"
+                : "border-gray-300 focus:border-gray-900 focus:ring-gray-900/10"
             }`}
           >
             <span className="text-base leading-none">{selected.flag}</span>
@@ -82,7 +89,7 @@ function PhoneInput({ dialCode, number, onDialChange, onNumberChange, error }: P
           </button>
 
           {open && (
-            <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+            <div className="absolute top-full left-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
               <div className="p-2 border-b border-gray-100">
                 <input
                   autoFocus
@@ -116,14 +123,16 @@ function PhoneInput({ dialCode, number, onDialChange, onNumberChange, error }: P
           )}
         </div>
 
-        {/* Number field */}
+        {/* Number input — min-w-0 prevents flex overflow */}
         <input
           type="tel"
           value={number}
           onChange={e => onNumberChange(e.target.value)}
           placeholder="Mobile / Landline"
-          className={`flex-1 rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:ring-2 ${
-            error ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 focus:border-gray-900 focus:ring-gray-900/10"
+          className={`min-w-0 flex-1 rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:ring-2 ${
+            error
+              ? "border-red-400 focus:border-red-400 focus:ring-red-400/10"
+              : "border-gray-300 focus:border-gray-900 focus:ring-gray-900/10"
           }`}
         />
       </div>
@@ -144,6 +153,7 @@ interface Vendor {
   remarks: string | null;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 const EMPTY_FORM = {
@@ -157,6 +167,13 @@ function splitPhone(raw: string | null): { dial: string; num: string } {
   const match = COUNTRIES.find(c => raw.startsWith(c.dial));
   if (match) return { dial: match.dial, num: raw.slice(match.dial.length).trim() };
   return { dial: "+91", num: raw };
+}
+
+function formatDate(val: string | null | undefined) {
+  if (!val) return "—";
+  try {
+    return new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  } catch { return String(val); }
 }
 
 const fmt = (n: string | number) =>
@@ -184,6 +201,7 @@ export default function ShippingVendors() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<Vendor | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -245,7 +263,8 @@ export default function ShippingVendors() {
     if (!validate()) return;
     setSaving(true);
     try {
-      const combined = form.phone_number.trim() ? `${form.phone_dial} ${form.phone_number.trim()}` : "";
+      const combined = form.phone_number.trim()
+        ? `${form.phone_dial} ${form.phone_number.trim()}` : "";
       const body = {
         vendor_name: form.vendor_name,
         contact_person: form.contact_person,
@@ -272,6 +291,7 @@ export default function ShippingVendors() {
   }
 
   async function handleToggle(v: Vendor) {
+    setToggling(true);
     try {
       await customFetch(`/api/shipping/vendors/${v.id}/status`, { method: "PATCH" });
       toast({ title: v.is_active ? "Vendor deactivated" : "Vendor activated" });
@@ -279,19 +299,23 @@ export default function ShippingVendors() {
       load();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setToggling(false);
     }
   }
 
-  /* ─── Table columns ─── */
+  /* ─── Columns ─── */
+  const asV = (r: TableRow) => r as unknown as Vendor;
+
   const columns: Column[] = [
     {
       key: "vendor_name",
       label: "Vendor",
-      render: (row) => (
+      render: (r) => (
         <div>
-          <p className="font-semibold text-gray-900">{String(row.vendor_name)}</p>
-          {row.remarks && (
-            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[220px]">{String(row.remarks)}</p>
+          <p className="font-semibold text-gray-900">{asV(r).vendor_name}</p>
+          {asV(r).remarks && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[220px]">{asV(r).remarks}</p>
           )}
         </div>
       ),
@@ -299,17 +323,17 @@ export default function ShippingVendors() {
     {
       key: "contact",
       label: "Contact",
-      render: (row) => (
+      render: (r) => (
         <div className="space-y-0.5">
-          {row.contact_person && <p className="text-gray-800">{String(row.contact_person)}</p>}
-          {row.phone_number && (
+          {asV(r).contact_person && <p className="text-gray-800">{asV(r).contact_person}</p>}
+          {asV(r).phone_number && (
             <p className="text-xs text-gray-400 flex items-center gap-1">
-              <Phone size={10} className="shrink-0" />{String(row.phone_number)}
+              <Phone size={10} className="shrink-0" />{asV(r).phone_number}
             </p>
           )}
-          {row.email_address && (
+          {asV(r).email_address && (
             <p className="text-xs text-gray-400 flex items-center gap-1">
-              <Mail size={10} className="shrink-0" />{String(row.email_address)}
+              <Mail size={10} className="shrink-0" />{asV(r).email_address}
             </p>
           )}
         </div>
@@ -319,69 +343,66 @@ export default function ShippingVendors() {
       key: "weight_rate_per_kg",
       label: "Rate / KG",
       className: "text-right",
-      render: (row) => (
-        <span className="font-semibold text-gray-900">₹{fmt(row.weight_rate_per_kg as string)}</span>
-      ),
+      render: (r) => <span className="font-semibold text-gray-900">₹{fmt(asV(r).weight_rate_per_kg)}</span>,
     },
     {
       key: "minimum_charge",
       label: "Min Charge",
       className: "text-right",
-      render: (row) => <span>₹{fmt(row.minimum_charge as string)}</span>,
+      render: (r) => <span>₹{fmt(asV(r).minimum_charge)}</span>,
     },
     {
       key: "is_active",
       label: "Status",
-      className: "text-center",
-      render: (row) => (
-        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${
-          row.is_active
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : "bg-gray-50 text-gray-400 border-gray-200"
-        }`}>
-          {row.is_active ? "Active" : "Inactive"}
-        </span>
+      render: (r) => (
+        <StatusToggle
+          isActive={asV(r).is_active}
+          onToggle={() => { if (isAdmin) setToggleTarget(asV(r)); }}
+          loading={toggling && toggleTarget?.id === asV(r).id}
+        />
       ),
     },
     {
-      key: "_actions",
+      key: "created_at",
+      label: "Created",
+      render: (r) => (
+        <span className="text-gray-500 whitespace-nowrap">{formatDate(asV(r).created_at)}</span>
+      ),
+    },
+    {
+      key: "updated_at",
+      label: "Updated",
+      render: (r) => (
+        <span className="text-gray-500 whitespace-nowrap">{formatDate(asV(r).updated_at)}</span>
+      ),
+    },
+    {
+      key: "actions",
       label: "Actions",
-      className: "text-center",
-      render: (row) => {
-        const v = row as unknown as Vendor;
-        return (
-          <div className="flex items-center justify-center gap-1.5">
-            <button
-              onClick={() => openEdit(v)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
-              title="Edit"
-            >
-              <Edit2 size={14} />
-            </button>
-            {isAdmin && (
-              <button
-                onClick={() => setToggleTarget(v)}
-                className={`p-1.5 rounded-lg transition ${
-                  v.is_active
-                    ? "hover:bg-red-50 text-red-400 hover:text-red-600"
-                    : "hover:bg-emerald-50 text-emerald-400 hover:text-emerald-600"
-                }`}
-                title={v.is_active ? "Deactivate" : "Activate"}
-              >
-                <Power size={14} />
-              </button>
-            )}
-          </div>
-        );
-      },
+      render: (r) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openEdit(asV(r))}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            title="Edit"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
+      ),
     },
   ];
 
   const inp = "w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10";
 
   return (
-    <AppLayout username={user?.name ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
+    <AppLayout
+      username={user?.name ?? user?.email ?? ""}
+      role={user?.role ?? ""}
+      onLogout={handleLogout}
+      isLoggingOut={logoutMutation.isPending}
+    >
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
         <MasterHeader title="Shipping Vendors" addLabel="Add Vendor" onAdd={openCreate} />
 
@@ -396,7 +417,7 @@ export default function ShippingVendors() {
           rows={vendors as unknown as TableRow[]}
           loading={loading}
           emptyText="No shipping vendors found."
-          rowKey={(r) => (r as unknown as Vendor).id}
+          rowKey={(r) => asV(r).id}
           showSerial
           pagination={{
             page, limit, total,
@@ -427,6 +448,7 @@ export default function ShippingVendors() {
         submitLabel={editing ? "Update Vendor" : "Add Vendor"}
       >
         <div className="space-y-4">
+
           <InputField
             label="Vendor Name"
             required
@@ -436,22 +458,21 @@ export default function ShippingVendors() {
             error={errors.vendor_name}
           />
 
-          <div className="grid grid-cols-2 gap-4">
-            <InputField
-              label="Contact Person"
-              value={form.contact_person}
-              onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))}
-              placeholder="Full name"
-            />
+          <InputField
+            label="Contact Person"
+            value={form.contact_person}
+            onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))}
+            placeholder="Full name"
+          />
 
-            <PhoneInput
-              dialCode={form.phone_dial}
-              number={form.phone_number}
-              onDialChange={d => setForm(f => ({ ...f, phone_dial: d }))}
-              onNumberChange={n => setForm(f => ({ ...f, phone_number: n }))}
-              error={errors.phone_number}
-            />
-          </div>
+          {/* Phone — full width to avoid overflow */}
+          <PhoneInput
+            dialCode={form.phone_dial}
+            number={form.phone_number}
+            onDialChange={d => setForm(f => ({ ...f, phone_dial: d }))}
+            onNumberChange={n => setForm(f => ({ ...f, phone_number: n }))}
+            error={errors.phone_number}
+          />
 
           <InputField
             label="Email"
@@ -493,6 +514,7 @@ export default function ShippingVendors() {
               className={inp + " resize-none"}
             />
           </div>
+
         </div>
       </MasterFormModal>
     </AppLayout>
