@@ -1,0 +1,366 @@
+Build the Reservation Engine for the Inventory Module of an embroidery sampling ERP system.
+
+This module must support reservation of materials for:
+
+Style
+Swatch
+
+Reservation must reduce available stock but must NOT reduce current stock.
+
+Reservation must integrate with:
+
+inventory_items
+stock_ledger
+purchase_orders
+purchase_receipts
+BOM module (Style BOM and Swatch BOM)
+
+Follow structure exactly as defined below.
+
+---
+
+## MODULE NAME
+
+Inventory Reservation Engine
+
+---
+
+## SECTION 1 — DATABASE TABLE STRUCTURE
+
+Create table:
+
+material_reservations
+
+Fields:
+
+reservation_id (primary key)
+
+item_id (foreign key → item master)
+
+inventory_id (foreign key → inventory_items)
+
+reservation_type
+
+reference_id
+
+reserved_quantity
+
+status
+
+remarks
+
+reserved_by
+
+reservation_date
+
+created_at
+
+reservation_type values:
+
+Style
+Swatch
+
+reference_id stores:
+
+Style ID
+Swatch ID
+
+---
+
+## SECTION 2 — INVENTORY RESERVED QUANTITY UPDATE
+
+Whenever reservation created:
+
+update:
+
+inventory_items.style_reserved_qty
+
+or
+
+inventory_items.swatch_reserved_qty
+
+depending on reservation_type
+
+Then recalculate:
+
+available_stock
+
+Formula:
+
+available_stock =
+current_stock
+− style_reserved_qty
+− swatch_reserved_qty
+
+---
+
+## SECTION 3 — MANUAL RESERVATION ENTRY
+
+Allow manual reservation creation from:
+
+Inventory Item Screen
+
+Fields required:
+
+Item
+
+Reservation Type (Style / Swatch)
+
+Reference ID
+
+Reserved Quantity
+
+Remarks
+
+Reservation Date
+
+System must validate:
+
+reserved_quantity <= available_stock
+
+---
+
+## SECTION 4 — AUTO RESERVATION FROM BOM (STYLE)
+
+When Style BOM created:
+
+system must support:
+
+Auto Reserve Materials button
+
+System creates reservation:
+
+reservation_type = Style
+
+reference_id = Style ID
+
+reserved_quantity = BOM quantity
+
+---
+
+## SECTION 5 — AUTO RESERVATION FROM BOM (SWATCH)
+
+When Swatch BOM created:
+
+system must support:
+
+Auto Reserve Materials button
+
+System creates reservation:
+
+reservation_type = Swatch
+
+reference_id = Swatch ID
+
+reserved_quantity = BOM quantity
+
+---
+
+## SECTION 6 — RESERVATION STATUS VALUES
+
+Status values:
+
+Active
+Converted
+Released
+Cancelled
+
+Meaning:
+
+Active = currently reserved
+
+Converted = converted into consumption
+
+Released = reservation removed manually
+
+Cancelled = reference order cancelled
+
+---
+
+## SECTION 7 — RESERVATION RELEASE FUNCTION
+
+Allow admin users to release reservation.
+
+When released:
+
+subtract reserved_quantity from:
+
+style_reserved_qty
+
+or
+
+swatch_reserved_qty
+
+Then recalculate:
+
+available_stock
+
+Create stock_ledger entry:
+
+transaction_type = Reservation Release
+
+reference_type = Style or Swatch
+
+reference_number = reference_id
+
+---
+
+## SECTION 8 — RESERVATION CONVERSION SUPPORT
+
+Reservation must support conversion into consumption.
+
+When converted:
+
+status = Converted
+
+subtract reserved_quantity from:
+
+style_reserved_qty
+
+or
+
+swatch_reserved_qty
+
+Consumption module will deduct stock separately later.
+
+---
+
+## SECTION 9 — STOCK LEDGER ENTRY CREATION
+
+Create ledger entry automatically when reservation created:
+
+transaction_type = Style Reservation
+
+or
+
+transaction_type = Swatch Reservation
+
+reference_type:
+
+Style
+Swatch
+
+reference_number:
+
+Style ID
+Swatch ID
+
+reserved_quantity stored inside remarks
+
+---
+
+## SECTION 10 — INVENTORY LIST SCREEN UPDATE
+
+Inventory item list must display:
+
+style_reserved_qty
+
+swatch_reserved_qty
+
+available_stock
+
+Values must update immediately after reservation changes.
+
+---
+
+## SECTION 11 — RESERVATION VALIDATION RULES
+
+Prevent:
+
+reservation greater than available_stock
+
+missing reference_id
+
+missing reservation_type
+
+missing item_id
+
+---
+
+## SECTION 12 — MULTIPLE RESERVATIONS SUPPORT
+
+Allow:
+
+multiple reservations for same item
+
+Example:
+
+Style A reserves 20
+
+Style B reserves 10
+
+Swatch reserves 5
+
+System must track separately.
+
+---
+
+## SECTION 13 — RESERVATION VIEW SCREEN
+
+Create page:
+
+Inventory → Reservations
+
+Display table columns:
+
+Item Name
+
+Reservation Type
+
+Reference ID
+
+Reserved Quantity
+
+Status
+
+Reserved By
+
+Reservation Date
+
+---
+
+## SECTION 14 — FILTERS
+
+Allow filters:
+
+Item Name
+
+Reservation Type
+
+Reference ID
+
+Status
+
+Date Range
+
+---
+
+## SECTION 15 — PERMISSIONS CONTROL
+
+Allow:
+
+Create reservation → authorized users
+
+Release reservation → admin users
+
+Delete reservation → admin users only
+
+Normal users:
+
+view reservations only
+
+---
+
+## SECTION 16 — AUTO UPDATE TIMESTAMP
+
+Whenever reservation created or modified:
+
+update:
+
+inventory_items.last_updated_at
+
+---
+
+## END OF RESERVATION ENGINE REQUIREMENTS
+
+Build backend logic and frontend UI accordingly.

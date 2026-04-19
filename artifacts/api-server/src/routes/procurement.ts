@@ -774,6 +774,22 @@ router.get("/procurement/item-tracking", requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  PO NUMBERS LIST (for PR list filter dropdown)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/procurement/po-numbers", requireAuth, async (_req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT DISTINCT po_number FROM purchase_orders ORDER BY po_number DESC LIMIT 200`
+    );
+    res.json(rows.rows.map((r: { po_number: string }) => r.po_number));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  APPROVED POs LIST (for PR creation dropdown)
 // ═══════════════════════════════════════════════════════════════════════════════
 

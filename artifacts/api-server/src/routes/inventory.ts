@@ -498,4 +498,282 @@ router.post("/inventory/sync", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RESERVATION ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function recalcAvailable(client: typeof pool, inventoryId: number) {
+  await client.query(`
+    UPDATE inventory_items
+    SET available_stock = current_stock - style_reserved_qty - swatch_reserved_qty,
+        last_updated_at = NOW()
+    WHERE id = $1
+  `, [inventoryId]);
+}
+
+router.get("/inventory/reservations", requireAuth, async (req, res) => {
+  try {
+    const {
+      search = "", reservationType = "all", status = "all",
+      fromDate = "", toDate = "", page = "1", limit = "20",
+    } = req.query as Record<string, string>;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    let pi = 1;
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(ii.item_name ILIKE $${pi} OR ii.item_code ILIKE $${pi})`);
+      pi++;
+    }
+    if (reservationType !== "all") {
+      params.push(reservationType);
+      conditions.push(`mr.reservation_type = $${pi++}`);
+    }
+    if (status !== "all") {
+      params.push(status);
+      conditions.push(`mr.status = $${pi++}`);
+    }
+    if (fromDate) {
+      params.push(fromDate);
+      conditions.push(`mr.reservation_date >= $${pi++}`);
+    }
+    if (toDate) {
+      params.push(toDate);
+      conditions.push(`mr.reservation_date <= $${pi++}`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const countR = await pool.query(
+      `SELECT COUNT(*) FROM material_reservations mr
+       JOIN inventory_items ii ON ii.id = mr.inventory_id ${where}`,
+      params
+    );
+    const total = parseInt(countR.rows[0].count);
+
+    params.push(parseInt(limit)); const limitIdx = pi++;
+    params.push(offset);         const offsetIdx = pi++;
+    const rows = await pool.query(
+      `SELECT mr.*, ii.item_name, ii.item_code, ii.unit_type, ii.available_stock
+       FROM material_reservations mr
+       JOIN inventory_items ii ON ii.id = mr.inventory_id
+       ${where}
+       ORDER BY mr.created_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      params
+    );
+    res.json({ rows: rows.rows, total });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load reservations" });
+  }
+});
+
+router.post("/inventory/reservations", requireAuth, async (req, res) => {
+  const auth = req as AuthRequest;
+  try {
+    const { inventoryId, reservationType, referenceId, reservedQuantity, remarks, reservationDate } = req.body;
+    if (!inventoryId || !reservationType || !referenceId || !reservedQuantity || !reservationDate) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    if (!["Style", "Swatch"].includes(reservationType)) {
+      return res.status(400).json({ error: "Invalid reservation type" });
+    }
+
+    const itemRow = await pool.query(
+      `SELECT id, item_id, available_stock, style_reserved_qty, swatch_reserved_qty, current_stock
+       FROM inventory_items WHERE id = $1`,
+      [inventoryId]
+    );
+    if (!itemRow.rows.length) return res.status(404).json({ error: "Inventory item not found" });
+    const item = itemRow.rows[0];
+    const qty = parseFloat(reservedQuantity);
+    if (qty <= 0) return res.status(400).json({ error: "Quantity must be greater than 0" });
+    if (qty > parseFloat(item.available_stock)) {
+      return res.status(400).json({ error: `Cannot reserve ${qty} — only ${parseFloat(item.available_stock).toFixed(3)} available` });
+    }
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      const ins = await client.query(
+        `INSERT INTO material_reservations
+           (item_id, inventory_id, reservation_type, reference_id, reserved_quantity, status, remarks, reserved_by, reservation_date)
+         VALUES ($1,$2,$3,$4,$5,'Active',$6,$7,$8) RETURNING *`,
+        [item.item_id ?? inventoryId, inventoryId, reservationType, referenceId, qty,
+         remarks || null, auth.user?.name || auth.user?.email || "System", reservationDate]
+      );
+      const resv = ins.rows[0];
+
+      const col = reservationType === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+      await client.query(
+        `UPDATE inventory_items SET ${col} = ${col}::numeric + $1 WHERE id = $2`,
+        [qty, inventoryId]
+      );
+      await recalcAvailable(client, inventoryId);
+
+      const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [inventoryId]);
+      await client.query(
+        `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+         VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8)`,
+        [inventoryId, `${reservationType} Reservation`, String(referenceId), reservationType,
+         qty, balR.rows[0].current_stock, `Reserved ${qty} for ${reservationType} #${referenceId}${remarks ? ` — ${remarks}` : ""}`,
+         auth.user?.name || auth.user?.email || "System"]
+      );
+      await client.query("COMMIT");
+      res.status(201).json(resv);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to create reservation" });
+  }
+});
+
+router.patch("/inventory/reservations/:id/release", requireAuth, async (req, res) => {
+  const auth = req as AuthRequest;
+  try {
+    const { id } = req.params;
+    const r = await pool.query(`SELECT * FROM material_reservations WHERE id = $1`, [id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+    const resv = r.rows[0];
+    if (resv.status !== "Active") return res.status(400).json({ error: "Only Active reservations can be released" });
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE material_reservations SET status = 'Released' WHERE id = $1`, [id]);
+      const col = resv.reservation_type === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+      await client.query(
+        `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
+        [resv.reserved_quantity, resv.inventory_id]
+      );
+      await recalcAvailable(client, resv.inventory_id);
+      const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [resv.inventory_id]);
+      await client.query(
+        `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+         VALUES ($1,'Reservation Release',$2,$3,$4,0,$5,$6,$7)`,
+        [resv.inventory_id, String(resv.reference_id), resv.reservation_type, resv.reserved_quantity,
+         balR.rows[0].current_stock, `Released ${resv.reserved_quantity} reserved for ${resv.reservation_type} #${resv.reference_id}`,
+         auth.user?.name || auth.user?.email || "System"]
+      );
+      await client.query("COMMIT");
+      res.json({ success: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to release reservation" });
+  }
+});
+
+router.patch("/inventory/reservations/:id/cancel", requireAuth, async (req, res) => {
+  const auth = req as AuthRequest;
+  try {
+    const { id } = req.params;
+    const r = await pool.query(`SELECT * FROM material_reservations WHERE id = $1`, [id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+    const resv = r.rows[0];
+    if (resv.status !== "Active") return res.status(400).json({ error: "Only Active reservations can be cancelled" });
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE material_reservations SET status = 'Cancelled' WHERE id = $1`, [id]);
+      const col = resv.reservation_type === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+      await client.query(
+        `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
+        [resv.reserved_quantity, resv.inventory_id]
+      );
+      await recalcAvailable(client, resv.inventory_id);
+      await client.query("COMMIT");
+      res.json({ success: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to cancel reservation" });
+  }
+});
+
+router.patch("/inventory/reservations/:id/convert", requireAuth, async (_req, res) => {
+  try {
+    const { id } = _req.params;
+    const r = await pool.query(`SELECT * FROM material_reservations WHERE id = $1`, [id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+    const resv = r.rows[0];
+    if (resv.status !== "Active") return res.status(400).json({ error: "Only Active reservations can be converted" });
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE material_reservations SET status = 'Converted' WHERE id = $1`, [id]);
+      const col = resv.reservation_type === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+      await client.query(
+        `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
+        [resv.reserved_quantity, resv.inventory_id]
+      );
+      await recalcAvailable(client, resv.inventory_id);
+      await client.query("COMMIT");
+      res.json({ success: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to convert reservation" });
+  }
+});
+
+router.delete("/inventory/reservations/:id", requireAuth, async (req, res) => {
+  const auth = req as AuthRequest;
+  if ((auth.user as any)?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  try {
+    const { id } = req.params;
+    const r = await pool.query(`SELECT * FROM material_reservations WHERE id = $1`, [id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+    const resv = r.rows[0];
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      if (resv.status === "Active") {
+        const col = resv.reservation_type === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+        await client.query(
+          `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
+          [resv.reserved_quantity, resv.inventory_id]
+        );
+        await recalcAvailable(client, resv.inventory_id);
+      }
+      await client.query(`DELETE FROM material_reservations WHERE id = $1`, [id]);
+      await client.query("COMMIT");
+      res.json({ success: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to delete reservation" });
+  }
+});
+
 export default router;

@@ -73,6 +73,7 @@ export default function PurchaseReceipts() {
   const limit = 10;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
+  const [poNumbers,     setPoNumbers]     = useState<string[]>([]);
   const [search,        setSearch]        = useState("");
   const [poNumber,      setPoNumber]      = useState("");
   const [status,        setStatus]        = useState("all");
@@ -86,6 +87,13 @@ export default function PurchaseReceipts() {
   const [actioning, setActioning] = useState(false);
 
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
+
+  useEffect(() => {
+    if (!token) return;
+    customFetch(`/api/procurement/po-numbers?_t=${Date.now()}`)
+      .then((r: unknown) => setPoNumbers(r as string[]))
+      .catch(() => {});
+  }, [token]);
 
   const buildQs = useCallback(() => {
     const p = new URLSearchParams({ sort, page: String(page), limit: String(limit) });
@@ -188,10 +196,15 @@ export default function PurchaseReceipts() {
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full pl-8 pr-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
             </div>
-            <div className="relative min-w-[180px]">
-              <input type="text" placeholder="Filter by PO number…" value={poNumber}
-                onChange={e => { setPoNumber(e.target.value); setPage(1); }}
-                className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+            <div className="relative">
+              <select value={poNumber} onChange={e => { setPoNumber(e.target.value); setPage(1); }}
+                className="appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[200px]">
+                <option value="">All PO Numbers</option>
+                {poNumbers.map(pn => (
+                  <option key={pn} value={pn}>{pn}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
             </div>
 
             <div className="relative">

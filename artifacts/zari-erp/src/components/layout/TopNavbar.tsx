@@ -34,6 +34,7 @@ const ACCOUNTS_ITEMS = [
 const INVENTORY_ITEMS = [
   { label: "Item Stock List", href: "/inventory/items" },
   { label: "Stock Ledger",    href: "/inventory/ledger" },
+  { label: "Reservations",    href: "/inventory/reservations" },
 ];
 
 const PROCUREMENT_ITEMS = [

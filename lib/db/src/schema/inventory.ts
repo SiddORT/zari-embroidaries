@@ -65,6 +65,22 @@ export const stockLedgerTable = pgTable("stock_ledger", {
 
 export type StockLedgerRecord = typeof stockLedgerTable.$inferSelect;
 
+export const materialReservationsTable = pgTable("material_reservations", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").notNull(),
+  inventoryId: integer("inventory_id").notNull(),
+  reservationType: text("reservation_type").notNull(),
+  referenceId: integer("reference_id").notNull(),
+  reservedQuantity: numeric("reserved_quantity", { precision: 14, scale: 3 }).notNull(),
+  status: text("status").notNull().default("Active"),
+  remarks: text("remarks"),
+  reservedBy: text("reserved_by"),
+  reservationDate: text("reservation_date").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type MaterialReservation = typeof materialReservationsTable.$inferSelect;
+
 export const updateInventoryStockSchema = z.object({
   warehouseLocation: z.string().optional(),
   currentStock: z.string().min(1, "Opening quantity is required"),
