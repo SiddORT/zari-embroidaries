@@ -454,9 +454,11 @@ export default function ShippingVendors() {
       {/* Delete confirm */}
       {deleteTarget && (
         <ConfirmModal
+          open={true}
           title="Delete Vendor"
           message={`Are you sure you want to permanently delete "${deleteTarget.vendor_name}"? This cannot be undone.`}
           confirmLabel="Delete"
+          loading={deleting}
           onConfirm={() => handleDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />
