@@ -1795,6 +1795,10 @@ const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const GST_MODES = ["Auto Detect", "Manual Selection"] as const;
 
 interface GSTForm {
+  company_name: string;
+  company_address: string;
+  company_phone: string;
+  company_email: string;
   company_gstin: string;
   company_state: string;
   company_country: string;
@@ -1805,6 +1809,10 @@ interface GSTForm {
 }
 
 const EMPTY_GST: GSTForm = {
+  company_name: "ZARI EMBROIDERIES",
+  company_address: "",
+  company_phone: "",
+  company_email: "",
   company_gstin: "",
   company_state: "",
   company_country: "India",
@@ -1827,6 +1835,10 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
       .then(j => {
         if (j.data) {
           setForm({
+            company_name:             j.data.company_name ?? "ZARI EMBROIDERIES",
+            company_address:          j.data.company_address ?? "",
+            company_phone:            j.data.company_phone ?? "",
+            company_email:            j.data.company_email ?? "",
             company_gstin:            j.data.company_gstin ?? "",
             company_state:            j.data.company_state ?? "",
             company_country:          j.data.company_country ?? "India",
@@ -1922,8 +1934,18 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
 
         <div className="space-y-5 pt-1">
 
-          {/* GSTIN */}
+          {/* Company Name + GSTIN */}
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={label}>Company Name <span className="text-red-400">*</span></label>
+              <input
+                value={form.company_name}
+                onChange={e => f("company_name", e.target.value)}
+                className={`${inp} font-semibold`}
+                placeholder="ZARI EMBROIDERIES"
+              />
+              <p className="text-xs text-gray-400 mt-1">Shown on all invoices and PDFs</p>
+            </div>
             <div>
               <label className={label}>Company GSTIN</label>
               <input
@@ -1938,6 +1960,50 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
                 : <p className="text-xs text-gray-400 mt-1">Leave blank if not registered for GST</p>
               }
             </div>
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className={label}>Company Address</label>
+            <textarea
+              rows={2}
+              value={form.company_address}
+              onChange={e => f("company_address", e.target.value)}
+              className={`${inp} resize-none`}
+              placeholder="e.g. Plot No. 12, MIDC, Bhiwandi, Thane — 421 302"
+            />
+            <p className="text-xs text-gray-400 mt-1">Full address printed on invoice header</p>
+          </div>
+
+          {/* Phone + Email */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={label}>Company Phone</label>
+              <input
+                value={form.company_phone}
+                onChange={e => f("company_phone", e.target.value)}
+                className={inp}
+                placeholder="+91 98765 43210"
+              />
+            </div>
+            <div>
+              <label className={label}>Company Email</label>
+              <input
+                type="email"
+                value={form.company_email}
+                onChange={e => f("company_email", e.target.value)}
+                className={inp}
+                placeholder="accounts@zariembroideries.com"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">GST Configuration</p>
+          </div>
+
+          {/* Default GST Rate */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={label}>Default Service GST Rate (%)</label>
               <input

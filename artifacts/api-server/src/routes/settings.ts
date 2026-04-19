@@ -594,6 +594,7 @@ router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   try {
     const {
+      company_name, company_address, company_phone, company_email,
       company_gstin, company_state, company_country,
       export_under_lut_enabled, reverse_charge_enabled,
       gst_mode, default_service_gst_rate,
@@ -609,22 +610,38 @@ router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
     if (existing.rows.length) {
       await pool.query(
         `UPDATE company_gst_settings SET
-           company_gstin=$1, company_state=$2, company_country=$3,
-           export_under_lut_enabled=$4, reverse_charge_enabled=$5,
-           gst_mode=$6, default_service_gst_rate=$7, updated_at=NOW()
-         WHERE gst_settings_id=$8`,
-        [company_gstin?.trim() ?? "", company_state.trim(), company_country.trim(),
-         !!export_under_lut_enabled, !!reverse_charge_enabled,
-         gst_mode, rate, existing.rows[0].gst_settings_id]
+           company_name=$1, company_address=$2, company_phone=$3, company_email=$4,
+           company_gstin=$5, company_state=$6, company_country=$7,
+           export_under_lut_enabled=$8, reverse_charge_enabled=$9,
+           gst_mode=$10, default_service_gst_rate=$11, updated_at=NOW()
+         WHERE gst_settings_id=$12`,
+        [
+          company_name?.trim() ?? "ZARI EMBROIDERIES",
+          company_address?.trim() ?? "",
+          company_phone?.trim() ?? "",
+          company_email?.trim() ?? "",
+          company_gstin?.trim() ?? "",
+          company_state.trim(), company_country.trim(),
+          !!export_under_lut_enabled, !!reverse_charge_enabled,
+          gst_mode, rate, existing.rows[0].gst_settings_id,
+        ]
       );
     } else {
       await pool.query(
         `INSERT INTO company_gst_settings
-           (company_gstin, company_state, company_country, export_under_lut_enabled,
+           (company_name, company_address, company_phone, company_email,
+            company_gstin, company_state, company_country, export_under_lut_enabled,
             reverse_charge_enabled, gst_mode, default_service_gst_rate)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [company_gstin?.trim() ?? "", company_state.trim(), company_country.trim(),
-         !!export_under_lut_enabled, !!reverse_charge_enabled, gst_mode, rate]
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+          company_name?.trim() ?? "ZARI EMBROIDERIES",
+          company_address?.trim() ?? "",
+          company_phone?.trim() ?? "",
+          company_email?.trim() ?? "",
+          company_gstin?.trim() ?? "",
+          company_state.trim(), company_country.trim(),
+          !!export_under_lut_enabled, !!reverse_charge_enabled, gst_mode, rate,
+        ]
       );
     }
 

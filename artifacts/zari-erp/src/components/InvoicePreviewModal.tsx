@@ -51,6 +51,10 @@ export interface PreviewInvoice {
 }
 
 interface CompanyInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
   gstin: string;
   state: string;
   country: string;
@@ -105,7 +109,13 @@ function ClassicTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, borderBottom: "3px solid #1a1a1a", paddingBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 2, color: "#1a1a1a" }}>ZARI EMBROIDERIES</div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 2, color: "#1a1a1a" }}>{company.name || "ZARI EMBROIDERIES"}</div>
+          {company.address && <div style={{ fontSize: 11, color: "#555", marginTop: 3, whiteSpace: "pre-line", lineHeight: 1.5 }}>{company.address}</div>}
+          {(company.phone || company.email) && (
+            <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+              {company.phone}{company.phone && company.email ? " · " : ""}{company.email}
+            </div>
+          )}
           {company.gstin && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>GSTIN: {company.gstin}</div>}
           {company.state && <div style={{ fontSize: 11, color: "#555" }}>{company.state}{company.country ? `, ${company.country}` : ""}</div>}
         </div>
@@ -231,7 +241,13 @@ function ModernTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: C
       {/* Dark header */}
       <div style={{ background: "#1C1C2E", color: "#fff", padding: "32px 40px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1.5, color: G }}>ZARI EMBROIDERIES</div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1.5, color: G }}>{company.name || "ZARI EMBROIDERIES"}</div>
+          {company.address && <div style={{ fontSize: 10, color: "#bbb", marginTop: 2, whiteSpace: "pre-line", lineHeight: 1.5 }}>{company.address}</div>}
+          {(company.phone || company.email) && (
+            <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
+              {company.phone}{company.phone && company.email ? " · " : ""}{company.email}
+            </div>
+          )}
           {company.gstin && <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>GSTIN: {company.gstin}</div>}
           {company.state && <div style={{ fontSize: 10, color: "#aaa" }}>{company.state}{company.country ? `, ${company.country}` : ""}</div>}
         </div>
@@ -360,9 +376,17 @@ function PremiumTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: 
       {/* Gold gradient header */}
       <div style={{ background: "linear-gradient(135deg, #8B6914 0%, #C6AF4B 50%, #8B6914 100%)", padding: "36px 48px" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: 4, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.3)" }}>ZARI EMBROIDERIES</div>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.75)", letterSpacing: 3, marginTop: 4, textTransform: "uppercase" }}>
-            {company.gstin ? `GSTIN: ${company.gstin}` : ""}{company.state ? ` · ${company.state}` : ""}{company.country ? `, ${company.country}` : ""}
+          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: 4, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.3)" }}>{company.name || "ZARI EMBROIDERIES"}</div>
+          {company.address && (
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", marginTop: 4, whiteSpace: "pre-line", lineHeight: 1.6 }}>{company.address}</div>
+          )}
+          {(company.phone || company.email) && (
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.75)", marginTop: 3 }}>
+              {company.phone}{company.phone && company.email ? " · " : ""}{company.email}
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.75)", letterSpacing: 1, marginTop: 4 }}>
+            {company.gstin ? `GSTIN: ${company.gstin}` : ""}{company.state ? `${company.gstin ? " · " : ""}${company.state}` : ""}{company.country ? `, ${company.country}` : ""}
           </div>
           <div style={{ width: 60, height: 2, background: "rgba(255,255,255,0.5)", margin: "14px auto 12px" }} />
           <div style={{ fontSize: 14, letterSpacing: 6, color: "#fff8e6", textTransform: "uppercase" }}>Invoice</div>
@@ -476,7 +500,7 @@ function PremiumTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: 
 // ---- Main Modal ----
 export default function InvoicePreviewModal({ invoiceId, formSnapshot, onClose }: Props) {
   const [inv, setInv] = useState<PreviewInvoice | null>(formSnapshot ?? null);
-  const [company, setCompany] = useState<CompanyInfo>({ gstin: "", state: "", country: "India" });
+  const [company, setCompany] = useState<CompanyInfo>({ name: "ZARI EMBROIDERIES", address: "", phone: "", email: "", gstin: "", state: "", country: "India" });
   const [template, setTemplate] = useState<Template>({ layout: "classic", payment_terms: "", notes: "" });
   const [loading, setLoading] = useState(!formSnapshot);
   const printRef = useRef<HTMLDivElement>(null);
@@ -489,7 +513,15 @@ export default function InvoicePreviewModal({ invoiceId, formSnapshot, onClose }
           customFetch<any>("/api/settings/invoice-templates"),
         ]);
         if (gstData?.data) {
-          setCompany({ gstin: gstData.data.company_gstin || "", state: gstData.data.company_state || "", country: gstData.data.company_country || "India" });
+          setCompany({
+            name:    gstData.data.company_name    || "ZARI EMBROIDERIES",
+            address: gstData.data.company_address || "",
+            phone:   gstData.data.company_phone   || "",
+            email:   gstData.data.company_email   || "",
+            gstin:   gstData.data.company_gstin   || "",
+            state:   gstData.data.company_state   || "",
+            country: gstData.data.company_country || "India",
+          });
         }
         const templates: any[] = tplData?.data ?? [];
         const def = templates.find(t => t.is_default) ?? templates[0];
