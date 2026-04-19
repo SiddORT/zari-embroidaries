@@ -7,7 +7,7 @@ import AppLayout from "@/components/layout/AppLayout";
 const G = "#C6AF4B";
 
 function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("auth_token");
+  const token = localStorage.getItem("zarierp_token");
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return fetch(`${base}${url}`, {
     ...options,
