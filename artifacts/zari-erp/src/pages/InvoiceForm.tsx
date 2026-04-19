@@ -83,6 +83,8 @@ export default function InvoiceForm() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [refOrderOptions, setRefOrderOptions] = useState<{ value: string; label: string }[]>([]);
+  const [refOrdersLoading, setRefOrdersLoading] = useState(false);
 
   const [form, setForm] = useState({
     invoiceNo: "",
@@ -166,6 +168,25 @@ export default function InvoiceForm() {
       customFetch<any>("/api/settings/bank-accounts").then(j => setBankAccounts(j.data ?? [])).catch(() => {});
     }
   }, [isEdit]);
+
+  // Load order options when reference type is Swatch or Style
+  useEffect(() => {
+    if (form.referenceType !== "Swatch" && form.referenceType !== "Style") {
+      setRefOrderOptions([]);
+      return;
+    }
+    setRefOrdersLoading(true);
+    const endpoint = form.referenceType === "Swatch"
+      ? "/api/swatch-orders?limit=200"
+      : "/api/style-orders?limit=200";
+    customFetch<any>(endpoint).then(j => {
+      const rows = j.data ?? [];
+      const opts = form.referenceType === "Swatch"
+        ? rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.swatchName ?? ""}`.trim() }))
+        : rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.styleName ?? r.styleNo ?? ""}`.trim() }));
+      setRefOrderOptions(opts);
+    }).catch(() => setRefOrderOptions([])).finally(() => setRefOrdersLoading(false));
+  }, [form.referenceType]);
 
   // Auto-set exchange rate when currency changes
   useEffect(() => {
@@ -494,12 +515,28 @@ export default function InvoiceForm() {
                 </div>
                 <div>
                   <label className={lbl}>{REF_LABELS[form.referenceType] ?? "Reference ID"}</label>
-                  <input
-                    value={form.referenceId}
-                    onChange={e => setF("referenceId", e.target.value)}
-                    className={inp}
-                    placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
-                  />
+                  {(form.referenceType === "Swatch" || form.referenceType === "Style") ? (
+                    <select
+                      value={form.referenceId}
+                      onChange={e => setF("referenceId", e.target.value)}
+                      className={selClass}
+                      disabled={refOrdersLoading}
+                    >
+                      <option value="">
+                        {refOrdersLoading ? "Loading…" : `— Select ${REF_LABELS[form.referenceType]} —`}
+                      </option>
+                      {refOrderOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={form.referenceId}
+                      onChange={e => setF("referenceId", e.target.value)}
+                      className={inp}
+                      placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
+                    />
+                  )}
                 </div>
               </div>
             </div>
