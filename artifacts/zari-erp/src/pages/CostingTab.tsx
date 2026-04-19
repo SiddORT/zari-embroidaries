@@ -423,8 +423,8 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => { setEditRow(r); setEditQty(r.requiredQty); setEditNotes(""); }}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit Required Qty">
+                      <button onClick={() => { setEditRow(r); setEditQty(""); setEditNotes(""); }}
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-colors" title="Add to Req / Reserved Qty">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => setLogRowId(r.id)}
