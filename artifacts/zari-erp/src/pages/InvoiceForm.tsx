@@ -3,6 +3,8 @@ import { useLocation, useParams } from "wouter";
 import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
+import InvoicePreviewModal from "@/components/InvoicePreviewModal";
+import type { PreviewInvoice } from "@/components/InvoicePreviewModal";
 
 const G = "#C6AF4B";
 
@@ -95,6 +97,7 @@ export default function InvoiceForm() {
   const [refOrderFullData, setRefOrderFullData] = useState<{ id: number; orderCode: string }[]>([]);
   const [loadingCostSheet, setLoadingCostSheet] = useState(false);
   const [showCostSheetConfirm, setShowCostSheetConfirm] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [hsnList, setHsnList] = useState<HsnItem[]>([]);
   const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
   const [fabricMaster, setFabricMaster] = useState<FabricMaster[]>([]);
@@ -1089,7 +1092,7 @@ export default function InvoiceForm() {
               Save as Draft
             </button>
             <button
-              onClick={() => toast({ title: "Preview coming soon", description: "Invoice preview will be available after saving." })}
+              onClick={() => setShowPreview(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition"
             >
               <Eye size={14} /> Preview Invoice
@@ -1107,6 +1110,44 @@ export default function InvoiceForm() {
         </div>
 
       </div>
+
+      {/* Invoice Preview Modal */}
+      {showPreview && (
+        <InvoicePreviewModal
+          formSnapshot={{
+            invoiceNo: form.invoiceNo || "DRAFT",
+            invoiceDate: form.invoiceDate,
+            dueDate: form.dueDate,
+            invoiceType: form.invoiceType,
+            currencyCode: form.currencyCode,
+            exchangeRate: parseFloat(form.exchangeRateSnapshot || "1"),
+            clientName: form.clientName,
+            clientAddress: form.clientAddress,
+            clientGstin: form.clientGstin,
+            clientEmail: form.clientEmail,
+            clientPhone: form.clientPhone,
+            clientState: form.clientState,
+            items: items.map(i => ({ description: i.description, hsnCode: i.hsnCode, quantity: i.quantity, unit: i.unit, unitPrice: i.unitPrice, total: i.total })),
+            cgstRate: parseFloat(form.cgstRate || "0"),
+            sgstRate: parseFloat(form.sgstRate || "0"),
+            discountType: form.discountType,
+            discountValue: parseFloat(form.discountValue || "0"),
+            shippingAmount: parseFloat(form.shippingAmount || "0"),
+            adjustmentAmount: parseFloat(form.adjustmentAmount || "0"),
+            receivedAmount: parseFloat(form.receivedAmount || "0"),
+            paymentTerms: form.paymentTerms,
+            notes: form.notes,
+            bankName: form.bankName,
+            bankAccount: form.bankAccount,
+            bankIfsc: form.bankIfsc,
+            bankBranch: form.bankBranch,
+            bankUpi: form.bankUpi,
+            referenceType: form.referenceType,
+            referenceId: form.referenceId,
+          } as PreviewInvoice}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
 
       {/* Cost Sheet Duplicate Confirmation Modal */}
       {showCostSheetConfirm && (

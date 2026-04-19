@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Plus, Search, FileText, Filter, ChevronDown, Eye, Trash2, Edit2 } from "lucide-react";
+import { Plus, Search, FileText, Filter, ChevronDown, Eye, Trash2, Edit2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
+import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 
 const G = "#C6AF4B";
 
@@ -86,6 +87,7 @@ export default function InvoiceList() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [previewInvId, setPreviewInvId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -328,6 +330,13 @@ export default function InvoiceList() {
                           <Edit2 size={14} />
                         </button>
                         <button
+                          onClick={() => setPreviewInvId(inv.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition"
+                          title="Preview & Download PDF"
+                        >
+                          <Printer size={14} />
+                        </button>
+                        <button
                           onClick={() => setDeleteTarget(inv)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
                           title="Delete"
@@ -343,6 +352,14 @@ export default function InvoiceList() {
           </div>
         </div>
       </div>
+
+      {/* Invoice Preview / Download Modal */}
+      {previewInvId !== null && (
+        <InvoicePreviewModal
+          invoiceId={previewInvId}
+          onClose={() => setPreviewInvId(null)}
+        />
+      )}
 
       {/* Delete confirm modal */}
       {deleteTarget && (
