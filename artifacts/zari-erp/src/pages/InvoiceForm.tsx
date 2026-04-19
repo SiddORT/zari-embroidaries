@@ -995,17 +995,31 @@ export default function InvoiceForm() {
                   );
                 })}
               </tbody>
-              {items.length > 0 && (
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50/60">
-                    <td colSpan={7} className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Line Items Total</td>
-                    <td className="px-3 py-2.5 text-right text-sm font-bold text-gray-900">
-                      {items.reduce((s, i) => s + i.total, 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
+              {items.length > 0 && (() => {
+                const totalAmt = items.reduce((s, i) => s + i.total, 0);
+                const totalGst = items.reduce((s, i) => {
+                  const pct = parseFloat(i.hsnGstPct || "0");
+                  return s + (pct > 0 ? (i.total * pct) / 100 : 0);
+                }, 0);
+                const grandTotal = totalAmt + totalGst;
+                const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
+                return (
+                  <tfoot>
+                    <tr className="border-t border-gray-200 bg-gray-50/40">
+                      <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Subtotal</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-amber-700">{fmt(totalGst)}</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-gray-800">{fmt(totalAmt)}</td>
+                      <td />
+                    </tr>
+                    <tr className="border-t-2 border-gray-900 bg-gray-900">
+                      <td colSpan={6} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-300 uppercase tracking-wide">Grand Total (Amt + GST)</td>
+                      <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-400">{fmt(totalGst)}</td>
+                      <td className="px-3 py-2.5 text-right text-sm font-bold text-[#C9B45C]">{fmt(grandTotal)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           </div>
         </div>
