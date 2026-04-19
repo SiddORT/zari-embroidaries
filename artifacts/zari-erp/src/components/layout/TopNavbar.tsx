@@ -26,6 +26,7 @@ const MASTERS_ITEMS = [
 const ORDERS_ITEMS = [
   { label: "Swatch Orders", href: "/swatch-orders" },
   { label: "Style Orders",  href: "/style-orders" },
+  { label: "Shipments",     href: "/shipping" },
 ];
 
 const OPERATIONS_SECTIONS = [
@@ -43,18 +44,6 @@ const OPERATIONS_SECTIONS = [
     items: [
       { label: "Purchase Orders",   href: "/procurement/purchase-orders" },
       { label: "Purchase Receipts", href: "/procurement/purchase-receipts" },
-    ],
-  },
-  {
-    title: "Shipping",
-    items: [
-      { label: "Shipments", href: "/shipping" },
-    ],
-  },
-  {
-    title: "Quotation",
-    items: [
-      { label: "Quotations", href: "/quotation" },
     ],
   },
 ];
@@ -212,7 +201,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${operationsOpen ? "rotate-180" : ""}`} />
               </button>
               {operationsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-3 grid grid-cols-4 gap-x-4 gap-y-0 min-w-[560px]">
+                <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-3 grid grid-cols-2 gap-x-6 gap-y-0 min-w-[320px]">
                   {OPERATIONS_SECTIONS.map(({ title, items }) => (
                     <div key={title}>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-2 pb-1.5 pt-0.5">
@@ -238,6 +227,11 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 </div>
               )}
             </div>
+
+            {/* Quotation — direct link */}
+            <Link href="/quotation" className={navLink(location === "/quotation" || location.startsWith("/quotation/"))}>
+              Quotation
+            </Link>
 
             {/* Accounts — direct link */}
             <Link href="/accounts/ledgers" className={navLink(accountsActive)}>
@@ -415,6 +409,17 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   ))}
                 </div>
               )}
+
+              {/* Quotation — direct link */}
+              <Link
+                href="/quotation"
+                onClick={() => setMobileOpen(false)}
+                className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  location === "/quotation" || location.startsWith("/quotation/") ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                Quotation
+              </Link>
 
               {/* Accounts — direct link */}
               <Link
