@@ -37,6 +37,8 @@ interface Reservation {
   unit_type: string | null;
   reservation_type: string;
   reference_id: number;
+  reference_code: string | null;
+  reference_name: string | null;
   reserved_quantity: string;
   status: string;
   remarks: string | null;
@@ -353,7 +355,7 @@ export default function Reservations() {
                   <th className={thCls}>#</th>
                   <th className={thCls}>Item</th>
                   <th className={thCls}>Type</th>
-                  <th className={thCls}>Reference ID</th>
+                  <th className={thCls}>Reference No.</th>
                   <th className={thCls}>Reserved Qty</th>
                   <th className={thCls}>Available Stock</th>
                   <th className={thCls}>Date</th>
@@ -389,7 +391,14 @@ export default function Reservations() {
                         {r.reservation_type}
                       </span>
                     </td>
-                    <td className={tdCls}><span className="text-sm font-mono text-gray-700">#{r.reference_id}</span></td>
+                    <td className={tdCls}>
+                      <div className="text-sm font-mono font-semibold text-gray-800">
+                        {r.reference_code ?? `#${r.reference_id}`}
+                      </div>
+                      {r.reference_name && (
+                        <div className="text-[11px] text-gray-400 truncate max-w-[120px]">{r.reference_name}</div>
+                      )}
+                    </td>
                     <td className={tdCls}>
                       <span className="text-sm font-mono font-semibold" style={{ color: G }}>
                         {parseFloat(r.reserved_quantity).toFixed(3)} {r.unit_type || ""}
@@ -612,7 +621,7 @@ export default function Reservations() {
                    confirmAction.action === "release" ? "Release Reservation?" : "Cancel Reservation?"}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                  {confirmAction.resv.item_name} — {parseFloat(confirmAction.resv.reserved_quantity).toFixed(3)} {confirmAction.resv.unit_type || "units"} for {confirmAction.resv.reservation_type} #{confirmAction.resv.reference_id}.
+                  {confirmAction.resv.item_name} — {parseFloat(confirmAction.resv.reserved_quantity).toFixed(3)} {confirmAction.resv.unit_type || "units"} for {confirmAction.resv.reservation_type} {confirmAction.resv.reference_code ?? `#${confirmAction.resv.reference_id}`}.
                   {confirmAction.action === "release" && " Reserved qty will be returned to available stock."}
                   {confirmAction.action === "cancel" && " Reserved qty will be returned to available stock."}
                   {confirmAction.action === "delete" && " This will permanently remove this record."}
@@ -674,7 +683,7 @@ export default function Reservations() {
                 <div className="bg-gray-50 rounded-xl px-4 py-3">
                   <p className="text-sm font-semibold text-gray-900">{convertModal.resv.item_name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {convertModal.resv.reservation_type} #{convertModal.resv.reference_id} &middot; Reserved:{" "}
+                    {convertModal.resv.reservation_type} {convertModal.resv.reference_code ?? `#${convertModal.resv.reference_id}`} &middot; Reserved:{" "}
                     <span className="font-bold" style={{ color: G }}>{reserved.toFixed(3)}</span>{" "}
                     {convertModal.resv.unit_type || ""}
                   </p>

@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import * as XLSX from "xlsx";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
@@ -102,6 +104,22 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
     currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "",
+  });
+
+  // Live inventory lookup for the currently-selected material/fabric
+  const { data: selectedInv } = useQuery({
+    queryKey: ["inv-by-source", form.materialType, form.materialId],
+    queryFn: async () => {
+      if (!form.materialType || !form.materialId) return null;
+      const r = await customFetch<{ data: { source_type: string; source_id: number; current_stock: string; available_stock: string }[] }>(
+        `/api/inventory/items?sourceType=${form.materialType}&search=${encodeURIComponent(form.materialCode)}&limit=5`
+      );
+      return r.data?.find(
+        (i: any) => i.source_type === form.materialType && String(i.source_id) === String(form.materialId)
+      ) ?? null;
+    },
+    enabled: !!form.materialType && form.materialId > 0,
+    staleTime: 30_000,
   });
 
   const estimatedAmount = (parseFloat(form.requiredQty) || 0) * (parseFloat(form.avgUnitPrice) || 0);
@@ -244,16 +262,30 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           {form.materialId > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
-                <p className="text-[10px] text-gray-400">Stock</p>
-                <p className="font-semibold text-gray-800">{form.currentStock} {form.unitType}</p>
+                <p className="text-[10px] text-gray-400">Current Stock</p>
+                {selectedInv ? (
+                  <p className="font-semibold text-gray-800">
+                    {parseFloat(selectedInv.current_stock).toFixed(3)}
+                    <span className="text-gray-400 ml-1 text-[10px]">{form.unitType}</span>
+                  </p>
+                ) : (
+                  <p className="font-semibold text-gray-400">{form.currentStock} {form.unitType}</p>
+                )}
+              </div>
+              <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
+                <p className="text-[10px] text-gray-400">Available Stock</p>
+                {selectedInv ? (
+                  <p className={`font-semibold ${parseFloat(selectedInv.available_stock) <= 0 ? "text-red-600" : "text-green-700"}`}>
+                    {parseFloat(selectedInv.available_stock).toFixed(3)}
+                    <span className="text-gray-400 ml-1 text-[10px]">{form.unitType}</span>
+                  </p>
+                ) : (
+                  <p className="text-gray-400 text-[10px]">Not in inventory</p>
+                )}
               </div>
               <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
                 <p className="text-[10px] text-gray-400">Avg Price</p>
                 <p className="font-semibold text-gray-800">₹{form.avgUnitPrice}/{form.unitType}</p>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
-                <p className="text-[10px] text-gray-400">Unit</p>
-                <p className="font-semibold text-gray-800">{form.unitType}</p>
               </div>
               <div className="bg-white rounded-lg border border-gray-200 px-3 py-2">
                 <p className="text-[10px] text-gray-400">Location</p>
@@ -263,7 +295,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           )}
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="text-[10px] text-gray-500 font-medium">Required Qty</label>
+              <label className="text-[10px] text-gray-500 font-medium">Required / Reserved Qty</label>
               <input type="number" min="0" step="any" value={form.requiredQty}
                 onChange={e => setForm(f => ({ ...f, requiredQty: e.target.value }))}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
@@ -292,7 +324,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
             <tr className="border-b border-gray-100 bg-gray-50/60">
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Code</th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Material / Fabric</th>
-              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Stock</th>
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Current / Available Stock</th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
                 <span className="flex items-center gap-1">
                   Avg Price
@@ -326,7 +358,6 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
             ) : filteredRows.map(r => {
               const m = computeRowMetrics(r, pos, prs);
-              const liveStock = m.stockNum + m.prQty;
               return (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -339,10 +370,21 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                     </div>
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
-                    <span className="font-semibold text-gray-800">{liveStock.toFixed(2)}</span>
-                    <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
-                    {m.prQty > 0 && (
-                      <span title={`Base: ${m.stockNum} + PR: ${m.prQty.toFixed(2)}`} className="ml-1 text-[9px] text-blue-500 cursor-help">+PR</span>
+                    {(r as any).liveCurrentStock != null ? (
+                      <div>
+                        <div>
+                          <span className="font-semibold text-gray-800 text-[11px]">{parseFloat((r as any).liveCurrentStock).toFixed(3)}</span>
+                          <span className="text-gray-400 ml-0.5 text-[10px]">{r.unitType}</span>
+                        </div>
+                        <div>
+                          <span className={`font-semibold text-[11px] ${parseFloat((r as any).liveAvailableStock ?? "0") <= 0 ? "text-red-600" : "text-green-700"}`}>
+                            {parseFloat((r as any).liveAvailableStock ?? "0").toFixed(3)}
+                          </span>
+                          <span className="text-gray-400 ml-0.5 text-[10px]">avail</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-[10px]">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">₹{m.weightedAvg.toFixed(2)}</td>

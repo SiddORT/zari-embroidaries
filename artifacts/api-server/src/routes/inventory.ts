@@ -555,9 +555,14 @@ router.get("/inventory/reservations", requireAuth, async (req, res) => {
     params.push(parseInt(limit)); const limitIdx = pi++;
     params.push(offset);         const offsetIdx = pi++;
     const rows = await pool.query(
-      `SELECT mr.*, ii.item_name, ii.item_code, ii.unit_type, ii.available_stock
+      `SELECT mr.*,
+              ii.item_name, ii.item_code, ii.unit_type, ii.available_stock,
+              COALESCE(so.order_code, sw.order_code) AS reference_code,
+              COALESCE(so.style_name, sw.swatch_name) AS reference_name
        FROM material_reservations mr
        JOIN inventory_items ii ON ii.id = mr.inventory_id
+       LEFT JOIN style_orders  so ON mr.reservation_type = 'Style'  AND so.id = mr.reference_id
+       LEFT JOIN swatch_orders sw ON mr.reservation_type = 'Swatch' AND sw.id = mr.reference_id
        ${where}
        ORDER BY mr.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,

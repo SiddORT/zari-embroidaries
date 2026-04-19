@@ -223,7 +223,25 @@ router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(swatchBomTable)
     .where(eq(swatchBomTable.swatchOrderId, Number(req.params.swatchOrderId)))
     .orderBy(swatchBomTable.createdAt);
-  res.json({ data: rows });
+
+  const enriched = await Promise.all(rows.map(async (r) => {
+    const invRows = await db
+      .select({ currentStock: inventoryItemsTable.currentStock, availableStock: inventoryItemsTable.availableStock })
+      .from(inventoryItemsTable)
+      .where(and(
+        eq(inventoryItemsTable.sourceType, r.materialType ?? ""),
+        eq(inventoryItemsTable.sourceId, r.materialId ?? 0),
+      ))
+      .limit(1);
+    const live = invRows[0] ?? null;
+    return {
+      ...r,
+      liveCurrentStock: live ? live.currentStock : null,
+      liveAvailableStock: live ? live.availableStock : null,
+    };
+  }));
+
+  res.json({ data: enriched });
 });
 
 router.post("/bom", requireAuth, async (req, res) => {
