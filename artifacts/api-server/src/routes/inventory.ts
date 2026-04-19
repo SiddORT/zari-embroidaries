@@ -582,7 +582,7 @@ router.post("/inventory/reservations", requireAuth, async (req, res) => {
     }
 
     const itemRow = await pool.query(
-      `SELECT id, item_id, available_stock, style_reserved_qty, swatch_reserved_qty, current_stock
+      `SELECT id, available_stock, style_reserved_qty, swatch_reserved_qty, current_stock
        FROM inventory_items WHERE id = $1`,
       [inventoryId]
     );
@@ -601,7 +601,7 @@ router.post("/inventory/reservations", requireAuth, async (req, res) => {
         `INSERT INTO material_reservations
            (item_id, inventory_id, reservation_type, reference_id, reserved_quantity, status, remarks, reserved_by, reservation_date)
          VALUES ($1,$2,$3,$4,$5,'Active',$6,$7,$8) RETURNING *`,
-        [item.item_id ?? inventoryId, inventoryId, reservationType, referenceId, qty,
+        [inventoryId, inventoryId, reservationType, referenceId, qty,
          remarks || null, auth.user?.name || auth.user?.email || "System", reservationDate]
       );
       const resv = ins.rows[0];
