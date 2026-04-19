@@ -6,6 +6,7 @@ import {
   AlertCircle, Clock, FileText, Printer, FileDown,
 } from "lucide-react";
 import { downloadQuotationPdf } from "@/utils/generateQuotationPdf";
+import ZariButton from "@/components/ui/ZariButton";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -581,15 +582,15 @@ export default function QuotationDetail() {
               This action cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmConvert(null)} className="px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button
+              <ZariButton variant="secondary" onClick={() => setConfirmConvert(null)}>Cancel</ZariButton>
+              <ZariButton
+                variant="primary"
                 onClick={() => doConvert(confirmConvert)}
                 disabled={convertBusy !== null}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-                style={{ background: G }}
+                loading={convertBusy !== null}
               >
                 {convertBusy ? "Converting…" : `Convert to ${confirmConvert === "swatch" ? "Swatch" : "Style"}`}
-              </button>
+              </ZariButton>
             </div>
           </div>
         </div>
