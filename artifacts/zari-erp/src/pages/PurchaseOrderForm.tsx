@@ -409,7 +409,7 @@ export default function PurchaseOrderForm() {
                         <td className="px-3 py-3 text-sm font-medium text-gray-900">{item.item_name}</td>
                         <td className="px-3 py-3 text-xs font-mono text-gray-500">{item.item_code}</td>
                         <td className="px-3 py-3 text-xs text-gray-500">{item.unit_type ?? "—"}</td>
-                        <td className="px-3 py-3 text-sm font-mono">{parseFloat(item.ordered_quantity).toFixed(3)}</td>
+                        <td className="px-3 py-3 text-sm font-mono text-gray-900">{parseFloat(item.ordered_quantity).toFixed(3)}</td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-mono text-green-700">{parseFloat(item.received_quantity).toFixed(3)}</span>
