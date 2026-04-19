@@ -693,7 +693,7 @@ export default function InvoiceForm() {
                             </td>
                             <td className="px-2 py-2">
                               {items.length > 1 && (
-                                <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                                <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
                                   <Trash2 size={13} />
                                 </button>
                               )}

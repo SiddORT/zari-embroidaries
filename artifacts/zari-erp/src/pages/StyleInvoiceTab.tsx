@@ -421,7 +421,7 @@ export default function StyleInvoiceTab({
                         value={item.total} onChange={e => updateItem(item.id, "total", e.target.value)} />
                     </td>
                     <td className="px-1 py-1 border-b border-gray-100 no-print">
-                      <button onClick={() => removeItem(item.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors rounded">
+                      <button onClick={() => removeItem(item.id)} className="p-1 text-gray-500 hover:text-red-500 transition-colors rounded">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>

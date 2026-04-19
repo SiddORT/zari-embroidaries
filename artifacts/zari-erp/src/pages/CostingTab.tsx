@@ -336,7 +336,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
                 <span className="flex items-center gap-1">
                   Avg Price
-                  <span title="Weighted average of current stock price and all PR actual prices received" className="cursor-help text-gray-300 hover:text-gray-500">
+                  <span title="Weighted average of current stock price and all PR actual prices received" className="cursor-help text-gray-500 hover:text-gray-500">
                     <Info className="h-3 w-3" />
                   </span>
                 </span>
@@ -344,7 +344,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">
                 <span className="flex items-center gap-1">
                   PO Rate ₹
-                  <span title="Target unit price agreed in the Purchase Order" className="cursor-help text-gray-300 hover:text-gray-500">
+                  <span title="Target unit price agreed in the Purchase Order" className="cursor-help text-gray-500 hover:text-gray-500">
                     <Info className="h-3 w-3" />
                   </span>
                 </span>
@@ -429,15 +429,15 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setEditRow(r); setEditQty(r.requiredQty); setEditNotes(""); }}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit Required Qty">
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit Required Qty">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => setLogRowId(r.id)}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Change Log">
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Change Log">
                         <History className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -582,7 +582,7 @@ function PaymentRow({ pay, onDelete }: { pay: PrPaymentRecord; onDelete: () => v
         ) : <span className="text-gray-300">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+        <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </td>
@@ -748,7 +748,7 @@ function PrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord; poN
               {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
             <button onClick={() => deletePR.mutate(pr.id)} disabled={deletePR.isPending}
-              className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+              className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
@@ -804,7 +804,7 @@ function PrAccordion({ pr, swatchOrderId }: { pr: PurchaseReceiptRecord; swatchO
         <span className="text-xs text-gray-700 flex-1">Qty: <span className="font-semibold">{pr.receivedQty}</span> · Price: <span className="font-semibold">₹{pr.actualPrice}</span> · {pr.warehouseLocation || "No location"}</span>
         <StatusBadge status={pr.status} map={PR_STATUS_COLORS} />
         <button onClick={() => deletePR.mutate(pr.id)} disabled={deletePR.isPending}
-          className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+          className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
           <Trash2 className="h-3 w-3" />
         </button>
         <button onClick={() => setOpen(v => !v)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors">
@@ -1115,7 +1115,7 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
             </button>
           )}
           <button onClick={() => deletePO.mutate(po.id)} disabled={deletePO.isPending}
-            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+            className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
           <button onClick={() => setOpen(v => !v)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
@@ -1556,7 +1556,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">
                   <span className="flex items-center gap-1">
                     Live Stock
-                    <span title="Base stock + all PR received quantities" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span>
+                    <span title="Base stock + all PR received quantities" className="cursor-help text-gray-500 hover:text-gray-500"><Info className="h-3 w-3" /></span>
                   </span>
                 </th>
                 <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved for Order</th>
@@ -1789,7 +1789,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                         <td className="px-3 py-2.5 text-gray-400">{entry.notes || "—"}</td>
                         <td className="px-3 py-2.5">
                           <button onClick={() => deleteEntry.mutate(entry.id)} disabled={deleteEntry.isPending}
-                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </td>
@@ -1924,7 +1924,7 @@ function ArtisanTimesheetSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Entry deleted" }),
                       onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>
@@ -2121,7 +2121,7 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Job deleted" }),
                       onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>
@@ -2370,7 +2370,7 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Charge deleted" }),
                       onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>

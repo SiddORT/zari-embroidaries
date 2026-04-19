@@ -385,7 +385,7 @@ export default function VendorLedgerDetail() {
                         <td className="px-3 py-3">
                           {isDeletable && (
                             <button onClick={() => handleDelete(entry)}
-                              className="h-6 w-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                              className="h-6 w-6 flex items-center justify-center rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                               <Trash2 className="h-3 w-3" />
                             </button>
                           )}

@@ -837,7 +837,7 @@ export default function StyleOrderDetail() {
                                 type="button"
                                 onClick={() => set("estimate", form.estimate.filter((_, i) => i !== idx))}
                                 title="Remove"
-                                className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
+                                className="p-1 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
                                 <X className="h-3.5 w-3.5" />
                               </button>
                             )}

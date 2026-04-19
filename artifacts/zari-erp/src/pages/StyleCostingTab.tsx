@@ -330,10 +330,10 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Material / Fabric</th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Current / Available Stock</th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
-                <span className="flex items-center gap-1">Avg Price <span title="Weighted average of current stock price and all PR actual prices received" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
+                <span className="flex items-center gap-1">Avg Price <span title="Weighted average of current stock price and all PR actual prices received" className="cursor-help text-gray-500 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
               </th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">
-                <span className="flex items-center gap-1">PO Rate ₹ <span title="Target unit price agreed in the Purchase Order" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
+                <span className="flex items-center gap-1">PO Rate ₹ <span title="Target unit price agreed in the Purchase Order" className="cursor-help text-gray-500 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
               </th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Req Qty</th>
               <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved</th>
@@ -403,15 +403,15 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setEditRow(r); setEditQty(r.requiredQty); setEditNotes(""); }}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit Required Qty">
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit Required Qty">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => setLogRowId(r.id)}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Change Log">
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Change Log">
                         <History className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -546,7 +546,7 @@ function StylePaymentRow({ pay, onDelete }: { pay: PrPaymentRecord; onDelete: ()
         ) : <span className="text-gray-300">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+        <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
       </td>
     </tr>
   );
@@ -690,7 +690,7 @@ function StylePrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord
               <CreditCard className="h-3 w-3" /> Payments {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
             <button onClick={() => deletePr.mutate(pr.id)} disabled={deletePr.isPending}
-              className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+              className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
@@ -747,7 +747,7 @@ function StylePoCard({ po, onCreatePR }: { po: PurchaseOrderRecord; onCreatePR: 
             </button>
           )}
           <button onClick={() => deletePo.mutate(po.id)} disabled={deletePo.isPending}
-            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+            className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
           <button onClick={() => setOpen(v => !v)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
@@ -1295,7 +1295,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Code</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
                 <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">
-                  <span className="flex items-center gap-1">Live Stock <span title="Base stock + all PR received quantities" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
+                  <span className="flex items-center gap-1">Live Stock <span title="Base stock + all PR received quantities" className="cursor-help text-gray-500 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
                 </th>
                 <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved for Order</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Avg Price (₹)</th>
@@ -1541,7 +1541,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
                         <td className="px-3 py-2.5 text-gray-400">{entry.notes || "—"}</td>
                         <td className="px-3 py-2.5">
                           <button onClick={() => deleteEntry.mutate(entry.id)} disabled={deleteEntry.isPending}
-                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </td>
@@ -1691,7 +1691,7 @@ function StyleArtisanSection({ styleOrderId }: { styleOrderId: number }) {
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Entry deleted" }),
                       onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>
@@ -1907,7 +1907,7 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Job deleted" }),
                       onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>
@@ -2168,7 +2168,7 @@ function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
                     <button onClick={() => deleteMutation.mutate(r.id, {
                       onSuccess: () => toast({ title: "Charge deleted" }),
                       onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </td>
