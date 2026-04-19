@@ -47,6 +47,15 @@ router.get("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> => 
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
+router.get("/hsn/all", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(hsnTable)
+    .where(and(eq(hsnTable.isDeleted, false), eq(hsnTable.isActive, true)))
+    .orderBy(hsnTable.hsnCode);
+  res.json(rows);
+});
+
 router.post("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertHsnSchema.safeParse(req.body);
   if (!parsed.success) {

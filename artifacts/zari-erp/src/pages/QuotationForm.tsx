@@ -1,9 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
-import {
-  ArrowLeft, Plus, Trash2, Save, Upload, X,
-  User, Phone, Mail, MapPin, CreditCard, Search,
-} from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, X, User, Phone, Mail, MapPin, CreditCard } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -50,7 +47,13 @@ interface ClientRecord {
   city: string | null;
   pincode: string | null;
   invoice_currency: string | null;
-  is_active: boolean;
+}
+
+interface HsnRecord {
+  id: number;
+  hsn_code: string;
+  gst_percentage: string;
+  govt_description: string;
 }
 
 const emptyDesign = (): Design => ({ designName: "", hsnCode: "", designImage: "", remarks: "" });
@@ -67,17 +70,14 @@ export default function QuotationForm() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const user = meData?.data;
 
-  // ── Client State ──────────────────────────────────────────────────────────
+  // ── Master Data ────────────────────────────────────────────────────────────
   const [allClients, setAllClients] = useState<ClientRecord[]>([]);
-  const [clientSearch, setClientSearch] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
-  // for edit mode when clientId exists but full record may not be in list
-  const [clientId, setClientId] = useState<number | null>(null);
-  const [clientName, setClientName] = useState("");       // fallback if no full record
-  const [clientState, setClientState] = useState("");     // for GST
+  const [allHsn, setAllHsn] = useState<HsnRecord[]>([]);
+  const [masterLoading, setMasterLoading] = useState(true);
 
-  const searchRef = useRef<HTMLDivElement>(null);
+  // ── Client State ──────────────────────────────────────────────────────────
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const selectedClient = allClients.find((c) => String(c.id) === selectedClientId) ?? null;
 
   // ── Form State ─────────────────────────────────────────────────────────────
   const [requirementSummary, setRequirementSummary] = useState("");
@@ -96,24 +96,20 @@ export default function QuotationForm() {
   const gstAmount = parseFloat((subtotal * 0.18).toFixed(2));
   const total = subtotal + gstAmount + shipping;
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const gstType = selectedClient?.state?.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST";
 
-  // ── Load All Clients (once) ────────────────────────────────────────────────
+  // ── Load Master Data (clients + hsn) ──────────────────────────────────────
   useEffect(() => {
-    customFetch(`/clients/all`)
-      .then((r) => r.json())
-      .then((j) => setAllClients(Array.isArray(j) ? j : (j.data ?? [])))
-      .catch(() => {});
-  }, []);
-
-  // ── Close dropdown on outside click ───────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    Promise.all([
+      customFetch(`/clients/all`).then((r) => r.json()),
+      customFetch(`/hsn/all`).then((r) => r.json()),
+    ])
+      .then(([c, h]) => {
+        setAllClients(Array.isArray(c) ? c : (c.data ?? []));
+        setAllHsn(Array.isArray(h) ? h : (h.data ?? []));
+      })
+      .catch(() => {})
+      .finally(() => setMasterLoading(false));
   }, []);
 
   // ── Load Existing Quotation (edit mode) ────────────────────────────────────
@@ -125,9 +121,7 @@ export default function QuotationForm() {
       .then((j) => {
         if (!j.data) return;
         const d = j.data;
-        setClientId(d.client_id ? Number(d.client_id) : null);
-        setClientName(d.client_name || "");
-        setClientState(d.client_state || "");
+        if (d.client_id) setSelectedClientId(String(d.client_id));
         setRequirementSummary(d.requirement_summary || "");
         setEstimatedWeight(d.estimated_weight || "");
         setEstimatedShippingCharges(d.estimated_shipping_charges || "0");
@@ -154,41 +148,6 @@ export default function QuotationForm() {
       .finally(() => setLoadingData(false));
   }, [id, isEdit]);
 
-  // ── Match clientId to full record once both are loaded ────────────────────
-  useEffect(() => {
-    if (clientId && allClients.length && !selectedClient) {
-      const found = allClients.find((c) => c.id === clientId);
-      if (found) setSelectedClient(found);
-    }
-  }, [clientId, allClients]);
-
-  // ── Filtered Dropdown ─────────────────────────────────────────────────────
-  const filteredClients = clientSearch.trim()
-    ? allClients.filter((c) =>
-        c.brand_name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-        c.contact_name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-        c.client_code.toLowerCase().includes(clientSearch.toLowerCase()) ||
-        (c.email || "").toLowerCase().includes(clientSearch.toLowerCase())
-      )
-    : allClients;
-
-  function handleSelectClient(c: ClientRecord) {
-    setSelectedClient(c);
-    setClientId(c.id);
-    setClientName(c.brand_name);
-    setClientState(c.state || "");
-    setClientSearch("");
-    setShowDropdown(false);
-  }
-
-  function clearClient() {
-    setSelectedClient(null);
-    setClientId(null);
-    setClientName("");
-    setClientState("");
-    setClientSearch("");
-  }
-
   // ── Image helper ──────────────────────────────────────────────────────────
   async function toBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -208,19 +167,18 @@ export default function QuotationForm() {
 
   // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave() {
-    const resolvedName = selectedClient?.brand_name || clientName;
-    if (!resolvedName.trim()) {
+    if (!selectedClientId) {
       toast({ title: "Validation", description: "Please select a client", variant: "destructive" }); return;
     }
-    const resolvedState = selectedClient?.state || clientState;
+    const resolvedClient = allClients.find((c) => String(c.id) === selectedClientId);
     const validDesigns = designs.filter((d) => d.designName.trim());
     const validCharges = charges.filter((c) => c.chargeName.trim());
     setSaving(true);
     try {
       const payload = {
-        clientId: clientId || null,
-        clientName: resolvedName.trim(),
-        clientState: resolvedState.trim(),
+        clientId: selectedClientId,
+        clientName: resolvedClient?.brand_name || "",
+        clientState: resolvedClient?.state || "",
         requirementSummary: requirementSummary.trim(),
         estimatedWeight: parseFloat(estimatedWeight) || 0,
         estimatedShippingCharges: parseFloat(estimatedShippingCharges) || 0,
@@ -254,7 +212,7 @@ export default function QuotationForm() {
     } catch { setIsLoggingOut(false); }
   }
 
-  if (loadingData) {
+  if (loadingData || masterLoading) {
     return (
       <div className="min-h-screen bg-[#F8F6F0]">
         <TopNavbar username={user?.name || ""} role={user?.role || ""} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
@@ -285,63 +243,41 @@ export default function QuotationForm() {
         <div className={`${card} p-5 mb-5`}>
           <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Client Details</h2>
 
-          {/* ── No client selected → search ── */}
-          {!selectedClient ? (
-            <div ref={searchRef} className="relative max-w-md">
-              <label className={labelCls}>Select Client *</label>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search by name, code or email…"
-                  className={`${inputCls} pl-8`}
-                  value={clientSearch}
-                  onChange={(e) => { setClientSearch(e.target.value); setShowDropdown(true); }}
-                  onFocus={() => setShowDropdown(true)}
-                />
-              </div>
-              {showDropdown && (
-                <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                  {filteredClients.length === 0 && (
-                    <p className="px-4 py-3 text-sm text-gray-400 italic">No clients found</p>
-                  )}
-                  {filteredClients.slice(0, 20).map((c) => (
-                    <button
-                      key={c.id}
-                      onMouseDown={() => handleSelectClient(c)}
-                      className="w-full px-4 py-2.5 text-sm text-left hover:bg-[#C6AF4B]/10 border-b border-gray-50 last:border-0"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <span className="font-semibold text-gray-900">{c.brand_name}</span>
-                          <span className="ml-2 text-xs text-gray-400">{c.client_code}</span>
-                        </div>
-                        {c.state && <span className="text-xs text-gray-400 shrink-0">{c.state}</span>}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{c.contact_name} · {c.contact_no}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* ── Client selected → show details card ── */
+          {/* Client Dropdown */}
+          <div className="max-w-md mb-4">
+            <label className={labelCls}>Select Client *</label>
+            <select
+              className={inputCls}
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+            >
+              <option value="">— Select a client —</option>
+              {allClients.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.brand_name} ({c.client_code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Client Detail Card (read-only, shown after selection) */}
+          {selectedClient && (
             <div className="border border-[#C6AF4B]/20 rounded-xl bg-[#C6AF4B]/[0.04] p-4">
-              <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
                   <p className="font-bold text-gray-900 text-base">{selectedClient.brand_name}</p>
-                  <p className="text-xs text-gray-400">{selectedClient.client_code}</p>
+                  <p className="text-xs text-gray-400 font-mono">{selectedClient.client_code}</p>
                 </div>
-                <button
-                  onClick={clearClient}
-                  className="text-xs font-semibold text-[#C6AF4B] hover:text-amber-700 border border-[#C6AF4B]/30 px-2.5 py-1 rounded-lg hover:bg-[#C6AF4B]/10 transition shrink-0"
-                >
-                  Change
-                </button>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  selectedClient.state?.toLowerCase() === "maharashtra"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-indigo-100 text-indigo-700"
+                }`}>
+                  {gstType}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5 text-sm">
-                {/* Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 text-sm">
                 <div className="flex items-start gap-2">
                   <User size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
@@ -349,29 +285,22 @@ export default function QuotationForm() {
                     <p className="font-medium text-gray-800">{selectedClient.contact_name}</p>
                   </div>
                 </div>
-                {/* Phone */}
                 <div className="flex items-start gap-2">
                   <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-400">Phone</p>
                     <p className="font-medium text-gray-800">{selectedClient.contact_no}</p>
-                    {selectedClient.alt_contact_no && (
-                      <p className="text-xs text-gray-500">{selectedClient.alt_contact_no}</p>
-                    )}
+                    {selectedClient.alt_contact_no && <p className="text-xs text-gray-500">{selectedClient.alt_contact_no}</p>}
                   </div>
                 </div>
-                {/* Email */}
                 <div className="flex items-start gap-2">
                   <Mail size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-400">Email</p>
                     <p className="font-medium text-gray-800 break-all">{selectedClient.email}</p>
-                    {selectedClient.alt_email && (
-                      <p className="text-xs text-gray-500 break-all">{selectedClient.alt_email}</p>
-                    )}
+                    {selectedClient.alt_email && <p className="text-xs text-gray-500 break-all">{selectedClient.alt_email}</p>}
                   </div>
                 </div>
-                {/* Address / State */}
                 <div className="flex items-start gap-2">
                   <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
@@ -382,21 +311,19 @@ export default function QuotationForm() {
                     {selectedClient.pincode && <p className="text-xs text-gray-500">{selectedClient.pincode}</p>}
                   </div>
                 </div>
-                {/* GST */}
                 <div className="flex items-start gap-2">
                   <CreditCard size={13} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-400">GST</p>
+                    <p className="text-xs text-gray-400">GST No.</p>
                     {selectedClient.has_gst && selectedClient.gst_no
                       ? <p className="font-medium text-gray-800 font-mono">{selectedClient.gst_no}</p>
-                      : <p className="text-gray-400 italic text-sm">No GST</p>
+                      : <p className="text-gray-400 italic text-sm">Not Registered</p>
                     }
                   </div>
                 </div>
-                {/* Currency */}
                 {selectedClient.invoice_currency && (
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 text-xs mt-0.5 shrink-0">₹</span>
+                    <span className="text-gray-400 text-xs mt-0.5 shrink-0 font-bold">₹</span>
                     <div>
                       <p className="text-xs text-gray-400">Invoice Currency</p>
                       <p className="font-medium text-gray-800">{selectedClient.invoice_currency}</p>
@@ -405,26 +332,11 @@ export default function QuotationForm() {
                 )}
               </div>
 
-              {/* Address line */}
               {(selectedClient.address1 || selectedClient.address2) && (
                 <p className="mt-3 text-xs text-gray-500 border-t border-[#C6AF4B]/15 pt-2">
                   {[selectedClient.address1, selectedClient.address2].filter(Boolean).join(", ")}
                 </p>
               )}
-
-              {/* GST type note */}
-              <div className="mt-3 pt-2 border-t border-[#C6AF4B]/15">
-                <span className="text-xs text-gray-400">
-                  GST applicable:{" "}
-                  <span className="font-semibold text-gray-700">
-                    {selectedClient.state?.toLowerCase() === "maharashtra"
-                      ? "CGST + SGST (Intra-state)"
-                      : selectedClient.state
-                      ? "IGST (Inter-state)"
-                      : "—"}
-                  </span>
-                </span>
-              </div>
             </div>
           )}
         </div>
@@ -435,22 +347,13 @@ export default function QuotationForm() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div className="col-span-2">
               <label className={labelCls}>Requirement Summary</label>
-              <textarea
-                rows={3}
-                className={inputCls}
-                placeholder="Brief description of the embroidery requirement…"
-                value={requirementSummary}
-                onChange={(e) => setRequirementSummary(e.target.value)}
-              />
+              <textarea rows={3} className={inputCls} placeholder="Brief description of the embroidery requirement…"
+                value={requirementSummary} onChange={(e) => setRequirementSummary(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>Estimated Weight (kg)</label>
-              <input
-                type="number" min="0" step="0.001"
-                className={inputCls}
-                value={estimatedWeight}
-                onChange={(e) => setEstimatedWeight(e.target.value)}
-              />
+              <input type="number" min="0" step="0.001" className={inputCls}
+                value={estimatedWeight} onChange={(e) => setEstimatedWeight(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -469,10 +372,8 @@ export default function QuotationForm() {
         <div className={`${card} p-5 mb-5`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Designs / Reference Images</h2>
-            <button
-              onClick={() => setDesigns((prev) => [...prev, emptyDesign()])}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition"
-            >
+            <button onClick={() => setDesigns((prev) => [...prev, emptyDesign()])}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition">
               <Plus size={13} /> Add Design
             </button>
           </div>
@@ -490,39 +391,35 @@ export default function QuotationForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <label className={labelCls}>Design Name *</label>
-                    <input
-                      type="text" className={inputCls}
-                      placeholder="e.g. Floral Embroidery on Kurta"
+                    <input type="text" className={inputCls} placeholder="e.g. Floral Embroidery on Kurta"
                       value={d.designName}
-                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designName: e.target.value } : x))}
-                    />
+                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designName: e.target.value } : x))} />
                   </div>
                   <div>
                     <label className={labelCls}>HSN Code</label>
-                    <input
-                      type="text" className={inputCls} placeholder="e.g. 5810"
-                      value={d.hsnCode}
-                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}
-                    />
+                    <select className={inputCls} value={d.hsnCode}
+                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
+                      <option value="">— Select HSN —</option>
+                      {allHsn.map((h) => (
+                        <option key={h.id} value={h.hsn_code}>
+                          {h.hsn_code} — {h.govt_description.length > 40 ? h.govt_description.slice(0, 40) + "…" : h.govt_description} ({h.gst_percentage}%)
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="sm:col-span-3">
                     <label className={labelCls}>Remarks</label>
-                    <input
-                      type="text" className={inputCls}
-                      placeholder="Additional notes about this design"
+                    <input type="text" className={inputCls} placeholder="Additional notes about this design"
                       value={d.remarks}
-                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, remarks: e.target.value } : x))}
-                    />
+                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, remarks: e.target.value } : x))} />
                   </div>
                   <div className="sm:col-span-3">
                     <label className={labelCls}>Reference Image</label>
                     {d.designImage ? (
                       <div className="flex items-center gap-3">
                         <img src={d.designImage} alt="design" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
-                        <button
-                          onClick={() => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designImage: "" } : x))}
-                          className="text-red-400 hover:text-red-600 text-xs"
-                        >
+                        <button onClick={() => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designImage: "" } : x))}
+                          className="text-red-400 hover:text-red-600 text-xs">
                           Remove
                         </button>
                       </div>
@@ -544,19 +441,17 @@ export default function QuotationForm() {
         <div className={`${card} p-5 mb-5`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Custom Charges</h2>
-            <button
-              onClick={() => setCharges((prev) => [...prev, emptyCharge()])}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition"
-            >
+            <button onClick={() => setCharges((prev) => [...prev, emptyCharge()])}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition">
               <Plus size={13} /> Add Charge
             </button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[560px]">
+            <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2">Charge Name</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-24">HSN</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-44">HSN Code</th>
                   <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-24">Unit</th>
                   <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-20">Qty</th>
                   <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-28">Price (₹)</th>
@@ -570,24 +465,33 @@ export default function QuotationForm() {
                   return (
                     <tr key={i} className="border-b border-gray-50">
                       <td className="pr-2 py-1.5">
-                        <input
-                          type="text" className={inputCls}
-                          placeholder="e.g. Embroidery Charges"
+                        <input type="text" className={inputCls} placeholder="e.g. Embroidery Charges"
                           value={c.chargeName}
-                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, chargeName: e.target.value } : x))}
-                        />
+                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, chargeName: e.target.value } : x))} />
                       </td>
                       <td className="pr-2 py-1.5">
-                        <input type="text" className={inputCls} value={c.hsnCode} onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))} />
+                        <select className={inputCls} value={c.hsnCode}
+                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
+                          <option value="">— HSN —</option>
+                          {allHsn.map((h) => (
+                            <option key={h.id} value={h.hsn_code}>
+                              {h.hsn_code} ({h.gst_percentage}%)
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="pr-2 py-1.5">
-                        <input type="text" className={inputCls} placeholder="pcs / m / kg" value={c.unit} onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))} />
+                        <input type="text" className={inputCls} placeholder="pcs / m / kg"
+                          value={c.unit}
+                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))} />
                       </td>
                       <td className="pr-2 py-1.5">
-                        <input type="number" min="0" step="0.001" className={inputCls} value={c.quantity} onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
+                        <input type="number" min="0" step="0.001" className={inputCls} value={c.quantity}
+                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
                       </td>
                       <td className="pr-2 py-1.5">
-                        <input type="number" min="0" step="0.01" className={inputCls} value={c.price} onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, price: e.target.value } : x))} />
+                        <input type="number" min="0" step="0.01" className={inputCls} value={c.price}
+                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, price: e.target.value } : x))} />
                       </td>
                       <td className="text-right py-1.5 font-semibold text-gray-800">{fmt(amt)}</td>
                       <td className="py-1.5 pl-2">
@@ -608,38 +512,29 @@ export default function QuotationForm() {
           <div className="flex justify-end mt-4">
             <div className="w-56">
               <label className={labelCls}>Shipping Charges (₹)</label>
-              <input
-                type="number" min="0" step="0.01"
-                className={inputCls}
-                value={estimatedShippingCharges}
-                onChange={(e) => setEstimatedShippingCharges(e.target.value)}
-              />
+              <input type="number" min="0" step="0.01" className={inputCls}
+                value={estimatedShippingCharges} onChange={(e) => setEstimatedShippingCharges(e.target.value)} />
             </div>
           </div>
 
           {/* Totals */}
           <div className="mt-4 border-t border-gray-100 pt-4">
             <div className="flex flex-col items-end gap-1 text-sm">
-              <div className="flex justify-between w-56">
+              <div className="flex justify-between w-60">
                 <span className="text-gray-500">Subtotal</span>
                 <span className="font-semibold">{fmt(subtotal)}</span>
               </div>
-              <div className="flex justify-between w-56">
+              <div className="flex justify-between w-60">
                 <span className="text-gray-500">
-                  GST @ 18%{" "}
-                  {selectedClient?.state && (
-                    <span className="text-xs text-gray-400">
-                      ({selectedClient.state.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST"})
-                    </span>
-                  )}
+                  GST @ 18%{selectedClient?.state ? <span className="text-xs text-gray-400 ml-1">({gstType})</span> : null}
                 </span>
                 <span className="font-semibold">{fmt(gstAmount)}</span>
               </div>
-              <div className="flex justify-between w-56">
+              <div className="flex justify-between w-60">
                 <span className="text-gray-500">Shipping</span>
                 <span className="font-semibold">{fmt(shipping)}</span>
               </div>
-              <div className="flex justify-between w-56 pt-1 border-t border-gray-200 mt-1">
+              <div className="flex justify-between w-60 pt-1 border-t border-gray-200 mt-1">
                 <span className="font-bold text-gray-900">Total</span>
                 <span className="font-bold text-[#C6AF4B] text-lg">{fmt(total)}</span>
               </div>
@@ -649,18 +544,13 @@ export default function QuotationForm() {
 
         {/* ─── Actions ─────────────────────────────────────────────────────── */}
         <div className="flex justify-end gap-3">
-          <button
-            onClick={() => navigate(isEdit ? `/quotation/${id}` : "/quotation")}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50 text-gray-700"
-          >
+          <button onClick={() => navigate(isEdit ? `/quotation/${id}` : "/quotation")}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50 text-gray-700">
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
+          <button onClick={handleSave} disabled={saving}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm disabled:opacity-60 transition"
-            style={{ background: G }}
-          >
+            style={{ background: G }}>
             <Save size={15} />
             {saving ? "Saving…" : "Save Quotation"}
           </button>
