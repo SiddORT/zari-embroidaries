@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   User, Lock, Globe, ChevronDown, ChevronUp, Save, RefreshCw,
-  Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X
+  Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X,
+  Building2, Activity, Trash2, Star, Plus, Filter, Search,
+  CreditCard, Landmark
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +14,7 @@ import AppLayout from "@/components/layout/AppLayout";
 
 const G = "#C6AF4B";
 
-type Tab = "profile" | "currency";
+type Tab = "profile" | "currency" | "banks" | "logs";
 
 const STATUS_COLORS: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -76,6 +78,10 @@ export default function Settings() {
               {isAdmin && (
                 <NavItem icon={<Globe size={16} />} label="Currency" active={tab === "currency"} onClick={() => setTab("currency")} />
               )}
+              {isAdmin && (
+                <NavItem icon={<Landmark size={16} />} label="Bank Details" active={tab === "banks"} onClick={() => setTab("banks")} />
+              )}
+              <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
             </div>
           </aside>
 
@@ -83,6 +89,8 @@ export default function Settings() {
           <div className="flex-1 min-w-0">
             {tab === "profile" && <ProfileTab card={card} inp={inp} label={label} toast={toast} userId={user?.id} />}
             {tab === "currency" && isAdmin && <CurrencyTab card={card} inp={inp} label={label} toast={toast} />}
+            {tab === "banks" && isAdmin && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} />}
+            {tab === "logs" && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} />}
           </div>
         </div>
       </div>
@@ -104,6 +112,15 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode; labe
       {label}
     </button>
   );
+}
+
+// ─────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────
+
+function fmtDateTime(d: string) {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 // ─────────────────────────────────────────────────────────
@@ -691,6 +708,453 @@ function CurrencyTab({ card, inp, label, toast }: any) {
               </table>
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// BANK DETAILS TAB
+// ─────────────────────────────────────────────────────────
+
+interface BankAccount {
+  id: number;
+  bank_name: string;
+  account_no: string;
+  ifsc_code: string;
+  branch: string;
+  account_name: string;
+  bank_upi: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+const BLANK_BANK = { bank_name: "", account_no: "", ifsc_code: "", branch: "", account_name: "", bank_upi: "", is_default: false };
+
+function BankDetailsTab({ card, inp, label, toast }: any) {
+  const token = localStorage.getItem("zarierp_token");
+  const hdrs = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ ...BLANK_BANK });
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/settings/bank-accounts", { headers: { Authorization: `Bearer ${token}` } });
+      const j = await r.json();
+      setBanks(j.data ?? []);
+    } catch { toast({ title: "Failed to load bank accounts", variant: "destructive" }); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  function openNew() { setForm({ ...BLANK_BANK }); setEditId(null); setShowForm(true); }
+  function openEdit(b: BankAccount) {
+    setForm({ bank_name: b.bank_name, account_no: b.account_no, ifsc_code: b.ifsc_code, branch: b.branch, account_name: b.account_name, bank_upi: b.bank_upi, is_default: b.is_default });
+    setEditId(b.id); setShowForm(true);
+  }
+
+  async function handleSave() {
+    if (!form.bank_name.trim()) { toast({ title: "Bank name required", variant: "destructive" }); return; }
+    if (!form.account_no.trim()) { toast({ title: "Account number required", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const method = editId ? "PUT" : "POST";
+      const url = editId ? `/api/settings/bank-accounts/${editId}` : "/api/settings/bank-accounts";
+      const r = await fetch(url, { method, headers: hdrs, body: JSON.stringify(form) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      toast({ title: editId ? "Bank account updated" : "Bank account added" });
+      setShowForm(false); load();
+    } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  }
+
+  async function handleSetDefault(id: number) {
+    try {
+      await fetch(`/api/settings/bank-accounts/${id}/default`, { method: "PATCH", headers: hdrs });
+      toast({ title: "Default bank account updated" });
+      load();
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+  }
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    try {
+      await fetch(`/api/settings/bank-accounts/${id}`, { method: "DELETE", headers: hdrs });
+      toast({ title: "Bank account deleted" });
+      load();
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+    finally { setDeletingId(null); }
+  }
+
+  const inpClass = `${inp}`;
+  const lbl = label;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className={`${card} p-5`}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Landmark size={18} style={{ color: G }} />
+            <h2 className="text-base font-bold text-gray-900">Bank Details</h2>
+          </div>
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition"
+            style={{ backgroundColor: G }}
+          >
+            <Plus size={15} /> Add Bank Account
+          </button>
+        </div>
+        <p className="text-sm text-gray-500">Manage bank accounts that appear on invoices. Mark one as default to pre-fill on new invoices.</p>
+      </div>
+
+      {/* Add / Edit Form */}
+      {showForm && (
+        <div className={`${card} p-5`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">{editId ? "Edit Bank Account" : "Add Bank Account"}</h3>
+            <button onClick={() => setShowForm(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Bank Name *</label>
+              <input className={inpClass} value={form.bank_name} onChange={e => setF("bank_name", e.target.value)} placeholder="e.g. HDFC Bank" />
+            </div>
+            <div>
+              <label className={lbl}>Account Holder Name</label>
+              <input className={inpClass} value={form.account_name} onChange={e => setF("account_name", e.target.value)} placeholder="Name on account" />
+            </div>
+            <div>
+              <label className={lbl}>Account Number *</label>
+              <input className={inpClass} value={form.account_no} onChange={e => setF("account_no", e.target.value)} placeholder="e.g. 0012345678900" />
+            </div>
+            <div>
+              <label className={lbl}>IFSC Code</label>
+              <input className={inpClass} value={form.ifsc_code} onChange={e => setF("ifsc_code", e.target.value.toUpperCase())} placeholder="e.g. HDFC0001234" />
+            </div>
+            <div>
+              <label className={lbl}>Branch</label>
+              <input className={inpClass} value={form.branch} onChange={e => setF("branch", e.target.value)} placeholder="e.g. Surat Main Branch" />
+            </div>
+            <div>
+              <label className={lbl}>UPI ID</label>
+              <input className={inpClass} value={form.bank_upi} onChange={e => setF("bank_upi", e.target.value)} placeholder="e.g. business@hdfc" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.is_default}
+                onChange={e => setF("is_default", e.target.checked)}
+                className="w-4 h-4 rounded accent-[#C6AF4B]"
+              />
+              <span className="text-sm font-medium text-gray-700">Set as default bank account for invoices</span>
+            </label>
+          </div>
+          <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition">Cancel</button>
+            <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60" style={{ backgroundColor: G }}>
+              {saving ? "Saving…" : "Save Account"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Banks list */}
+      <div className={`${card} p-0 overflow-hidden`}>
+        {loading ? (
+          <div className="p-10 flex items-center justify-center">
+            <RefreshCw size={20} className="animate-spin text-gray-300" />
+          </div>
+        ) : banks.length === 0 ? (
+          <div className="p-14 text-center">
+            <CreditCard size={36} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-gray-400 text-sm">No bank accounts added yet.</p>
+            <button onClick={openNew} className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first bank account</button>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {banks.map(b => (
+              <div key={b.id} className={`flex items-start justify-between p-5 hover:bg-gray-50/50 transition ${b.is_default ? "bg-amber-50/30" : ""}`}>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${G}18` }}>
+                    <Landmark size={18} style={{ color: G }} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-semibold text-gray-900 text-sm">{b.bank_name}</span>
+                      {b.is_default && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                          <Star size={10} fill="currentColor" /> Default
+                        </span>
+                      )}
+                    </div>
+                    {b.account_name && <p className="text-xs text-gray-500 mb-0.5">{b.account_name}</p>}
+                    <div className="flex flex-wrap gap-x-5 gap-y-0.5 mt-1">
+                      <span className="text-xs text-gray-600"><span className="text-gray-400">A/C:</span> {b.account_no}</span>
+                      {b.ifsc_code && <span className="text-xs text-gray-600"><span className="text-gray-400">IFSC:</span> {b.ifsc_code}</span>}
+                      {b.branch && <span className="text-xs text-gray-600"><span className="text-gray-400">Branch:</span> {b.branch}</span>}
+                      {b.bank_upi && <span className="text-xs text-gray-600"><span className="text-gray-400">UPI:</span> {b.bank_upi}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-4">
+                  {!b.is_default && (
+                    <button
+                      onClick={() => handleSetDefault(b.id)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600 transition"
+                      title="Set as default"
+                    >
+                      Set Default
+                    </button>
+                  )}
+                  <button onClick={() => openEdit(b)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition" title="Edit">
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(b.id)}
+                    disabled={deletingId === b.id}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// ACTIVITY LOGS TAB
+// ─────────────────────────────────────────────────────────
+
+interface ActivityLog {
+  id: number;
+  user_email: string;
+  user_name: string;
+  method: string;
+  url: string;
+  action: string;
+  status_code: number;
+  ip_address: string;
+  created_at: string;
+}
+
+const METHOD_COLORS: Record<string, string> = {
+  POST:   "bg-emerald-50 text-emerald-700 border-emerald-200",
+  PUT:    "bg-blue-50 text-blue-700 border-blue-200",
+  PATCH:  "bg-amber-50 text-amber-700 border-amber-200",
+  DELETE: "bg-red-50 text-red-600 border-red-200",
+};
+
+function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
+  const token = localStorage.getItem("zarierp_token");
+  const hdrs = { Authorization: `Bearer ${token}` };
+
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<{ user_email: string; user_name: string }[]>([]);
+  const [filters, setFilters] = useState({ user_email: "", from: "", to: "" });
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 50;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams({ page: String(page), limit: String(PER_PAGE) });
+      if (filters.user_email) q.set("user_email", filters.user_email);
+      if (filters.from) q.set("from", filters.from);
+      if (filters.to) q.set("to", filters.to);
+      const r = await fetch(`/api/settings/activity-logs?${q}`, { headers: hdrs });
+      const j = await r.json();
+      setLogs(j.data ?? []);
+      setTotal(j.total ?? 0);
+    } catch {}
+    finally { setLoading(false); }
+  }, [token, filters, page]);
+
+  const loadUsers = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const r = await fetch("/api/settings/activity-logs/users", { headers: hdrs });
+      const j = await r.json();
+      setUsers(j.data ?? []);
+    } catch {}
+  }, [token, isAdmin]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  const setF = (k: string, v: string) => { setFilters(f => ({ ...f, [k]: v })); setPage(1); };
+
+  const totalPages = Math.ceil(total / PER_PAGE);
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className={`${card} p-5`}>
+        <div className="flex items-center gap-2 mb-1">
+          <Activity size={18} style={{ color: G }} />
+          <h2 className="text-base font-bold text-gray-900">Activity Logs</h2>
+          {total > 0 && <span className="ml-auto text-xs text-gray-400 font-medium">{total.toLocaleString()} total entries</span>}
+        </div>
+        <p className="text-sm text-gray-500">
+          {isAdmin ? "View all user activity across the system. Filter by user, date, or time range." : "Your recent activity in the system."}
+        </p>
+      </div>
+
+      {/* Filters */}
+      <div className={`${card} p-4`}>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+            <Filter size={13} /> Filters
+          </div>
+
+          {isAdmin && (
+            <div className="flex-1 min-w-40">
+              <label className="block text-xs font-medium text-gray-500 mb-1">User</label>
+              <select
+                value={filters.user_email}
+                onChange={e => setF("user_email", e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20"
+              >
+                <option value="">All users</option>
+                {users.map(u => (
+                  <option key={u.user_email} value={u.user_email}>{u.user_name || u.user_email}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+            <input
+              type="datetime-local"
+              value={filters.from}
+              onChange={e => setF("from", e.target.value)}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+            <input
+              type="datetime-local"
+              value={filters.to}
+              onChange={e => setF("to", e.target.value)}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20"
+            />
+          </div>
+
+          {(filters.user_email || filters.from || filters.to) && (
+            <button
+              onClick={() => { setFilters({ user_email: "", from: "", to: "" }); setPage(1); }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition mt-4"
+            >
+              <X size={12} /> Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Logs table */}
+      <div className={`${card} overflow-hidden`}>
+        {loading ? (
+          <div className="p-10 flex items-center justify-center">
+            <RefreshCw size={20} className="animate-spin text-gray-300" />
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="p-14 text-center">
+            <Activity size={36} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-gray-400 text-sm">No activity logs found for the selected filters.</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                    {(isAdmin ? ["User", "Method", "Action", "URL", "Status", "IP", "Date & Time"] : ["Method", "Action", "URL", "Status", "Date & Time"]).map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map(log => (
+                    <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                      {isAdmin && (
+                        <td className="px-4 py-2.5">
+                          <p className="text-xs font-semibold text-gray-800">{log.user_name || log.user_email}</p>
+                          {log.user_name && <p className="text-xs text-gray-400">{log.user_email}</p>}
+                        </td>
+                      )}
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold border ${METHOD_COLORS[log.method] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          {log.method}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-700 font-medium whitespace-nowrap">{log.action}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-400 font-mono max-w-48 truncate" title={log.url}>{log.url}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`text-xs font-semibold ${log.status_code >= 400 ? "text-red-500" : log.status_code >= 300 ? "text-amber-500" : "text-emerald-600"}`}>
+                          {log.status_code}
+                        </span>
+                      </td>
+                      {isAdmin && <td className="px-4 py-2.5 text-xs text-gray-400 font-mono">{log.ip_address || "—"}</td>}
+                      <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{fmtDateTime(log.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+                <span className="text-xs text-gray-400">
+                  Page {page} of {totalPages} · {total} entries
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -50,6 +50,30 @@ export async function ensureSettingsTables() {
       is_manual_override BOOLEAN NOT NULL DEFAULT FALSE,
       created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS bank_accounts (
+      id           SERIAL PRIMARY KEY,
+      bank_name    TEXT NOT NULL,
+      account_no   TEXT NOT NULL,
+      ifsc_code    TEXT NOT NULL DEFAULT '',
+      branch       TEXT NOT NULL DEFAULT '',
+      account_name TEXT NOT NULL DEFAULT '',
+      bank_upi     TEXT NOT NULL DEFAULT '',
+      is_default   BOOLEAN NOT NULL DEFAULT FALSE,
+      created_by   TEXT NOT NULL DEFAULT '',
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id           SERIAL PRIMARY KEY,
+      user_email   TEXT NOT NULL,
+      user_name    TEXT NOT NULL DEFAULT '',
+      method       TEXT NOT NULL,
+      url          TEXT NOT NULL,
+      action       TEXT NOT NULL DEFAULT '',
+      status_code  INTEGER NOT NULL DEFAULT 200,
+      ip_address   TEXT NOT NULL DEFAULT '',
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 
   const { rows } = await pool.query(`SELECT COUNT(*) FROM currencies`);
@@ -262,6 +286,130 @@ router.patch("/settings/exchange-rates/:code", requireAuth, async (req: AuthRequ
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BANK ACCOUNTS
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/settings/bank-accounts
+router.get("/settings/bank-accounts", requireAuth, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM bank_accounts ORDER BY is_default DESC, created_at ASC`
+    );
+    res.json({ data: rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/settings/bank-accounts
+router.post("/settings/bank-accounts", requireAuth, async (req: AuthRequest, res) => {
+  const { bank_name, account_no, ifsc_code, branch, account_name, bank_upi, is_default } = req.body;
+  if (!bank_name?.trim()) return res.status(400).json({ error: "Bank name is required" });
+  if (!account_no?.trim()) return res.status(400).json({ error: "Account number is required" });
+  try {
+    if (is_default) await pool.query(`UPDATE bank_accounts SET is_default = FALSE`);
+    const { rows } = await pool.query(
+      `INSERT INTO bank_accounts (bank_name, account_no, ifsc_code, branch, account_name, bank_upi, is_default, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [bank_name.trim(), account_no.trim(), ifsc_code?.trim() ?? "", branch?.trim() ?? "", account_name?.trim() ?? "", bank_upi?.trim() ?? "", !!is_default, req.user?.email ?? ""]
+    );
+    res.status(201).json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/settings/bank-accounts/:id
+router.put("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  const { bank_name, account_no, ifsc_code, branch, account_name, bank_upi } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE bank_accounts SET bank_name=$1, account_no=$2, ifsc_code=$3, branch=$4, account_name=$5, bank_upi=$6, updated_at=NOW()
+       WHERE id=$7 RETURNING *`,
+      [bank_name?.trim(), account_no?.trim(), ifsc_code?.trim() ?? "", branch?.trim() ?? "", account_name?.trim() ?? "", bank_upi?.trim() ?? "", id]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Not found" });
+    res.json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/settings/bank-accounts/:id/default
+router.patch("/settings/bank-accounts/:id/default", requireAuth, async (req: AuthRequest, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    await pool.query(`UPDATE bank_accounts SET is_default = FALSE`);
+    const { rows } = await pool.query(
+      `UPDATE bank_accounts SET is_default = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`, [id]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Not found" });
+    res.json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/settings/bank-accounts/:id
+router.delete("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    await pool.query(`DELETE FROM bank_accounts WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ACTIVITY LOGS
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/settings/activity-logs
+router.get("/settings/activity-logs", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { user_email, from, to, page = "1", limit: lim = "100" } = req.query as Record<string, string>;
+    const isAdmin = req.user?.role === "admin";
+    const offset = (parseInt(page) - 1) * parseInt(lim);
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    // Non-admins can only see their own logs
+    if (!isAdmin) {
+      conditions.push(`user_email = $${idx++}`);
+      params.push(req.user?.email);
+    } else if (user_email) {
+      conditions.push(`user_email = $${idx++}`);
+      params.push(user_email);
+    }
+
+    if (from) {
+      conditions.push(`created_at >= $${idx++}`);
+      params.push(new Date(from).toISOString());
+    }
+    if (to) {
+      conditions.push(`created_at <= $${idx++}`);
+      params.push(new Date(to).toISOString());
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const countRes = await pool.query(`SELECT COUNT(*) FROM activity_logs ${where}`, params);
+    const { rows } = await pool.query(
+      `SELECT * FROM activity_logs ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, parseInt(lim), offset]
+    );
+    res.json({ data: rows, total: parseInt(countRes.rows[0].count) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/settings/activity-logs/users — list of users for admin filter
+router.get("/settings/activity-logs/users", requireAuth, async (req: AuthRequest, res) => {
+  if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT user_email, user_name FROM activity_logs ORDER BY user_email`
+    );
+    res.json({ data: rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 export default router;
