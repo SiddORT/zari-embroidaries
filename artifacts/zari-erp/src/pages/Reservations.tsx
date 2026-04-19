@@ -145,8 +145,8 @@ export default function Reservations() {
     setLoadingItems(true);
     customFetch(`/api/inventory/items?limit=500&_t=${Date.now()}`)
       .then((r: unknown) => {
-        const d = r as { rows: InvItem[] };
-        setInvItems(d.rows);
+        const d = r as { data: InvItem[] };
+        setInvItems(d.data ?? []);
       })
       .catch(() => {})
       .finally(() => setLoadingItems(false));
