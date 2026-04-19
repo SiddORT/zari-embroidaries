@@ -3,8 +3,9 @@ import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Edit2, ChevronRight, RefreshCw, MessageSquare,
   Copy, Layers, ListOrdered, Plus, X, CheckCircle2,
-  AlertCircle, Clock, FileText, Printer,
+  AlertCircle, Clock, FileText, Printer, FileDown,
 } from "lucide-react";
+import { downloadQuotationPdf } from "@/utils/generateQuotationPdf";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -74,6 +75,8 @@ interface Quotation {
   parent_quotation_id: number | null;
   internal_notes: string | null;
   client_notes: string | null;
+  cover_page: string;
+  cover_page_image: string | null;
   converted_to: string | null;
   converted_reference_id: string | null;
   converted_at: string | null;
@@ -263,6 +266,14 @@ export default function QuotationDetail() {
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50 text-gray-700 transition"
             >
               <MessageSquare size={14} /> Add Feedback
+            </button>
+            <button
+              onClick={() => downloadQuotationPdf(q)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm transition"
+              style={{ background: "#C6AF4B" }}
+              title="Download PDF"
+            >
+              <FileDown size={14} /> Download PDF
             </button>
           </div>
         </div>

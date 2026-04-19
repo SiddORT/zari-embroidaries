@@ -3,8 +3,9 @@ import { useLocation } from "wouter";
 import {
   Search, Plus, ChevronLeft, ChevronRight, FileText,
   Eye, Edit2, Trash2, RefreshCw, ChevronDown, ChevronUp,
-  CheckCircle2, GitBranch,
+  CheckCircle2, GitBranch, FileDown,
 } from "lucide-react";
+import { downloadQuotationPdf } from "@/utils/generateQuotationPdf";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -138,6 +139,15 @@ export default function QuotationList() {
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally { setDeleting(false); }
+  }
+
+  async function handleDownloadPdf(quotId: number) {
+    try {
+      const res = await customFetch<{ data: any }>(`/api/quotations/${quotId}`);
+      await downloadQuotationPdf(res.data);
+    } catch (err: any) {
+      toast({ title: "PDF Error", description: err.message || "Failed to generate PDF", variant: "destructive" });
+    }
   }
 
   function handleLogout() {
@@ -408,6 +418,13 @@ export default function QuotationList() {
                                                   title="View"
                                                 >
                                                   <Eye size={13} />
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDownloadPdf(rev.id)}
+                                                  className="p-1 rounded hover:bg-[#C6AF4B]/10 text-gray-500 hover:text-[#C6AF4B] transition"
+                                                  title="Download PDF"
+                                                >
+                                                  <FileDown size={13} />
                                                 </button>
                                                 {(rev.status === "Draft" || rev.status === "Revised") && (
                                                   <button

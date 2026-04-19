@@ -84,6 +84,7 @@ export default function QuotationForm() {
   const [gstTaxType, setGstTaxType] = useState("IGST");
   const [gstRate, setGstRate] = useState("18");
   const [coverPage, setCoverPage] = useState("classic");
+  const [coverPageImage, setCoverPageImage] = useState("");
   const [designs, setDesigns] = useState<Design[]>([emptyDesign()]);
   const [charges, setCharges] = useState<Charge[]>([emptyCharge()]);
   const [saving, setSaving] = useState(false);
@@ -120,6 +121,7 @@ export default function QuotationForm() {
         if (d.gst_type) setGstTaxType(d.gst_type);
         if (d.gst_rate != null) setGstRate(String(d.gst_rate));
         if (d.cover_page) setCoverPage(d.cover_page);
+        if (d.cover_page_image) setCoverPageImage(d.cover_page_image);
         setInternalNotes(d.internal_notes || "");
         setClientNotes(d.client_notes || "");
         setDesigns(
@@ -184,6 +186,7 @@ export default function QuotationForm() {
             gstType: gstTaxType,
             gstRate: parseFloat(gstRate) || 18,
             coverPage,
+            coverPageImage,
             internalNotes: internalNotes.trim(),
             clientNotes: clientNotes.trim(),
             designs: validDesigns,
@@ -573,7 +576,7 @@ export default function QuotationForm() {
         {/* ─── Cover Page ──────────────────────────────────────────────────── */}
         <div className={`${card} p-5 mb-5`}>
           <h2 className="text-sm font-bold uppercase tracking-wide mb-4" style={{ color: G }}>Cover Page Style</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
               {
                 id: "classic",
@@ -629,6 +632,22 @@ export default function QuotationForm() {
                   </div>
                 ),
               },
+              {
+                id: "custom",
+                label: "Custom Image",
+                preview: (
+                  <div className="h-20 rounded-lg overflow-hidden border border-dashed border-[#C6AF4B]/60 bg-[#C6AF4B]/5 flex flex-col items-center justify-center gap-1">
+                    {coverPageImage ? (
+                      <img src={coverPageImage} alt="cover" className="h-full w-full object-cover" />
+                    ) : (
+                      <>
+                        <Upload size={18} className="text-[#C6AF4B]" />
+                        <span className="text-[10px] text-gray-500">Upload image</span>
+                      </>
+                    )}
+                  </div>
+                ),
+              },
             ].map((opt) => (
               <button
                 key={opt.id}
@@ -647,6 +666,43 @@ export default function QuotationForm() {
               </button>
             ))}
           </div>
+
+          {coverPage === "custom" && (
+            <div className="mt-4">
+              <label className={labelCls}>Cover Page Image</label>
+              <div className="flex items-start gap-4">
+                <label className="flex flex-col items-center justify-center w-40 h-28 rounded-xl border-2 border-dashed border-[#C6AF4B]/50 bg-[#C6AF4B]/5 cursor-pointer hover:bg-[#C6AF4B]/10 transition">
+                  <Upload size={20} className="text-[#C6AF4B] mb-1" />
+                  <span className="text-xs text-gray-500 text-center px-2">Click to upload<br/>JPG, PNG, WEBP</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => setCoverPageImage(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                {coverPageImage && (
+                  <div className="relative">
+                    <img src={coverPageImage} alt="cover preview" className="h-28 w-auto rounded-xl border border-gray-200 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setCoverPageImage("")}
+                      className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 shadow hover:bg-red-50"
+                    >
+                      <X size={12} className="text-red-500" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-2">This image will be used as the full cover page of the PDF. Best size: A4 portrait (595 × 842 px or higher).</p>
+            </div>
+          )}
         </div>
 
         {/* ─── Actions ─────────────────────────────────────────────────────── */}
