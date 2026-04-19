@@ -407,8 +407,9 @@ export default function InventoryLedger() {
                           <div>
                             <div className="text-xs font-semibold text-indigo-700">{row.style_order_code}</div>
                             {row.style_order_style_no && (
-                              <div className="text-[11px] text-gray-400">{row.style_order_style_no}</div>
+                              <div className="text-[11px] text-gray-400">Style: {row.style_order_style_no}</div>
                             )}
+                            <div className="text-[11px] text-gray-400">Style Order</div>
                           </div>
                         ) : row.reference_number ? (
                           <div>

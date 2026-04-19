@@ -317,10 +317,10 @@ router.get("/inventory/ledger", requireAuth, async (req, res) => {
          JOIN inventory_items ii ON ii.id = sl.item_id
          LEFT JOIN swatch_orders sw ON sl.reference_type = 'Swatch'
                 AND sl.reference_number ~ '^[0-9]+$'
-                AND sw.id = sl.reference_number::bigint
+                AND sw.id = (CASE WHEN sl.reference_number ~ '^[0-9]+$' THEN sl.reference_number::bigint ELSE NULL END)
          LEFT JOIN style_orders so ON sl.reference_type = 'Style'
                 AND sl.reference_number ~ '^[0-9]+$'
-                AND so.id = sl.reference_number::bigint
+                AND so.id = (CASE WHEN sl.reference_number ~ '^[0-9]+$' THEN sl.reference_number::bigint ELSE NULL END)
          ${where}
          ORDER BY ${orderBy}
          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
