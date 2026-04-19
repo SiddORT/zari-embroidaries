@@ -840,21 +840,22 @@ export default function InvoiceForm() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[26%]">Description</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">Category</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[22%]">Description</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[11%]">Category</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[7%]">Qty</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[11%]">Rate ₹</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">HSN Code</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[8%]">GST %</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Rate ₹</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[11%]">HSN Code</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[7%]">GST %</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">GST Amt</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Amount ₹</th>
-                  <th className="w-[3%]"></th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Amount ₹</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Total (w/ GST)</th>
+                  <th className="w-[4%]"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-6 py-10 text-center">
+                    <td colSpan={10} className="px-6 py-10 text-center">
                       <p className="text-sm text-gray-400 mb-1">No line items yet</p>
                       <p className="text-xs text-gray-300">
                         Select a Swatch or Style reference and click <strong>Load from Cost Sheet</strong>, or click <strong>+ Add Item</strong> to add manually.
@@ -984,6 +985,10 @@ export default function InvoiceForm() {
                         <td className="px-3 py-2 font-semibold text-gray-900 text-right text-xs">
                           {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
+                        {/* Total w/ GST */}
+                        <td className="px-3 py-2 text-right text-xs font-bold text-[#C9B45C]">
+                          {(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
                         {/* Delete */}
                         <td className="px-2 py-2">
                           <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
@@ -1009,11 +1014,13 @@ export default function InvoiceForm() {
                       <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Subtotal</td>
                       <td className="px-3 py-2 text-right text-xs font-semibold text-amber-700">{fmt(totalGst)}</td>
                       <td className="px-3 py-2 text-right text-xs font-semibold text-gray-800">{fmt(totalAmt)}</td>
+                      <td className="px-3 py-2 text-right text-xs font-bold text-[#C9B45C]">{fmt(grandTotal)}</td>
                       <td />
                     </tr>
                     <tr className="border-t-2 border-gray-900 bg-gray-900">
                       <td colSpan={6} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-300 uppercase tracking-wide">Grand Total (Amt + GST)</td>
-                      <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-400">{fmt(totalGst)}</td>
+                      <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-500">{fmt(totalGst)}</td>
+                      <td className="px-3 py-2.5 text-right text-[10px] font-semibold text-gray-500">{fmt(totalAmt)}</td>
                       <td className="px-3 py-2.5 text-right text-sm font-bold text-[#C9B45C]">{fmt(grandTotal)}</td>
                       <td />
                     </tr>
