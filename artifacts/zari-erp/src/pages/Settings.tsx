@@ -387,6 +387,7 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
 
 function CurrencyTab({ card, inp, label, toast }: any) {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [innerTab, setInnerTab] = useState<"currencies" | "rates">("currencies");
   const [rates, setRates] = useState<ExchangeRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratesLoading, setRatesLoading] = useState(true);
@@ -469,6 +470,19 @@ function CurrencyTab({ card, inp, label, toast }: any) {
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+  const tabBtn = (id: "currencies" | "rates", label: string) => (
+    <button
+      onClick={() => setInnerTab(id)}
+      className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl border-b-2 transition-colors ${
+        innerTab === id
+          ? "border-[#C6AF4B] text-[#C6AF4B] bg-[#C6AF4B]/5"
+          : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="space-y-5">
       {currencySuccess && (
@@ -477,203 +491,206 @@ function CurrencyTab({ card, inp, label, toast }: any) {
         </div>
       )}
 
-      {/* Base Currency */}
-      <div className={`${card} p-6`}>
-        <div className="flex items-center gap-3 mb-5 border-b border-gray-100 pb-4">
-          <Globe size={18} style={{ color: G }} />
-          <div>
-            <h2 className="font-bold text-gray-900 text-base">Base Currency</h2>
-            <p className="text-xs text-gray-400 mt-0.5">All exchange rates are calculated relative to this currency</p>
-          </div>
+      {/* Inner tab strip */}
+      <div className={`${card} overflow-hidden`}>
+        <div className="flex items-center gap-1 px-4 pt-3 border-b border-gray-100">
+          {tabBtn("currencies", "Active Currencies")}
+          {tabBtn("rates", "Exchange Rates")}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <label className={label}>Select Base Currency</label>
-            <select
-              value={baseCurrency?.code ?? ""}
-              onChange={e => handleSetBase(e.target.value)}
-              disabled={baseSaving || loading}
-              className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] bg-white disabled:opacity-60"
-            >
-              {currencies.filter(c => c.is_active || c.is_base).map(c => (
-                <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
-              ))}
-            </select>
-          </div>
-          {baseCurrency && (
-            <div className="mt-5 px-4 py-2 rounded-xl border border-[#C6AF4B]/30 bg-[#C6AF4B]/8 text-center">
-              <p className="text-2xl font-bold" style={{ color: G }}>{baseCurrency.symbol}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{baseCurrency.code}</p>
+
+        {/* ── TAB: Currencies ──────────────────────────────── */}
+        {innerTab === "currencies" && (
+          <div>
+            {/* Base Currency selector */}
+            <div className="px-6 py-5 border-b border-gray-50">
+              <div className="flex items-center gap-3 mb-4">
+                <Globe size={16} style={{ color: G }} />
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">Base Currency</p>
+                  <p className="text-xs text-gray-400">All exchange rates are calculated relative to this currency</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <select
+                    value={baseCurrency?.code ?? ""}
+                    onChange={e => handleSetBase(e.target.value)}
+                    disabled={baseSaving || loading}
+                    className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] bg-white disabled:opacity-60"
+                  >
+                    {currencies.filter(c => c.is_active || c.is_base).map(c => (
+                      <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
+                    ))}
+                  </select>
+                </div>
+                {baseCurrency && (
+                  <div className="px-4 py-2 rounded-xl border border-[#C6AF4B]/30 bg-[#C6AF4B]/8 text-center min-w-[60px]">
+                    <p className="text-2xl font-bold" style={{ color: G }}>{baseCurrency.symbol}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{baseCurrency.code}</p>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Active Currencies */}
-      <div className={`${card} overflow-hidden`}>
-        <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-gray-900 text-base">Active Currencies</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Only active currencies appear in invoices and payments</p>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                {["Code", "Name", "Symbol", "Decimals", "Status", "Action"].map(h => (
-                  <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
+            {/* Currencies table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {["Code", "Name", "Symbol", "Decimals", "Status", "Action"].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
                     ))}
                   </tr>
-                ))
-              ) : currencies.map(c => (
-                <tr key={c.code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
-                  <td className="px-5 py-3 font-mono font-bold text-gray-900">
-                    {c.code}
-                    {c.is_base && <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full border border-[#C6AF4B]/40 text-[#C6AF4B] bg-[#C6AF4B]/8">Base</span>}
-                  </td>
-                  <td className="px-5 py-3 text-gray-700">{c.name}</td>
-                  <td className="px-5 py-3 text-gray-700 font-medium">{c.symbol}</td>
-                  <td className="px-5 py-3 text-gray-500">{c.decimal_places}</td>
-                  <td className="px-5 py-3">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${c.is_active ? STATUS_COLORS.Active : STATUS_COLORS.Inactive}`}>
-                      {c.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    {!c.is_base && (
-                      <button
-                        onClick={() => handleToggle(c.code)}
-                        disabled={toggling === c.code}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
-                          c.is_active
-                            ? "border-gray-200 text-gray-600 hover:bg-gray-50"
-                            : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-                        }`}
-                      >
-                        {toggling === c.code ? "…" : c.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Exchange Rates */}
-      <div className={`${card} overflow-hidden`}>
-        <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-gray-900 text-base">Exchange Rates</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Rates vs {baseCurrency ? `${baseCurrency.name} (${baseCurrency.symbol})` : "base currency"} — sorted by last updated
-            </p>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="border-b border-gray-50">
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : currencies.map(c => (
+                    <tr key={c.code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                      <td className="px-5 py-3 font-mono font-bold text-gray-900">
+                        {c.code}
+                        {c.is_base && <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full border border-[#C6AF4B]/40 text-[#C6AF4B] bg-[#C6AF4B]/8">Base</span>}
+                      </td>
+                      <td className="px-5 py-3 text-gray-700">{c.name}</td>
+                      <td className="px-5 py-3 text-gray-700 font-medium">{c.symbol}</td>
+                      <td className="px-5 py-3 text-gray-500">{c.decimal_places}</td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${c.is_active ? STATUS_COLORS.Active : STATUS_COLORS.Inactive}`}>
+                          {c.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        {!c.is_base && (
+                          <button
+                            onClick={() => handleToggle(c.code)}
+                            disabled={toggling === c.code}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
+                              c.is_active
+                                ? "border-gray-200 text-gray-600 hover:bg-gray-50"
+                                : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                            }`}
+                          >
+                            {toggling === c.code ? "…" : c.is_active ? "Deactivate" : "Activate"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <button
-            onClick={handleRefreshRates}
-            disabled={refreshing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#C6AF4B]/40 text-[#C6AF4B] hover:bg-[#C6AF4B]/8 transition disabled:opacity-60"
-          >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            {refreshing ? "Refreshing…" : "Refresh Exchange Rates"}
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                {["Currency", `1 CCY = X ${baseCurrency?.code ?? "Base"}`, `1 ${baseCurrency?.code ?? "Base"} = X CCY (Raw Rate)`, "Last Updated", "Source", "Action"].map(h => (
-                  <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ratesLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
+        )}
+
+        {/* ── TAB: Exchange Rates ──────────────────────────── */}
+        {innerTab === "rates" && (
+          <div>
+            {/* Header with refresh button */}
+            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+              <p className="text-xs text-gray-400">
+                Rates vs {baseCurrency ? `${baseCurrency.name} (${baseCurrency.symbol})` : "base currency"} — sorted by last updated
+              </p>
+              <button
+                onClick={handleRefreshRates}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#C6AF4B]/40 text-[#C6AF4B] hover:bg-[#C6AF4B]/8 transition disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                {refreshing ? "Refreshing…" : "Refresh Exchange Rates"}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {["Currency", `1 CCY = X ${baseCurrency?.code ?? "Base"}`, `1 ${baseCurrency?.code ?? "Base"} = X CCY`, "Last Updated", "Source", "Action"].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
                     ))}
                   </tr>
-                ))
-              ) : rates.length === 0 ? (
-                <tr><td colSpan={6} className="py-10 text-center text-gray-400 text-sm">
-                  No exchange rates yet. Click "Refresh Exchange Rates" to fetch current rates.
-                </td></tr>
-              ) : rates.map(r => {
-                const rate = parseFloat(r.rate);
-                const inverseRate = rate > 0 ? 1 / rate : 0;
-                const base = baseCurrency;
-                return (
-                  <tr key={r.currency_code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
-                    <td className="px-5 py-3">
-                      <p className="font-mono font-bold text-gray-900">{r.currency_code}</p>
-                      <p className="text-xs text-gray-400">{r.currency_name}</p>
-                    </td>
-                    {/* 1 foreign = X base */}
-                    <td className="px-5 py-3">
-                      <span className="font-semibold text-gray-900">
-                        {base?.symbol}{inverseRate.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                      </span>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        1 {r.currency_code} = {base?.symbol}{inverseRate.toFixed(2)} {base?.code}
-                      </p>
-                    </td>
-                    {/* 1 base = X foreign */}
-                    <td className="px-5 py-3">
-                      {editRate?.code === r.currency_code ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            step="0.0001"
-                            value={editRate.value}
-                            onChange={e => setEditRate(v => v ? { ...v, value: e.target.value } : null)}
-                            className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]"
-                            autoFocus
-                          />
-                          <button onClick={handleSaveRate} disabled={savingRate} className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium transition disabled:opacity-60" style={{ backgroundColor: G }}>
-                            {savingRate ? "…" : "Save"}
+                </thead>
+                <tbody>
+                  {ratesLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <tr key={i} className="border-b border-gray-50">
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : rates.length === 0 ? (
+                    <tr><td colSpan={6} className="py-10 text-center text-gray-400 text-sm">
+                      No exchange rates yet. Click "Refresh Exchange Rates" to fetch current rates.
+                    </td></tr>
+                  ) : rates.map(r => {
+                    const rate = parseFloat(r.rate);
+                    const inverseRate = rate > 0 ? 1 / rate : 0;
+                    const base = baseCurrency;
+                    return (
+                      <tr key={r.currency_code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                        <td className="px-5 py-3">
+                          <p className="font-mono font-bold text-gray-900">{r.currency_code}</p>
+                          <p className="text-xs text-gray-400">{r.currency_name}</p>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="font-semibold text-gray-900">
+                            {base?.symbol}{inverseRate.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                          </span>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            1 {r.currency_code} = {base?.symbol}{inverseRate.toFixed(2)} {base?.code}
+                          </p>
+                        </td>
+                        <td className="px-5 py-3">
+                          {editRate?.code === r.currency_code ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="0.0001"
+                                value={editRate.value}
+                                onChange={e => setEditRate(v => v ? { ...v, value: e.target.value } : null)}
+                                className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]"
+                                autoFocus
+                              />
+                              <button onClick={handleSaveRate} disabled={savingRate} className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium transition disabled:opacity-60" style={{ backgroundColor: G }}>
+                                {savingRate ? "…" : "Save"}
+                              </button>
+                              <button onClick={() => setEditRate(null)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="font-semibold text-gray-700">{rate.toFixed(4)}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(r.created_at)}</td>
+                        <td className="px-5 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${r.is_manual_override ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>
+                            {r.source_type}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <button
+                            onClick={() => setEditRate({ code: r.currency_code, value: r.rate })}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                            title="Override rate manually"
+                          >
+                            <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setEditRate(null)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="font-semibold text-gray-700">{rate.toFixed(4)}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(r.created_at)}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${r.is_manual_override ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>
-                        {r.source_type}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <button
-                        onClick={() => setEditRate({ code: r.currency_code, value: r.rate })}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                        title="Override rate manually"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
