@@ -27,6 +27,7 @@ import vendorLedgerRouter from "./vendorLedger";
 import inventoryRouter from "./inventory";
 import procurementRouter from "./procurement";
 import quotationsRouter from "./quotations";
+import shippingRouter from "./shipping";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(vendorLedgerRouter);
 router.use(inventoryRouter);
 router.use(procurementRouter);
 router.use(quotationsRouter);
+router.use(shippingRouter);
 
 export default router;

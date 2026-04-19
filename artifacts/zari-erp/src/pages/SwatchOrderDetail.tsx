@@ -23,6 +23,7 @@ import ClientLinkTab from "@/pages/ClientLinkTab";
 import CostingTab from "@/pages/CostingTab";
 import CostSheetTab from "@/pages/CostSheetTab";
 import InvoiceTab from "@/pages/InvoiceTab";
+import ShippingTab from "@/pages/ShippingTab";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -71,6 +72,7 @@ const TABS = [
   { label: "Costing",      icon: "💰" },
   { label: "Cost Sheet",   icon: "📋" },
   { label: "Invoice",      icon: "🧾" },
+  { label: "Shipping",     icon: "🚚" },
 ];
 
 type FormState = {
@@ -248,6 +250,7 @@ export default function SwatchOrderDetail() {
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
   const logoutMutation = useLogout();
+  const isAdmin = user?.role === "admin";
 
   const { data: orderData, isLoading: loadingOrder } = useSwatchOrder(numId);
   const createOrder = useCreateSwatchOrder();
@@ -1246,6 +1249,17 @@ export default function SwatchOrderDetail() {
             orderCode={orderData?.data?.orderCode ?? undefined}
             swatchName={orderData?.data?.swatchName ?? undefined}
             clientName={orderData?.data?.clientName ?? undefined}
+          />
+        )}
+
+        {/* ══ TAB 8: Shipping ══ */}
+        {activeTab === 8 && numId && (
+          <ShippingTab
+            referenceType="Swatch"
+            referenceId={numId}
+            clientName={form.clientName}
+            orderStatus={form.orderStatus}
+            isAdmin={isAdmin}
           />
         )}
 

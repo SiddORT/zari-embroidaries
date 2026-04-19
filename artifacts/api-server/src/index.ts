@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminUser, seedDummyData } from "./lib/seed";
+import { ensureShippingTables } from "./routes/shipping";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +24,12 @@ app.listen(port, async (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  try {
+    await ensureShippingTables();
+  } catch (seedErr) {
+    logger.error({ err: seedErr }, "Failed to create shipping tables");
+  }
 
   try {
     await seedAdminUser();

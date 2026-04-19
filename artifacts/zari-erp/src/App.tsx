@@ -45,6 +45,8 @@ import StockAdjustments from "@/pages/StockAdjustments";
 import QuotationList from "@/pages/QuotationList";
 import QuotationForm from "@/pages/QuotationForm";
 import QuotationDetail from "@/pages/QuotationDetail";
+import ShippingList from "@/pages/ShippingList";
+import ShippingVendors from "@/pages/ShippingVendors";
 
 const queryClient = new QueryClient();
 
@@ -118,6 +120,8 @@ function Router() {
       <Route path="/procurement/purchase-orders" component={PurchaseOrderList} />
       <Route path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} />
       <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
+      <Route path="/shipping" component={ShippingList} />
+      <Route path="/settings/shipping-vendors" component={ShippingVendors} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -21,6 +21,7 @@ import StyleCostingTab from "./StyleCostingTab";
 import StyleCostSheetTab from "./StyleCostSheetTab";
 import StyleClientLinkTab from "./StyleClientLinkTab";
 import StyleInvoiceTab from "./StyleInvoiceTab";
+import ShippingTab from "@/pages/ShippingTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -63,7 +64,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TABS = [
   "Basic Info", "References", "Products", "Artworks",
-  "Client Link", "Estimate", "Costing", "Cost Sheet", "Invoice",
+  "Client Link", "Estimate", "Costing", "Cost Sheet", "Invoice", "Shipping",
 ];
 
 // ── Form ──────────────────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ export default function StyleOrderDetail() {
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
   const logoutMutation = useLogout();
+  const isAdmin = user?.role === "admin";
 
   const { data: orderData, isLoading: loadingOrder } = useStyleOrder(numId);
   const createOrder = useCreateStyleOrder();
@@ -961,6 +963,18 @@ export default function StyleOrderDetail() {
               orderCode={orderData?.data?.orderCode}
               styleName={orderData?.data?.styleName}
               clientName={form.clientName}
+            />
+          )}
+
+          {/* ══ TAB 9: Shipping ═════════════════════════════════════════════ */}
+          {activeTab === 9 && isNew && <PlaceholderTab icon="🚚" label="Shipping (save order first)" />}
+          {activeTab === 9 && !isNew && numId && (
+            <ShippingTab
+              referenceType="Style"
+              referenceId={numId}
+              clientName={form.clientName}
+              orderStatus={form.orderStatus}
+              isAdmin={isAdmin}
             />
           )}
 

@@ -1,0 +1,469 @@
+Build a Shipping Module for the embroidery sampling ERP system.
+
+This module must allow users to:
+
+add shipping details after swatch or style order approval
+
+track shipment status
+
+store courier partner information
+
+calculate shipping cost using weight-based vendor rates
+
+maintain shipping vendor master data
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+---
+
+Shipping Management Module
+
+---
+
+SECTION 1 — SHIPPING VENDOR MASTER TABLE
+
+---
+
+Create table:
+
+shipping_vendors
+
+Fields:
+
+shipping_vendor_id (primary key)
+
+vendor_name
+
+contact_person
+
+phone_number
+
+email_address
+
+weight_rate_per_kg
+
+minimum_charge
+
+remarks
+
+is_active
+
+created_at
+
+updated_at
+
+Allow:
+
+Add vendor
+
+Edit vendor
+
+Deactivate vendor
+
+Inactive vendors must not appear in shipping selection dropdown
+
+---
+
+SECTION 2 — SHIPPING DETAILS TABLE
+
+---
+
+Create table:
+
+order_shipping_details
+
+Fields:
+
+shipping_id (primary key)
+
+reference_type
+
+reference_id
+
+shipping_vendor_id
+
+tracking_number
+
+shipment_weight
+
+rate_per_kg
+
+calculated_shipping_amount
+
+manual_shipping_amount_override
+
+final_shipping_amount
+
+shipment_status
+
+shipment_date
+
+expected_delivery_date
+
+actual_delivery_date
+
+remarks
+
+created_by
+
+created_at
+
+updated_at
+
+reference_type values:
+
+Swatch
+
+Style
+
+reference_id stores:
+
+Swatch ID
+
+Style ID
+
+---
+
+SECTION 3 — SHIPPING OPTION VISIBILITY RULE
+
+---
+
+Shipping details section must appear only when:
+
+order_status = Approved
+
+Add button inside:
+
+Swatch Order screen
+
+Style Order screen
+
+Button label:
+
+Add Shipping Details
+
+---
+
+SECTION 4 — SHIPPING COST AUTO CALCULATION ENGINE
+
+---
+
+When shipping vendor selected:
+
+System fetches:
+
+weight_rate_per_kg
+
+Calculate:
+
+calculated_shipping_amount = shipment_weight × weight_rate_per_kg
+
+If calculated_shipping_amount < minimum_charge
+
+Apply:
+
+minimum_charge instead
+
+Store value inside:
+
+final_shipping_amount
+
+---
+
+SECTION 5 — MANUAL SHIPPING COST OVERRIDE
+
+---
+
+Allow authorized users to:
+
+override calculated shipping amount manually
+
+Store override inside:
+
+manual_shipping_amount_override
+
+Final rule:
+
+If override exists
+
+Use override as:
+
+final_shipping_amount
+
+Otherwise:
+
+use calculated_shipping_amount
+
+---
+
+SECTION 6 — SHIPPING STATUS WORKFLOW
+
+---
+
+Shipment status values:
+
+Pending
+
+Dispatched
+
+In Transit
+
+Delivered
+
+Returned
+
+Cancelled
+
+Allow manual update of status
+
+Store status change timestamp
+
+---
+
+SECTION 7 — TRACKING NUMBER SUPPORT
+
+---
+
+Allow entry of:
+
+tracking_number
+
+Display tracking number inside:
+
+Swatch Order screen
+
+Style Order screen
+
+Shipping list page
+
+---
+
+SECTION 8 — SHIPPING DETAILS DISPLAY INSIDE ORDER SCREEN
+
+---
+
+Inside Swatch Order page:
+
+Display shipping card containing:
+
+Shipping Vendor
+
+Tracking Number
+
+Shipment Weight
+
+Rate per KG
+
+Final Shipping Cost
+
+Shipment Status
+
+Shipment Date
+
+Expected Delivery Date
+
+Actual Delivery Date
+
+---
+
+SECTION 9 — SHIPPING LIST PAGE
+
+---
+
+Create page:
+
+Logistics → Shipping
+
+Display columns:
+
+Reference Type
+
+Reference ID
+
+Client Name
+
+Shipping Vendor
+
+Tracking Number
+
+Shipment Weight
+
+Shipping Cost
+
+Shipment Status
+
+Shipment Date
+
+Expected Delivery Date
+
+Actual Delivery Date
+
+Filters:
+
+Shipment Status
+
+Shipping Vendor
+
+Reference Type
+
+Date Range
+
+Search:
+
+Tracking Number
+
+Reference ID
+
+Client Name
+
+---
+
+SECTION 10 — SHIPPING COST LINK WITH COSTING MODULE
+
+---
+
+Shipping cost must appear inside:
+
+Swatch costing sheet
+
+Style costing sheet
+
+as:
+
+Courier / Logistics Cost
+
+Do NOT modify historical costing
+
+Only update forward costing visibility
+
+---
+
+SECTION 11 — SHIPPING COST LINK WITH INVOICE MODULE (FUTURE SUPPORT)
+
+---
+
+Store:
+
+final_shipping_amount
+
+so it can later be used inside:
+
+Client invoice generation
+
+Courier recovery billing
+
+---
+
+SECTION 12 — SHIPPING VENDOR MASTER MANAGEMENT PAGE
+
+---
+
+Create page:
+
+Settings → Shipping Vendors
+
+Display columns:
+
+Vendor Name
+
+Contact Person
+
+Phone Number
+
+Email
+
+Weight Rate per KG
+
+Minimum Charge
+
+Status
+
+Allow actions:
+
+Add vendor
+
+Edit vendor
+
+Deactivate vendor
+
+---
+
+SECTION 13 — PERMISSIONS CONTROL
+
+---
+
+Allow:
+
+Add shipping details → authorized users
+
+Edit shipping details → authorized users
+
+Delete shipping details → admin users only
+
+Manage shipping vendors → admin users only
+
+View shipping details → all users
+
+---
+
+SECTION 14 — VALIDATION RULES
+
+---
+
+Prevent:
+
+shipment_weight <= 0
+
+missing shipping vendor
+
+missing reference_type
+
+missing reference_id
+
+tracking_number duplication for same vendor
+
+---
+
+SECTION 15 — SUCCESS MESSAGE SYSTEM
+
+---
+
+After shipping details saved:
+
+Display:
+
+Shipping details added successfully
+
+After status updated:
+
+Display:
+
+Shipment status updated successfully
+
+---
+
+SECTION 16 — FUTURE TRACKING URL SUPPORT (OPTIONAL FIELD)
+
+---
+
+Allow storing:
+
+tracking_url
+
+inside:
+
+order_shipping_details table
+
+Used later for:
+
+one-click shipment tracking redirection
+
+---
+
+END OF SHIPPING MODULE REQUIREMENTS
+
+Build backend logic and frontend UI accordingly.
