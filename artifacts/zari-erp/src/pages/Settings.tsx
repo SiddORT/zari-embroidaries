@@ -1822,8 +1822,48 @@ const EMPTY_GST: GSTForm = {
   default_service_gst_rate: "18",
 };
 
+const DIAL_CODES = [
+  { flag: "🇮🇳", dial: "+91",  label: "India" },
+  { flag: "🇺🇸", dial: "+1",   label: "USA" },
+  { flag: "🇬🇧", dial: "+44",  label: "UK" },
+  { flag: "🇦🇪", dial: "+971", label: "UAE" },
+  { flag: "🇸🇦", dial: "+966", label: "Saudi Arabia" },
+  { flag: "🇦🇺", dial: "+61",  label: "Australia" },
+  { flag: "🇨🇦", dial: "+1",   label: "Canada" },
+  { flag: "🇨🇳", dial: "+86",  label: "China" },
+  { flag: "🇩🇪", dial: "+49",  label: "Germany" },
+  { flag: "🇫🇷", dial: "+33",  label: "France" },
+  { flag: "🇮🇹", dial: "+39",  label: "Italy" },
+  { flag: "🇯🇵", dial: "+81",  label: "Japan" },
+  { flag: "🇰🇷", dial: "+82",  label: "South Korea" },
+  { flag: "🇲🇾", dial: "+60",  label: "Malaysia" },
+  { flag: "🇸🇬", dial: "+65",  label: "Singapore" },
+  { flag: "🇵🇰", dial: "+92",  label: "Pakistan" },
+  { flag: "🇧🇩", dial: "+880", label: "Bangladesh" },
+  { flag: "🇳🇵", dial: "+977", label: "Nepal" },
+  { flag: "🇱🇰", dial: "+94",  label: "Sri Lanka" },
+  { flag: "🇿🇦", dial: "+27",  label: "South Africa" },
+  { flag: "🇧🇷", dial: "+55",  label: "Brazil" },
+  { flag: "🇲🇽", dial: "+52",  label: "Mexico" },
+];
+
+function parsePhone(phone: string): { code: string; number: string } {
+  if (!phone) return { code: "+91", number: "" };
+  if (phone.startsWith("+")) {
+    const sorted = [...DIAL_CODES].sort((a, b) => b.dial.length - a.dial.length);
+    for (const dc of sorted) {
+      if (phone.startsWith(dc.dial)) {
+        return { code: dc.dial, number: phone.slice(dc.dial.length).trim() };
+      }
+    }
+  }
+  return { code: "+91", number: phone };
+}
+
 function GSTSettingsTab({ card, inp, label, toast }: any) {
   const [form, setForm] = useState<GSTForm>(EMPTY_GST);
+  const [phoneCode, setPhoneCode] = useState("+91");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1834,6 +1874,9 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
     customFetch<any>("/api/settings/gst")
       .then(j => {
         if (j.data) {
+          const parsed = parsePhone(j.data.company_phone ?? "");
+          setPhoneCode(parsed.code);
+          setPhoneNumber(parsed.number);
           setForm({
             company_name:             j.data.company_name ?? "ZARI EMBROIDERIES",
             company_address:          j.data.company_address ?? "",
@@ -1880,6 +1923,7 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
         method: "PUT",
         body: JSON.stringify({
           ...form,
+          company_phone: phoneNumber.trim() ? `${phoneCode} ${phoneNumber.trim()}` : "",
           company_gstin: form.company_gstin.trim().toUpperCase(),
           default_service_gst_rate: parseFloat(form.default_service_gst_rate),
         }),
@@ -1979,12 +2023,27 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={label}>Company Phone</label>
-              <input
-                value={form.company_phone}
-                onChange={e => f("company_phone", e.target.value)}
-                className={inp}
-                placeholder="+91 98765 43210"
-              />
+              <div className="flex gap-0 rounded-xl border border-gray-200 overflow-hidden focus-within:border-[#C6AF4B] bg-white transition">
+                <select
+                  value={phoneCode}
+                  onChange={e => setPhoneCode(e.target.value)}
+                  className="bg-gray-50 border-0 border-r border-gray-200 px-2 py-2.5 text-sm text-gray-700 focus:outline-none cursor-pointer shrink-0"
+                  style={{ minWidth: 110 }}
+                >
+                  {DIAL_CODES.map(dc => (
+                    <option key={`${dc.dial}-${dc.label}`} value={dc.dial}>
+                      {dc.flag} {dc.dial} {dc.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value.replace(/[^0-9\s\-]/g, ""))}
+                  className="flex-1 border-0 px-3 py-2.5 text-sm text-gray-900 focus:outline-none bg-white"
+                  placeholder="98765 43210"
+                />
+              </div>
             </div>
             <div>
               <label className={label}>Company Email</label>
