@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, User, Users, Settings } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -63,6 +63,23 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
+  const [profileData, setProfileData] = useState<{ name: string; email: string; role: string } | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("zarierp_token");
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    fetch(`${base}/api/settings/profile`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j?.data) setProfileData({ name: j.data.username ?? username, email: j.data.email ?? "", role: j.data.role ?? role }); })
+      .catch(() => {});
+  }, []);
+
+  const displayName  = profileData?.name  ?? username;
+  const displayEmail = profileData?.email ?? "";
+  const displayRole  = profileData?.role  ?? role;
+
   const mastersRef    = useRef<HTMLDivElement>(null);
   const ordersRef     = useRef<HTMLDivElement>(null);
   const operationsRef = useRef<HTMLDivElement>(null);
@@ -74,9 +91,9 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const operationsActive = ALL_OPERATIONS_HREFS.some(h => location === h || location.startsWith(h + "/"));
   const accountsActive   = location.startsWith("/accounts");
 
-  const initials = (username ?? "")
-    .split(" ")
-    .map((w) => w[0])
+  const initials = (displayName || displayEmail || "")
+    .split(/[\s@]/)
+    .map((w: string) => w[0])
     .filter(Boolean)
     .join("")
     .toUpperCase()
@@ -290,26 +307,20 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   {initials}
                 </div>
                 <div className="hidden sm:flex flex-col items-start leading-tight">
-                  <span className="text-sm font-medium text-gray-900">{username}</span>
-                  <span className="text-xs text-gray-400 capitalize">{role}</span>
+                  <span className="text-sm font-medium text-gray-900">{displayEmail || displayName}</span>
+                  <span className="text-xs text-gray-400 capitalize">{displayRole}</span>
                 </div>
                 <ChevronDown className={`hidden sm:block h-3.5 w-3.5 text-gray-400 transition-transform ${profileOpen ? "rotate-180" : ""}`} />
               </button>
 
               {profileOpen && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{username}</p>
-                    <p className="text-xs text-gray-400 capitalize">{role}</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                    {displayEmail && <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>}
+                    <p className="text-xs text-gray-400 capitalize mt-0.5">{displayRole}</p>
                   </div>
                   <div className="p-1">
-                    <button
-                      onClick={() => { setProfileOpen(false); navigate("/profile"); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
-                    >
-                      <User className="h-4 w-4 text-gray-400 shrink-0" />
-                      Profile
-                    </button>
                     <button
                       onClick={() => { setProfileOpen(false); navigate("/settings"); }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
@@ -495,10 +506,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               )}
 
               <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-1">
-                <Link href="/profile" onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <User className="h-4 w-4 text-gray-400" /> Profile
-                </Link>
                 <Link href="/settings" onClick={() => setMobileOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <Settings className="h-4 w-4 text-gray-400" /> Settings
