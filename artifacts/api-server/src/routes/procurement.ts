@@ -7,24 +7,33 @@ const router = Router();
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+/** Returns Indian financial year string e.g. "2026-27" for any date in Apr 2026–Mar 2027 */
+function financialYear(): string {
+  const now = new Date();
+  const yr  = now.getFullYear();
+  const mo  = now.getMonth() + 1; // 1-based
+  const startYr = mo >= 4 ? yr : yr - 1;
+  return `${startYr}-${String(startYr + 1).slice(2)}`;
+}
+
 async function nextPoNumber(client: typeof pool): Promise<string> {
-  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const fy = financialYear();
   const r = await client.query(
     `SELECT COUNT(*) FROM purchase_orders WHERE po_number LIKE $1`,
-    [`PO-${ymd}-%`]
+    [`PO/${fy}/%`]
   );
   const seq = (parseInt(r.rows[0].count) + 1).toString().padStart(4, "0");
-  return `PO-${ymd}-${seq}`;
+  return `PO/${fy}/${seq}`;
 }
 
 async function nextPrNumber(client: typeof pool): Promise<string> {
-  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const fy = financialYear();
   const r = await client.query(
     `SELECT COUNT(*) FROM purchase_receipts WHERE pr_number LIKE $1`,
-    [`PR-${ymd}-%`]
+    [`PR/${fy}/%`]
   );
   const seq = (parseInt(r.rows[0].count) + 1).toString().padStart(4, "0");
-  return `PR-${ymd}-${seq}`;
+  return `PR/${fy}/${seq}`;
 }
 
 async function recalcPoStatus(client: { query: typeof pool.query }, poId: number) {
@@ -103,7 +112,7 @@ router.get("/procurement/purchase-orders", requireAuth, async (req, res) => {
 router.get("/procurement/purchase-orders/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [poRes, itemsRes] = await Promise.all([
+    const [poRes, itemsRes, prsRes] = await Promise.all([
       pool.query(`SELECT * FROM purchase_orders WHERE id = $1`, [id]),
       pool.query(
         `SELECT poi.*,
@@ -114,9 +123,22 @@ router.get("/procurement/purchase-orders/:id", requireAuth, async (req, res) => 
          WHERE poi.po_id = $1 ORDER BY poi.id`,
         [id]
       ),
+      pool.query(
+        `SELECT pr.id, pr.pr_number, pr.status, pr.received_date, pr.vendor_name,
+           json_agg(json_build_object(
+             'item_name', pri.item_name, 'item_code', pri.item_code,
+             'quantity', pri.quantity, 'unit_price', pri.unit_price,
+             'warehouse_location', pri.warehouse_location
+           ) ORDER BY pri.id) AS items
+         FROM purchase_receipts pr
+         LEFT JOIN purchase_receipt_items pri ON pri.pr_id = pr.id
+         WHERE pr.po_id = $1 AND pr.status != 'Cancelled'
+         GROUP BY pr.id ORDER BY pr.received_date ASC`,
+        [id]
+      ),
     ]);
     if (!poRes.rows.length) { res.status(404).json({ error: "PO not found" }); return; }
-    res.json({ ...poRes.rows[0], items: itemsRes.rows });
+    res.json({ ...poRes.rows[0], items: itemsRes.rows, receipts: prsRes.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load purchase order" });
@@ -247,7 +269,7 @@ router.get("/procurement/purchase-receipts", requireAuth, async (req, res) => {
   try {
     const {
       search = "", status = "all", referenceType = "all",
-      fromDate = "", toDate = "",
+      fromDate = "", toDate = "", poNumber = "",
       page = "1", limit = "10", sort = "newest",
     } = req.query as Record<string, string>;
 
@@ -256,7 +278,11 @@ router.get("/procurement/purchase-receipts", requireAuth, async (req, res) => {
 
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(pr.pr_number ILIKE $${params.length} OR pr.vendor_name ILIKE $${params.length})`);
+      conditions.push(`(pr.pr_number ILIKE $${params.length} OR pr.vendor_name ILIKE $${params.length} OR po.po_number ILIKE $${params.length})`);
+    }
+    if (poNumber) {
+      params.push(`%${poNumber}%`);
+      conditions.push(`po.po_number ILIKE $${params.length}`);
     }
     if (status !== "all") { params.push(status); conditions.push(`pr.status = $${params.length}`); }
     if (fromDate) { params.push(fromDate); conditions.push(`pr.received_date::date >= $${params.length}`); }

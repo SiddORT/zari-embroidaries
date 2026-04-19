@@ -74,6 +74,7 @@ export default function PurchaseReceipts() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const [search,        setSearch]        = useState("");
+  const [poNumber,      setPoNumber]      = useState("");
   const [status,        setStatus]        = useState("all");
   const [referenceType, setReferenceType] = useState("all");
   const [fromDate,      setFromDate]      = useState("");
@@ -89,12 +90,13 @@ export default function PurchaseReceipts() {
   const buildQs = useCallback(() => {
     const p = new URLSearchParams({ sort, page: String(page), limit: String(limit) });
     if (search)        p.set("search",        search);
+    if (poNumber)      p.set("poNumber",      poNumber);
     if (status !== "all") p.set("status",     status);
     if (referenceType !== "all") p.set("referenceType", referenceType);
     if (fromDate)      p.set("fromDate",      fromDate);
     if (toDate)        p.set("toDate",        toDate);
     return p.toString();
-  }, [search, status, referenceType, fromDate, toDate, sort, page]);
+  }, [search, poNumber, status, referenceType, fromDate, toDate, sort, page]);
 
   const loadData = useCallback((bust = false) => {
     if (!token) return;
@@ -186,6 +188,11 @@ export default function PurchaseReceipts() {
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full pl-8 pr-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
             </div>
+            <div className="relative min-w-[180px]">
+              <input type="text" placeholder="Filter by PO number…" value={poNumber}
+                onChange={e => { setPoNumber(e.target.value); setPage(1); }}
+                className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+            </div>
 
             <div className="relative">
               <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}
@@ -228,8 +235,8 @@ export default function PurchaseReceipts() {
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
             </div>
 
-            {(search || status !== "all" || referenceType !== "all" || fromDate || toDate) && (
-              <button onClick={() => { setSearch(""); setStatus("all"); setReferenceType("all"); setFromDate(""); setToDate(""); setPage(1); }}
+            {(search || poNumber || status !== "all" || referenceType !== "all" || fromDate || toDate) && (
+              <button onClick={() => { setSearch(""); setPoNumber(""); setStatus("all"); setReferenceType("all"); setFromDate(""); setToDate(""); setPage(1); }}
                 className="flex items-center gap-1 text-xs text-gray-700 px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">
                 <X className="h-3.5 w-3.5" /> Clear
               </button>

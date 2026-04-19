@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, PackageCheck,
-  AlertTriangle, Save, ChevronDown, Edit2, X,
+  AlertTriangle, Save, ChevronDown, Edit2, X, FileDown, TrendingUp,
 } from "lucide-react";
+import { downloadPrPdf } from "@/utils/pdfExport";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -61,6 +62,7 @@ interface ReceiptLine {
   receivedSoFar: string;
   quantity: string;
   unitPrice: string;
+  targetPrice: string;
   warehouseLocation: string;
   remarks: string;
 }
@@ -159,6 +161,7 @@ export default function PurchaseReceiptForm() {
             orderedQty: i.ordered_quantity,
             receivedSoFar: i.received_quantity,
             quantity: "",
+            targetPrice: i.unit_price,
             unitPrice: i.unit_price,
             warehouseLocation: i.warehouse_location ?? "",
             remarks: "",
@@ -356,6 +359,30 @@ export default function PurchaseReceiptForm() {
                 </p>
               </div>
             </div>
+
+            {/* Download PDF — always visible */}
+            {!editMode && (
+              <button
+                onClick={() => downloadPrPdf({
+                  pr_number: pr.pr_number,
+                  po_number: pr.po_number,
+                  status: pr.status,
+                  vendor_name: pr.vendor_name,
+                  received_date: pr.received_date,
+                  reference_type: pr.reference_type,
+                  items: pr.items.map(item => ({
+                    item_name: item.item_name,
+                    item_code: item.item_code,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    unit_type: item.unit_type,
+                    warehouse_location: item.warehouse_location,
+                  })),
+                })}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
+                <FileDown className="h-4 w-4" /> Download PDF
+              </button>
+            )}
 
             {/* Action buttons for Open receipts */}
             {isOpen && !editMode && (
@@ -637,7 +664,8 @@ export default function PurchaseReceiptForm() {
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">Received</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">Pending</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Now Receiving</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Unit Price (₹)</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-amber-700 w-28">Target Price (₹)</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Received Rate (₹)</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Location</th>
                     </tr>
                   </thead>
@@ -645,6 +673,9 @@ export default function PurchaseReceiptForm() {
                     {lines.map((line, idx) => {
                       const pendingNum = parseFloat(line.pendingQty);
                       const nowNum = parseFloat(line.quantity) || 0;
+                      const receivedRate = parseFloat(line.unitPrice) || 0;
+                      const targetRate = parseFloat(line.targetPrice) || 0;
+                      const variance = receivedRate - targetRate;
                       const isOver = nowNum > pendingNum + 0.001;
                       return (
                         <tr key={line.poItemId} className="hover:bg-gray-50">
@@ -667,10 +698,19 @@ export default function PurchaseReceiptForm() {
                             {isOver && <p className="text-[10px] text-red-500 mt-0.5">Exceeds pending</p>}
                           </td>
                           <td className="px-3 py-3">
+                            <div className="text-sm font-mono text-amber-700 font-semibold text-right pr-1">₹{targetRate.toFixed(2)}</div>
+                          </td>
+                          <td className="px-3 py-3">
                             <input type="number" min="0" step="0.01"
                               value={line.unitPrice}
                               onChange={e => updateLine(idx, "unitPrice", e.target.value)}
-                              className="w-full px-2 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 text-right" />
+                              className={`w-full px-2 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 text-right
+                                ${variance > 0.005 ? "border-red-300 text-red-700 focus:ring-red-200" : variance < -0.005 ? "border-green-300 text-green-700 focus:ring-green-200" : "border-gray-200 text-gray-900 focus:ring-[#C6AF4B]/30"}`} />
+                            {Math.abs(variance) > 0.005 && nowNum > 0 && (
+                              <p className={`text-[10px] mt-0.5 text-right ${variance > 0 ? "text-red-500" : "text-green-600"}`}>
+                                {variance > 0 ? `+₹${variance.toFixed(2)}` : `-₹${Math.abs(variance).toFixed(2)}`}
+                              </p>
+                            )}
                           </td>
                           <td className="px-3 py-3">
                             <input type="text"
@@ -688,6 +728,45 @@ export default function PurchaseReceiptForm() {
             )}
           </div>
         )}
+
+        {/* Pricing Summary */}
+        {selectedPoId && lines.length > 0 && (() => {
+          const validLines = lines.filter(l => parseFloat(l.quantity) > 0);
+          const targetTotal    = validLines.reduce((s, l) => s + parseFloat(l.quantity) * (parseFloat(l.targetPrice) || 0), 0);
+          const receivedTotal  = validLines.reduce((s, l) => s + parseFloat(l.quantity) * (parseFloat(l.unitPrice) || 0), 0);
+          const variance       = receivedTotal - targetTotal;
+          if (!validLines.length) return null;
+          return (
+            <div className={`${card} p-4`}>
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4" style={{ color: G }} />
+                <h3 className="text-sm font-semibold text-gray-700">Pricing Summary</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">Items Receiving</p>
+                  <p className="text-lg font-bold text-gray-900">{validLines.length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-amber-600 font-medium">Target Value (₹)</p>
+                  <p className="text-lg font-bold text-amber-700">₹{targetTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 font-medium">Received Value (₹)</p>
+                  <p className="text-lg font-bold text-gray-900">₹{receivedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div>
+                  <p className={`text-xs font-medium ${Math.abs(variance) < 0.01 ? "text-gray-500" : variance > 0 ? "text-red-600" : "text-green-600"}`}>
+                    Price Variance (₹)
+                  </p>
+                  <p className={`text-lg font-bold ${Math.abs(variance) < 0.01 ? "text-gray-500" : variance > 0 ? "text-red-600" : "text-green-600"}`}>
+                    {variance >= 0 ? "+" : ""}₹{variance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Actions */}
         {selectedPoId && lines.length > 0 && (

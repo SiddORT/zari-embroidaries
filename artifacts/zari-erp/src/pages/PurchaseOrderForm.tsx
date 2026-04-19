@@ -3,8 +3,9 @@ import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Plus, Trash2, Save, CheckCircle2, XCircle, Clock,
   ShoppingCart, PackageCheck, Building2, CreditCard,
-  Phone, Mail, MapPin, BadgePercent,
+  Phone, Mail, MapPin, BadgePercent, FileDown,
 } from "lucide-react";
+import { downloadPoPdf } from "@/utils/pdfExport";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -85,6 +86,15 @@ interface POItem {
   warehouse_location: string | null;
 }
 
+interface POReceipt {
+  id: number;
+  pr_number: string;
+  status: string;
+  received_date: string;
+  vendor_name: string;
+  items: { item_name: string; item_code: string; quantity: string; unit_price: string; warehouse_location: string | null }[];
+}
+
 interface PODetail {
   id: number;
   po_number: string;
@@ -97,6 +107,7 @@ interface PODetail {
   notes: string | null;
   created_by: string;
   items: POItem[];
+  receipts?: POReceipt[];
 }
 
 function mkKey() { return Math.random().toString(36).slice(2); }
@@ -334,6 +345,28 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => downloadPoPdf({
+                  po_number: po.po_number,
+                  status: po.status,
+                  vendor_name: po.vendor_name,
+                  po_date: po.po_date,
+                  reference_type: po.reference_type,
+                  notes: po.notes,
+                  items: po.items.map(i => ({
+                    item_name: i.item_name,
+                    item_code: i.item_code,
+                    unit_type: i.unit_type,
+                    ordered_quantity: i.ordered_quantity,
+                    received_quantity: i.received_quantity,
+                    pending_quantity: i.pending_quantity,
+                    unit_price: i.unit_price,
+                  })),
+                  receipts: po.receipts,
+                })}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
+                <FileDown className="h-4 w-4" /> Download PDF
+              </button>
               {canApprove && (
                 <button onClick={handleApprove} disabled={actioning}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
@@ -431,6 +464,42 @@ export default function PurchaseOrderForm() {
               </table>
             </div>
           </div>
+
+          {/* Linked Receipts */}
+          {po.receipts && po.receipts.length > 0 && (
+            <div className={card}>
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <PackageCheck className="h-4 w-4" style={{ color: G }} />
+                <h3 className="text-sm font-semibold text-gray-700">Linked Receipts ({po.receipts.length})</h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {po.receipts.map(pr => {
+                  const prTotal = pr.items.reduce((s, i) => s + parseFloat(i.quantity) * parseFloat(i.unit_price), 0);
+                  return (
+                    <div key={pr.id} className="px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate(`/procurement/purchase-receipts/${pr.id}`)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-gray-900 font-mono">{pr.pr_number}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${
+                            pr.status === "Confirmed" ? "bg-green-100 text-green-700" :
+                            pr.status === "Open" ? "bg-amber-100 text-amber-700" :
+                            pr.status === "Cancelled" ? "bg-red-100 text-red-700" :
+                            "bg-gray-100 text-gray-600"
+                          }`}>{pr.status}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>{new Date(pr.received_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          <span className="font-mono font-semibold text-gray-700">₹{prTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                          <span>{pr.items.length} item{pr.items.length !== 1 ? "s" : ""}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
