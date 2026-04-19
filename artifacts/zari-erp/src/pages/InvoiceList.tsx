@@ -21,14 +21,17 @@ function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
 
 const DIRECTIONS = ["Client", "Vendor"] as const;
 const TYPES = ["Proforma", "Advance", "Partial", "Final Invoice", "Custom"] as const;
-const STATUSES = ["Draft", "Sent", "Paid", "Partial", "Cancelled"] as const;
+const STATUSES = ["Draft", "Generated", "Sent", "Partially Paid", "Paid", "Overdue", "Cancelled"] as const;
+const REF_TYPES = ["Swatch", "Style", "Quotation", "Purchase Receipt", "Shipping", "Artwork", "Manual"] as const;
 
 const STATUS_COLORS: Record<string, string> = {
-  Draft:     "bg-gray-50 text-gray-600 border-gray-200",
-  Sent:      "bg-blue-50 text-blue-700 border-blue-200",
-  Paid:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Partial:   "bg-amber-50 text-amber-700 border-amber-200",
-  Cancelled: "bg-red-50 text-red-600 border-red-200",
+  Draft:           "bg-gray-50 text-gray-600 border-gray-200",
+  Generated:       "bg-blue-50 text-blue-700 border-blue-200",
+  Sent:            "bg-indigo-50 text-indigo-700 border-indigo-200",
+  "Partially Paid":"bg-amber-50 text-amber-700 border-amber-200",
+  Paid:            "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Overdue:         "bg-red-50 text-red-700 border-red-200",
+  Cancelled:       "bg-gray-100 text-gray-400 border-gray-200",
 };
 
 const DIR_COLORS: Record<string, string> = {
@@ -77,6 +80,8 @@ export default function InvoiceList() {
   const [filterDir, setFilterDir] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterRefType, setFilterRefType] = useState("");
+  const [filterOrderId, setFilterOrderId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -88,6 +93,8 @@ export default function InvoiceList() {
       if (filterDir) params.set("direction", filterDir);
       if (filterType) params.set("type", filterType);
       if (filterStatus) params.set("status", filterStatus);
+      if (filterRefType) params.set("refType", filterRefType);
+      if (filterOrderId.trim()) params.set("refId", filterOrderId.trim());
       const j = await customFetch<any>(`/api/invoices?${params}`);
       setInvoices(j.data ?? []);
     } catch (e: any) {
@@ -95,7 +102,7 @@ export default function InvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [search, filterDir, filterType, filterStatus]);
+  }, [search, filterDir, filterType, filterStatus, filterRefType, filterOrderId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -177,9 +184,21 @@ export default function InvoiceList() {
             <option value="">All Status</option>
             {STATUSES.map(s => <option key={s}>{s}</option>)}
           </select>
-          {(filterDir || filterType || filterStatus || search) && (
+          <select value={filterRefType} onChange={e => { setFilterRefType(e.target.value); setFilterOrderId(""); }} className={sel}>
+            <option value="">All Order Types</option>
+            {REF_TYPES.map(t => <option key={t}>{t}</option>)}
+          </select>
+          {filterRefType && (
+            <input
+              value={filterOrderId}
+              onChange={e => setFilterOrderId(e.target.value)}
+              placeholder={`${filterRefType} Order ID…`}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-[#C6AF4B] w-36"
+            />
+          )}
+          {(filterDir || filterType || filterStatus || filterRefType || filterOrderId || search) && (
             <button
-              onClick={() => { setSearch(""); setFilterDir(""); setFilterType(""); setFilterStatus(""); }}
+              onClick={() => { setSearch(""); setFilterDir(""); setFilterType(""); setFilterStatus(""); setFilterRefType(""); setFilterOrderId(""); }}
               className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition"
             >
               Clear

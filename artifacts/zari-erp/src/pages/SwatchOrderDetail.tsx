@@ -23,6 +23,7 @@ import ClientLinkTab from "@/pages/ClientLinkTab";
 import CostingTab from "@/pages/CostingTab";
 import CostSheetTab from "@/pages/CostSheetTab";
 import ShippingTab from "@/pages/ShippingTab";
+import LinkedInvoicesPanel from "@/components/LinkedInvoicesPanel";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -71,6 +72,7 @@ const TABS = [
   { label: "Costing",      icon: "💰" },
   { label: "Cost Sheet",   icon: "📋" },
   { label: "Shipping",     icon: "🚚" },
+  { label: "Invoices",     icon: "🧾" },
 ];
 
 type FormState = {
@@ -1249,6 +1251,17 @@ export default function SwatchOrderDetail() {
             orderStatus={form.orderStatus}
             isAdmin={isAdmin}
           />
+        )}
+
+        {/* ══ TAB 8: Invoices ══ */}
+        {activeTab === 8 && isNew && (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <span className="text-4xl mb-3">🧾</span>
+            <p className="text-sm">Save the order first to view linked invoices.</p>
+          </div>
+        )}
+        {activeTab === 8 && !isNew && numId && (
+          <LinkedInvoicesPanel type="Swatch" orderId={numId} orderNo={form.swatchName} />
         )}
 
         </div> {/* ── end outer mt-5 ── */}

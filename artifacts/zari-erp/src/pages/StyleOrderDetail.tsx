@@ -21,6 +21,7 @@ import StyleCostingTab from "./StyleCostingTab";
 import StyleCostSheetTab from "./StyleCostSheetTab";
 import StyleClientLinkTab from "./StyleClientLinkTab";
 import ShippingTab from "@/pages/ShippingTab";
+import LinkedInvoicesPanel from "@/components/LinkedInvoicesPanel";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
@@ -63,7 +64,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TABS = [
   "Basic Info", "References", "Products", "Artworks",
-  "Client Link", "Estimate", "Costing", "Cost Sheet", "Shipping",
+  "Client Link", "Estimate", "Costing", "Cost Sheet", "Shipping", "Invoices",
 ];
 
 // ── Form ──────────────────────────────────────────────────────────────────────
@@ -964,6 +965,12 @@ export default function StyleOrderDetail() {
               orderStatus={form.orderStatus}
               isAdmin={isAdmin}
             />
+          )}
+
+          {/* ══ TAB 9: Invoices ══════════════════════════════════════════════ */}
+          {activeTab === 9 && isNew && <PlaceholderTab icon="🧾" label="Invoices (save order first)" />}
+          {activeTab === 9 && !isNew && numId && (
+            <LinkedInvoicesPanel type="Style" orderId={numId} orderNo={form.styleName} />
           )}
 
         </div>

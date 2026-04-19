@@ -10,7 +10,17 @@ const router = Router();
 
 const INVOICE_DIRECTIONS = ["Client", "Vendor"] as const;
 const INVOICE_TYPES = ["Proforma", "Advance", "Partial", "Material Recovery", "Artwork Charges", "Courier Charges", "Final Invoice", "Custom"] as const;
-const INVOICE_STATUSES = ["Draft", "Sent", "Paid", "Partial", "Cancelled"] as const;
+const INVOICE_STATUSES = ["Draft", "Generated", "Sent", "Partially Paid", "Paid", "Overdue", "Cancelled"] as const;
+
+function computeAutoStatus(totalAmt: number, pendingAmt: number, dueDate: string, explicitStatus?: string): string {
+  if (explicitStatus === "Draft" || explicitStatus === "Sent" || explicitStatus === "Cancelled") return explicitStatus;
+  const today = new Date().toISOString().slice(0, 10);
+  if (dueDate && dueDate < today && pendingAmt > 0) return "Overdue";
+  if (pendingAmt <= 0) return "Paid";
+  if (pendingAmt > 0 && pendingAmt < totalAmt) return "Partially Paid";
+  return "Generated";
+}
+
 const REFERENCE_TYPES = ["Swatch", "Style", "Quotation", "Purchase Receipt", "Shipping", "Artwork", "Manual"] as const;
 
 async function getNextInvoiceNo(): Promise<string> {
@@ -37,7 +47,7 @@ router.get("/invoices/next-number", requireAuth, async (_req, res) => {
 // GET /invoices — list with filters
 router.get("/invoices", requireAuth, async (req, res) => {
   try {
-    const { direction, type, status, search, page = "1", limit: lim = "50" } = req.query as Record<string, string>;
+    const { direction, type, status, search, refType, refId, page = "1", limit: lim = "50" } = req.query as Record<string, string>;
     const offset = (parseInt(page) - 1) * parseInt(lim);
 
     let rows = await db
@@ -49,6 +59,8 @@ router.get("/invoices", requireAuth, async (req, res) => {
     if (direction) rows = rows.filter(r => r.invoiceDirection === direction);
     if (type) rows = rows.filter(r => r.invoiceType === type);
     if (status) rows = rows.filter(r => r.invoiceStatus === status);
+    if (refType) rows = rows.filter(r => r.referenceType === refType);
+    if (refId) rows = rows.filter(r => (r.referenceId ?? "") === String(refId));
     if (search) {
       const s = search.toLowerCase();
       rows = rows.filter(r =>
@@ -104,12 +116,13 @@ router.post("/invoices", requireAuth, async (req: AuthRequest, res) => {
     const totalAmt = parseFloat(b.totalAmount ?? String(invoiceCurrencyAmt));
     const receivedAmt = parseFloat(b.receivedAmount ?? "0");
     const pendingAmt = totalAmt - receivedAmt;
+    const autoStatus = computeAutoStatus(totalAmt, pendingAmt, b.dueDate ?? "", b.invoiceStatus ?? "Draft");
 
     const [row] = await db.insert(invoicesTable).values({
       invoiceNo,
       invoiceDirection: b.invoiceDirection ?? "Client",
       invoiceType: b.invoiceType ?? "Final Invoice",
-      invoiceStatus: b.invoiceStatus ?? "Draft",
+      invoiceStatus: autoStatus,
       clientId: b.clientId ? Number(b.clientId) : null,
       vendorId: b.vendorId ? Number(b.vendorId) : null,
       referenceType: b.referenceType ?? "Manual",
@@ -148,7 +161,7 @@ router.post("/invoices", requireAuth, async (req: AuthRequest, res) => {
       swatchOrderId: b.swatchOrderId ? Number(b.swatchOrderId) : null,
       styleOrderId: b.styleOrderId ? Number(b.styleOrderId) : null,
       createdBy: req.user?.email ?? "",
-      status: b.invoiceStatus ?? "Draft",
+      status: autoStatus,
     }).returning();
 
     res.status(201).json({ data: row });
@@ -170,11 +183,12 @@ router.put("/invoices/:id", requireAuth, async (req: AuthRequest, res) => {
     const totalAmt = parseFloat(b.totalAmount ?? String(invoiceCurrencyAmt));
     const receivedAmt = parseFloat(b.receivedAmount ?? "0");
     const pendingAmt = totalAmt - receivedAmt;
+    const autoStatus = computeAutoStatus(totalAmt, pendingAmt, b.dueDate ?? "", b.invoiceStatus);
 
     const [row] = await db.update(invoicesTable).set({
       invoiceDirection: b.invoiceDirection,
       invoiceType: b.invoiceType,
-      invoiceStatus: b.invoiceStatus,
+      invoiceStatus: autoStatus,
       clientId: b.clientId ? Number(b.clientId) : null,
       vendorId: b.vendorId ? Number(b.vendorId) : null,
       referenceType: b.referenceType,
@@ -210,7 +224,7 @@ router.put("/invoices/:id", requireAuth, async (req: AuthRequest, res) => {
       remarks: b.remarks ?? "",
       notes: b.notes ?? "",
       paymentTerms: b.paymentTerms ?? "",
-      status: b.invoiceStatus ?? "Draft",
+      status: autoStatus,
       updatedAt: new Date(),
     }).where(eq(invoicesTable.id, id)).returning();
 
@@ -245,7 +259,7 @@ router.patch("/invoices/:id/payment", requireAuth, async (req, res) => {
   const totalAmt = parseFloat(String(existing.totalAmount ?? "0"));
   const receivedAmt = parseFloat(req.body.receivedAmount ?? "0");
   const pendingAmt = Math.max(0, totalAmt - receivedAmt);
-  const newStatus = receivedAmt >= totalAmt ? "Paid" : receivedAmt > 0 ? "Partial" : existing.invoiceStatus;
+  const newStatus = computeAutoStatus(totalAmt, pendingAmt, String(existing.dueDate ?? ""), existing.invoiceStatus ?? "Generated");
 
   const [row] = await db.update(invoicesTable)
     .set({ receivedAmount: String(receivedAmt), pendingAmount: String(pendingAmt), invoiceStatus: newStatus, status: newStatus, updatedAt: new Date() })
