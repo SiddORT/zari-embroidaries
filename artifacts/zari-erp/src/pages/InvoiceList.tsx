@@ -82,6 +82,8 @@ export default function InvoiceList() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterRefType, setFilterRefType] = useState("");
   const [filterOrderId, setFilterOrderId] = useState("");
+  const [orderOptions, setOrderOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -105,6 +107,25 @@ export default function InvoiceList() {
   }, [search, filterDir, filterType, filterStatus, filterRefType, filterOrderId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (filterRefType !== "Swatch" && filterRefType !== "Style") {
+      setOrderOptions([]);
+      return;
+    }
+    setLoadingOrders(true);
+    const endpoint = filterRefType === "Swatch" ? "/api/swatch-orders?limit=200" : "/api/style-orders?limit=200";
+    customFetch<any>(endpoint)
+      .then(j => {
+        const rows = j.data ?? [];
+        const opts = filterRefType === "Swatch"
+          ? rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.swatchName ?? ""}`.trim() }))
+          : rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.styleName ?? ""}`.trim() }));
+        setOrderOptions(opts);
+      })
+      .catch(() => setOrderOptions([]))
+      .finally(() => setLoadingOrders(false));
+  }, [filterRefType]);
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -188,12 +209,25 @@ export default function InvoiceList() {
             <option value="">All Order Types</option>
             {REF_TYPES.map(t => <option key={t}>{t}</option>)}
           </select>
-          {filterRefType && (
+          {filterRefType && (filterRefType === "Swatch" || filterRefType === "Style") && (
+            <select
+              value={filterOrderId}
+              onChange={e => setFilterOrderId(e.target.value)}
+              disabled={loadingOrders}
+              className={`${sel} min-w-[180px] ${loadingOrders ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <option value="">{loadingOrders ? "Loading orders…" : `All ${filterRefType} Orders`}</option>
+              {orderOptions.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          )}
+          {filterRefType && filterRefType !== "Swatch" && filterRefType !== "Style" && (
             <input
               value={filterOrderId}
               onChange={e => setFilterOrderId(e.target.value)}
-              placeholder={`${filterRefType} Order ID…`}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-[#C6AF4B] w-36"
+              placeholder={`${filterRefType} reference ID…`}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-[#C6AF4B] w-44"
             />
           )}
           {(filterDir || filterType || filterStatus || filterRefType || filterOrderId || search) && (
