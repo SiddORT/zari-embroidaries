@@ -709,26 +709,89 @@ router.patch("/inventory/reservations/:id/cancel", requireAuth, async (req, res)
   }
 });
 
-router.patch("/inventory/reservations/:id/convert", requireAuth, async (_req, res) => {
+router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res) => {
+  const auth = req as AuthRequest;
   try {
-    const { id } = _req.params;
+    const { id } = req.params;
     const r = await pool.query(`SELECT * FROM material_reservations WHERE id = $1`, [id]);
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
     const resv = r.rows[0];
     if (resv.status !== "Active") return res.status(400).json({ error: "Only Active reservations can be converted" });
 
+    const reserved = parseFloat(resv.reserved_quantity);
+    // Accept split quantities from body; default = all consumed
+    const body = req.body as { consumedQty?: number; releasedQty?: number; wastageQty?: number };
+    const consumedQty  = body.consumedQty  !== undefined ? Number(body.consumedQty)  : reserved;
+    const releasedQty  = body.releasedQty  !== undefined ? Number(body.releasedQty)  : 0;
+    const wastageQty   = body.wastageQty   !== undefined ? Number(body.wastageQty)   : 0;
+
+    if (consumedQty < 0 || releasedQty < 0 || wastageQty < 0) {
+      return res.status(400).json({ error: "Quantities cannot be negative" });
+    }
+    if (Math.abs(consumedQty + releasedQty + wastageQty - reserved) > 0.001) {
+      return res.status(400).json({ error: `Consumed + Released + Wastage must equal reserved quantity (${reserved})` });
+    }
+
+    const col = resv.reservation_type === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+    const actor = auth.user?.name || auth.user?.email || "System";
+
     const client = await (pool as any).connect();
     try {
       await client.query("BEGIN");
+
+      // Mark reservation as Converted
       await client.query(`UPDATE material_reservations SET status = 'Converted' WHERE id = $1`, [id]);
-      const col = resv.reservation_type === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+
+      // Remove the full reserved qty from the reservation bucket
       await client.query(
         `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
-        [resv.reserved_quantity, resv.inventory_id]
+        [reserved, resv.inventory_id]
       );
+
+      // Wastage: physically gone — deduct from current_stock
+      if (wastageQty > 0) {
+        await client.query(
+          `UPDATE inventory_items SET current_stock = GREATEST(0, current_stock::numeric - $1) WHERE id = $2`,
+          [wastageQty, resv.inventory_id]
+        );
+      }
+
       await recalcAvailable(client, resv.inventory_id);
+
+      const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [resv.inventory_id]);
+      const bal = balR.rows[0].current_stock;
+
+      // Stock ledger entries for each non-zero segment
+      if (consumedQty > 0) {
+        await client.query(
+          `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+           VALUES ($1,'Consumption',  $2,$3, 0,$4,$5,$6,$7)`,
+          [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
+           consumedQty, bal,
+           `Consumed ${consumedQty} for ${resv.reservation_type} #${resv.reference_id}`, actor]
+        );
+      }
+      if (releasedQty > 0) {
+        await client.query(
+          `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+           VALUES ($1,'Reservation Release',$2,$3,$4,0,$5,$6,$7)`,
+          [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
+           releasedQty, bal,
+           `Released ${releasedQty} back to stock from ${resv.reservation_type} #${resv.reference_id}`, actor]
+        );
+      }
+      if (wastageQty > 0) {
+        await client.query(
+          `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+           VALUES ($1,'Wastage',$2,$3,0,$4,$5,$6,$7)`,
+          [resv.inventory_id, String(resv.reference_id), resv.reservation_type,
+           wastageQty, bal,
+           `Wastage ${wastageQty} from ${resv.reservation_type} #${resv.reference_id}`, actor]
+        );
+      }
+
       await client.query("COMMIT");
-      res.json({ success: true });
+      res.json({ success: true, consumedQty, releasedQty, wastageQty });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

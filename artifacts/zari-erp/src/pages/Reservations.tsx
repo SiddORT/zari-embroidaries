@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, ChevronDown, CalendarRange, X, AlertTriangle,
   Bookmark, CheckCircle2, XCircle, RefreshCw, ArrowRightLeft,
-  Plus, Trash2, Shield,
+  Plus, Trash2, Shield, Flame, PackageOpen,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -105,7 +105,10 @@ export default function Reservations() {
   const [toDate,          setToDate]          = useState("");
 
   const [actioning, setActioning] = useState<number | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ resv: Reservation; action: "release" | "cancel" | "convert" | "delete" } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ resv: Reservation; action: "release" | "cancel" | "delete" } | null>(null);
+  const [convertModal, setConvertModal] = useState<{
+    resv: Reservation; consumed: string; released: string; wastage: string; submitting: boolean;
+  } | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [invItems, setInvItems] = useState<InvItem[]>([]);
@@ -210,7 +213,7 @@ export default function Reservations() {
     }
   };
 
-  const handleAction = async (resv: Reservation, action: "release" | "cancel" | "convert" | "delete") => {
+  const handleAction = async (resv: Reservation, action: "release" | "cancel" | "delete") => {
     setActioning(resv.id);
     try {
       if (action === "delete") {
@@ -218,7 +221,7 @@ export default function Reservations() {
       } else {
         await customFetch(`/api/inventory/reservations/${resv.id}/${action}`, { method: "PATCH" });
       }
-      const labels: Record<string, string> = { release: "Released", cancel: "Cancelled", convert: "Converted", delete: "Deleted" };
+      const labels: Record<string, string> = { release: "Released", cancel: "Cancelled", delete: "Deleted" };
       toast({ title: `Reservation ${labels[action]}` });
       setConfirmAction(null);
       loadData();
@@ -229,12 +232,42 @@ export default function Reservations() {
     }
   };
 
+  const handleConvert = async () => {
+    if (!convertModal) return;
+    const { resv, consumed, released, wastage } = convertModal;
+    const c = parseFloat(consumed) || 0;
+    const r = parseFloat(released) || 0;
+    const w = parseFloat(wastage) || 0;
+    const reserved = parseFloat(resv.reserved_quantity);
+    if (Math.abs(c + r + w - reserved) > 0.001) {
+      toast({ title: "Consumed + Released + Wastage must equal the reserved quantity", variant: "destructive" });
+      return;
+    }
+    if (c < 0 || r < 0 || w < 0) {
+      toast({ title: "Quantities cannot be negative", variant: "destructive" });
+      return;
+    }
+    setConvertModal(m => m ? { ...m, submitting: true } : null);
+    try {
+      await customFetch(`/api/inventory/reservations/${resv.id}/convert`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consumedQty: c, releasedQty: r, wastageQty: w }),
+      });
+      toast({ title: "Reservation converted successfully" });
+      setConvertModal(null);
+      loadData();
+    } catch (err: any) {
+      toast({ title: err?.message || "Failed to convert reservation", variant: "destructive" });
+      setConvertModal(m => m ? { ...m, submitting: false } : null);
+    }
+  };
+
   const selectedItem = invItems.find(i => i.id === Number(form.inventoryId));
 
   const ACTION_META: Record<string, { label: string; btnCls: string }> = {
     release: { label: "Release",  btnCls: "bg-green-600 hover:bg-green-700 text-white" },
     cancel:  { label: "Cancel",   btnCls: "bg-orange-500 hover:bg-orange-600 text-white" },
-    convert: { label: "Convert to Consumption", btnCls: "bg-blue-600 hover:bg-blue-700 text-white" },
     delete:  { label: "Delete",   btnCls: "bg-red-600 hover:bg-red-700 text-white" },
   };
 
@@ -379,7 +412,13 @@ export default function Reservations() {
                               <RefreshCw className="h-3 w-3" /> Release
                             </button>
                           )}
-                          <button onClick={() => setConfirmAction({ resv: r, action: "convert" })}
+                          <button onClick={() => setConvertModal({
+                              resv: r,
+                              consumed: parseFloat(r.reserved_quantity).toFixed(3),
+                              released: "0",
+                              wastage: "0",
+                              submitting: false,
+                            })}
                             className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
                             <ArrowRightLeft className="h-3 w-3" /> Convert
                           </button>
@@ -561,24 +600,20 @@ export default function Reservations() {
             <div className="flex items-start gap-3 mb-4">
               <div className={`p-2 rounded-lg flex-shrink-0 ${
                 confirmAction.action === "delete" ? "bg-red-100" :
-                confirmAction.action === "release" ? "bg-green-100" :
-                confirmAction.action === "convert" ? "bg-blue-100" : "bg-orange-100"
+                confirmAction.action === "release" ? "bg-green-100" : "bg-orange-100"
               }`}>
                 {confirmAction.action === "delete" ? <Trash2 className="h-5 w-5 text-red-600" /> :
                  confirmAction.action === "release" ? <RefreshCw className="h-5 w-5 text-green-600" /> :
-                 confirmAction.action === "convert" ? <ArrowRightLeft className="h-5 w-5 text-blue-600" /> :
                  <XCircle className="h-5 w-5 text-orange-600" />}
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">
                   {confirmAction.action === "delete" ? "Delete Reservation?" :
-                   confirmAction.action === "release" ? "Release Reservation?" :
-                   confirmAction.action === "convert" ? "Convert to Consumption?" : "Cancel Reservation?"}
+                   confirmAction.action === "release" ? "Release Reservation?" : "Cancel Reservation?"}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
                   {confirmAction.resv.item_name} — {parseFloat(confirmAction.resv.reserved_quantity).toFixed(3)} {confirmAction.resv.unit_type || "units"} for {confirmAction.resv.reservation_type} #{confirmAction.resv.reference_id}.
                   {confirmAction.action === "release" && " Reserved qty will be returned to available stock."}
-                  {confirmAction.action === "convert" && " Reserved qty will be freed. Consumption module will deduct stock separately."}
                   {confirmAction.action === "cancel" && " Reserved qty will be returned to available stock."}
                   {confirmAction.action === "delete" && " This will permanently remove this record."}
                 </p>
@@ -605,6 +640,115 @@ export default function Reservations() {
           </div>
         </div>
       )}
+
+      {/* Convert to Consumption Modal */}
+      {convertModal && (() => {
+        const reserved = parseFloat(convertModal.resv.reserved_quantity);
+        const c = parseFloat(convertModal.consumed) || 0;
+        const r = parseFloat(convertModal.released) || 0;
+        const w = parseFloat(convertModal.wastage) || 0;
+        const allocated = c + r + w;
+        const remaining = +(reserved - allocated).toFixed(3);
+        const valid = Math.abs(remaining) < 0.001 && c >= 0 && r >= 0 && w >= 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className={`${card} w-full max-w-md`}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-100">
+                    <ArrowRightLeft className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <h2 className="text-sm font-bold text-gray-900">Convert to Consumption</h2>
+                </div>
+                <button onClick={() => setConvertModal(null)} className="p-1.5 rounded-lg hover:bg-gray-100">
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                {/* Item info */}
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-900">{convertModal.resv.item_name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {convertModal.resv.reservation_type} #{convertModal.resv.reference_id} &middot; Reserved:{" "}
+                    <span className="font-bold" style={{ color: G }}>{reserved.toFixed(3)}</span>{" "}
+                    {convertModal.resv.unit_type || ""}
+                  </p>
+                </div>
+
+                {/* Qty split rows */}
+                <div className="space-y-3">
+                  {/* Consumed */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 w-32 flex-shrink-0">
+                      <div className="p-1 rounded bg-blue-50"><ArrowRightLeft className="h-3.5 w-3.5 text-blue-600" /></div>
+                      <span className="text-xs font-medium text-gray-700">Consumed</span>
+                    </div>
+                    <input type="number" min="0" step="0.001"
+                      value={convertModal.consumed}
+                      onChange={e => setConvertModal(m => m ? { ...m, consumed: e.target.value } : null)}
+                      className="flex-1 px-3 py-1.5 text-sm text-right rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <span className="text-xs text-gray-400 w-12 flex-shrink-0">{convertModal.resv.unit_type || ""}</span>
+                  </div>
+                  <p className="text-[11px] text-blue-600 -mt-1 pl-36">Material actually used in production — consumption will deduct stock separately.</p>
+
+                  {/* Released */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 w-32 flex-shrink-0">
+                      <div className="p-1 rounded bg-green-50"><PackageOpen className="h-3.5 w-3.5 text-green-600" /></div>
+                      <span className="text-xs font-medium text-gray-700">Released</span>
+                    </div>
+                    <input type="number" min="0" step="0.001"
+                      value={convertModal.released}
+                      onChange={e => setConvertModal(m => m ? { ...m, released: e.target.value } : null)}
+                      className="flex-1 px-3 py-1.5 text-sm text-right rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                    <span className="text-xs text-gray-400 w-12 flex-shrink-0">{convertModal.resv.unit_type || ""}</span>
+                  </div>
+                  <p className="text-[11px] text-green-600 -mt-1 pl-36">Unused material — freed back to available stock.</p>
+
+                  {/* Wastage */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 w-32 flex-shrink-0">
+                      <div className="p-1 rounded bg-red-50"><Flame className="h-3.5 w-3.5 text-red-500" /></div>
+                      <span className="text-xs font-medium text-gray-700">Wastage</span>
+                    </div>
+                    <input type="number" min="0" step="0.001"
+                      value={convertModal.wastage}
+                      onChange={e => setConvertModal(m => m ? { ...m, wastage: e.target.value } : null)}
+                      className="flex-1 px-3 py-1.5 text-sm text-right rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-200" />
+                    <span className="text-xs text-gray-400 w-12 flex-shrink-0">{convertModal.resv.unit_type || ""}</span>
+                  </div>
+                  <p className="text-[11px] text-red-500 -mt-1 pl-36">Material damaged or discarded — written off from stock.</p>
+                </div>
+
+                {/* Running total */}
+                <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border ${valid ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
+                  <span className="text-xs font-medium text-gray-600">Total allocated</span>
+                  <span className={`text-sm font-bold ${valid ? "text-green-700" : "text-red-600"}`}>
+                    {allocated.toFixed(3)} / {reserved.toFixed(3)} {convertModal.resv.unit_type || ""}
+                    {!valid && remaining !== 0 && (
+                      <span className="ml-1 text-[11px] font-normal">({remaining > 0 ? `${remaining.toFixed(3)} unallocated` : `${Math.abs(remaining).toFixed(3)} over`})</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100">
+                <button onClick={() => setConvertModal(null)} disabled={convertModal.submitting}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={handleConvert} disabled={!valid || convertModal.submitting}
+                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ background: valid ? "linear-gradient(135deg, #3B82F6, #2563EB)" : undefined, backgroundColor: valid ? undefined : "#9CA3AF" }}>
+                  {convertModal.submitting ? "Converting…" : "Confirm Conversion"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
