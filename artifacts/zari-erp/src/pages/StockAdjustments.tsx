@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Search, Plus, ChevronDown, ChevronLeft, ChevronRight,
@@ -123,9 +123,11 @@ export default function StockAdjustments() {
 
   const [rows, setRows]       = useState<AdjRow[]>([]);
   const [total, setTotal]     = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage]       = useState(1);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [page, setPage]           = useState(1);
+  const [summary, setSummary]     = useState<Summary | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = () => setRefreshKey(k => k + 1);
   const limit = 20;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -156,28 +158,32 @@ export default function StockAdjustments() {
   const [deleteTarget, setDeleteTarget] = useState<AdjRow | null>(null);
   const [deleting,     setDeleting]     = useState(false);
 
-  const fetchSummary = useCallback(async () => {
-    try {
-      const r = await customFetch("/api/inventory/adjustments/summary") as { data: Summary };
-      setSummary(r.data);
-    } catch { /* silently ignore until auth resolves */ }
-  }, []);
+  const refreshSummary = () => {
+    customFetch("/api/inventory/adjustments/summary").then((r: unknown) => {
+      setSummary((r as { data: Summary }).data);
+    }).catch(() => {});
+  };
 
-  const fetchRows = useCallback(async () => {
+  useEffect(() => {
     setLoading(true);
-    try {
-      const q = new URLSearchParams({
-        search, adjustmentType, adjustmentDirection: adjustmentDir,
-        referenceType, fromDate, toDate, minLoss, maxLoss,
-        page: String(page), limit: String(limit),
-      });
-      const r = await customFetch(`/api/inventory/adjustments?${q}`) as { data: AdjRow[]; total: number };
-      setRows(r.data ?? []);
-      setTotal(r.total ?? 0);
-    } catch { setRows([]); } finally { setLoading(false); }
-  }, [search, adjustmentType, adjustmentDir, referenceType, fromDate, toDate, minLoss, maxLoss, page]);
-
-  useEffect(() => { fetchRows().catch(() => {}); fetchSummary().catch(() => {}); }, [fetchRows]);
+    const q = new URLSearchParams({
+      search, adjustmentType, adjustmentDirection: adjustmentDir,
+      referenceType, fromDate, toDate, minLoss, maxLoss,
+      page: String(page), limit: String(limit),
+    });
+    let cancelled = false;
+    customFetch(`/api/inventory/adjustments?${q}`)
+      .then((r: unknown) => {
+        if (cancelled) return;
+        const res = r as { data: AdjRow[]; total: number };
+        setRows(res.data ?? []);
+        setTotal(res.total ?? 0);
+      })
+      .catch(() => { if (!cancelled) setRows([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    refreshSummary();
+    return () => { cancelled = true; };
+  }, [search, adjustmentType, adjustmentDir, referenceType, fromDate, toDate, minLoss, maxLoss, page, refreshKey]);
 
   useEffect(() => {
     customFetch("/api/inventory/items?limit=500&page=1").then((r: unknown) => {
@@ -284,8 +290,7 @@ export default function StockAdjustments() {
         toast({ title: "Stock adjustment applied successfully and inventory updated" });
       }
       setShowModal(false);
-      fetchRows();
-      fetchSummary();
+      refresh();
     } catch (e: unknown) {
       toast({ title: (e as { message?: string })?.message ?? "Failed to save", variant: "destructive" });
     } finally {
@@ -300,8 +305,7 @@ export default function StockAdjustments() {
       await customFetch(`/api/inventory/adjustments/${deleteTarget.id}`, { method: "DELETE" });
       toast({ title: "Adjustment deleted and stock restored" });
       setDeleteTarget(null);
-      fetchRows();
-      fetchSummary();
+      refresh();
     } catch (e: unknown) {
       toast({ title: (e as { message?: string })?.message ?? "Delete failed", variant: "destructive" });
     } finally {
