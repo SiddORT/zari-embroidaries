@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
   consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable, customChargesTable,
@@ -86,7 +86,57 @@ router.patch("/bom/:id", requireAuth, async (req, res) => {
 });
 
 router.delete("/bom/:id", requireAuth, async (req, res) => {
-  await db.delete(swatchBomTable).where(eq(swatchBomTable.id, Number(req.params.id)));
+  const bomId = Number(req.params.id);
+  // Fetch row before deleting so we can cancel its reservation
+  const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, bomId)).limit(1);
+  await db.delete(swatchBomTable).where(eq(swatchBomTable.id, bomId));
+
+  // Cancel the matching active reservation if the row existed
+  if (bomRow && bomRow.styleOrderId && bomRow.materialId && bomRow.materialType) {
+    const invRows = await db
+      .select({ id: inventoryItemsTable.id })
+      .from(inventoryItemsTable)
+      .where(and(eq(inventoryItemsTable.sourceType, bomRow.materialType), eq(inventoryItemsTable.sourceId, bomRow.materialId)))
+      .limit(1);
+
+    if (invRows.length > 0) {
+      const inventoryId = invRows[0].id;
+      const client = await (pool as any).connect();
+      try {
+        await client.query("BEGIN");
+        // Find the active Style reservation for this order + inventory item + qty
+        const rR = await client.query(
+          `SELECT id, reserved_quantity FROM material_reservations
+           WHERE inventory_id = $1 AND reservation_type = 'Style' AND reference_id = $2
+             AND status = 'Active' AND reserved_quantity::numeric = $3
+           ORDER BY id DESC LIMIT 1`,
+          [inventoryId, bomRow.styleOrderId, parseFloat(bomRow.requiredQty ?? "0")]
+        );
+        if (rR.rows.length > 0) {
+          const resv = rR.rows[0];
+          await client.query(
+            `UPDATE material_reservations SET status = 'Cancelled' WHERE id = $1`,
+            [resv.id]
+          );
+          await client.query(
+            `UPDATE inventory_items SET style_reserved_qty = GREATEST(0, style_reserved_qty::numeric - $1) WHERE id = $2`,
+            [resv.reserved_quantity, inventoryId]
+          );
+          await client.query(
+            `UPDATE inventory_items SET available_stock = GREATEST(0, current_stock::numeric - style_reserved_qty::numeric - swatch_reserved_qty::numeric) WHERE id = $1`,
+            [inventoryId]
+          );
+        }
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        console.error("Reservation auto-cancel failed:", e);
+      } finally {
+        client.release();
+      }
+    }
+  }
+
   res.json({ success: true });
 });
 
@@ -532,10 +582,14 @@ router.post("/style-bom", requireAuth, async (req, res) => {
   const reqQty = parseFloat(requiredQty) || 0;
   const price = parseFloat(avgUnitPrice) || 0;
   const estimatedAmount = (reqQty * price).toFixed(2);
+  const matId = Number(materialId);
+  const orderId = Number(styleOrderId);
+  const actor = user?.name || user?.email || "System";
+
   const [row] = await db.insert(swatchBomTable).values({
-    styleOrderId: Number(styleOrderId),
+    styleOrderId: orderId,
     materialType,
-    materialId: Number(materialId),
+    materialId: matId,
     materialCode,
     materialName,
     currentStock,
@@ -546,6 +600,53 @@ router.post("/style-bom", requireAuth, async (req, res) => {
     estimatedAmount,
     createdBy: user.email,
   }).returning();
+
+  // Auto-create an inventory reservation for this BOM row
+  if (reqQty > 0) {
+    const invRows = await db
+      .select({ id: inventoryItemsTable.id })
+      .from(inventoryItemsTable)
+      .where(and(eq(inventoryItemsTable.sourceType, materialType), eq(inventoryItemsTable.sourceId, matId)))
+      .limit(1);
+
+    if (invRows.length > 0) {
+      const inventoryId = invRows[0].id;
+      const today = new Date().toISOString().slice(0, 10);
+      const client = await (pool as any).connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `INSERT INTO material_reservations
+             (item_id, inventory_id, reservation_type, reference_id, reserved_quantity, status, remarks, reserved_by, reservation_date)
+           VALUES ($1,$2,'Style',$3,$4,'Active',$5,$6,$7)`,
+          [inventoryId, inventoryId, orderId, reqQty,
+           `BOM row ${row.id} — ${materialName}`, actor, today]
+        );
+        await client.query(
+          `UPDATE inventory_items SET style_reserved_qty = style_reserved_qty::numeric + $1 WHERE id = $2`,
+          [reqQty, inventoryId]
+        );
+        await client.query(
+          `UPDATE inventory_items SET available_stock = GREATEST(0, current_stock::numeric - style_reserved_qty::numeric - swatch_reserved_qty::numeric) WHERE id = $1`,
+          [inventoryId]
+        );
+        const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [inventoryId]);
+        await client.query(
+          `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+           VALUES ($1,'Style Reservation',$2,'Style',0,$3,$4,$5,$6)`,
+          [inventoryId, String(orderId), reqQty, balR.rows[0].current_stock,
+           `Reserved ${reqQty} for Style Order #${orderId} (BOM row ${row.id})`, actor]
+        );
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        console.error("Reservation auto-create failed:", e);
+      } finally {
+        client.release();
+      }
+    }
+  }
+
   res.status(201).json({ data: row });
 });
 
