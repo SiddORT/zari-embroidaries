@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
 
 export interface PaymentAttachmentFile {
   name: string;
@@ -187,3 +187,23 @@ export const customChargesTable = pgTable("custom_charges", {
 });
 
 export type CustomChargeRecord = typeof customChargesTable.$inferSelect;
+
+// ─── BOM Change Log ───────────────────────────────────────────────────────────
+export const bomChangeLogTable = pgTable("bom_change_log", {
+  id: serial("id").primaryKey(),
+  bomRowId: integer("bom_row_id").notNull(),
+  bomType: text("bom_type").notNull(), // 'Swatch' | 'Style'
+  orderId: integer("order_id").notNull(),
+  inventoryId: integer("inventory_id"),
+  materialCode: text("material_code").notNull(),
+  materialName: text("material_name").notNull(),
+  oldQty: text("old_qty").notNull(),
+  newQty: text("new_qty").notNull(),
+  delta: text("delta").notNull(),
+  reservationDelta: text("reservation_delta"),
+  notes: text("notes"),
+  changedBy: text("changed_by").notNull(),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type BomChangeLogRecord = typeof bomChangeLogTable.$inferSelect;

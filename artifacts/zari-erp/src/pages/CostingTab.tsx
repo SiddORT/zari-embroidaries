@@ -6,13 +6,14 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
   ArrowRight, Paperclip, Package, Info, Download, Clock, Truck,
+  Pencil, History,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useAllMaterials } from "@/hooks/useMaterials";
 import { useAllFabrics } from "@/hooks/useFabrics";
 import {
-  useSwatchBom, useAddBomRow, useDeleteBomRow,
+  useSwatchBom, useAddBomRow, useDeleteBomRow, useUpdateBomQty, useBomChangeLog,
   useSwatchPOs, useCreatePO, useUpdatePO, useDeletePO,
   useSwatchPRs, useCreatePR, useDeletePR,
   usePrPayments, useAddPayment, useDeletePayment,
@@ -24,6 +25,7 @@ import {
   type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord,
   type PrPaymentRecord, type PoLineItem, type ConsumptionLogRecord,
   type ArtisanTimesheetRecord, type OutsourceJobRecord, type CustomChargeRecord,
+  type BomChangeLogEntry,
 } from "@/hooks/useCosting";
 
 const PO_STATUSES = ["Draft", "Pending Approval", "Approved", "In Process", "Closed"];
@@ -96,11 +98,17 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
   const { data: prs = [] } = useSwatchPRs(swatchOrderId);
   const addRow = useAddBomRow();
   const deleteRow = useDeleteBomRow();
+  const updateBomQty = useUpdateBomQty();
   const { data: allMaterials = [] } = useAllMaterials();
   const { data: allFabrics = [] } = useAllFabrics();
 
   const [showForm, setShowForm] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "material" | "fabric">("all");
+  const [editRow, setEditRow] = useState<BomRecord | null>(null);
+  const [editQty, setEditQty] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [logRowId, setLogRowId] = useState<number | null>(null);
+  const { data: bomChangeLog = [] } = useBomChangeLog(logRowId);
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
     currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "",
@@ -419,10 +427,20 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                     {m.consumedTotal > 0 ? `₹${m.consumedTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5">
-                    <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
-                      className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => { setEditRow(r); setEditQty(r.requiredQty); setEditNotes(""); }}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit Required Qty">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => setLogRowId(r.id)}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Change Log">
+                        <History className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -454,6 +472,87 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           </tbody>
         </table>
       </div>
+
+      {/* ── Edit BOM Qty Modal ── */}
+      {editRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">Edit Required Quantity</h3>
+              <button onClick={() => setEditRow(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm">
+              <div className="font-semibold text-gray-800">[{editRow.materialCode}] {editRow.materialName}</div>
+              <div className="text-xs text-gray-500 mt-1">Current required: <span className="font-semibold text-gray-700">{editRow.requiredQty} {editRow.unitType}</span></div>
+              {(editRow as any).liveReservedQty != null && (
+                <div className="text-xs text-violet-700 mt-0.5">Currently reserved: <span className="font-semibold">{parseFloat((editRow as any).liveReservedQty).toFixed(4)} {editRow.unitType}</span></div>
+              )}
+            </div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">New Required Quantity *</label>
+            <input type="number" min="0.001" step="any" value={editQty}
+              onChange={e => setEditQty(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 mb-3" />
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Reason / Notes</label>
+            <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
+              placeholder="Why is the qty changing? (optional)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none h-20 mb-4" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditRow(null)} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button disabled={updateBomQty.isPending || !editQty || parseFloat(editQty) <= 0}
+                onClick={() => {
+                  updateBomQty.mutate(
+                    { id: editRow!.id, requiredQty: editQty, notes: editNotes || undefined },
+                    {
+                      onSuccess: (res) => {
+                        toast({ title: res.changed ? "BOM quantity updated" : "No change made" });
+                        setEditRow(null);
+                      },
+                      onError: (err: any) => toast({ title: err?.message ?? "Failed to update qty", variant: "destructive" }),
+                    }
+                  );
+                }}
+                className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1.5">
+                {updateBomQty.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BOM Change Log Modal ── */}
+      {logRowId != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2"><History className="h-4 w-4 text-indigo-600" /> BOM Change History</h3>
+              <button onClick={() => setLogRowId(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            </div>
+            {bomChangeLog.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 italic py-8">No changes recorded for this row.</p>
+            ) : (
+              <div className="overflow-y-auto flex-1 space-y-2">
+                {bomChangeLog.map((entry: BomChangeLogEntry) => {
+                  const delta = parseFloat(entry.delta);
+                  return (
+                    <div key={entry.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-800">{parseFloat(entry.old_qty).toFixed(4)} → {parseFloat(entry.new_qty).toFixed(4)} {entry.material_name}</span>
+                        <span className={`font-bold ${delta > 0 ? "text-emerald-600" : "text-red-600"}`}>{delta > 0 ? "+" : ""}{delta.toFixed(4)}</span>
+                      </div>
+                      {entry.reservation_delta && parseFloat(entry.reservation_delta) !== 0 && (
+                        <div className="text-violet-700 mb-1">Reservation: {parseFloat(entry.reservation_delta) > 0 ? "+" : ""}{parseFloat(entry.reservation_delta).toFixed(4)}</div>
+                      )}
+                      {entry.notes && <div className="text-gray-600 mb-1 italic">"{entry.notes}"</div>}
+                      <div className="text-gray-400">{entry.changed_by} · {new Date(entry.changed_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

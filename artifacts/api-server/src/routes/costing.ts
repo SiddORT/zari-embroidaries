@@ -4,6 +4,7 @@ import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
   consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable, customChargesTable,
   materialsTable, fabricsTable, vendorsTable, hsnTable, inventoryItemsTable,
+  bomChangeLogTable,
 } from "@workspace/db/schema";
 import { eq, ilike, or, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -483,6 +484,191 @@ router.patch("/bom/:id", requireAuth, async (req, res) => {
   if (consumedQty !== undefined) updates.consumedQty = consumedQty;
   const [row] = await db.update(swatchBomTable).set(updates).where(eq(swatchBomTable.id, Number(req.params.id))).returning();
   res.json({ data: row });
+});
+
+// ─── Edit BOM Required Qty (with reservation cascade + audit log) ─────────────
+async function adjustBomQty(opts: {
+  bomRowId: number;
+  inventoryId: number;
+  orderId: number;
+  reservationType: "Style" | "Swatch";
+  oldQty: number;
+  newQty: number;
+  materialCode: string;
+  materialName: string;
+  notes: string | null;
+  actor: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { bomRowId, inventoryId, orderId, reservationType, oldQty, newQty, materialCode, materialName, notes, actor } = opts;
+  const delta = newQty - oldQty;
+  if (delta === 0) return { success: true };
+
+  const col = reservationType === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+  const client = await (pool as any).connect();
+  try {
+    await client.query("BEGIN");
+
+    const existR = await client.query(
+      `SELECT id, reserved_quantity FROM material_reservations
+       WHERE inventory_id = $1 AND reservation_type = $2 AND reference_id = $3 AND status = 'Active'
+       ORDER BY id DESC LIMIT 1`,
+      [inventoryId, reservationType, orderId]
+    );
+
+    let actualResDelta = delta;
+
+    if (existR.rows.length > 0) {
+      const existing = existR.rows[0];
+      const oldReserved = parseFloat(existing.reserved_quantity);
+      const newReserved = oldReserved + delta;
+
+      if (newReserved < 0) {
+        await client.query("ROLLBACK");
+        return { success: false, error: `Cannot reduce reservation below 0. Currently reserved: ${oldReserved.toFixed(3)}` };
+      }
+
+      const consumedR = await client.query(
+        `SELECT COALESCE(SUM(out_quantity::numeric), 0) AS total
+         FROM stock_ledger
+         WHERE item_id = $1 AND LOWER(REPLACE(transaction_type,' ','_')) = 'consumption'
+           AND reference_number = $2::text AND reference_type = $3`,
+        [inventoryId, String(orderId), reservationType]
+      );
+      const totalConsumed = parseFloat(consumedR.rows[0].total);
+      if (newReserved < totalConsumed) {
+        await client.query("ROLLBACK");
+        return { success: false, error: `Cannot reduce reservation below already consumed qty (${totalConsumed.toFixed(3)})` };
+      }
+
+      await client.query(
+        `UPDATE material_reservations SET reserved_quantity = $1 WHERE id = $2`,
+        [newReserved.toFixed(4), existing.id]
+      );
+    } else if (delta > 0) {
+      const availR = await client.query(`SELECT available_stock FROM inventory_items WHERE id = $1`, [inventoryId]);
+      const avail = parseFloat(availR.rows[0]?.available_stock ?? "0");
+      if (delta > avail) {
+        await client.query("ROLLBACK");
+        return { success: false, error: `Insufficient stock — need additional ${delta.toFixed(3)}, only ${avail.toFixed(3)} available` };
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      await client.query(
+        `INSERT INTO material_reservations
+           (item_id, inventory_id, reservation_type, reference_id, reserved_quantity, status, remarks, reserved_by, reservation_date)
+         VALUES ($1,$2,$3,$4,$5,'Active',$6,$7,$8)`,
+        [inventoryId, inventoryId, reservationType, orderId, delta.toFixed(4),
+         `BOM row ${bomRowId} — ${materialName}`, actor, today]
+      );
+    } else {
+      actualResDelta = 0;
+    }
+
+    if (actualResDelta !== 0) {
+      await client.query(
+        `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric + $1) WHERE id = $2`,
+        [actualResDelta, inventoryId]
+      );
+    }
+
+    await client.query(
+      `UPDATE inventory_items
+       SET available_stock = GREATEST(0, current_stock::numeric - style_reserved_qty::numeric - swatch_reserved_qty::numeric),
+           last_updated_at = NOW()
+       WHERE id = $1`,
+      [inventoryId]
+    );
+
+    if (actualResDelta !== 0) {
+      const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [inventoryId]);
+      const absDelta = Math.abs(actualResDelta);
+      const txType = actualResDelta > 0 ? `${reservationType.toLowerCase()}_reservation` : "reservation_release";
+      await client.query(
+        `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [inventoryId, txType, String(orderId), reservationType,
+         actualResDelta > 0 ? 0 : absDelta,
+         actualResDelta > 0 ? absDelta : 0,
+         balR.rows[0].current_stock,
+         `BOM qty edit for ${reservationType} Order #${orderId}: ${oldQty} → ${newQty} (reservation ${actualResDelta > 0 ? "+" : ""}${actualResDelta.toFixed(3)})`,
+         actor]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO bom_change_log
+         (bom_row_id, bom_type, order_id, inventory_id, material_code, material_name, old_qty, new_qty, delta, reservation_delta, notes, changed_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [bomRowId, reservationType, orderId, inventoryId, materialCode, materialName,
+       oldQty.toFixed(4), newQty.toFixed(4), delta.toFixed(4), actualResDelta.toFixed(4), notes ?? null, actor]
+    );
+
+    await client.query("COMMIT");
+    return { success: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("adjustBomQty failed:", e);
+    return { success: false, error: "Failed to adjust BOM quantity" };
+  } finally {
+    client.release();
+  }
+}
+
+router.patch("/bom/:id/qty", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const actor = user?.name || user?.email || "System";
+    const bomId = Number(req.params.id);
+    const { requiredQty, notes } = req.body as { requiredQty: string; notes?: string };
+
+    const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, bomId)).limit(1);
+    if (!bomRow) { res.status(404).json({ error: "BOM row not found" }); return; }
+
+    const oldQty = parseFloat(bomRow.requiredQty);
+    const newQty = parseFloat(requiredQty);
+    if (isNaN(newQty) || newQty <= 0) { res.status(400).json({ error: "Required qty must be > 0" }); return; }
+    if (Math.abs(newQty - oldQty) < 0.0001) { res.json({ data: bomRow, changed: false }); return; }
+
+    const orderId = (bomRow.styleOrderId ?? bomRow.swatchOrderId) as number;
+    const reservationType: "Style" | "Swatch" = bomRow.styleOrderId ? "Style" : "Swatch";
+
+    const invRows = await db.select({ id: inventoryItemsTable.id })
+      .from(inventoryItemsTable)
+      .where(and(eq(inventoryItemsTable.sourceType, bomRow.materialType), eq(inventoryItemsTable.sourceId, bomRow.materialId)))
+      .limit(1);
+
+    if (!invRows.length) { res.status(400).json({ error: "No inventory record for this material" }); return; }
+
+    const result = await adjustBomQty({
+      bomRowId: bomId, inventoryId: invRows[0].id, orderId, reservationType,
+      oldQty, newQty, materialCode: bomRow.materialCode, materialName: bomRow.materialName,
+      notes: notes ?? null, actor,
+    });
+
+    if (!result.success) { res.status(400).json({ error: result.error }); return; }
+
+    const estimatedAmount = (newQty * parseFloat(bomRow.avgUnitPrice || "0")).toFixed(2);
+    const [updated] = await db.update(swatchBomTable)
+      .set({ requiredQty: String(newQty), estimatedAmount, updatedBy: user.email, updatedAt: new Date() })
+      .where(eq(swatchBomTable.id, bomId))
+      .returning();
+
+    res.json({ data: updated, changed: true });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to update BOM qty" });
+  }
+});
+
+router.get("/bom/:id/log", requireAuth, async (req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT * FROM bom_change_log WHERE bom_row_id = $1 ORDER BY changed_at DESC`,
+      [Number(req.params.id)]
+    );
+    res.json({ data: rows.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.delete("/bom/:id", requireAuth, async (req, res) => {

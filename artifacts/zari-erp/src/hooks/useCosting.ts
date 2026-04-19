@@ -131,6 +131,47 @@ export function useDeleteBomRow() {
   });
 }
 
+export interface BomChangeLogEntry {
+  id: number;
+  bom_row_id: number;
+  bom_type: string;
+  order_id: number;
+  inventory_id: number | null;
+  material_code: string;
+  material_name: string;
+  old_qty: string;
+  new_qty: string;
+  delta: string;
+  reservation_delta: string | null;
+  notes: string | null;
+  changed_by: string;
+  changed_at: string;
+}
+
+export function useUpdateBomQty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, requiredQty, notes }: { id: number; requiredQty: string; notes?: string }) =>
+      customFetch<{ data: BomRecord; changed: boolean }>(`/api/costing/bom/${id}/qty`, {
+        method: "PATCH",
+        body: JSON.stringify({ requiredQty, notes }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
+  });
+}
+
+export function useBomChangeLog(bomRowId: number | null) {
+  return useQuery({
+    queryKey: ["bom-change-log", bomRowId],
+    queryFn: () => customFetch<{ data: BomChangeLogEntry[] }>(`/api/costing/bom/${bomRowId}/log`).then(r => r.data ?? []),
+    enabled: !!bomRowId,
+  });
+}
+
 export function useSwatchPOs(swatchOrderId: number) {
   return useQuery({
     queryKey: ["swatch-pos", swatchOrderId],
