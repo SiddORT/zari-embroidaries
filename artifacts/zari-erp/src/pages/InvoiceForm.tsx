@@ -708,8 +708,9 @@ export default function InvoiceForm() {
                 {form.currencyCode !== "INR" && (
                   <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5">
                     <p className="text-xs text-amber-700 font-semibold">INR Equivalent</p>
-                    <p className="text-sm font-bold text-amber-900 mt-0.5">
-                      ₹{(totals.total * parseFloat(form.exchangeRateSnapshot || "1")).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    <p className="text-xs text-amber-600 mb-0.5">1 {form.currencyCode} = ₹{parseFloat(form.exchangeRateSnapshot || "1").toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</p>
+                    <p className="text-sm font-bold text-amber-900">
+                      ₹{totals.total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                 )}
@@ -782,9 +783,9 @@ export default function InvoiceForm() {
                   );
                 })()}
                 <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total</span>
+                  <span className="font-bold text-gray-900">Total ({form.currencyCode})</span>
                   <span className="text-lg font-bold" style={{ color: G }}>
-                    {totals.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })} {form.currencyCode}
+                    {sym}{toInvCcy(totals.total).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
