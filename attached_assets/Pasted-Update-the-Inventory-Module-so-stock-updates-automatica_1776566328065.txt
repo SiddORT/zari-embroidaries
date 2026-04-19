@@ -1,0 +1,244 @@
+Update the Inventory Module so stock updates automatically whenever a Purchase Receipt (PR) is created or modified.
+
+The system already has centralized procurement tables:
+
+purchase_orders
+purchase_order_items
+purchase_receipts
+purchase_receipt_items
+
+Do NOT create new procurement tables.
+
+Integrate inventory updates with existing Purchase Receipt logic.
+
+Follow structure exactly as defined below.
+
+---
+
+## MODULE NAME
+
+Inventory Management — PR Auto Stock Update Integration
+
+---
+
+## SECTION 1 — AUTO STOCK UPDATE ON PR CREATE
+
+Whenever a Purchase Receipt item is created:
+
+System must:
+
+increase inventory_items.current_stock
+
+update inventory_items.last_purchase_price
+
+update inventory_items.average_price
+
+update inventory_items.last_updated_at
+
+Then create stock_ledger entry.
+
+---
+
+## SECTION 2 — LEDGER ENTRY CREATION
+
+Create stock ledger entry automatically.
+
+Values:
+
+transaction_type = Purchase Receipt
+
+reference_type = PR
+
+reference_number = PR Number
+
+in_quantity = received_quantity
+
+out_quantity = 0
+
+balance_quantity = updated_stock
+
+remarks = Auto generated from Purchase Receipt
+
+---
+
+## SECTION 3 — WEIGHTED AVERAGE PRICE UPDATE
+
+Update average price using weighted average formula:
+
+new_average_price =
+((existing_stock × existing_avg_price)
++
+(received_quantity × received_price))
+÷
+(total_stock_after_receipt)
+
+Store result in:
+
+inventory_items.average_price
+
+---
+
+## SECTION 4 — UPDATE LAST PURCHASE PRICE
+
+Update:
+
+inventory_items.last_purchase_price = received_price
+
+---
+
+## SECTION 5 — UPDATE PO ITEM RECEIVED QUANTITY
+
+After PR item saved:
+
+update:
+
+purchase_order_items.received_quantity
+
+recalculate:
+
+purchase_order_items.pending_quantity
+
+Formula:
+
+pending_quantity =
+ordered_quantity − received_quantity
+
+---
+
+## SECTION 6 — AUTO UPDATE INVENTORY PROCUREMENT SUMMARY
+
+Inventory item list must refresh:
+
+total_ordered_quantity
+
+total_received_quantity
+
+pending_delivery_quantity
+
+Data source:
+
+purchase_order_items
+
+purchase_receipt_items
+
+---
+
+## SECTION 7 — MULTI-PR SUPPORT PER PO ITEM
+
+System must support:
+
+multiple PR entries against one PO item
+
+Each PR must:
+
+update stock independently
+
+update ledger independently
+
+update average price correctly
+
+---
+
+## SECTION 8 — PR EDIT HANDLING
+
+If received_quantity edited:
+
+system must:
+
+adjust inventory stock difference
+
+update ledger entry
+
+recalculate average_price
+
+update last_updated_at
+
+---
+
+## SECTION 9 — PR DELETE HANDLING
+
+If PR item deleted:
+
+system must:
+
+reverse stock increase
+
+remove ledger entry
+
+recalculate average_price
+
+update inventory_items.current_stock
+
+---
+
+## SECTION 10 — LOCATION-WISE STOCK UPDATE
+
+Each PR item includes:
+
+warehouse_location
+
+System must update stock only for that location.
+
+Support multiple warehouse locations per item.
+
+---
+
+## SECTION 11 — VALIDATION RULES
+
+Prevent:
+
+received_quantity <= 0
+
+received_quantity greater than pending_quantity
+
+missing warehouse_location
+
+missing item reference
+
+---
+
+## SECTION 12 — TRANSACTION SAFETY
+
+Inventory update must be transactional.
+
+If inventory update fails:
+
+rollback PR save operation
+
+display error:
+
+Inventory update failed
+
+prevent partial updates
+
+---
+
+## SECTION 13 — UI UPDATE REQUIREMENTS
+
+After PR saved successfully:
+
+display message:
+
+Inventory updated successfully
+
+Refresh inventory list automatically.
+
+---
+
+## SECTION 14 — PERMISSIONS CONTROL
+
+Only authorized users may:
+
+create PR
+
+edit PR
+
+delete PR
+
+Inventory updates must follow PR permissions.
+
+---
+
+## END OF INVENTORY PR AUTO UPDATE INTEGRATION
+
+Update backend logic and frontend integration accordingly.

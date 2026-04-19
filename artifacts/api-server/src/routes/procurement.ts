@@ -359,6 +359,12 @@ router.post("/procurement/purchase-receipts", requireAuth, async (req: AuthReque
     // Validate quantities against pending on each PO item
     for (const item of items) {
       if (!item.poItemId) { res.status(400).json({ error: "Each item must reference a PO line item" }); return; }
+      if (!item.quantity || item.quantity <= 0) {
+        res.status(400).json({ error: `Received quantity must be greater than zero for item ${item.itemName}` }); return;
+      }
+      if (!item.inventoryItemId) {
+        res.status(400).json({ error: `Missing inventory item reference for ${item.itemName}` }); return;
+      }
       const poItem = await client.query(
         `SELECT ordered_quantity, received_quantity FROM purchase_order_items WHERE id = $1 AND po_id = $2`,
         [item.poItemId, poId]
@@ -487,6 +493,86 @@ router.post("/procurement/purchase-receipts/:id/confirm", requireAuth, async (re
   }
 });
 
+// UPDATE Open PR items (edit quantities/prices before confirming)
+router.put("/procurement/purchase-receipts/:id", requireAuth, async (req: AuthRequest, res) => {
+  const client = await (pool as any).connect();
+  try {
+    await client.query("BEGIN");
+    const id = parseInt(req.params.id);
+    const { receivedDate, items = [] } = req.body as {
+      receivedDate?: string;
+      items: { poItemId: number; inventoryItemId: number; itemName: string; itemCode: string; quantity: number; unitPrice: number; warehouseLocation?: string; remarks?: string }[];
+    };
+
+    const prRes = await client.query(`SELECT * FROM purchase_receipts WHERE id = $1`, [id]);
+    if (!prRes.rows.length) { res.status(404).json({ error: "PR not found" }); return; }
+    const pr = prRes.rows[0];
+    if (pr.status !== "Open") {
+      res.status(400).json({ error: `Only Open receipts can be edited. Current status: ${pr.status}` }); return;
+    }
+
+    // Validate items
+    for (const item of items) {
+      if (!item.quantity || item.quantity <= 0) {
+        res.status(400).json({ error: `Received quantity must be greater than zero for item ${item.itemName}` }); return;
+      }
+      if (!item.poItemId) {
+        res.status(400).json({ error: `Each item must reference a PO line item` }); return;
+      }
+      // Get current PR item's saved quantity to exclude it from pending calculation
+      const existingItem = await client.query(
+        `SELECT quantity FROM purchase_receipt_items WHERE pr_id = $1 AND po_item_id = $2`,
+        [id, item.poItemId]
+      );
+      const existingQty = existingItem.rows.length ? parseFloat(existingItem.rows[0].quantity) : 0;
+
+      const poItem = await client.query(
+        `SELECT ordered_quantity, received_quantity FROM purchase_order_items WHERE id = $1 AND po_id = $2`,
+        [item.poItemId, pr.po_id]
+      );
+      if (!poItem.rows.length) { res.status(400).json({ error: `PO item ${item.poItemId} not found` }); return; }
+      // Pending = ordered - received + what this draft PR already has (since it's Open, not yet deducted)
+      const pending = parseFloat(poItem.rows[0].ordered_quantity) - parseFloat(poItem.rows[0].received_quantity) + existingQty;
+      if (item.quantity > pending + 0.001) {
+        res.status(400).json({ error: `Received quantity (${item.quantity}) exceeds pending (${pending.toFixed(3)}) for item ${item.itemName}` }); return;
+      }
+    }
+
+    // Update PR header date if provided
+    if (receivedDate) {
+      await client.query(
+        `UPDATE purchase_receipts SET received_date = $1, updated_at = NOW() WHERE id = $2`,
+        [new Date(receivedDate).toISOString(), id]
+      );
+    }
+
+    // Replace items: delete all existing, insert new
+    await client.query(`DELETE FROM purchase_receipt_items WHERE pr_id = $1`, [id]);
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO purchase_receipt_items
+           (pr_id, po_item_id, inventory_item_id, item_name, item_code,
+            quantity, unit_price, warehouse_location, remarks)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          id, item.poItemId, item.inventoryItemId,
+          item.itemName, item.itemCode, item.quantity, item.unitPrice,
+          item.warehouseLocation ?? null, item.remarks ?? null,
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ message: "Purchase receipt updated successfully" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Failed to update purchase receipt" });
+  } finally {
+    client.release();
+  }
+});
+
 // CANCEL PR
 router.post("/procurement/purchase-receipts/:id/cancel", requireAuth, async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
@@ -503,34 +589,45 @@ router.post("/procurement/purchase-receipts/:id/cancel", requireAuth, async (req
     }
 
     if (pr.status === "Received") {
-      // Reverse inventory changes
+      // Reverse inventory changes (with avg price recalculation)
       const itemsRes = await client.query(`SELECT * FROM purchase_receipt_items WHERE pr_id = $1`, [id]);
       for (const item of itemsRes.rows) {
-        const qty = parseFloat(item.quantity);
+        const qty       = parseFloat(item.quantity);
+        const unitPrice = parseFloat(item.unit_price) || 0;
         const invRes = await client.query(
-          `SELECT current_stock, average_price FROM inventory_items WHERE id = $1 FOR UPDATE`,
+          `SELECT current_stock, average_price, style_reserved_qty, swatch_reserved_qty FROM inventory_items WHERE id = $1 FOR UPDATE`,
           [item.inventory_item_id]
         );
         if (invRes.rows.length) {
-          const newStock = Math.max(0, parseFloat(invRes.rows[0].current_stock) - qty);
+          const currStock = parseFloat(invRes.rows[0].current_stock);
+          const currAvg   = parseFloat(invRes.rows[0].average_price);
+          const newStock  = Math.max(0, currStock - qty);
+          // Reverse weighted average: undo the addition of qty @ unitPrice
+          const newAvg = newStock > 0
+            ? Math.max(0, (currStock * currAvg - qty * unitPrice) / newStock)
+            : currAvg;
+          const newAvailable = newStock
+            - parseFloat(invRes.rows[0].style_reserved_qty || "0")
+            - parseFloat(invRes.rows[0].swatch_reserved_qty || "0");
           await client.query(
-            `UPDATE inventory_items SET current_stock = $1, available_stock = GREATEST(0, available_stock - $2), last_updated_at = NOW() WHERE id = $3`,
-            [newStock, qty, item.inventory_item_id]
+            `UPDATE inventory_items
+             SET current_stock = $1, average_price = $2,
+                 available_stock = GREATEST(0, $3),
+                 last_updated_at = NOW()
+             WHERE id = $4`,
+            [newStock, newAvg, newAvailable, item.inventory_item_id]
           );
         }
-        // Delete ledger entry
+        // Delete ledger entry for this PR
         await client.query(
           `DELETE FROM stock_ledger WHERE reference_number = $1 AND item_id = $2 AND transaction_type = 'purchase_receipt'`,
           [pr.pr_number, item.inventory_item_id]
         );
-      }
-      // Reverse po_item received quantities
-      const items = itemsRes.rows;
-      for (const item of items) {
+        // Reverse PO item received quantity
         if (item.po_item_id) {
           await client.query(
             `UPDATE purchase_order_items SET received_quantity = GREATEST(0, received_quantity - $1), updated_at = NOW() WHERE id = $2`,
-            [parseFloat(item.quantity), item.po_item_id]
+            [qty, item.po_item_id]
           );
         }
       }
@@ -563,14 +660,34 @@ router.delete("/procurement/purchase-receipts/:id", requireAuth, async (req, res
     const pr = prRes.rows[0];
 
     if (pr.status === "Received") {
-      // Reverse inventory if confirmed
+      // Reverse inventory if confirmed (with avg price recalculation)
       const itemsRes = await client.query(`SELECT * FROM purchase_receipt_items WHERE pr_id = $1`, [id]);
       for (const item of itemsRes.rows) {
-        const qty = parseFloat(item.quantity);
-        await client.query(
-          `UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1), available_stock = GREATEST(0, available_stock - $1), last_updated_at = NOW() WHERE id = $2`,
-          [qty, item.inventory_item_id]
+        const qty       = parseFloat(item.quantity);
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        const invRes = await client.query(
+          `SELECT current_stock, average_price, style_reserved_qty, swatch_reserved_qty FROM inventory_items WHERE id = $1 FOR UPDATE`,
+          [item.inventory_item_id]
         );
+        if (invRes.rows.length) {
+          const currStock = parseFloat(invRes.rows[0].current_stock);
+          const currAvg   = parseFloat(invRes.rows[0].average_price);
+          const newStock  = Math.max(0, currStock - qty);
+          const newAvg    = newStock > 0
+            ? Math.max(0, (currStock * currAvg - qty * unitPrice) / newStock)
+            : currAvg;
+          const newAvailable = newStock
+            - parseFloat(invRes.rows[0].style_reserved_qty || "0")
+            - parseFloat(invRes.rows[0].swatch_reserved_qty || "0");
+          await client.query(
+            `UPDATE inventory_items
+             SET current_stock = $1, average_price = $2,
+                 available_stock = GREATEST(0, $3),
+                 last_updated_at = NOW()
+             WHERE id = $4`,
+            [newStock, newAvg, newAvailable, item.inventory_item_id]
+          );
+        }
         await client.query(
           `DELETE FROM stock_ledger WHERE reference_number = $1 AND item_id = $2 AND transaction_type = 'purchase_receipt'`,
           [pr.pr_number, item.inventory_item_id]
