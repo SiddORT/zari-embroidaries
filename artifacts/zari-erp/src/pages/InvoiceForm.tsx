@@ -49,6 +49,8 @@ interface LineItem {
   hsnCode: string; hsnGstPct: string; showHsn: boolean;
 }
 interface HsnItem { id: number; hsnCode: string; govtDescription: string; gstPercentage: string }
+interface FabricMaster { id: number; fabricCode: string; fabricType: string; quality: string; colorName: string; hsnCode: string }
+interface MaterialMaster { id: number; materialCode: string; itemType: string; quality: string; colorName: string; hsnCode: string }
 interface Client {
   id: number; brandName: string; contactName: string; email: string; contactNo: string;
   gstNo?: string; address1?: string; address2?: string; city?: string; state?: string; pincode?: string;
@@ -92,6 +94,8 @@ export default function InvoiceForm() {
   const [refOrdersLoading, setRefOrdersLoading] = useState(false);
   const [hsnList, setHsnList] = useState<HsnItem[]>([]);
   const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
+  const [fabricMaster, setFabricMaster] = useState<FabricMaster[]>([]);
+  const [materialMaster, setMaterialMaster] = useState<MaterialMaster[]>([]);
 
   const [form, setForm] = useState({
     invoiceNo: "",
@@ -149,6 +153,8 @@ export default function InvoiceForm() {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
     customFetch<any>("/api/vendors?limit=500").then(j => setVendors(j.data ?? [])).catch(() => {});
     customFetch<any>("/api/hsn/all").then(rows => setHsnList(Array.isArray(rows) ? rows : [])).catch(() => {});
+    customFetch<any>("/api/fabrics/all").then(rows => setFabricMaster(Array.isArray(rows) ? rows : [])).catch(() => {});
+    customFetch<any>("/api/materials/all").then(rows => setMaterialMaster(Array.isArray(rows) ? rows : [])).catch(() => {});
     customFetch<any>("/api/settings/currencies").then(j => setCurrencies((j.data ?? []).filter((c: any) => c.is_active || c.is_base))).catch(() => {});
     customFetch<any>("/api/settings/exchange-rates").then(j => {
       const map: Record<string, number> = {};
@@ -595,7 +601,61 @@ export default function InvoiceForm() {
                         <Fragment key={it.id}>
                           <tr className="border-b border-gray-50">
                             <td className="px-3 py-2">
-                              <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                              {it.category === "Fabric" ? (
+                                <select
+                                  value={it.description}
+                                  onChange={e => {
+                                    const label = e.target.value;
+                                    const fab = fabricMaster.find(f => `${f.fabricCode} · ${f.fabricType} · ${f.quality} · ${f.colorName}` === label);
+                                    if (fab) {
+                                      const hsn = hsnList.find(h => h.hsnCode === fab.hsnCode);
+                                      setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                        ...x,
+                                        description: label,
+                                        hsnCode: fab.hsnCode,
+                                        hsnGstPct: hsn?.gstPercentage ?? "",
+                                      }));
+                                    } else {
+                                      updateItem(it.id, "description", label);
+                                    }
+                                  }}
+                                  className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                                >
+                                  <option value="">— Select Fabric —</option>
+                                  {fabricMaster.map(f => {
+                                    const label = `${f.fabricCode} · ${f.fabricType} · ${f.quality} · ${f.colorName}`;
+                                    return <option key={f.id} value={label}>{label}</option>;
+                                  })}
+                                </select>
+                              ) : (it.category === "Material" || it.category === "Item") ? (
+                                <select
+                                  value={it.description}
+                                  onChange={e => {
+                                    const label = e.target.value;
+                                    const mat = materialMaster.find(m => `${m.materialCode} · ${m.itemType} · ${m.quality} · ${m.colorName}` === label);
+                                    if (mat) {
+                                      const hsn = hsnList.find(h => h.hsnCode === mat.hsnCode);
+                                      setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                        ...x,
+                                        description: label,
+                                        hsnCode: mat.hsnCode,
+                                        hsnGstPct: hsn?.gstPercentage ?? "",
+                                      }));
+                                    } else {
+                                      updateItem(it.id, "description", label);
+                                    }
+                                  }}
+                                  className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                                >
+                                  <option value="">— Select {it.category} —</option>
+                                  {materialMaster.map(m => {
+                                    const label = `${m.materialCode} · ${m.itemType} · ${m.quality} · ${m.colorName}`;
+                                    return <option key={m.id} value={label}>{label}</option>;
+                                  })}
+                                </select>
+                              ) : (
+                                <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                              )}
                             </td>
                             <td className="px-3 py-2">
                               <select
