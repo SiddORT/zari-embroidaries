@@ -25,8 +25,8 @@ const STATUSES = ["Draft", "Sent", "Paid", "Partial", "Cancelled"] as const;
 const REF_TYPES = ["Swatch", "Style", "Quotation", "Purchase Receipt", "Shipping", "Artwork", "Manual"] as const;
 
 interface LineItem { id: string; description: string; category: string; quantity: number; unitPrice: number; total: number }
-interface Client { id: number; companyName: string }
-interface Vendor { id: number; name: string }
+interface Client { id: number; brandName: string }
+interface Vendor { id: number; brandName: string }
 interface Currency { code: string; name: string; symbol: string }
 
 const blank = () => ({ id: crypto.randomUUID(), description: "", category: "", quantity: 1, unitPrice: 0, total: 0 });
@@ -305,13 +305,13 @@ export default function InvoiceForm() {
                         setF("clientId", id);
                         if (id) {
                           const c = clients.find(x => String(x.id) === id);
-                          if (c) setF("clientName", c.companyName);
+                          if (c) setF("clientName", c.brandName);
                         }
                       }}
                       className={selClass}
                     >
                       <option value="">— Select Client —</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.brandName}</option>)}
                     </select>
                   </div>
                   <div>
@@ -350,13 +350,13 @@ export default function InvoiceForm() {
                         setF("vendorId", id);
                         if (id) {
                           const v = vendors.find(x => String(x.id) === id);
-                          if (v) setF("clientName", v.name);
+                          if (v) setF("clientName", v.brandName);
                         }
                       }}
                       className={selClass}
                     >
                       <option value="">— Select Vendor —</option>
-                      {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
                     </select>
                   </div>
                   <div>
