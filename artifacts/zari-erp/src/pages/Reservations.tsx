@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Search, ChevronDown, CalendarRange, X, AlertTriangle,
   Bookmark, CheckCircle2, XCircle, RefreshCw, ArrowRightLeft,
-  Plus, Trash2, Shield, Flame, PackageOpen,
+  Plus, Trash2, Shield, Flame, PackageOpen, MoreHorizontal,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -106,6 +106,8 @@ export default function Reservations() {
   const [fromDate,        setFromDate]        = useState("");
   const [toDate,          setToDate]          = useState("");
 
+  const [openActionId, setOpenActionId] = useState<number | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const [actioning, setActioning] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ resv: Reservation; action: "release" | "cancel" | "delete" } | null>(null);
   const [convertModal, setConvertModal] = useState<{
@@ -129,6 +131,17 @@ export default function Reservations() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
+
+  useEffect(() => {
+    if (!openActionId) return;
+    const handler = (e: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openActionId]);
 
   const buildQs = useCallback(() => {
     const p = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -413,47 +426,57 @@ export default function Reservations() {
                     <td className={tdCls}><StatusBadge s={r.status} /></td>
                     <td className={tdCls}><span className="text-xs text-gray-500">{r.reserved_by || "—"}</span></td>
                     <td className={tdCls}>
-                      {r.status === "Active" && (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {isAdmin && (
-                            <button onClick={() => setConfirmAction({ resv: r, action: "release" })}
-                              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-green-200 text-green-700 hover:bg-green-50 transition-colors">
-                              <RefreshCw className="h-3 w-3" /> Release
-                            </button>
-                          )}
-                          <button onClick={() => setConvertModal({
-                              resv: r,
-                              consumed: parseFloat(r.reserved_quantity).toFixed(3),
-                              released: "0",
-                              wastage: "0",
-                              submitting: false,
-                            })}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
-                            <ArrowRightLeft className="h-3 w-3" /> Convert
-                          </button>
-                          {isAdmin && (
-                            <>
-                              <button onClick={() => setConfirmAction({ resv: r, action: "cancel" })}
-                                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
-                                <XCircle className="h-3 w-3" /> Cancel
-                              </button>
-                              <button onClick={() => setConfirmAction({ resv: r, action: "delete" })}
-                                className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {r.status !== "Active" && isAdmin && (
-                        <button onClick={() => setConfirmAction({ resv: r, action: "delete" })}
-                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
+                      <div className="relative" ref={openActionId === r.id ? actionMenuRef : undefined}>
+                        <button
+                          onClick={() => setOpenActionId(openActionId === r.id ? null : r.id)}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors">
+                          <MoreHorizontal className="h-4 w-4" />
                         </button>
-                      )}
-                      {r.status !== "Active" && !isAdmin && (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
+
+                        {openActionId === r.id && (
+                          <div className="absolute right-0 z-30 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[160px] py-1">
+
+                            {r.status === "Active" && (
+                              <button
+                                onClick={() => { setOpenActionId(null); setConvertModal({ resv: r, consumed: parseFloat(r.reserved_quantity).toFixed(3), released: "0", wastage: "0", submitting: false }); }}
+                                className="w-full text-left px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2.5">
+                                <ArrowRightLeft className="h-3.5 w-3.5" /> Convert
+                              </button>
+                            )}
+
+                            {r.status === "Active" && isAdmin && (
+                              <button
+                                onClick={() => { setOpenActionId(null); setConfirmAction({ resv: r, action: "release" }); }}
+                                className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-green-50 flex items-center gap-2.5">
+                                <RefreshCw className="h-3.5 w-3.5" /> Release
+                              </button>
+                            )}
+
+                            {r.status === "Active" && isAdmin && (
+                              <button
+                                onClick={() => { setOpenActionId(null); setConfirmAction({ resv: r, action: "cancel" }); }}
+                                className="w-full text-left px-3 py-2 text-xs text-orange-600 hover:bg-orange-50 flex items-center gap-2.5">
+                                <XCircle className="h-3.5 w-3.5" /> Cancel
+                              </button>
+                            )}
+
+                            {isAdmin && (
+                              <>
+                                {(r.status === "Active") && <div className="mx-2 my-1 border-t border-gray-100" />}
+                                <button
+                                  onClick={() => { setOpenActionId(null); setConfirmAction({ resv: r, action: "delete" }); }}
+                                  className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5">
+                                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                                </button>
+                              </>
+                            )}
+
+                            {!isAdmin && r.status !== "Active" && (
+                              <div className="px-3 py-2 text-xs text-gray-400">No actions available</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

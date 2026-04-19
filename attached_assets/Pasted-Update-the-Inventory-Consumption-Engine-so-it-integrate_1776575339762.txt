@@ -1,0 +1,297 @@
+Update the Inventory Consumption Engine so it integrates with existing consumption logs already present inside:
+
+Swatch Orders module
+Style Orders module
+
+Do NOT create duplicate consumption sources.
+
+Instead:
+
+Use existing order consumption logs as primary source of truth
+
+and synchronize them with:
+
+material_consumption table
+inventory_items
+material_reservations
+stock_ledger
+
+Follow structure exactly as defined below.
+
+---
+
+OBJECTIVE
+
+---
+
+Ensure consumption recorded inside:
+
+Swatch Orders
+Style Orders
+
+automatically updates:
+
+material_consumption table
+
+inventory_items.current_stock
+
+inventory_items.available_stock
+
+material_reservations reserved quantities
+
+stock_ledger entries
+
+Inventory list screen values
+
+without duplicate manual entry.
+
+---
+
+SECTION 1 — LINK ORDER CONSUMPTION LOGS WITH INVENTORY CONSUMPTION TABLE
+
+---
+
+When consumption recorded inside:
+
+Swatch Order
+
+Style Order
+
+system must automatically create corresponding record in:
+
+material_consumption table
+
+Fields mapping:
+
+item_id → from order consumption log
+
+inventory_id → linked via inventory_items table
+
+consumption_type = Swatch OR Style
+
+reference_id = Swatch ID OR Style ID
+
+consumed_quantity → from order consumption entry
+
+consumed_by → logged-in user
+
+consumption_date → order consumption timestamp
+
+---
+
+SECTION 2 — UPDATE INVENTORY CURRENT STOCK
+
+---
+
+After order consumption recorded:
+
+system must automatically:
+
+inventory_items.current_stock -= consumed_quantity
+
+Then recalculate:
+
+available_stock
+
+Formula:
+
+available_stock =
+current_stock
+− style_reserved_qty
+− swatch_reserved_qty
+
+---
+
+SECTION 3 — UPDATE RESERVATION QUANTITY
+
+---
+
+If reservation exists for:
+
+same item_id
+
+same reference_id
+
+same reservation_type
+
+system must:
+
+reduce reservation quantity
+
+If:
+
+reservation fully consumed
+
+update:
+
+reservation status = Converted
+
+If:
+
+partially consumed
+
+keep:
+
+status = Active
+
+with remaining reserved quantity
+
+---
+
+SECTION 4 — CREATE STOCK LEDGER ENTRY
+
+---
+
+When consumption recorded inside orders:
+
+system must create ledger entry:
+
+transaction_type = Consumption
+
+reference_type = Swatch OR Style
+
+reference_number = reference_id
+
+out_quantity = consumed_quantity
+
+balance_quantity = updated_stock
+
+remarks = Auto generated from order consumption entry
+
+---
+
+SECTION 5 — PREVENT DUPLICATE CONSUMPTION ENTRIES
+
+---
+
+If same order consumption already synced into:
+
+material_consumption table
+
+system must:
+
+update existing record
+
+instead of inserting duplicate entry
+
+Match using:
+
+item_id
+
+reference_id
+
+consumption_type
+
+---
+
+SECTION 6 — DELETE ORDER CONSUMPTION ENTRY HANDLING
+
+---
+
+If consumption removed inside:
+
+Swatch Order
+
+Style Order
+
+system must automatically:
+
+restore inventory_items.current_stock
+
+restore reservation quantity
+
+remove stock_ledger entry
+
+update material_consumption table
+
+recalculate:
+
+available_stock
+
+---
+
+SECTION 7 — VALIDATION RULES
+
+---
+
+Before consumption sync:
+
+system must validate:
+
+consumed_quantity <= reserved_quantity
+
+If reservation exists
+
+Otherwise validate:
+
+consumed_quantity <= available_stock
+
+Prevent over-consumption.
+
+---
+
+SECTION 8 — INVENTORY LIST SCREEN AUTO REFRESH
+
+---
+
+After order consumption recorded:
+
+update immediately:
+
+current_stock
+
+style_reserved_qty
+
+swatch_reserved_qty
+
+available_stock
+
+without manual page refresh
+
+---
+
+SECTION 9 — LEDGER REVERSAL ENTRY SUPPORT
+
+---
+
+If consumption edited:
+
+system must:
+
+update ledger entry
+
+recalculate stock balance
+
+update reservation conversion status
+
+---
+
+SECTION 10 — AUTO UPDATE LAST UPDATED TIMESTAMP
+
+---
+
+Whenever consumption synced:
+
+update:
+
+inventory_items.last_updated_at
+
+---
+
+SECTION 11 — UI SUCCESS MESSAGE
+
+---
+
+After consumption recorded from order module:
+
+display message:
+
+Consumption synced with inventory successfully
+
+---
+
+END OF CONSUMPTION ENGINE INTEGRATION UPDATE
+
+---
+
+Update backend logic accordingly without modifying existing order consumption tables.

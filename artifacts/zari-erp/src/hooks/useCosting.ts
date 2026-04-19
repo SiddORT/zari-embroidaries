@@ -249,10 +249,11 @@ export function useSwatchConsumptionLog(swatchOrderId: number) {
 export function useAddConsumptionEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: ConsumptionLogRecord }>("/api/costing/consumption", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: ConsumptionLogRecord; inventoryUpdated?: boolean }>("/api/costing/consumption", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consumption-log"] });
       void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
     },
   });
 }
@@ -260,10 +261,11 @@ export function useAddConsumptionEntry() {
 export function useDeleteConsumptionEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/consumption/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => customFetch<{ success: boolean; inventoryUpdated?: boolean }>(`/api/costing/consumption/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consumption-log"] });
       void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
     },
   });
 }
@@ -548,10 +550,11 @@ export function useStyleConsumptionLog(styleOrderId: number) {
 export function useAddStyleConsumptionEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleConsumptionLogRecord }>("/api/costing/style-consumption", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleConsumptionLogRecord; inventoryUpdated?: boolean }>("/api/costing/style-consumption", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["style-consumption-log"] });
       void qc.invalidateQueries({ queryKey: ["style-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
     },
   });
 }
@@ -559,10 +562,11 @@ export function useAddStyleConsumptionEntry() {
 export function useDeleteStyleConsumptionEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/costing/consumption/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => customFetch<{ success: boolean; inventoryUpdated?: boolean }>(`/api/costing/consumption/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["style-consumption-log"] });
       void qc.invalidateQueries({ queryKey: ["style-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
     },
   });
 }

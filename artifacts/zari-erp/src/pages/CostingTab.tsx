@@ -1390,7 +1390,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     }, {
       onSuccess: () => {
         setShowAddModal(false);
-        toast({ title: "Consumption recorded" });
+        toast({ title: "Consumption synced with inventory successfully" });
       },
       onError: (err: any) => toast({ title: err?.message ?? "Failed to record consumption", variant: "destructive" }),
     });

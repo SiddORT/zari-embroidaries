@@ -183,6 +183,186 @@ async function autoCancelReservation(opts: {
   }
 }
 
+// ─── Consumption Engine Helpers ───────────────────────────────────────────────
+// Sections 2–4, 6–7, 10 of the Consumption Engine spec.
+// Called after inserting a consumption_log entry to sync inventory, reservations,
+// and stock_ledger. consumptionId is used as the ledger reference_number so the
+// reversal helper can delete it precisely.
+async function syncConsumptionWithInventory(opts: {
+  bomRow: { materialType: string; materialId: number };
+  orderId: number;
+  reservationType: "Style" | "Swatch";
+  consumedQty: number;
+  consumptionId: number;
+  actor: string;
+}): Promise<void> {
+  const { bomRow, orderId, reservationType, consumedQty, consumptionId, actor } = opts;
+  const col = reservationType === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+
+  // Find the inventory row
+  const invRows = await db
+    .select({ id: inventoryItemsTable.id })
+    .from(inventoryItemsTable)
+    .where(and(
+      eq(inventoryItemsTable.sourceType, bomRow.materialType),
+      eq(inventoryItemsTable.sourceId, bomRow.materialId),
+    ))
+    .limit(1);
+
+  if (!invRows.length) return;
+  const inventoryId = invRows[0].id;
+
+  const client = await (pool as any).connect();
+  try {
+    await client.query("BEGIN");
+
+    // Section 2 — deduct current_stock
+    await client.query(
+      `UPDATE inventory_items SET current_stock = GREATEST(0, current_stock::numeric - $1) WHERE id = $2`,
+      [consumedQty, inventoryId]
+    );
+
+    // Section 3 — adjust the matching active reservation
+    const rR = await client.query(
+      `SELECT id, reserved_quantity FROM material_reservations
+       WHERE inventory_id = $1 AND reservation_type = $2 AND reference_id = $3 AND status = 'Active'
+       ORDER BY id DESC LIMIT 1`,
+      [inventoryId, reservationType, orderId]
+    );
+    if (rR.rows.length > 0) {
+      const resv = rR.rows[0];
+      const oldQty = parseFloat(resv.reserved_quantity);
+      const newQty = Math.max(0, oldQty - consumedQty);
+      if (newQty <= 0) {
+        // Fully consumed → Converted
+        await client.query(
+          `UPDATE material_reservations SET reserved_quantity = 0, status = 'Converted' WHERE id = $1`,
+          [resv.id]
+        );
+        await client.query(
+          `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
+          [oldQty, inventoryId]
+        );
+      } else {
+        // Partially consumed
+        await client.query(
+          `UPDATE material_reservations SET reserved_quantity = $1 WHERE id = $2`,
+          [newQty, resv.id]
+        );
+        await client.query(
+          `UPDATE inventory_items SET ${col} = GREATEST(0, ${col}::numeric - $1) WHERE id = $2`,
+          [consumedQty, inventoryId]
+        );
+      }
+    }
+
+    // Section 2 — recalculate available_stock + Section 10 — touch last_updated_at
+    await client.query(
+      `UPDATE inventory_items
+       SET available_stock = GREATEST(0, current_stock::numeric - style_reserved_qty::numeric - swatch_reserved_qty::numeric),
+           last_updated_at = NOW()
+       WHERE id = $1`,
+      [inventoryId]
+    );
+
+    // Section 4 — stock ledger entry
+    const balR = await client.query(`SELECT current_stock FROM inventory_items WHERE id = $1`, [inventoryId]);
+    await client.query(
+      `INSERT INTO stock_ledger (item_id, transaction_type, reference_number, reference_type, in_quantity, out_quantity, balance_quantity, remarks, created_by)
+       VALUES ($1,'Consumption',$2,$3,0,$4,$5,$6,$7)`,
+      [inventoryId, String(consumptionId), reservationType,
+       consumedQty, balR.rows[0].current_stock,
+       `Consumption from ${reservationType} Order #${orderId} (log #${consumptionId})`, actor]
+    );
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("syncConsumptionWithInventory failed:", e);
+  } finally {
+    client.release();
+  }
+}
+
+// Reverses a consumption entry from inventory (Section 6).
+async function reverseConsumptionFromInventory(opts: {
+  entry: { id: number; swatchOrderId: number | null; styleOrderId: number | null; bomRowId: number; consumedQty: string };
+  materialType: string;
+  materialId: number;
+  actor: string;
+}): Promise<void> {
+  const { entry, materialType, materialId, actor } = opts;
+  const consumedQty = parseFloat(entry.consumedQty) || 0;
+  const orderId = entry.styleOrderId ?? entry.swatchOrderId;
+  const reservationType: "Style" | "Swatch" = entry.styleOrderId ? "Style" : "Swatch";
+  const col = reservationType === "Style" ? "style_reserved_qty" : "swatch_reserved_qty";
+
+  const invRows = await db
+    .select({ id: inventoryItemsTable.id })
+    .from(inventoryItemsTable)
+    .where(and(
+      eq(inventoryItemsTable.sourceType, materialType),
+      eq(inventoryItemsTable.sourceId, materialId),
+    ))
+    .limit(1);
+
+  if (!invRows.length) return;
+  const inventoryId = invRows[0].id;
+
+  const client = await (pool as any).connect();
+  try {
+    await client.query("BEGIN");
+
+    // Restore current_stock
+    await client.query(
+      `UPDATE inventory_items SET current_stock = current_stock::numeric + $1 WHERE id = $2`,
+      [consumedQty, inventoryId]
+    );
+
+    // Restore reservation — re-activate Converted or top-up Active
+    const rR = await client.query(
+      `SELECT id, reserved_quantity, status FROM material_reservations
+       WHERE inventory_id = $1 AND reservation_type = $2 AND reference_id = $3
+       ORDER BY id DESC LIMIT 1`,
+      [inventoryId, reservationType, orderId]
+    );
+    if (rR.rows.length > 0) {
+      const resv = rR.rows[0];
+      const restored = parseFloat(resv.reserved_quantity) + consumedQty;
+      await client.query(
+        `UPDATE material_reservations SET reserved_quantity = $1, status = 'Active' WHERE id = $2`,
+        [restored, resv.id]
+      );
+      await client.query(
+        `UPDATE inventory_items SET ${col} = ${col}::numeric + $1 WHERE id = $2`,
+        [consumedQty, inventoryId]
+      );
+    }
+
+    // Recalculate available_stock + touch last_updated_at
+    await client.query(
+      `UPDATE inventory_items
+       SET available_stock = GREATEST(0, current_stock::numeric - style_reserved_qty::numeric - swatch_reserved_qty::numeric),
+           last_updated_at = NOW()
+       WHERE id = $1`,
+      [inventoryId]
+    );
+
+    // Remove ledger entry for this consumption log
+    await client.query(
+      `DELETE FROM stock_ledger WHERE transaction_type = 'Consumption' AND reference_number = $1`,
+      [String(entry.id)]
+    );
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("reverseConsumptionFromInventory failed:", e);
+  } finally {
+    client.release();
+  }
+}
+
 // ─── Material Search (materials + fabrics combined) ───────────────────────────
 router.get("/material-search", requireAuth, async (req, res) => {
   const q = String(req.query.q ?? "").trim();
@@ -557,13 +737,27 @@ router.post("/consumption", requireAuth, async (req, res) => {
   await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
     .where(eq(swatchBomTable.id, Number(bomRowId)));
 
-  res.status(201).json({ data: entry });
+  // Consumption Engine — sync to inventory, reservations, ledger
+  await syncConsumptionWithInventory({
+    bomRow: { materialType: bomRow.materialType, materialId: bomRow.materialId },
+    orderId: Number(swatchOrderId),
+    reservationType: "Swatch",
+    consumedQty: newConsumedQty,
+    consumptionId: entry.id,
+    actor: user.email,
+  });
+
+  res.status(201).json({ data: entry, inventoryUpdated: true });
 });
 
 router.delete("/consumption/:id", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const [entry] = await db.select().from(consumptionLogTable).where(eq(consumptionLogTable.id, Number(req.params.id)));
   if (!entry) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Load BOM row before deletion so we have materialType + materialId for reversal
+  const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, entry.bomRowId)).limit(1);
+
   await db.delete(consumptionLogTable).where(eq(consumptionLogTable.id, Number(req.params.id)));
 
   // Recompute and update BOM consumed qty
@@ -572,7 +766,17 @@ router.delete("/consumption/:id", requireAuth, async (req, res) => {
   await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
     .where(eq(swatchBomTable.id, entry.bomRowId));
 
-  res.json({ success: true });
+  // Consumption Engine — reverse inventory / reservation / ledger
+  if (bomRow) {
+    await reverseConsumptionFromInventory({
+      entry: { id: entry.id, swatchOrderId: entry.swatchOrderId, styleOrderId: entry.styleOrderId, bomRowId: entry.bomRowId, consumedQty: entry.consumedQty },
+      materialType: bomRow.materialType,
+      materialId: bomRow.materialId,
+      actor: user.email,
+    });
+  }
+
+  res.json({ success: true, inventoryUpdated: true });
 });
 
 // ─── Vendor Search (for outsource jobs) ──────────────────────────────────────
@@ -948,7 +1152,17 @@ router.post("/style-consumption", requireAuth, async (req, res) => {
   await db.update(swatchBomTable).set({ consumedQty: totalConsumed.toString(), updatedBy: user.email, updatedAt: new Date() })
     .where(eq(swatchBomTable.id, Number(bomRowId)));
 
-  res.status(201).json({ data: entry });
+  // Consumption Engine — sync to inventory, reservations, ledger
+  await syncConsumptionWithInventory({
+    bomRow: { materialType: bomRow.materialType, materialId: bomRow.materialId },
+    orderId: Number(styleOrderId),
+    reservationType: "Style",
+    consumedQty: newConsumedQty,
+    consumptionId: entry.id,
+    actor: user.email,
+  });
+
+  res.status(201).json({ data: entry, inventoryUpdated: true });
 });
 
 // ─── Style Artisan Timesheets ─────────────────────────────────────────────────

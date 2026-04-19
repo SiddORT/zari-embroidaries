@@ -1129,7 +1129,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
       styleOrderProductId: addForm.productId ? Number(addForm.productId) : null,
       styleOrderProductName: addForm.productName || null,
     }, {
-      onSuccess: () => { setShowAddModal(false); toast({ title: "Consumption recorded" }); },
+      onSuccess: () => { setShowAddModal(false); toast({ title: "Consumption synced with inventory successfully" }); },
       onError: (err: any) => toast({ title: err?.message ?? "Failed to record consumption", variant: "destructive" }),
     });
   }
