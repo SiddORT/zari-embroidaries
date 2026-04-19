@@ -349,8 +349,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   </span>
                 </span>
               </th>
-              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Req Qty</th>
-              <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved</th>
+              <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Req / Reserved Qty</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Total ₹</th>
               <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">PO Qty</th>
               <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">PR Qty</th>
@@ -362,7 +361,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={13} className="px-4 py-6 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></td></tr>
+              <tr><td colSpan={12} className="px-4 py-6 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></td></tr>
             ) : filteredRows.length === 0 ? (
               <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
             ) : filteredRows.map(r => {
@@ -400,13 +399,9 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   <td className="px-3 py-2.5 text-amber-700 whitespace-nowrap">
                     {m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-3 py-2.5 font-semibold text-gray-800">{r.requiredQty}</td>
                   <td className="px-3 py-2.5">
-                    {(r as any).liveReservedQty != null ? (
-                      <span className="font-semibold text-violet-700">{parseFloat((r as any).liveReservedQty).toFixed(3)}</span>
-                    ) : (
-                      <span className="text-gray-300 text-[10px]">—</span>
-                    )}
+                    <span className="font-semibold text-violet-700">{parseFloat(r.requiredQty).toFixed(3)}</span>
+                    <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
                   </td>
                   <td className="px-3 py-2.5 font-semibold text-amber-700">
                     {m.poTargetTotal > 0 ? `₹${m.poTargetTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
@@ -483,10 +478,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
             </div>
             <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm">
               <div className="font-semibold text-gray-800">[{editRow.materialCode}] {editRow.materialName}</div>
-              <div className="text-xs text-gray-500 mt-1">Current required: <span className="font-semibold text-gray-700">{editRow.requiredQty} {editRow.unitType}</span></div>
-              {(editRow as any).liveReservedQty != null && (
-                <div className="text-xs text-violet-700 mt-0.5">Currently reserved: <span className="font-semibold">{parseFloat((editRow as any).liveReservedQty).toFixed(4)} {editRow.unitType}</span></div>
-              )}
+              <div className="text-xs text-violet-700 mt-1">Current Req / Reserved: <span className="font-semibold">{editRow.requiredQty} {editRow.unitType}</span></div>
             </div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">New Required Quantity *</label>
             <input type="number" min="0.001" step="any" value={editQty}
@@ -1475,18 +1467,12 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     setShowAddModal(true);
   }
 
-  // Compute cap for the consumption modal:
-  // If an active reservation exists for this order, cap = reserved qty (full amount the reservation allows).
-  // Otherwise fall back to available stock.
+  // Required qty = Reserved qty. Cap = required qty minus what has already been consumed.
   const selectedRow = bomRows.find(r => String(r.id) === addForm.bomRowId);
   const selectedRowMetrics = selectedRow ? computeRowMetrics(selectedRow, pos, prs) : null;
-  const reservedQty = selectedRow && (selectedRow as any).liveReservedQty != null
-    ? parseFloat((selectedRow as any).liveReservedQty)
-    : null;
-  const availableStock = selectedRowMetrics
-    ? (reservedQty !== null
-        ? Math.max(0, reservedQty)
-        : Math.max(0, selectedRowMetrics.stockNum + selectedRowMetrics.prQty - selectedRowMetrics.consumedQtyNum))
+  const reservedQty = selectedRow ? parseFloat(selectedRow.requiredQty) : null;
+  const availableStock = selectedRowMetrics && reservedQty !== null
+    ? Math.max(0, reservedQty - selectedRowMetrics.consumedQtyNum)
     : null;
 
   function handleAddConsumption() {
@@ -1495,10 +1481,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
     if (!row) return;
     if (availableStock !== null && parseFloat(addForm.consumedQty) > availableStock) {
-      const msg = reservedQty !== null
-        ? `Cannot consume more than the reserved quantity (${availableStock.toFixed(4)} ${row.unitType})`
-        : `Cannot consume more than available stock (${availableStock.toFixed(4)} ${row.unitType})`;
-      toast({ title: msg, variant: "destructive" }); return;
+      toast({ title: `Cannot consume more than the required/reserved quantity (${availableStock.toFixed(4)} ${row.unitType})`, variant: "destructive" }); return;
     }
     addEntry.mutate({
       swatchOrderId, bomRowId: Number(addForm.bomRowId),
@@ -1559,7 +1542,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <span title="Base stock + all PR received quantities" className="cursor-help text-gray-500 hover:text-gray-500"><Info className="h-3 w-3" /></span>
                   </span>
                 </th>
-                <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Reserved for Order</th>
+                <th className="text-left text-[10px] font-semibold text-violet-500 px-3 py-2 whitespace-nowrap">Req / Reserved</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Avg Price (₹)</th>
                 <th className="text-left text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Consumed Qty</th>
                 <th className="text-left text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Consumed Total (₹)</th>
@@ -1592,11 +1575,8 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                       )}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      {(r as any).liveReservedQty != null ? (
-                        <span className="font-semibold text-violet-700">{parseFloat((r as any).liveReservedQty).toFixed(4)}</span>
-                      ) : (
-                        <span className="text-gray-300 text-[10px]">—</span>
-                      )}
+                      <span className="font-semibold text-violet-700">{parseFloat(r.requiredQty).toFixed(4)}</span>
+                      <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
                     </td>
                     <td className="px-3 py-2.5 text-gray-700">₹{m.weightedAvg.toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-amber-700 font-medium">{m.consumedQtyNum.toFixed(2)} {r.unitType}</td>
@@ -1670,25 +1650,19 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <span className="text-gray-500">{selectedRow.unitType}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {reservedQty !== null ? (<>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">RESERVED</span>
-                      <span className="text-gray-500">Reserved (this order):</span>
-                      <span className="font-bold text-violet-700">{reservedQty.toFixed(4)} {selectedRow.unitType}</span>
-                      {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600">FULLY CONSUMED</span>}
-                    </>) : (<>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-500">NO RESERVATION</span>
-                      <span className="text-gray-400 text-[10px]">No active reservation for this order</span>
-                    </>)}
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">REQ / RESERVED</span>
+                    <span className="text-gray-500">For this order:</span>
+                    <span className="font-bold text-violet-700">{reservedQty !== null ? reservedQty.toFixed(4) : "—"} {selectedRow.unitType}</span>
+                    {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600">FULLY CONSUMED</span>}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-gray-500">Consumed:</span>
                     <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(4)}</span>
                     <span className="mx-1 text-gray-300">|</span>
-                    <span className="text-gray-500">{reservedQty !== null ? "Remaining cap:" : "Available:"}</span>
-                    <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : reservedQty !== null ? "text-violet-700" : "text-green-700"}`}>
+                    <span className="text-gray-500">Remaining cap:</span>
+                    <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-violet-700"}`}>
                       {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
                     </span>
-                    {availableStock !== null && availableStock <= 0 && reservedQty === null && <span className="text-[10px] font-semibold text-red-600">NO STOCK</span>}
                   </div>
                 </div>
               )}
@@ -1700,8 +1674,8 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                   placeholder="0"
                   max={availableStock !== null ? availableStock : undefined} />
                 {selectedRow && availableStock !== null && availableStock > 0 && (
-                  <p className="text-[10px] mt-1" style={{ color: reservedQty !== null ? "#7c3aed" : "#9ca3af" }}>
-                    {reservedQty !== null ? "Reserved max" : "Max"}: {availableStock.toFixed(4)} {selectedRow.unitType}
+                  <p className="text-[10px] mt-1 text-violet-600">
+                    Remaining cap: {availableStock.toFixed(4)} {selectedRow.unitType}
                   </p>
                 )}
               </div>
