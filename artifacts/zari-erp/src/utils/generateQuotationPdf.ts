@@ -278,7 +278,14 @@ function addContentPage(doc: jsPDF, data: QuotationPdfData) {
     curY += 6;
     autoTable(doc, {
       startY: curY,
-      head: [["Charge / Description", "HSN", "Unit", "Qty", "Price", "Amount"]],
+      head: [[
+        "Charge / Description",
+        { content: "HSN",    styles: { halign: "right" } },
+        { content: "Unit",   styles: { halign: "right" } },
+        { content: "Qty",    styles: { halign: "right" } },
+        { content: "Price",  styles: { halign: "right" } },
+        { content: "Amount", styles: { halign: "right" } },
+      ]],
       body: data.charges.map((c) => [
         c.charge_name,
         c.hsn_code || "—",

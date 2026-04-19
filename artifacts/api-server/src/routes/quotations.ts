@@ -288,12 +288,28 @@ router.post("/quotations/:id/status", requireAuth, async (req: AuthRequest, res)
   try {
     const { id } = req.params;
     const { newStatus } = req.body as { newStatus: string };
-    const q = await pool.query(`SELECT status FROM quotations WHERE id = $1`, [id]);
+    const q = await pool.query(`SELECT status, parent_quotation_id FROM quotations WHERE id = $1`, [id]);
     if (!q.rows.length) return res.status(404).json({ error: "Not found" });
     const current = q.rows[0].status;
     const allowed = STATUS_TRANSITIONS[current] ?? [];
     if (!allowed.includes(newStatus)) {
       return res.status(400).json({ error: `Cannot transition from "${current}" to "${newStatus}"` });
+    }
+    // Only one revision per chain may be Approved
+    if (newStatus === "Approved") {
+      const rootId = q.rows[0].parent_quotation_id ?? id;
+      const conflict = await pool.query(
+        `SELECT id FROM quotations
+         WHERE (id = $1 OR parent_quotation_id = $1)
+           AND id != $2
+           AND status = 'Approved'`,
+        [rootId, id]
+      );
+      if (conflict.rows.length > 0) {
+        return res.status(400).json({
+          error: "Another revision in this quotation chain is already Approved. Only one revision can be approved.",
+        });
+      }
     }
     await pool.query(
       `UPDATE quotations SET status=$1, updated_at=NOW() WHERE id=$2`,
@@ -407,13 +423,14 @@ router.post("/quotations/:id/convert-swatch", requireAuth, async (req: AuthReque
 
     const swRes = await client.query(
       `INSERT INTO swatch_orders
-         (order_code, swatch_name, client_id, client_name, quantity, priority, order_status, description)
-       VALUES ($1,$2,$3,$4,1,'Medium','Draft',$5)
+         (order_code, swatch_name, client_id, client_name, quantity, priority, order_status, description, created_by)
+       VALUES ($1,$2,$3,$4,1,'Medium','Draft',$5,$6)
        RETURNING id`,
       [swCode,
        firstDesign?.design_name || `Swatch from ${qt.quotation_number}`,
        qt.client_id, qt.client_name,
-       qt.requirement_summary || null]
+       qt.requirement_summary || null,
+       actor]
     );
     const swId = swRes.rows[0].id;
 
@@ -455,14 +472,15 @@ router.post("/quotations/:id/convert-style", requireAuth, async (req: AuthReques
 
     const stRes = await client.query(
       `INSERT INTO style_orders
-         (order_code, style_name, style_no, client_id, client_name, quantity, priority, order_status, description)
-       VALUES ($1,$2,$3,$4,$5,1,'Medium','Draft',$6)
+         (order_code, style_name, style_no, client_id, client_name, quantity, priority, order_status, description, created_by)
+       VALUES ($1,$2,$3,$4,$5,1,'Medium','Draft',$6,$7)
        RETURNING id`,
       [stCode,
        firstDesign?.design_name || `Style from ${qt.quotation_number}`,
        stCode,
        qt.client_id, qt.client_name,
-       qt.requirement_summary || null]
+       qt.requirement_summary || null,
+       actor]
     );
     const stId = stRes.rows[0].id;
 
