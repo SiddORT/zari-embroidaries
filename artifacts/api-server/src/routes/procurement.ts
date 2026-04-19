@@ -780,7 +780,10 @@ router.get("/procurement/item-tracking", requireAuth, async (req, res) => {
 router.get("/procurement/approved-pos", requireAuth, async (req, res) => {
   try {
     const { search = "" } = req.query as { search?: string };
-    const conditions = ["po.status IN ('Approved','Partially Received')"];
+    const conditions = [
+      "po.status IN ('Approved','Partially Received')",
+      "EXISTS (SELECT 1 FROM purchase_order_items WHERE po_id = po.id AND pending_quantity::numeric > 0)",
+    ];
     const params: string[] = [];
     if (search) {
       params.push(`%${search}%`);
@@ -789,8 +792,8 @@ router.get("/procurement/approved-pos", requireAuth, async (req, res) => {
     const where = `WHERE ${conditions.join(" AND ")}`;
     const rows = await pool.query(
       `SELECT po.id, po.po_number, po.vendor_name, po.reference_type, po.status,
-         (SELECT COUNT(*) FROM purchase_order_items WHERE po_id = po.id)::int AS item_count
-       FROM purchase_orders po ${where} ORDER BY po.created_at DESC LIMIT 50`,
+         (SELECT COUNT(*) FROM purchase_order_items WHERE po_id = po.id AND pending_quantity::numeric > 0)::int AS pending_items
+       FROM purchase_orders po ${where} ORDER BY po.created_at DESC LIMIT 100`,
       params
     );
     res.json(rows.rows);

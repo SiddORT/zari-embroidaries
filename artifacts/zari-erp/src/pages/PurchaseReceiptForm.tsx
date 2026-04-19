@@ -27,7 +27,7 @@ interface ApprovedPO {
   vendor_name: string;
   reference_type: string;
   status: string;
-  item_count: number;
+  pending_items: number;
 }
 
 interface POItem {
@@ -602,10 +602,10 @@ export default function PurchaseReceiptForm() {
                 <select value={selectedPoId}
                   onChange={e => setSelectedPoId(e.target.value ? parseInt(e.target.value) : "")}
                   className="w-full appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white">
-                  <option value="">Select approved PO…</option>
+                  <option value="">Select open PO with pending items…</option>
                   {approvedPos.map(po => (
                     <option key={po.id} value={po.id}>
-                      {po.po_number} — {po.vendor_name} ({po.reference_type})
+                      {po.po_number} — {po.vendor_name} · {po.pending_items} pending item{po.pending_items !== 1 ? "s" : ""}
                     </option>
                   ))}
                 </select>
@@ -613,7 +613,7 @@ export default function PurchaseReceiptForm() {
               </div>
               {approvedPos.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" /> No approved POs found. Approve a PO first.
+                  <AlertTriangle className="h-3 w-3" /> No open POs with pending items. Approve a PO or check pending quantities.
                 </p>
               )}
             </div>
