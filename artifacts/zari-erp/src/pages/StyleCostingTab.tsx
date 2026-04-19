@@ -4,8 +4,9 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
   ArrowRight, Paperclip, Package, Info, Download, Clock, Truck,
-  Pencil, History,
+  Pencil, History, FileDown,
 } from "lucide-react";
+import { downloadBomPdf } from "@/utils/pdfExport";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -174,6 +175,33 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
 
   const filteredRows = typeFilter === "all" ? rows : rows.filter(r => r.materialType === typeFilter);
 
+  const [pdfExporting, setPdfExporting] = useState(false);
+
+  function exportToPdf() {
+    setPdfExporting(true);
+    try {
+      downloadBomPdf({
+        referenceType: "style",
+        referenceId: styleOrderId,
+        orderCode,
+        entityName: styleName,
+        clientName,
+        rows: rows.map(r => ({
+          materialName: r.materialName,
+          materialCode: r.materialCode,
+          materialType: r.materialType,
+          requiredQty: r.requiredQty,
+          unitType: r.unitType,
+        })),
+      });
+      toast({ title: "BOM PDF generated successfully" });
+    } catch {
+      toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
+    } finally {
+      setPdfExporting(false);
+    }
+  }
+
   function exportToExcel() {
     const today = new Date().toLocaleDateString("en-IN");
     const header = [
@@ -219,6 +247,18 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
             <button onClick={exportToExcel}
               className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
               <Download className="h-3.5 w-3.5" /> Export
+            </button>
+          )}
+          {rows.length > 0 && (
+            <button
+              onClick={exportToPdf}
+              disabled={pdfExporting}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#C6AF4B] text-[#8a7a30] hover:bg-[#fdf9ec] transition-colors disabled:opacity-60"
+            >
+              {pdfExporting
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <FileDown className="h-3.5 w-3.5" />}
+              Export BOM PDF
             </button>
           )}
           <button onClick={() => setShowForm(v => !v)}

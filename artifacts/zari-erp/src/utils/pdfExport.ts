@@ -294,3 +294,236 @@ function addFooter(doc: jsPDF) {
     doc.text(`Page ${i} of ${pageCount}  ·  ZARI EMBROIDERIES  ·  Confidential`, 14, 290);
   }
 }
+
+// ─── BOM PDF ──────────────────────────────────────────────────────────────────
+
+export interface BomPdfRow {
+  materialName: string;
+  materialCode: string;
+  materialType: string;
+  requiredQty: string;
+  unitType: string;
+}
+
+export interface BomPdfData {
+  referenceType: "swatch" | "style";
+  referenceId: string | number;
+  orderCode?: string;
+  entityName?: string;
+  clientName?: string;
+  rows: BomPdfRow[];
+}
+
+const PREVIEW_COL = 2; // 0-indexed, 3rd column
+
+export function downloadBomPdf(data: BomPdfData) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  // ── Header band ──
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 0, 210, 18, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("ZARI EMBROIDERIES", 14, 9);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text("SAMPLING DOCUMENTATION", 14, 14);
+
+  // ── Document title ──
+  doc.setTextColor(...DARK);
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("Bill of Materials", 14, 28);
+
+  // ── Gold rule ──
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(14, 32, 196, 32);
+
+  // ── Reference info block ──
+  const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const fields: [string, string][] = [
+    [data.referenceType === "swatch" ? "Swatch Order" : "Style Order", data.orderCode ?? String(data.referenceId)],
+    ["Client",   data.clientName ?? "—"],
+    [data.referenceType === "swatch" ? "Swatch Name" : "Style Name", data.entityName ?? "—"],
+    ["Date",     today],
+    ["Total Items", String(data.rows.length)],
+    ["Document", "BOM / Sampling"],
+  ];
+  let y = 38;
+  const colW = 91;
+  fields.forEach(([label, value], idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const x = 14 + col * colW;
+    const fy = y + row * 10;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...GRAY);
+    doc.text(label.toUpperCase(), x, fy);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...DARK);
+    doc.setFontSize(8.5);
+    doc.text(String(value || "—"), x, fy + 4.5);
+  });
+
+  y += Math.ceil(fields.length / 2) * 10 + 6;
+
+  // ── Section label ──
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...GRAY);
+  doc.text("MATERIAL LIST", 14, y);
+  y += 3;
+
+  // ── Preview box dimensions: 80 mm wide × 60 mm tall ──
+  const PREVIEW_H = 60; // mm per row
+  const PREVIEW_W = 80; // mm cell content width
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Item Name", "Quantity & Unit", "Sample Preview Box"]],
+    body: data.rows.length > 0
+      ? data.rows.map(r => [
+          `${r.materialName}\n${r.materialCode ? `[${r.materialCode}]` : ""}${r.materialType ? `  •  ${r.materialType === "fabric" ? "Fabric" : "Material"}` : ""}`,
+          `${parseFloat(r.requiredQty || "0").toFixed(3)}\n${r.unitType || "—"}`,
+          "",
+        ])
+      : [["No BOM rows available", "—", ""]],
+    styles: {
+      fontSize: 8.5,
+      cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
+      textColor: DARK,
+      valign: "top",
+      lineColor: [200, 200, 200],
+      lineWidth: 0.2,
+      minCellHeight: PREVIEW_H,
+    },
+    headStyles: {
+      fillColor: DARK,
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 8,
+      minCellHeight: 9,
+    },
+    columnStyles: {
+      0: { cellWidth: 70, fontStyle: "normal" },
+      1: { cellWidth: 30, halign: "center", valign: "middle" },
+      2: { cellWidth: PREVIEW_W, halign: "center", valign: "middle" },
+    },
+    alternateRowStyles: { fillColor: [252, 250, 246] },
+    margin: { left: 14, right: 14 },
+    // Repeat header on every new page
+    showHead: "everyPage",
+    didDrawCell(hookData) {
+      // Draw the preview box inside column 2 (Sample Preview Box)
+      if (hookData.section === "body" && hookData.column.index === PREVIEW_COL && data.rows.length > 0) {
+        const { x, y: cy, width, height } = hookData.cell;
+        const pad = 5; // inner padding in mm
+        const bx = x + pad;
+        const by = cy + pad;
+        const bw = width - pad * 2;
+        const bh = height - pad * 2;
+
+        // Outer border box
+        doc.setDrawColor(...GOLD);
+        doc.setLineWidth(0.6);
+        doc.rect(bx, by, bw, bh);
+
+        // Inner dashed corner marks (top-left, top-right, bottom-left, bottom-right)
+        const mark = 4;
+        doc.setDrawColor(200, 185, 130);
+        doc.setLineWidth(0.3);
+        // TL
+        doc.line(bx, by + mark, bx, by); doc.line(bx, by, bx + mark, by);
+        // TR
+        doc.line(bx + bw - mark, by, bx + bw, by); doc.line(bx + bw, by, bx + bw, by + mark);
+        // BL
+        doc.line(bx, by + bh - mark, bx, by + bh); doc.line(bx, by + bh, bx + mark, by + bh);
+        // BR
+        doc.line(bx + bw - mark, by + bh, bx + bw, by + bh); doc.line(bx + bw, by + bh, bx + bw, by + bh - mark);
+
+        // Centre label
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(180, 165, 110);
+        doc.text("Sample / Swatch Area", bx + bw / 2, by + bh / 2 - 2.5, { align: "center" });
+        doc.setFontSize(6);
+        doc.text("(attach / mark / sign below)", bx + bw / 2, by + bh / 2 + 2.5, { align: "center" });
+      }
+    },
+  });
+
+  // ── Signature footer block on last page ──
+  const finalY: number = (doc as any).lastAutoTable.finalY ?? 260;
+  const sigY = finalY + 12;
+
+  // Check if footer fits on current page, otherwise add new page
+  const pageH = 297;
+  const footerH = 40;
+  const startSigY = sigY + footerH > pageH - 10 ? (() => { doc.addPage(); return 20; })() : sigY;
+
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.4);
+  doc.line(14, startSigY, 196, startSigY);
+
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...DARK);
+  doc.text("APPROVAL & SIGN-OFF", 14, startSigY + 6);
+
+  const sigBoxes = [
+    { label: "Prepared By", x: 14 },
+    { label: "Reviewed By", x: 80 },
+    { label: "Approved By", x: 146 },
+  ];
+
+  sigBoxes.forEach(({ label, x }) => {
+    const bY = startSigY + 12;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...GRAY);
+    doc.text(label.toUpperCase(), x, bY);
+
+    // Name line
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(x, bY + 10, x + 54, bY + 10);
+    doc.setFontSize(6.5);
+    doc.setTextColor(...GRAY);
+    doc.text("Name & Designation", x, bY + 14);
+
+    // Date line
+    doc.setTextColor(200, 200, 200);
+    doc.line(x, bY + 22, x + 54, bY + 22);
+    doc.setFontSize(6.5);
+    doc.setTextColor(...GRAY);
+    doc.text("Date", x, bY + 26);
+
+    // Signature box
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.3);
+    doc.rect(x, bY + 28, 54, 10);
+    doc.setFontSize(6);
+    doc.setTextColor(200, 185, 130);
+    doc.text("Signature", x + 27, bY + 34, { align: "center" });
+  });
+
+  // ── Page numbers ──
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(160, 160, 160);
+    doc.text(
+      `Page ${i} of ${pageCount}  ·  ZARI EMBROIDERIES  ·  Bill of Materials  ·  Confidential`,
+      14, 290,
+    );
+  }
+
+  const filename = `BOM_${data.orderCode ?? data.referenceId}_${today.replace(/\s/g, "-")}.pdf`;
+  doc.save(filename);
+}
