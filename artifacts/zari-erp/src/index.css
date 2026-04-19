@@ -234,6 +234,10 @@
     color: #111827;
     background-color: #ffffff;
   }
+
+  input, textarea {
+    color: #111827;
+  }
 }
 
 /**

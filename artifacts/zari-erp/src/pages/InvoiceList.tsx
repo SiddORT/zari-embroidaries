@@ -20,7 +20,7 @@ function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
 }
 
 const DIRECTIONS = ["Client", "Vendor"] as const;
-const TYPES = ["Proforma", "Advance", "Partial", "Material Recovery", "Artwork Charges", "Courier Charges", "Final Invoice", "Custom"] as const;
+const TYPES = ["Proforma", "Advance", "Partial", "Final Invoice", "Custom"] as const;
 const STATUSES = ["Draft", "Sent", "Paid", "Partial", "Cancelled"] as const;
 
 const STATUS_COLORS: Record<string, string> = {

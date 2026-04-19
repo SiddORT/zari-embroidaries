@@ -20,14 +20,11 @@ function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
 }
 
 const DIRECTIONS = ["Client", "Vendor"] as const;
-const TYPES = ["Proforma", "Advance", "Partial", "Material Recovery", "Artwork Charges", "Courier Charges", "Final Invoice", "Custom"] as const;
+const TYPES = ["Proforma", "Advance", "Partial", "Final Invoice", "Custom"] as const;
 const TYPE_COLORS: Record<string, string> = {
   "Proforma": "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
   "Advance": "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100",
   "Partial": "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
-  "Material Recovery": "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
-  "Artwork Charges": "bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100",
-  "Courier Charges": "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100",
   "Final Invoice": "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
   "Custom": "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100",
 };
