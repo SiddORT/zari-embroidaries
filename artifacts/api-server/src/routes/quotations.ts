@@ -128,6 +128,7 @@ router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
       clientId, clientName, clientState, requirementSummary,
       estimatedWeight, estimatedShippingCharges, internalNotes, clientNotes,
       designs = [], charges = [],
+      gstType: gstTypeOverride, gstRate: gstRateOverride,
     } = req.body;
 
     await client.query("BEGIN");
@@ -136,7 +137,13 @@ router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
 
     const chargesTotal = charges.reduce((s: number, c: any) => s + (parseFloat(c.quantity) || 1) * (parseFloat(c.price) || 0), 0);
     const subtotal = chargesTotal;
-    const gst = calcGst(clientState, subtotal, parseFloat(estimatedShippingCharges) || 0);
+    const autoGst = calcGst(clientState, subtotal, parseFloat(estimatedShippingCharges) || 0);
+    const gstRate = gstRateOverride != null ? parseFloat(gstRateOverride) : autoGst.rate;
+    const gst = {
+      type: gstTypeOverride || autoGst.type,
+      rate: gstRate,
+      amount: parseFloat((subtotal * gstRate / 100).toFixed(2)),
+    };
     const total = subtotal + gst.amount + (parseFloat(estimatedShippingCharges) || 0);
 
     const qRes = await client.query(
@@ -189,6 +196,7 @@ router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
       clientId, clientName, clientState, requirementSummary,
       estimatedWeight, estimatedShippingCharges, internalNotes, clientNotes,
       designs = [], charges = [],
+      gstType: gstTypeOverride, gstRate: gstRateOverride,
     } = req.body;
 
     const existing = await client.query(`SELECT status FROM quotations WHERE id = $1`, [id]);
@@ -198,7 +206,13 @@ router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
 
     const chargesTotal = charges.reduce((s: number, c: any) => s + (parseFloat(c.quantity) || 1) * (parseFloat(c.price) || 0), 0);
     const subtotal = chargesTotal;
-    const gst = calcGst(clientState, subtotal, parseFloat(estimatedShippingCharges) || 0);
+    const autoGst = calcGst(clientState, subtotal, parseFloat(estimatedShippingCharges) || 0);
+    const gstRate = gstRateOverride != null ? parseFloat(gstRateOverride) : autoGst.rate;
+    const gst = {
+      type: gstTypeOverride || autoGst.type,
+      rate: gstRate,
+      amount: parseFloat((subtotal * gstRate / 100).toFixed(2)),
+    };
     const total = subtotal + gst.amount + (parseFloat(estimatedShippingCharges) || 0);
 
     await client.query(

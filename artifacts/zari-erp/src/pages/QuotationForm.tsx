@@ -75,23 +75,30 @@ export default function QuotationForm() {
     selectedClient?.addresses?.find((a) => a.isBillingDefault)?.state ??
     selectedClient?.addresses?.[0]?.state ??
     "";
-  const gstType = clientState.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST";
-
   // ── Form State ─────────────────────────────────────────────────────────────
   const [requirementSummary, setRequirementSummary] = useState("");
   const [estimatedWeight, setEstimatedWeight] = useState("");
-  const [estimatedShippingCharges, setEstimatedShippingCharges] = useState("0");
+  const [shippingRatePerKg, setShippingRatePerKg] = useState("0");
   const [internalNotes, setInternalNotes] = useState("");
   const [clientNotes, setClientNotes] = useState("");
+  const [gstTaxType, setGstTaxType] = useState("IGST");
+  const [gstRate, setGstRate] = useState("18");
   const [designs, setDesigns] = useState<Design[]>([emptyDesign()]);
   const [charges, setCharges] = useState<Charge[]>([emptyCharge()]);
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(isEdit);
 
+  // Auto-set GST type from client state (only when client changes and user hasn't overridden)
+  useEffect(() => {
+    if (!clientState) return;
+    setGstTaxType(clientState.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST");
+  }, [clientState]);
+
   // ── Computed Totals ────────────────────────────────────────────────────────
+  const estimatedShippingCharges = (parseFloat(estimatedWeight) || 0) * (parseFloat(shippingRatePerKg) || 0);
   const subtotal = charges.reduce((s, c) => s + (parseFloat(c.quantity) || 0) * (parseFloat(c.price) || 0), 0);
-  const shipping = parseFloat(estimatedShippingCharges) || 0;
-  const gstAmount = parseFloat((subtotal * 0.18).toFixed(2));
+  const shipping = estimatedShippingCharges;
+  const gstAmount = parseFloat((subtotal * (parseFloat(gstRate) || 0) / 100).toFixed(2));
   const total = subtotal + gstAmount + shipping;
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
@@ -106,7 +113,11 @@ export default function QuotationForm() {
         if (d.client_id) setSelectedClientId(String(d.client_id));
         setRequirementSummary(d.requirement_summary || "");
         setEstimatedWeight(d.estimated_weight || "");
-        setEstimatedShippingCharges(d.estimated_shipping_charges || "0");
+        const weight = parseFloat(d.estimated_weight) || 0;
+        const savedShipping = parseFloat(d.estimated_shipping_charges) || 0;
+        setShippingRatePerKg(weight > 0 ? String((savedShipping / weight).toFixed(2)) : "0");
+        if (d.gst_type) setGstTaxType(d.gst_type);
+        if (d.gst_rate != null) setGstRate(String(d.gst_rate));
         setInternalNotes(d.internal_notes || "");
         setClientNotes(d.client_notes || "");
         setDesigns(
@@ -167,7 +178,9 @@ export default function QuotationForm() {
             clientState: clientState,
             requirementSummary: requirementSummary.trim(),
             estimatedWeight: parseFloat(estimatedWeight) || 0,
-            estimatedShippingCharges: parseFloat(estimatedShippingCharges) || 0,
+            estimatedShippingCharges: estimatedShippingCharges,
+            gstType: gstTaxType,
+            gstRate: parseFloat(gstRate) || 18,
             internalNotes: internalNotes.trim(),
             clientNotes: clientNotes.trim(),
             designs: validDesigns,
@@ -497,31 +510,56 @@ export default function QuotationForm() {
 
           {/* Shipping */}
           <div className="flex justify-end mt-4">
-            <div className="w-56">
-              <label className={labelCls}>Shipping Charges (₹)</label>
-              <input type="number" min="0" step="0.01" className={inputCls}
-                value={estimatedShippingCharges} onChange={(e) => setEstimatedShippingCharges(e.target.value)} />
+            <div className="flex items-end gap-3">
+              <div className="w-36">
+                <label className={labelCls}>Weight (kg)</label>
+                <input type="number" min="0" step="0.001" className={inputCls}
+                  value={estimatedWeight} onChange={(e) => setEstimatedWeight(e.target.value)} />
+              </div>
+              <div className="w-36">
+                <label className={labelCls}>Rate / kg (₹)</label>
+                <input type="number" min="0" step="0.01" className={inputCls}
+                  value={shippingRatePerKg} onChange={(e) => setShippingRatePerKg(e.target.value)} />
+              </div>
+              <div className="w-36">
+                <label className={labelCls}>Shipping Total</label>
+                <div className="px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 text-gray-700 font-semibold">
+                  {fmt(estimatedShippingCharges)}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Totals */}
           <div className="mt-4 border-t border-gray-100 pt-4">
-            <div className="flex flex-col items-end gap-1 text-sm">
-              <div className="flex justify-between w-60">
+            <div className="flex flex-col items-end gap-2 text-sm">
+              <div className="flex justify-between w-72">
                 <span className="text-gray-500">Subtotal</span>
                 <span className="font-semibold">{fmt(subtotal)}</span>
               </div>
-              <div className="flex justify-between w-60">
-                <span className="text-gray-500">
-                  GST @ 18%{clientState ? <span className="text-xs text-gray-400 ml-1">({gstType})</span> : null}
-                </span>
+              <div className="flex items-center justify-between w-72 gap-2">
+                <div className="flex items-center gap-2 flex-1">
+                  <select
+                    className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-700"
+                    value={gstTaxType} onChange={(e) => setGstTaxType(e.target.value)}>
+                    <option value="GST">GST</option>
+                    <option value="CGST+SGST">CGST+SGST</option>
+                    <option value="IGST">IGST</option>
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <input type="number" min="0" max="100" step="0.01"
+                      className="w-16 text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-700"
+                      value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
+                    <span className="text-gray-400 text-xs">%</span>
+                  </div>
+                </div>
                 <span className="font-semibold">{fmt(gstAmount)}</span>
               </div>
-              <div className="flex justify-between w-60">
+              <div className="flex justify-between w-72">
                 <span className="text-gray-500">Shipping</span>
                 <span className="font-semibold">{fmt(shipping)}</span>
               </div>
-              <div className="flex justify-between w-60 pt-1 border-t border-gray-200 mt-1">
+              <div className="flex justify-between w-72 pt-1 border-t border-gray-200 mt-1">
                 <span className="font-bold text-gray-900">Total</span>
                 <span className="font-bold text-[#C6AF4B] text-lg">{fmt(total)}</span>
               </div>
