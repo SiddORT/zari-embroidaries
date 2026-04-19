@@ -144,7 +144,7 @@ export default function InvoiceList() {
     }
   }
 
-  const card = "bg-white rounded-2xl border border-gray-100 shadow-sm";
+  const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
   const sel = "rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-[#C6AF4B] bg-white";
 
   const totalPending = invoices.reduce((s, i) => s + parseFloat(String(i.pendingAmount ?? 0)), 0);
@@ -156,9 +156,14 @@ export default function InvoiceList() {
       <div className="py-6 px-6 max-w-screen-2xl mx-auto space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Manage client & vendor invoices</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl" style={{ background: `${G}18` }}>
+              <FileText size={20} style={{ color: G }} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
+              <p className="text-sm text-gray-400 mt-0.5">Manage client &amp; vendor invoices</p>
+            </div>
           </div>
           <button
             onClick={() => navigate("/accounts/invoices/new")}
@@ -247,9 +252,9 @@ export default function InvoiceList() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
+                <tr className="border-b border-[#C6AF4B]/15">
                   {["Sr.", "Invoice No", "Direction", "Type", "Client / Vendor", "Reference", "Currency", "Total", "Received", "Pending", "Date", "Due Date", "Status", "Actions"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>

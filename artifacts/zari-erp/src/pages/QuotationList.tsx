@@ -175,13 +175,18 @@ export default function QuotationList() {
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-screen-xl mx-auto space-y-5">
+      <div className="py-6 px-6 max-w-screen-2xl mx-auto space-y-5">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quotations</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} quotation{total !== 1 ? "s" : ""}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl" style={{ background: `${G}18` }}>
+              <FileText size={20} style={{ color: G }} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Quotations</h1>
+              <p className="text-sm text-gray-400 mt-0.5">Manage client quotations and revisions</p>
+            </div>
           </div>
           <button
             onClick={() => navigate("/quotation/new")}
@@ -255,7 +260,7 @@ export default function QuotationList() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <tr className="border-b border-[#C6AF4B]/15">
                     <th className={thCls + " w-10 text-center"}>#</th>
                     <th className={thCls}>Quotation</th>
                     <th className={thCls}>Client</th>

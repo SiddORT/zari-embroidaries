@@ -126,7 +126,7 @@ export default function ShippingList() {
 
   return (
     <AppLayout username={user?.name ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-7xl mx-auto px-4 py-4 space-y-5">
+      <div className="py-6 px-6 max-w-screen-2xl mx-auto space-y-5">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl" style={{ background: `${G}20` }}>

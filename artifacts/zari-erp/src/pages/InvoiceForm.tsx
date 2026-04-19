@@ -413,7 +413,7 @@ export default function InvoiceForm() {
     }
   }
 
-  const card = "bg-white rounded-2xl border border-gray-100 shadow-sm";
+  const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
   const inp = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-[#C6AF4B] bg-white";
   const lbl = "block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide";
   const selClass = `${inp} cursor-pointer`;

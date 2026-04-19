@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, Plus, Trash2, Save, Upload, X, User, Phone, Mail, MapPin, CreditCard } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Upload, X, User, Phone, Mail, MapPin, CreditCard, FileText } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -229,21 +229,26 @@ export default function QuotationForm() {
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-5xl mx-auto">
+      <div className="py-6 px-6 max-w-5xl mx-auto space-y-5">
 
         {/* Page Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate("/quotation")} className="p-2 rounded-xl hover:bg-gray-100 transition">
-            <ArrowLeft size={18} className="text-gray-600" />
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/quotation")} className="p-2 rounded-xl hover:bg-gray-100 transition text-gray-500 hover:text-gray-700">
+            <ArrowLeft size={18} />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{isEdit ? "Edit Quotation" : "New Quotation"}</h1>
-            <p className="text-sm text-gray-500">Fill in the details below</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl" style={{ background: `${G}18` }}>
+              <FileText size={18} style={{ color: G }} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">{isEdit ? "Edit Quotation" : "New Quotation"}</h1>
+              <p className="text-sm text-gray-400 mt-0.5">Fill in the details below</p>
+            </div>
           </div>
         </div>
 
         {/* ─── Client Details ─────────────────────────────────────────────── */}
-        <div className={`${card} p-5 mb-5`}>
+        <div className={`${card} p-5`}>
           <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Client Details</h2>
 
           {/* Client Dropdown */}
@@ -344,7 +349,7 @@ export default function QuotationForm() {
         </div>
 
         {/* ─── Requirement Details ────────────────────────────────────────── */}
-        <div className={`${card} p-5 mb-5`}>
+        <div className={`${card} p-5`}>
           <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Requirement Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div className="col-span-2">
@@ -371,7 +376,7 @@ export default function QuotationForm() {
         </div>
 
         {/* ─── Designs / Reference Images ─────────────────────────────────── */}
-        <div className={`${card} p-5 mb-5`}>
+        <div className={`${card} p-5`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Designs / Reference Images</h2>
             <button onClick={() => setDesigns((prev) => [...prev, emptyDesign()])}
@@ -440,7 +445,7 @@ export default function QuotationForm() {
         </div>
 
         {/* ─── Custom Charges ──────────────────────────────────────────────── */}
-        <div className={`${card} p-5 mb-5`}>
+        <div className={`${card} p-5`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Custom Charges</h2>
             <button onClick={() => setCharges((prev) => [...prev, emptyCharge()])}
@@ -574,7 +579,7 @@ export default function QuotationForm() {
         </div>
 
         {/* ─── Cover Page ──────────────────────────────────────────────────── */}
-        <div className={`${card} p-5 mb-5`}>
+        <div className={`${card} p-5`}>
           <h2 className="text-sm font-bold uppercase tracking-wide mb-4" style={{ color: G }}>Cover Page Style</h2>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[

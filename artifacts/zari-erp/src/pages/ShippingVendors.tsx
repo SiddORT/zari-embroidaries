@@ -426,7 +426,7 @@ export default function ShippingVendors() {
       onLogout={handleLogout}
       isLoggingOut={logoutMutation.isPending}
     >
-      <div className="max-w-7xl mx-auto px-4 py-4 space-y-5">
+      <div className="py-6 px-6 max-w-7xl mx-auto space-y-5">
 
         <MasterHeader title="Shipping Vendors" addLabel="Add Vendor" onAdd={openCreate} />
 
