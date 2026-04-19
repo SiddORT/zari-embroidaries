@@ -136,7 +136,7 @@ export default function InvoiceForm() {
     notes: "",
   });
 
-  const [items, setItems] = useState<LineItem[]>([blank()]);
+  const [items, setItems] = useState<LineItem[]>([]);
 
   const totals = calcTotals(
     items,
@@ -850,6 +850,16 @@ export default function InvoiceForm() {
                 </tr>
               </thead>
               <tbody>
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center">
+                      <p className="text-sm text-gray-400 mb-1">No line items yet</p>
+                      <p className="text-xs text-gray-300">
+                        Select a Swatch or Style reference and click <strong>Load from Cost Sheet</strong>, or click <strong>+ Add Item</strong> to add manually.
+                      </p>
+                    </td>
+                  </tr>
+                )}
                 {items.map(it => {
                   const needsHsn = HSN_CATEGORIES.has(it.category);
                   const itemGst = needsHsn && it.hsnGstPct ? (it.total * parseFloat(it.hsnGstPct)) / 100 : 0;
