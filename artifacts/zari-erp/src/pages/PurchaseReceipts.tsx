@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, ChevronDown, ChevronLeft, ChevronRight,
   FileText, CheckCircle2, XCircle, Clock, CalendarRange,
-  Trash2, Eye, X, AlertTriangle, PackageCheck,
+  Trash2, Eye, X, AlertTriangle, PackageCheck, Receipt,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,6 +44,7 @@ interface PR {
   total_qty: string;
   created_by: string | null;
   created_at: string;
+  vendor_invoice_number: string | null;
 }
 
 function fmtDate(s: string) {
@@ -272,19 +273,20 @@ export default function PurchaseReceipts() {
                   <th className={thCls}>Total Qty</th>
                   <th className={thCls}>Date</th>
                   <th className={thCls}>Status</th>
+                  <th className={thCls}>Vendor Invoice</th>
                   <th className={thCls}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center">
+                  <tr><td colSpan={11} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-8 w-8 rounded-full border-2 border-[#C6AF4B] border-t-transparent animate-spin" />
                       <span className="text-sm text-gray-700">Loading…</span>
                     </div>
                   </td></tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-16 text-center">
+                  <tr><td colSpan={11} className="px-4 py-16 text-center">
                     <FileText className="h-10 w-10 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-700 font-medium">No purchase receipts found</p>
                     <p className="text-xs text-gray-400 mt-1">Create a receipt from an approved purchase order</p>
@@ -322,6 +324,15 @@ export default function PurchaseReceipts() {
                       <td className={tdCls}><span className="text-xs font-mono">{parseFloat(pr.total_qty || "0").toFixed(3)}</span></td>
                       <td className={tdCls}><span className="text-xs">{fmtDate(pr.received_date)}</span></td>
                       <td className={tdCls}><StatusBadge s={pr.status} /></td>
+                      <td className={tdCls}>
+                        {pr.vendor_invoice_number ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700">
+                            <Receipt className="h-3 w-3" /> {pr.vendor_invoice_number}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
                       <td className={tdCls}>
                         <div className="flex items-center gap-1">
                           <button onClick={() => navigate(`/procurement/purchase-receipts/${pr.id}`)}

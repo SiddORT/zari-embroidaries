@@ -1,7 +1,31 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
+
+const uploadsDir = path.join(process.cwd(), "uploads", "vendor_invoices");
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const vendorInvoiceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ts = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `vendor_inv_${ts}${ext}`);
+  },
+});
+const vendorInvoiceUpload = multer({
+  storage: vendorInvoiceStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Only PDF or images are allowed"));
+  },
+});
 
 const router = Router();
 
@@ -872,5 +896,129 @@ async function applyInventoryUpdate(
     );
   }
 }
+
+// ── VENDOR INVOICE UPLOAD ──────────────────────────────────────────────────
+
+router.post(
+  "/procurement/purchase-receipts/:id/vendor-invoice",
+  requireAuth,
+  vendorInvoiceUpload.single("invoice_file"),
+  async (req: AuthRequest, res) => {
+    const prId = parseInt(req.params.id);
+    if (isNaN(prId)) { res.status(400).json({ error: "Invalid PR id" }); return; }
+
+    const { invoice_number, invoice_date, invoice_amount } = req.body as Record<string, string>;
+    if (!invoice_number?.trim()) { res.status(400).json({ error: "Invoice number is required" }); return; }
+    if (!invoice_amount || isNaN(parseFloat(invoice_amount))) { res.status(400).json({ error: "Invoice amount is required" }); return; }
+
+    const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
+    const filePath = req.file ? `/uploads/vendor_invoices/${req.file.filename}` : null;
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+
+      const prRes = await client.query(
+        `SELECT pr.*, po.vendor_id AS po_vendor_id, po.vendor_name AS po_vendor_name
+         FROM purchase_receipts pr
+         LEFT JOIN purchase_orders po ON po.id = pr.po_id
+         WHERE pr.id = $1`,
+        [prId]
+      );
+      if (!prRes.rows.length) { await client.query("ROLLBACK"); res.status(404).json({ error: "PR not found" }); return; }
+      const pr = prRes.rows[0];
+
+      if (pr.vendor_invoice_number) {
+        if (pr.vendor_invoice_file) {
+          const oldPath = path.join(process.cwd(), pr.vendor_invoice_file);
+          fs.unlink(oldPath, () => {});
+        }
+        await client.query(
+          `DELETE FROM vendor_invoice_ledger WHERE purchase_receipt_id = $1`,
+          [prId]
+        );
+      }
+
+      await client.query(
+        `UPDATE purchase_receipts
+         SET vendor_invoice_number = $1,
+             vendor_invoice_date   = $2,
+             vendor_invoice_amount = $3,
+             vendor_invoice_file   = $4,
+             vendor_invoice_uploaded_at = NOW()
+         WHERE id = $5`,
+        [invoice_number.trim(), invoice_date || null, parseFloat(invoice_amount), filePath, prId]
+      );
+
+      const vendorId: number | null = pr.po_vendor_id ?? null;
+      const vendorName: string = pr.vendor_name || pr.po_vendor_name || "";
+
+      if (vendorId) {
+        await client.query(
+          `INSERT INTO vendor_invoice_ledger
+             (vendor_id, vendor_name, purchase_receipt_id, pr_number,
+              vendor_invoice_number, vendor_invoice_date, vendor_invoice_amount,
+              entry_type, status, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'Vendor Invoice','Unpaid',$8)`,
+          [vendorId, vendorName, prId, pr.pr_number,
+           invoice_number.trim(), invoice_date || null, parseFloat(invoice_amount), userName]
+        );
+      }
+
+      await client.query("COMMIT");
+      res.json({ success: true, file_path: filePath });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (req.file) fs.unlink(req.file.path, () => {});
+      console.error(err);
+      res.status(500).json({ error: "Failed to upload vendor invoice" });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+router.delete(
+  "/procurement/purchase-receipts/:id/vendor-invoice",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    if ((req.user as any)?.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
+    const prId = parseInt(req.params.id);
+
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      const prRes = await client.query(
+        `SELECT vendor_invoice_file FROM purchase_receipts WHERE id = $1`,
+        [prId]
+      );
+      if (!prRes.rows.length) { await client.query("ROLLBACK"); res.status(404).json({ error: "PR not found" }); return; }
+
+      const filePath = prRes.rows[0].vendor_invoice_file;
+      if (filePath) {
+        const absPath = path.join(process.cwd(), filePath);
+        fs.unlink(absPath, () => {});
+      }
+
+      await client.query(
+        `UPDATE purchase_receipts
+         SET vendor_invoice_number = NULL, vendor_invoice_date = NULL,
+             vendor_invoice_amount = NULL, vendor_invoice_file = NULL,
+             vendor_invoice_uploaded_at = NULL
+         WHERE id = $1`,
+        [prId]
+      );
+      await client.query(`DELETE FROM vendor_invoice_ledger WHERE purchase_receipt_id = $1`, [prId]);
+      await client.query("COMMIT");
+      res.json({ success: true });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete vendor invoice" });
+    } finally {
+      client.release();
+    }
+  }
+);
 
 export default router;

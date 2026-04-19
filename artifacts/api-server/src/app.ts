@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
@@ -68,5 +69,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use("/api", router);
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 export default app;

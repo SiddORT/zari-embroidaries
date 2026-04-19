@@ -23,7 +23,8 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           + COALESCE(lc_sum.total,  0)
           + COALESCE(art_sum.total, 0)
           + COALESCE(soa_sum.total, 0)
-          + COALESCE(toi_sum.total, 0)  AS total_debits,
+          + COALESCE(toi_sum.total, 0)
+          + COALESCE(vil_sum.total, 0)  AS total_debits,
         COALESCE(vp_sum.total, 0)        AS total_credits,
         COALESCE(oj_sum.cnt,  0)
           + COALESCE(cc_sum.cnt,  0)
@@ -31,6 +32,7 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           + COALESCE(art_sum.cnt, 0)
           + COALESCE(soa_sum.cnt, 0)
           + COALESCE(toi_sum.cnt, 0)
+          + COALESCE(vil_sum.cnt, 0)
           + COALESCE(vp_sum.cnt,  0)    AS total_entries
       FROM vendors v
 
@@ -90,6 +92,12 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           AND toile_cost <> ''
         GROUP BY toile_vendor_id::integer
       ) toi_sum ON toi_sum.vendor_id = v.id
+
+      /* vendor invoice ledger entries (debits) */
+      LEFT JOIN (
+        SELECT vendor_id, SUM(vendor_invoice_amount::numeric) AS total, COUNT(*) AS cnt
+        FROM vendor_invoice_ledger GROUP BY vendor_id
+      ) vil_sum ON vil_sum.vendor_id = v.id
 
       /* vendor payments (credits) */
       LEFT JOIN (
@@ -240,6 +248,22 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
           AND soa.toile_cost IS NOT NULL
           AND soa.toile_cost <> ''
           AND soa.toile_vendor_id::integer = $1
+
+        UNION ALL
+
+        /* ── Vendor invoice ledger entries ─────────────────────────── */
+        SELECT
+          'vendor_invoice'               AS entry_type,
+          vil.id::text                   AS entry_id,
+          COALESCE(vil.vendor_invoice_date::timestamptz, vil.created_at) AS entry_date,
+          CONCAT('Vendor Invoice: ', vil.vendor_invoice_number,
+            ' (PR: ', vil.pr_number, ')') AS description,
+          'procurement'                  AS order_type,
+          vil.pr_number                  AS order_code,
+          vil.vendor_invoice_amount      AS debit,
+          0::numeric                     AS credit
+        FROM vendor_invoice_ledger vil
+        WHERE vil.vendor_id = $1
 
         UNION ALL
 

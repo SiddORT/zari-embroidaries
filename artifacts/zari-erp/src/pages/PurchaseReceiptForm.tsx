@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, PackageCheck,
   AlertTriangle, Save, ChevronDown, Edit2, X, FileDown, TrendingUp,
-  Camera,
+  Camera, FileText, Trash2,
 } from "lucide-react";
 import { downloadPrPdf } from "@/utils/pdfExport";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
@@ -95,6 +95,11 @@ interface PRDetail {
   created_by: string | null;
   created_at: string | null;
   updated_by: string | null;
+  vendor_invoice_number: string | null;
+  vendor_invoice_date: string | null;
+  vendor_invoice_amount: string | null;
+  vendor_invoice_file: string | null;
+  vendor_invoice_uploaded_at: string | null;
   items: PRItem[];
 }
 
@@ -137,6 +142,15 @@ export default function PurchaseReceiptForm() {
   const [editLines, setEditLines] = useState<ReceiptLine[]>([]);
   const [editDate, setEditDate] = useState("");
   const [cancelConfirm, setCancelConfirm] = useState(false);
+
+  // Vendor invoice upload state
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
+  const [invNumber, setInvNumber] = useState("");
+  const [invDate, setInvDate] = useState("");
+  const [invAmount, setInvAmount] = useState("");
+  const [invFile, setInvFile] = useState<File | null>(null);
+  const [invUploading, setInvUploading] = useState(false);
+  const [invDeleteConfirm, setInvDeleteConfirm] = useState(false);
 
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
 
@@ -322,6 +336,52 @@ export default function PurchaseReceiptForm() {
       toast({ title: (e as { message?: string })?.message ?? "Failed to update receipt", variant: "destructive" });
     } finally {
       setActioning(false);
+    }
+  };
+
+  const handleInvoiceUpload = async () => {
+    if (!pr) return;
+    if (!invNumber.trim()) { toast({ title: "Invoice number is required", variant: "destructive" }); return; }
+    if (!invAmount || isNaN(parseFloat(invAmount)) || parseFloat(invAmount) <= 0) {
+      toast({ title: "Valid invoice amount is required", variant: "destructive" }); return;
+    }
+    setInvUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("invoice_number", invNumber.trim());
+      fd.append("invoice_date", invDate || "");
+      fd.append("invoice_amount", invAmount);
+      if (invFile) fd.append("invoice_file", invFile);
+      const tkn = localStorage.getItem("zarierp_token");
+      const res = await fetch(`/api/procurement/purchase-receipts/${pr.id}/vendor-invoice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tkn}` },
+        body: fd,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).error || "Upload failed"); }
+      toast({ title: "Vendor invoice uploaded successfully" });
+      setShowInvoiceForm(false);
+      setInvNumber(""); setInvDate(""); setInvAmount(""); setInvFile(null);
+      loadPr();
+    } catch (e: unknown) {
+      toast({ title: (e as Error)?.message ?? "Failed to upload", variant: "destructive" });
+    } finally {
+      setInvUploading(false);
+    }
+  };
+
+  const handleInvoiceDelete = async () => {
+    if (!pr) return;
+    setInvUploading(true);
+    try {
+      await customFetch(`/api/procurement/purchase-receipts/${pr.id}/vendor-invoice`, { method: "DELETE" });
+      toast({ title: "Vendor invoice removed" });
+      setInvDeleteConfirm(false);
+      loadPr();
+    } catch (e: unknown) {
+      toast({ title: (e as Error)?.message ?? "Failed to delete", variant: "destructive" });
+    } finally {
+      setInvUploading(false);
     }
   };
 
@@ -548,7 +608,152 @@ export default function PurchaseReceiptForm() {
             </div>
           </div>
 
+          {/* Vendor Invoice Section */}
+          <div className={card}>
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4" style={{ color: G }} />
+                <h3 className="text-sm font-semibold text-gray-700">Vendor Invoice</h3>
+                {pr.vendor_invoice_number && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700">
+                    <CheckCircle2 className="h-3 w-3" /> Uploaded
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {!pr.vendor_invoice_number && !showInvoiceForm && (
+                  <button
+                    onClick={() => setShowInvoiceForm(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                    style={{ background: `linear-gradient(135deg,${G},#A8943E)` }}>
+                    Upload Invoice
+                  </button>
+                )}
+                {pr.vendor_invoice_number && !showInvoiceForm && (
+                  <>
+                    {pr.vendor_invoice_file && (
+                      <a href={pr.vendor_invoice_file} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">
+                        <FileDown className="h-3.5 w-3.5" /> View File
+                      </a>
+                    )}
+                    <button
+                      onClick={() => { setInvNumber(pr.vendor_invoice_number!); setInvDate(pr.vendor_invoice_date ? new Date(pr.vendor_invoice_date).toISOString().slice(0,10) : ""); setInvAmount(pr.vendor_invoice_amount ?? ""); setShowInvoiceForm(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">
+                      <Edit2 className="h-3.5 w-3.5" /> Replace
+                    </button>
+                    {(me as any)?.role === "admin" && (
+                      <button onClick={() => setInvDeleteConfirm(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50">
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {pr.vendor_invoice_number && !showInvoiceForm && (
+              <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                {[
+                  ["Invoice No.", pr.vendor_invoice_number],
+                  ["Invoice Date", pr.vendor_invoice_date ? new Date(pr.vendor_invoice_date).toLocaleDateString("en-IN") : "—"],
+                  ["Invoice Amount", pr.vendor_invoice_amount ? `₹${parseFloat(pr.vendor_invoice_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"],
+                  ["Uploaded On", pr.vendor_invoice_uploaded_at ? new Date(pr.vendor_invoice_uploaded_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs text-gray-400 font-medium">{label}</p>
+                    <p className="text-gray-900 mt-0.5 font-medium">{value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showInvoiceForm && (
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Number <span className="text-red-500">*</span></label>
+                    <input type="text" value={invNumber} onChange={e => setInvNumber(e.target.value)}
+                      placeholder="e.g. INV-2024-001"
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Date</label>
+                    <input type="date" value={invDate} onChange={e => setInvDate(e.target.value)}
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Amount (₹) <span className="text-red-500">*</span></label>
+                    <input type="number" min="0" step="0.01" value={invAmount} onChange={e => setInvAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Invoice File (PDF or Image, max 20MB)</label>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-gray-600 cursor-pointer hover:border-[#C6AF4B] hover:bg-[#C6AF4B]/5 transition-colors">
+                      <FileText className="h-4 w-4" />
+                      {invFile ? invFile.name : "Choose file…"}
+                      <input type="file" accept=".pdf,image/*" className="hidden"
+                        onChange={e => setInvFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                    {invFile && (
+                      <button type="button" onClick={() => setInvFile(null)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setShowInvoiceForm(false); setInvNumber(""); setInvDate(""); setInvAmount(""); setInvFile(null); }}
+                    className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleInvoiceUpload} disabled={invUploading}
+                    className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ background: `linear-gradient(135deg,${G},#A8943E)` }}>
+                    {invUploading ? "Uploading…" : "Save Invoice"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!pr.vendor_invoice_number && !showInvoiceForm && (
+              <div className="px-4 py-8 text-center">
+                <FileText className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No vendor invoice uploaded yet</p>
+                <p className="text-xs text-gray-400 mt-0.5">Upload the vendor's invoice document to track payables in the vendor ledger</p>
+              </div>
+            )}
+          </div>
+
         </div>
+
+        {/* Vendor invoice delete confirmation */}
+        {invDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className={`${card} w-full max-w-sm p-6`}>
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-red-100 rounded-lg flex-shrink-0"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Remove Vendor Invoice?</h3>
+                  <p className="text-xs text-gray-500 mt-1">This will remove invoice <span className="font-semibold">{pr.vendor_invoice_number}</span> and delete its ledger entry.</p>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setInvDeleteConfirm(false)} disabled={invUploading}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">Keep</button>
+                <button onClick={handleInvoiceDelete} disabled={invUploading}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                  {invUploading ? "Removing…" : "Yes, Remove"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cancel confirmation modal */}
         {cancelConfirm && (
