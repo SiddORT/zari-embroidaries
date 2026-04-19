@@ -121,7 +121,7 @@ function Router() {
       <Route path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} />
       <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
       <Route path="/shipping" component={ShippingList} />
-      <Route path="/settings/shipping-vendors" component={ShippingVendors} />
+      <Route path="/masters/shipping-vendors" component={ShippingVendors} />
       <Route component={NotFound} />
     </Switch>
   );

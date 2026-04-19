@@ -10,16 +10,17 @@ interface TopNavbarProps {
 }
 
 const MASTERS_ITEMS = [
-  { label: "HSN",              href: "/masters/hsn" },
-  { label: "Materials",        href: "/masters/materials" },
-  { label: "Fabric",           href: "/masters/fabric" },
-  { label: "Clients",          href: "/masters/clients" },
-  { label: "Vendors",          href: "/masters/vendors" },
+  { label: "HSN",               href: "/masters/hsn" },
+  { label: "Materials",         href: "/masters/materials" },
+  { label: "Fabric",            href: "/masters/fabric" },
+  { label: "Clients",           href: "/masters/clients" },
+  { label: "Vendors",           href: "/masters/vendors" },
   { label: "Style Categories",  href: "/masters/style-categories" },
   { label: "Swatch Categories", href: "/masters/swatch-categories" },
   { label: "Swatch",            href: "/masters/swatches" },
   { label: "Style",             href: "/masters/styles" },
   { label: "Item Master",       href: "/masters/packaging-materials" },
+  { label: "Shipping Vendors",  href: "/masters/shipping-vendors" },
 ];
 
 const OTHER_ORDERS_ITEMS = [
@@ -29,10 +30,6 @@ const OTHER_ORDERS_ITEMS = [
 
 const ACCOUNTS_ITEMS = [
   { label: "Vendor Ledgers", href: "/accounts/ledgers" },
-];
-
-const SETTINGS_ITEMS = [
-  { label: "Shipping Vendors", href: "/settings/shipping-vendors" },
 ];
 
 const INVENTORY_ITEMS = [
@@ -61,20 +58,17 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [procurementOpen, setProcurementOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
   const [mobileInventoryOpen, setMobileInventoryOpen] = useState(false);
   const [mobileProcurementOpen, setMobileProcurementOpen] = useState(false);
   const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
   const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
-  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const mastersRef = useRef<HTMLDivElement>(null);
   const inventoryRef = useRef<HTMLDivElement>(null);
   const procurementRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const accountsRef = useRef<HTMLDivElement>(null);
-  const settingsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const mastersActive     = location.startsWith("/masters");
@@ -135,15 +129,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [accountsOpen]);
-
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setSettingsOpen(false);
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [settingsOpen]);
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -361,39 +346,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                       </Link>
                     );
                   })}
-                </div>
-              )}
-            </div>
-
-            {/* Settings dropdown */}
-            <div className="relative" ref={settingsRef}>
-              <button
-                onClick={() => setSettingsOpen((v) => !v)}
-                className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.startsWith("/settings")
-                    ? "bg-gray-900 text-[#C9B45C]"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                }`}
-              >
-                Settings
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${settingsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {settingsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
-                  {SETTINGS_ITEMS.map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setSettingsOpen(false)}
-                      className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        location === href
-                          ? "text-gray-900 bg-gray-50 font-semibold"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
                 </div>
               )}
             </div>
@@ -620,33 +572,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileAccountsOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {ACCOUNTS_ITEMS.map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {/* Mobile Settings */}
-              <button
-                onClick={() => setMobileSettingsOpen((v) => !v)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                  location.startsWith("/settings") ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <span>Settings</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${mobileSettingsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mobileSettingsOpen && (
-                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
-                  {SETTINGS_ITEMS.map(({ label, href }) => (
                     <Link
                       key={href}
                       href={href}
