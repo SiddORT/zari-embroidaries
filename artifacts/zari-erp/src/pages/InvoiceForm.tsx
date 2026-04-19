@@ -21,13 +21,42 @@ function customFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
 
 const DIRECTIONS = ["Client", "Vendor"] as const;
 const TYPES = ["Proforma", "Advance", "Partial", "Material Recovery", "Artwork Charges", "Courier Charges", "Final Invoice", "Custom"] as const;
+const TYPE_COLORS: Record<string, string> = {
+  "Proforma": "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
+  "Advance": "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100",
+  "Partial": "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+  "Material Recovery": "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
+  "Artwork Charges": "bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100",
+  "Courier Charges": "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100",
+  "Final Invoice": "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+  "Custom": "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100",
+};
 const STATUSES = ["Draft", "Sent", "Paid", "Partial", "Cancelled"] as const;
 const REF_TYPES = ["Swatch", "Style", "Quotation", "Purchase Receipt", "Shipping", "Artwork", "Manual"] as const;
+const REF_LABELS: Record<string, string> = {
+  "Swatch": "Swatch Order No",
+  "Style": "Style Order No",
+  "Quotation": "Quotation No",
+  "Purchase Receipt": "PO / Receipt No",
+  "Shipping": "AWB / Tracking No",
+  "Artwork": "Artwork Ref No",
+  "Manual": "Reference ID / Order No",
+};
 
 interface LineItem { id: string; description: string; category: string; quantity: number; unitPrice: number; total: number }
-interface Client { id: number; brandName: string }
-interface Vendor { id: number; brandName: string }
+interface Client {
+  id: number; brandName: string; contactName: string; email: string; contactNo: string;
+  gstNo?: string; address1?: string; address2?: string; city?: string; state?: string; pincode?: string;
+}
+interface Vendor {
+  id: number; brandName: string; contactName: string; email?: string; contactNo?: string;
+  gstNo?: string; address1?: string; address2?: string; city?: string; state?: string; pincode?: string;
+}
 interface Currency { code: string; name: string; symbol: string }
+interface BankAccount {
+  id: number; bank_name: string; account_no: string; ifsc_code: string;
+  branch: string; account_name: string; bank_upi: string; is_default: boolean;
+}
 
 const blank = () => ({ id: crypto.randomUUID(), description: "", category: "", quantity: 1, unitPrice: 0, total: 0 });
 
@@ -53,6 +82,7 @@ export default function InvoiceForm() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
   const [form, setForm] = useState({
     invoiceNo: "",
@@ -115,7 +145,27 @@ export default function InvoiceForm() {
       for (const r of (j.data ?? [])) map[r.currency_code] = parseFloat(r.rate);
       setExchangeRates(map);
     }).catch(() => {});
-  }, []);
+    // Fetch saved bank accounts, auto-fill the default one for new invoices
+    if (!isEdit) {
+      customFetch<any>("/api/settings/bank-accounts").then(j => {
+        const accounts: BankAccount[] = j.data ?? [];
+        setBankAccounts(accounts);
+        const def = accounts.find(a => a.is_default) ?? accounts[0];
+        if (def) {
+          setForm(f => ({
+            ...f,
+            bankName: def.bank_name,
+            bankAccount: def.account_no,
+            bankIfsc: def.ifsc_code,
+            bankBranch: def.branch,
+            bankUpi: def.bank_upi,
+          }));
+        }
+      }).catch(() => {});
+    } else {
+      customFetch<any>("/api/settings/bank-accounts").then(j => setBankAccounts(j.data ?? [])).catch(() => {});
+    }
+  }, [isEdit]);
 
   // Auto-set exchange rate when currency changes
   useEffect(() => {
@@ -274,11 +324,24 @@ export default function InvoiceForm() {
                     {DIRECTIONS.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
-                <div>
+                <div className="col-span-3">
                   <label className={lbl}>Invoice Type *</label>
-                  <select value={form.invoiceType} onChange={e => setF("invoiceType", e.target.value)} className={selClass}>
-                    {TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {TYPES.map(t => {
+                      const active = form.invoiceType === t;
+                      const col = TYPE_COLORS[t] ?? "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100";
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setF("invoiceType", t)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${col} ${active ? "ring-2 ring-offset-1 ring-current opacity-100 shadow-sm" : "opacity-70"}`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label className={lbl}>Status</label>
@@ -304,8 +367,24 @@ export default function InvoiceForm() {
                         const id = e.target.value;
                         setF("clientId", id);
                         if (id) {
-                          const c = clients.find(x => String(x.id) === id);
-                          if (c) setF("clientName", c.brandName);
+                          customFetch<any>(`/api/clients/${id}`).then(j => {
+                            const c: Client = j.data ?? j;
+                            if (!c) return;
+                            const addr = [c.address1, c.address2, c.city, c.state, c.pincode].filter(Boolean).join(", ");
+                            setForm(f => ({
+                              ...f,
+                              clientId: id,
+                              clientName: c.brandName ?? f.clientName,
+                              clientAddress: addr || f.clientAddress,
+                              clientGstin: c.gstNo ?? f.clientGstin,
+                              clientEmail: c.email ?? f.clientEmail,
+                              clientPhone: c.contactNo ?? f.clientPhone,
+                              clientState: c.state ?? f.clientState,
+                            }));
+                          }).catch(() => {
+                            const c = clients.find(x => String(x.id) === id);
+                            if (c) setF("clientName", c.brandName);
+                          });
                         }
                       }}
                       className={selClass}
@@ -349,8 +428,24 @@ export default function InvoiceForm() {
                         const id = e.target.value;
                         setF("vendorId", id);
                         if (id) {
-                          const v = vendors.find(x => String(x.id) === id);
-                          if (v) setF("clientName", v.brandName);
+                          customFetch<any>(`/api/vendors/${id}`).then(j => {
+                            const v: Vendor = j.data ?? j;
+                            if (!v) return;
+                            const addr = [v.address1, v.address2, v.city, v.state, v.pincode].filter(Boolean).join(", ");
+                            setForm(f => ({
+                              ...f,
+                              vendorId: id,
+                              clientName: v.brandName ?? f.clientName,
+                              clientAddress: addr || f.clientAddress,
+                              clientGstin: v.gstNo ?? f.clientGstin,
+                              clientEmail: v.email ?? f.clientEmail,
+                              clientPhone: v.contactNo ?? f.clientPhone,
+                              clientState: v.state ?? f.clientState,
+                            }));
+                          }).catch(() => {
+                            const v = vendors.find(x => String(x.id) === id);
+                            if (v) setF("clientName", v.brandName);
+                          });
                         }
                       }}
                       className={selClass}
@@ -362,6 +457,26 @@ export default function InvoiceForm() {
                   <div>
                     <label className={lbl}>Vendor Name</label>
                     <input value={form.clientName} onChange={e => setF("clientName", e.target.value)} className={inp} placeholder="Vendor name" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={lbl}>Address</label>
+                    <textarea value={form.clientAddress} onChange={e => setF("clientAddress", e.target.value)} rows={2} className={`${inp} resize-none`} placeholder="Billing address" />
+                  </div>
+                  <div>
+                    <label className={lbl}>GSTIN</label>
+                    <input value={form.clientGstin} onChange={e => setF("clientGstin", e.target.value)} className={inp} placeholder="22AAAAA0000A1Z5" />
+                  </div>
+                  <div>
+                    <label className={lbl}>State</label>
+                    <input value={form.clientState} onChange={e => setF("clientState", e.target.value)} className={inp} placeholder="State" />
+                  </div>
+                  <div>
+                    <label className={lbl}>Email</label>
+                    <input value={form.clientEmail} onChange={e => setF("clientEmail", e.target.value)} className={inp} placeholder="vendor@email.com" />
+                  </div>
+                  <div>
+                    <label className={lbl}>Phone</label>
+                    <input value={form.clientPhone} onChange={e => setF("clientPhone", e.target.value)} className={inp} placeholder="+91 98765 43210" />
                   </div>
                 </div>
               )}
@@ -378,8 +493,13 @@ export default function InvoiceForm() {
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>Reference ID / Order No</label>
-                  <input value={form.referenceId} onChange={e => setF("referenceId", e.target.value)} className={inp} placeholder="e.g. SW-1023, SO-001" />
+                  <label className={lbl}>{REF_LABELS[form.referenceType] ?? "Reference ID"}</label>
+                  <input
+                    value={form.referenceId}
+                    onChange={e => setF("referenceId", e.target.value)}
+                    className={inp}
+                    placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
+                  />
                 </div>
               </div>
             </div>
@@ -459,6 +579,35 @@ export default function InvoiceForm() {
             {/* Bank Details */}
             <div className={`${card} p-6`}>
               <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Bank Details</h2>
+              {bankAccounts.length > 0 && (
+                <div className="mb-4">
+                  <label className={lbl}>Select Saved Bank Account</label>
+                  <select
+                    className={selClass}
+                    value=""
+                    onChange={e => {
+                      const id = parseInt(e.target.value);
+                      const b = bankAccounts.find(a => a.id === id);
+                      if (b) setForm(f => ({
+                        ...f,
+                        bankName: b.bank_name,
+                        bankAccount: b.account_no,
+                        bankIfsc: b.ifsc_code,
+                        bankBranch: b.branch,
+                        bankUpi: b.bank_upi,
+                      }));
+                    }}
+                  >
+                    <option value="">— Pick a bank account —</option>
+                    {bankAccounts.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.bank_name} · {b.account_no}{b.is_default ? " (Default)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Selecting will fill the fields below. You can still edit them manually.</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={lbl}>Bank Name</label><input value={form.bankName} onChange={e => setF("bankName", e.target.value)} className={inp} /></div>
                 <div><label className={lbl}>Account No</label><input value={form.bankAccount} onChange={e => setF("bankAccount", e.target.value)} className={inp} /></div>
