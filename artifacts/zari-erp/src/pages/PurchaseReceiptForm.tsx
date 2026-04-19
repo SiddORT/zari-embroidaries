@@ -241,8 +241,27 @@ export default function PurchaseReceiptForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }) as { data: { id: number } };
+
+      const newPrId = r.data.id;
+
+      if (invNumber.trim() && invAmount && !isNaN(parseFloat(invAmount)) && parseFloat(invAmount) > 0) {
+        try {
+          const fd = new FormData();
+          fd.append("invoice_number", invNumber.trim());
+          fd.append("invoice_date", invDate || "");
+          fd.append("invoice_amount", invAmount);
+          if (invFile) fd.append("invoice_file", invFile);
+          const tkn = localStorage.getItem("zarierp_token");
+          await fetch(`/api/procurement/purchase-receipts/${newPrId}/vendor-invoice`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${tkn}` },
+            body: fd,
+          });
+        } catch { /* invoice upload failure is non-fatal */ }
+      }
+
       toast({ title: confirmNow ? "Inventory updated successfully" : "Receipt saved as draft" });
-      navigate(`/procurement/purchase-receipts/${r.data.id}`);
+      navigate(`/procurement/purchase-receipts/${newPrId}`);
     } catch (e: unknown) {
       toast({ title: (e as { message?: string })?.message ?? "Failed to create receipt", variant: "destructive" });
     } finally {
@@ -1012,6 +1031,79 @@ export default function PurchaseReceiptForm() {
             </div>
           );
         })()}
+
+        {/* Vendor Invoice (optional at creation) */}
+        {selectedPoId && lines.length > 0 && (
+          <div className={card}>
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4" style={{ color: G }} />
+                <h3 className="text-sm font-semibold text-gray-700">Vendor Invoice</h3>
+                <span className="text-xs text-gray-400">(Optional)</span>
+              </div>
+              {!showInvoiceForm && !invNumber && (
+                <button
+                  onClick={() => setShowInvoiceForm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">
+                  + Add Invoice
+                </button>
+              )}
+            </div>
+
+            {!showInvoiceForm && !invNumber && (
+              <div className="px-4 py-6 text-center">
+                <FileText className="h-7 w-7 text-gray-300 mx-auto mb-1.5" />
+                <p className="text-xs text-gray-400">You can attach the vendor invoice now or after saving</p>
+              </div>
+            )}
+
+            {(showInvoiceForm || invNumber) && (
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Number</label>
+                    <input type="text" value={invNumber} onChange={e => setInvNumber(e.target.value)}
+                      placeholder="e.g. INV-2024-001"
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Date</label>
+                    <input type="date" value={invDate} onChange={e => setInvDate(e.target.value)}
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Amount (₹)</label>
+                    <input type="number" min="0" step="0.01" value={invAmount} onChange={e => setInvAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Invoice File (PDF or Image, max 20MB)</label>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-gray-600 cursor-pointer hover:border-[#C6AF4B] hover:bg-[#C6AF4B]/5 transition-colors">
+                      <FileText className="h-4 w-4" />
+                      {invFile ? invFile.name : "Choose file…"}
+                      <input type="file" accept=".pdf,image/*" className="hidden"
+                        onChange={e => setInvFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                    {invFile && (
+                      <button type="button" onClick={() => setInvFile(null)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button type="button"
+                      onClick={() => { setShowInvoiceForm(false); setInvNumber(""); setInvDate(""); setInvAmount(""); setInvFile(null); }}
+                      className="text-xs text-gray-400 hover:text-red-500 underline underline-offset-2">
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         {selectedPoId && lines.length > 0 && (
