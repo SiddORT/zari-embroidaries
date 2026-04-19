@@ -410,6 +410,8 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
 // CURRENCY TAB
 // ─────────────────────────────────────────────────────────
 
+const CURR_PER_PAGE = 10;
+
 function CurrencyTab({ card, inp, label, toast }: any) {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [innerTab, setInnerTab] = useState<"currencies" | "rates">("currencies");
@@ -422,8 +424,27 @@ function CurrencyTab({ card, inp, label, toast }: any) {
   const [editRate, setEditRate] = useState<{ code: string; value: string } | null>(null);
   const [savingRate, setSavingRate] = useState(false);
   const [currencySuccess, setCurrencySuccess] = useState("");
+  const [currencySearch, setCurrencySearch] = useState("");
+  const [currencyPage, setCurrencyPage] = useState(1);
+  const [ratesSearch, setRatesSearch] = useState("");
+  const [ratesPage, setRatesPage] = useState(1);
 
   const baseCurrency = currencies.find(c => c.is_base);
+
+  const filteredCurrencies = currencies.filter(c =>
+    c.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
+    c.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
+    c.symbol.toLowerCase().includes(currencySearch.toLowerCase())
+  );
+  const totalCurrencyPages = Math.max(1, Math.ceil(filteredCurrencies.length / CURR_PER_PAGE));
+  const pagedCurrencies = filteredCurrencies.slice((currencyPage - 1) * CURR_PER_PAGE, currencyPage * CURR_PER_PAGE);
+
+  const filteredRates = rates.filter(r =>
+    r.currency_code.toLowerCase().includes(ratesSearch.toLowerCase()) ||
+    r.currency_name.toLowerCase().includes(ratesSearch.toLowerCase())
+  );
+  const totalRatesPages = Math.max(1, Math.ceil(filteredRates.length / CURR_PER_PAGE));
+  const pagedRates = filteredRates.slice((ratesPage - 1) * CURR_PER_PAGE, ratesPage * CURR_PER_PAGE);
 
   const loadCurrencies = useCallback(async () => {
     try {
@@ -558,12 +579,26 @@ function CurrencyTab({ card, inp, label, toast }: any) {
         {/* ── TAB: Currencies ──────────────────────────────── */}
         {innerTab === "currencies" && (
           <div>
+            {/* Search bar */}
+            <div className="px-5 py-3 border-b border-gray-100">
+              <div className="relative max-w-xs">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by code, name or symbol…"
+                  value={currencySearch}
+                  onChange={e => { setCurrencySearch(e.target.value); setCurrencyPage(1); }}
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-[#C6AF4B] bg-white"
+                />
+              </div>
+            </div>
+
             {/* Currencies table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {["Code", "Name", "Symbol", "Decimals", "Status", "Action"].map(h => (
+                    {["#", "Code", "Name", "Symbol", "Decimals", "Status", "Action"].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
                     ))}
                   </tr>
@@ -572,13 +607,16 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b border-gray-50">
-                        {Array.from({ length: 6 }).map((_, j) => (
+                        {Array.from({ length: 7 }).map((_, j) => (
                           <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                         ))}
                       </tr>
                     ))
-                  ) : currencies.map(c => (
+                  ) : pagedCurrencies.length === 0 ? (
+                    <tr><td colSpan={7} className="py-10 text-center text-gray-400 text-sm">No currencies match your search.</td></tr>
+                  ) : pagedCurrencies.map((c, idx) => (
                     <tr key={c.code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                      <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(currencyPage - 1) * CURR_PER_PAGE + idx + 1}</td>
                       <td className="px-5 py-3 font-mono font-bold text-gray-900">
                         {c.code}
                         {c.is_base && <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full border border-[#C6AF4B]/40 text-[#C6AF4B] bg-[#C6AF4B]/8">Base</span>}
@@ -611,24 +649,55 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {!loading && filteredCurrencies.length > CURR_PER_PAGE && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                <span className="text-xs text-gray-400">
+                  Showing {(currencyPage - 1) * CURR_PER_PAGE + 1}–{Math.min(currencyPage * CURR_PER_PAGE, filteredCurrencies.length)} of {filteredCurrencies.length}
+                </span>
+                <div className="flex gap-1">
+                  <button onClick={() => setCurrencyPage(p => Math.max(1, p - 1))} disabled={currencyPage === 1}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
+                  {Array.from({ length: totalCurrencyPages }, (_, i) => i + 1).map(pg => (
+                    <button key={pg} onClick={() => setCurrencyPage(pg)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition ${pg === currencyPage ? "border-[#C6AF4B] text-[#C6AF4B] bg-[#C6AF4B]/8 font-semibold" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                      {pg}
+                    </button>
+                  ))}
+                  <button onClick={() => setCurrencyPage(p => Math.min(totalCurrencyPages, p + 1))} disabled={currencyPage === totalCurrencyPages}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── TAB: Exchange Rates ──────────────────────────── */}
         {innerTab === "rates" && (
           <div>
-            {/* Header with refresh button */}
-            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-              <p className="text-xs text-gray-400">
-                Rates vs {baseCurrency ? `${baseCurrency.name} (${baseCurrency.symbol})` : "base currency"} — sorted by last updated
+            {/* Header with search + refresh button */}
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[180px] max-w-xs">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search currency…"
+                  value={ratesSearch}
+                  onChange={e => { setRatesSearch(e.target.value); setRatesPage(1); }}
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-[#C6AF4B] bg-white"
+                />
+              </div>
+              <p className="text-xs text-gray-400 hidden sm:block flex-1">
+                Rates vs {baseCurrency ? `${baseCurrency.name} (${baseCurrency.symbol})` : "base currency"}
               </p>
               <button
                 onClick={handleRefreshRates}
                 disabled={refreshing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#C6AF4B]/40 text-[#C6AF4B] hover:bg-[#C6AF4B]/8 transition disabled:opacity-60"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-[#C6AF4B]/40 text-[#C6AF4B] hover:bg-[#C6AF4B]/8 transition disabled:opacity-60 shrink-0"
               >
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-                {refreshing ? "Refreshing…" : "Refresh Exchange Rates"}
+                {refreshing ? "Refreshing…" : "Refresh Rates"}
               </button>
             </div>
 
@@ -636,7 +705,7 @@ function CurrencyTab({ card, inp, label, toast }: any) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {["Currency", `1 CCY = X ${baseCurrency?.code ?? "Base"}`, `1 ${baseCurrency?.code ?? "Base"} = X CCY`, "Last Updated", "Source", "Action"].map(h => (
+                    {["#", "Currency", `1 CCY = X ${baseCurrency?.code ?? "Base"}`, `1 ${baseCurrency?.code ?? "Base"} = X CCY`, "Last Updated", "Source", "Action"].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
                     ))}
                   </tr>
@@ -645,21 +714,24 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                   {ratesLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <tr key={i} className="border-b border-gray-50">
-                        {Array.from({ length: 6 }).map((_, j) => (
+                        {Array.from({ length: 7 }).map((_, j) => (
                           <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                         ))}
                       </tr>
                     ))
                   ) : rates.length === 0 ? (
-                    <tr><td colSpan={6} className="py-10 text-center text-gray-400 text-sm">
-                      No exchange rates yet. Click "Refresh Exchange Rates" to fetch current rates.
+                    <tr><td colSpan={7} className="py-10 text-center text-gray-400 text-sm">
+                      No exchange rates yet. Click "Refresh Rates" to fetch current rates.
                     </td></tr>
-                  ) : rates.map(r => {
+                  ) : pagedRates.length === 0 ? (
+                    <tr><td colSpan={7} className="py-10 text-center text-gray-400 text-sm">No currencies match your search.</td></tr>
+                  ) : pagedRates.map((r, idx) => {
                     const rate = parseFloat(r.rate);
                     const inverseRate = rate > 0 ? 1 / rate : 0;
                     const base = baseCurrency;
                     return (
                       <tr key={r.currency_code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                        <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(ratesPage - 1) * CURR_PER_PAGE + idx + 1}</td>
                         <td className="px-5 py-3">
                           <p className="font-mono font-bold text-gray-900">{r.currency_code}</p>
                           <p className="text-xs text-gray-400">{r.currency_name}</p>
@@ -715,6 +787,27 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {!ratesLoading && filteredRates.length > CURR_PER_PAGE && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                <span className="text-xs text-gray-400">
+                  Showing {(ratesPage - 1) * CURR_PER_PAGE + 1}–{Math.min(ratesPage * CURR_PER_PAGE, filteredRates.length)} of {filteredRates.length}
+                </span>
+                <div className="flex gap-1">
+                  <button onClick={() => setRatesPage(p => Math.max(1, p - 1))} disabled={ratesPage === 1}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
+                  {Array.from({ length: totalRatesPages }, (_, i) => i + 1).map(pg => (
+                    <button key={pg} onClick={() => setRatesPage(pg)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition ${pg === ratesPage ? "border-[#C6AF4B] text-[#C6AF4B] bg-[#C6AF4B]/8 font-semibold" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                      {pg}
+                    </button>
+                  ))}
+                  <button onClick={() => setRatesPage(p => Math.min(totalRatesPages, p + 1))} disabled={ratesPage === totalRatesPages}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -976,6 +1069,92 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: "bg-red-50 text-red-600 border-red-200",
 };
 
+function toPlainEnglish(method: string, url: string): string {
+  const path = url.replace(/^\/api\//, "");
+  const parts = path.split("/").filter(Boolean);
+  const seg = (i: number) => parts[i] ?? "";
+  const isId = (s: string) => /^\d+$/.test(s) || /^[0-9a-f-]{36}$/i.test(s);
+  const M = method.toUpperCase();
+  const verb = M === "POST" ? "Created" : M === "DELETE" ? "Deleted" : "Updated";
+
+  if (seg(0) === "auth") {
+    if (seg(1) === "login") return "Logged in";
+    if (seg(1) === "logout") return "Logged out";
+    if (seg(1) === "register" || seg(1) === "users") return "Created new user account";
+    return "Authentication action";
+  }
+
+  if (seg(0) === "settings") {
+    const s1 = seg(1);
+    if (s1 === "currencies") {
+      if (seg(2) === "base") return "Changed base currency";
+      if (seg(3) === "toggle") return `Toggled currency ${seg(2).toUpperCase()}`;
+      return `${verb} currency`;
+    }
+    if (s1 === "exchange-rates") {
+      if (seg(2) === "refresh") return "Refreshed exchange rates from live data";
+      if (seg(2) && !isId(seg(2))) return `Updated exchange rate for ${seg(2).toUpperCase()}`;
+      return "Updated exchange rates";
+    }
+    if (s1 === "company") return "Updated company profile";
+    if (s1 === "banks") return M === "DELETE" ? "Removed bank account" : seg(2) ? "Updated bank account" : "Added bank account";
+    if (s1 === "gst") return "Updated GST settings";
+    if (s1 === "users") return M === "DELETE" ? "Removed user" : seg(2) ? "Updated user account" : "Created user account";
+    if (s1 === "warehouses") return M === "DELETE" ? "Removed warehouse location" : seg(2) ? "Updated warehouse location" : "Added warehouse location";
+    if (s1 === "activity-logs") return "Viewed activity logs";
+    if (s1 === "password") return "Changed password";
+    return "Updated settings";
+  }
+
+  if (seg(0) === "procurement") {
+    const s1 = seg(1);
+    if (s1 === "purchase-orders") {
+      const action = seg(3);
+      if (action === "approve") return "Approved Purchase Order";
+      if (action === "cancel") return "Cancelled Purchase Order";
+      if (action === "items") return "Updated Purchase Order items";
+      if (M === "DELETE") return "Deleted Purchase Order";
+      return seg(2) ? "Updated Purchase Order" : "Created Purchase Order";
+    }
+    if (s1 === "purchase-receipts") {
+      const action = seg(3);
+      if (action === "confirm") return "Confirmed Purchase Receipt";
+      if (action === "cancel") return "Cancelled Purchase Receipt";
+      if (action === "vendor-invoice") return M === "DELETE" ? "Removed vendor invoice from Purchase Receipt" : "Uploaded vendor invoice to Purchase Receipt";
+      if (M === "DELETE") return "Deleted Purchase Receipt";
+      return seg(2) ? "Updated Purchase Receipt" : "Created Purchase Receipt";
+    }
+    if (s1 === "vendors") return M === "DELETE" ? "Deleted Vendor" : seg(2) ? "Updated Vendor" : "Added Vendor";
+    if (s1 === "approved-pos") return "Viewed approved Purchase Orders";
+    return `${verb} procurement record`;
+  }
+
+  if (seg(0) === "masters") {
+    const names: Record<string, string> = {
+      clients: "Client", products: "Product", vendors: "Vendor",
+      "product-categories": "Product Category", "hsn-codes": "HSN Code",
+      "unit-of-measure": "Unit of Measure",
+    };
+    const name = names[seg(1)] ?? seg(1).replace(/-/g, " ");
+    if (M === "DELETE") return `Deleted ${name}`;
+    return seg(2) ? `Updated ${name}` : `Created ${name}`;
+  }
+
+  if (seg(0) === "invoices") {
+    const action = seg(2);
+    if (action === "send") return "Sent Invoice to client";
+    if (action === "cancel") return "Cancelled Invoice";
+    if (M === "DELETE") return "Deleted Invoice";
+    return seg(1) ? "Updated Invoice" : "Created Invoice";
+  }
+
+  if (seg(0) === "shipping") return "Updated shipping settings";
+  if (seg(0) === "vendor-ledger") return "Viewed Vendor Ledger";
+
+  const resource = parts.filter(p => !isId(p)).join(" › ").replace(/-/g, " ");
+  return `${verb} ${resource}`.trim() || `${verb} record`;
+}
+
 function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
   const token = localStorage.getItem("zarierp_token");
   const hdrs = { Authorization: `Bearer ${token}` };
@@ -985,9 +1164,9 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [users, setUsers] = useState<{ user_email: string; user_name: string }[]>([]);
-  const [filters, setFilters] = useState({ user_email: "", from: "", to: "" });
+  const [filters, setFilters] = useState({ user_email: "", from: "", to: "", search: "" });
   const [page, setPage] = useState(1);
-  const PER_PAGE = 50;
+  const PER_PAGE = 25;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -996,6 +1175,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
       if (filters.user_email) q.set("user_email", filters.user_email);
       if (filters.from) q.set("from", filters.from);
       if (filters.to) q.set("to", filters.to);
+      if (filters.search) q.set("search", filters.search);
       const r = await fetch(`/api/settings/activity-logs?${q}`, { headers: hdrs });
       const j = await r.json();
       setLogs(j.data ?? []);
@@ -1017,6 +1197,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const setF = (k: string, v: string) => { setFilters(f => ({ ...f, [k]: v })); setPage(1); };
+  const hasFilters = filters.user_email || filters.from || filters.to || filters.search;
 
   const totalPages = Math.ceil(total / PER_PAGE);
 
@@ -1070,15 +1251,25 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
       {/* Filters */}
       <div className={`${card} px-4 py-3`}>
         <div className="flex items-center gap-4 flex-wrap">
-          {/* Label */}
           <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">
             <Filter size={12} /> Filters
           </div>
 
           <div className="w-px h-5 bg-gray-200 shrink-0" />
 
-          {/* Fields row */}
           <div className="flex items-center gap-3 flex-wrap flex-1">
+            {/* Search */}
+            <div className="relative min-w-[200px]">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search activity…"
+                value={filters.search}
+                onChange={e => setF("search", e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-[#C6AF4B] bg-white"
+              />
+            </div>
+
             {isAdmin && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 whitespace-nowrap">User</span>
@@ -1115,12 +1306,12 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
               />
             </div>
 
-            {(filters.user_email || filters.from || filters.to) && (
+            {hasFilters && (
               <button
-                onClick={() => { setFilters({ user_email: "", from: "", to: "" }); setPage(1); }}
+                onClick={() => { setFilters({ user_email: "", from: "", to: "", search: "" }); setPage(1); }}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
               >
-                <X size={12} /> Clear
+                <X size={12} /> Clear all
               </button>
             )}
           </div>
@@ -1144,14 +1335,18 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/60">
-                    {(isAdmin ? ["User", "Method", "Action", "URL", "Status", "IP", "Date & Time"] : ["Method", "Action", "URL", "Status", "Date & Time"]).map(h => (
+                    {(isAdmin
+                      ? ["#", "User", "Type", "What Happened", "Result", "IP", "Date & Time"]
+                      : ["#", "Type", "What Happened", "Result", "Date & Time"]
+                    ).map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map(log => (
+                  {logs.map((log, idx) => (
                     <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                      <td className="px-4 py-2.5 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + idx + 1}</td>
                       {isAdmin && (
                         <td className="px-4 py-2.5">
                           <p className="text-xs font-semibold text-gray-800">{log.user_name || log.user_email}</p>
@@ -1160,14 +1355,16 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
                       )}
                       <td className="px-4 py-2.5">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold border ${METHOD_COLORS[log.method] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                          {log.method}
+                          {log.method === "POST" ? "New" : log.method === "DELETE" ? "Delete" : log.method === "PATCH" ? "Update" : log.method === "PUT" ? "Update" : log.method}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-700 font-medium whitespace-nowrap">{log.action}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-400 font-mono max-w-48 truncate" title={log.url}>{log.url}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-700 max-w-xs">
+                        <p className="font-medium leading-snug">{toPlainEnglish(log.method, log.url)}</p>
+                        <p className="text-gray-400 mt-0.5 font-mono truncate max-w-[220px]" title={log.url}>{log.url}</p>
+                      </td>
                       <td className="px-4 py-2.5">
                         <span className={`text-xs font-semibold ${log.status_code >= 400 ? "text-red-500" : log.status_code >= 300 ? "text-amber-500" : "text-emerald-600"}`}>
-                          {log.status_code}
+                          {log.status_code >= 400 ? "Failed" : log.status_code >= 300 ? "Redirected" : "Success"}
                         </span>
                       </td>
                       {isAdmin && <td className="px-4 py-2.5 text-xs text-gray-400 font-mono">{log.ip_address || "—"}</td>}
@@ -1180,23 +1377,39 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 flex-wrap gap-2">
                 <span className="text-xs text-gray-400">
-                  Page {page} of {totalPages} · {total} entries
+                  Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} of {total.toLocaleString()} entries
                 </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
-                  >
+                <div className="flex gap-1 flex-wrap">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">
                     Previous
                   </button>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
-                  >
+                  {(() => {
+                    const pages: (number | "…")[] = [];
+                    if (totalPages <= 7) {
+                      for (let i = 1; i <= totalPages; i++) pages.push(i);
+                    } else {
+                      pages.push(1);
+                      if (page > 3) pages.push("…");
+                      for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+                      if (page < totalPages - 2) pages.push("…");
+                      pages.push(totalPages);
+                    }
+                    return pages.map((pg, i) =>
+                      pg === "…" ? (
+                        <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-gray-400">…</span>
+                      ) : (
+                        <button key={pg} onClick={() => setPage(pg as number)}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition ${pg === page ? "border-[#C6AF4B] text-[#C6AF4B] bg-[#C6AF4B]/8 font-semibold" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                          {pg}
+                        </button>
+                      )
+                    );
+                  })()}
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">
                     Next
                   </button>
                 </div>

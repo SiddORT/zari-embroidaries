@@ -399,7 +399,7 @@ router.delete("/settings/bank-accounts/:id", requireAuth, async (req: AuthReques
 // GET /api/settings/activity-logs
 router.get("/settings/activity-logs", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { user_email, from, to, page = "1", limit: lim = "100" } = req.query as Record<string, string>;
+    const { user_email, from, to, search, page = "1", limit: lim = "100" } = req.query as Record<string, string>;
     const isAdmin = req.user?.role === "admin";
     const offset = (parseInt(page) - 1) * parseInt(lim);
 
@@ -423,6 +423,11 @@ router.get("/settings/activity-logs", requireAuth, async (req: AuthRequest, res)
     if (to) {
       conditions.push(`created_at <= $${idx++}`);
       params.push(new Date(to).toISOString());
+    }
+    if (search) {
+      conditions.push(`(action ILIKE $${idx} OR url ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
