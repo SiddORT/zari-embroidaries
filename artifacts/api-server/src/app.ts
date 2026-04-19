@@ -47,7 +47,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
         try {
           const payload = verifyToken(auth.slice(7)) as any;
           userEmail = payload?.email ?? "anonymous";
-          userName  = payload?.name ?? payload?.email ?? "";
+          userName  = payload?.username ?? payload?.name ?? "";
         } catch {}
       }
 

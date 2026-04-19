@@ -1349,7 +1349,9 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
                       <td className="px-4 py-2.5 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + idx + 1}</td>
                       {isAdmin && (
                         <td className="px-4 py-2.5">
-                          <p className="text-xs font-semibold text-gray-800">{log.user_name || "—"}</p>
+                          <p className="text-xs font-semibold text-gray-800">
+                            {log.user_name && log.user_name !== log.user_email ? log.user_name : "—"}
+                          </p>
                           <p className="text-xs text-gray-400">{log.user_email}</p>
                         </td>
                       )}
