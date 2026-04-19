@@ -361,7 +361,7 @@ export default function StockAdjustments() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input type="text" placeholder="Search item or reason…" value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                className="w-full pl-8 pr-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
             </div>
 
             {[
@@ -369,7 +369,7 @@ export default function StockAdjustments() {
             ].map(({ label, value, set, opts }) => (
               <div key={label} className="relative">
                 <select value={value} onChange={e => { set(e.target.value); setPage(1); }}
-                  className="appearance-none pl-3 pr-8 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[160px]">
+                  className="appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[160px]">
                   <option value="all">{label}</option>
                   {opts.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -379,7 +379,7 @@ export default function StockAdjustments() {
 
             <div className="relative">
               <select value={adjustmentDir} onChange={e => { setAdjustmentDir(e.target.value); setPage(1); }}
-                className="appearance-none pl-3 pr-8 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[140px]">
+                className="appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[140px]">
                 <option value="all">All Directions</option>
                 <option value="Increase">Increase</option>
                 <option value="Decrease">Decrease</option>
@@ -389,7 +389,7 @@ export default function StockAdjustments() {
 
             <div className="relative">
               <select value={referenceType} onChange={e => { setReferenceType(e.target.value); setPage(1); }}
-                className="appearance-none pl-3 pr-8 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[140px]">
+                className="appearance-none pl-3 pr-8 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white min-w-[140px]">
                 <option value="all">All Ref Types</option>
                 {REF_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
