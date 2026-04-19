@@ -92,7 +92,12 @@ router.get("/invoices/:id", requireAuth, async (req, res) => {
 router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
   const id = parseInt(req.params.swatchOrderId);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-  const rows = await db.select().from(invoicesTable).where(eq(invoicesTable.swatchOrderId, id));
+  const rows = await db.select().from(invoicesTable).where(
+    or(
+      eq(invoicesTable.swatchOrderId, id),
+      and(eq(invoicesTable.referenceType, "Swatch"), eq(invoicesTable.referenceId, String(id)))
+    )
+  ).orderBy(desc(invoicesTable.createdAt));
   res.json({ data: rows });
 });
 
@@ -100,7 +105,12 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
 router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
   const id = parseInt(req.params.styleOrderId);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-  const rows = await db.select().from(invoicesTable).where(eq(invoicesTable.styleOrderId, id));
+  const rows = await db.select().from(invoicesTable).where(
+    or(
+      eq(invoicesTable.styleOrderId, id),
+      and(eq(invoicesTable.referenceType, "Style"), eq(invoicesTable.referenceId, String(id)))
+    )
+  ).orderBy(desc(invoicesTable.createdAt));
   res.json({ data: rows });
 });
 
