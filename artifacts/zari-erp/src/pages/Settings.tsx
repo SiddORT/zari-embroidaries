@@ -1361,7 +1361,11 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-700 max-w-xs">
-                        <p className="font-medium leading-snug">{toPlainEnglish(log.method, log.url)}</p>
+                        <p className="font-medium leading-snug">
+                          {/^(GET|POST|PUT|PATCH|DELETE) /.test(log.action)
+                            ? toPlainEnglish(log.method, log.url)
+                            : log.action}
+                        </p>
                         <p className="text-gray-400 mt-0.5 font-mono truncate max-w-[220px]" title={log.url}>{log.url}</p>
                       </td>
                       <td className="px-4 py-2.5">

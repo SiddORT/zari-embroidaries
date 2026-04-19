@@ -440,12 +440,36 @@ router.get("/settings/activity-logs", requireAuth, async (req: AuthRequest, res)
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/settings/activity-logs/action — log client-side events (e.g. PDF downloads)
+router.post("/settings/activity-logs/action", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { description, method = "GET", url = "/client-action" } = req.body as { description: string; method?: string; url?: string };
+    if (!description?.trim()) return res.status(400).json({ error: "description required" });
+    await pool.query(
+      `INSERT INTO activity_logs (user_email, user_name, method, url, action, status_code, ip_address)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        req.user?.email ?? "anonymous",
+        (req.user as any)?.username ?? req.user?.email ?? "",
+        method,
+        url,
+        description.trim(),
+        200,
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "",
+      ]
+    );
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/settings/activity-logs/users — list of users for admin filter
 router.get("/settings/activity-logs/users", requireAuth, async (req: AuthRequest, res) => {
   if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
   try {
     const { rows } = await pool.query(
-      `SELECT DISTINCT user_email, user_name FROM activity_logs ORDER BY user_email`
+      `SELECT DISTINCT ON (user_email) user_email, user_name
+       FROM activity_logs
+       ORDER BY user_email, created_at DESC`
     );
     res.json({ data: rows });
   } catch (err: any) { res.status(500).json({ error: err.message }); }

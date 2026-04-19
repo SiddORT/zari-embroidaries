@@ -9,6 +9,7 @@ import {
   Pencil, History, FileDown,
 } from "lucide-react";
 import { downloadBomPdf } from "@/utils/pdfExport";
+import { logActivity } from "@/utils/logActivity";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useAllMaterials } from "@/hooks/useMaterials";
@@ -196,6 +197,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           unitType: r.unitType,
         })),
       });
+      logActivity(`Downloaded BOM PDF for Swatch Order ${orderCode}${clientName ? ` — ${clientName}` : ""}`);
       toast({ title: "BOM PDF generated successfully" });
     } catch {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });

@@ -6,6 +6,7 @@ import {
   AlertCircle, Clock, FileText, Printer, FileDown,
 } from "lucide-react";
 import { downloadQuotationPdf } from "@/utils/generateQuotationPdf";
+import { logActivity } from "@/utils/logActivity";
 import ZariButton from "@/components/ui/ZariButton";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -282,7 +283,7 @@ export default function QuotationDetail() {
               <MessageSquare size={14} /> Add Feedback
             </button>
             <button
-              onClick={() => downloadQuotationPdf(q)}
+              onClick={() => { downloadQuotationPdf(q); logActivity(`Downloaded PDF for Quotation ${q.quotation_number ?? ""} — ${q.client_name ?? ""}`); }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm transition"
               style={{ background: "#C6AF4B" }}
               title="Download PDF"

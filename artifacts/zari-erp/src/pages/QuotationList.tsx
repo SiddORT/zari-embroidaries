@@ -6,6 +6,7 @@ import {
   CheckCircle2, GitBranch, FileDown,
 } from "lucide-react";
 import { downloadQuotationPdf } from "@/utils/generateQuotationPdf";
+import { logActivity } from "@/utils/logActivity";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -145,6 +146,7 @@ export default function QuotationList() {
     try {
       const res = await customFetch<{ data: any }>(`/api/quotations/${quotId}`);
       await downloadQuotationPdf(res.data);
+      logActivity(`Downloaded PDF for Quotation ${res.data?.quotation_number ?? quotId} — ${res.data?.client_name ?? ""}`);
     } catch (err: any) {
       toast({ title: "PDF Error", description: err.message || "Failed to generate PDF", variant: "destructive" });
     }

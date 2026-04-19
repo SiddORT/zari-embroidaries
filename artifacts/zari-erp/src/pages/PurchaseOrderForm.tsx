@@ -7,6 +7,7 @@ import {
   Camera, X as XIcon, ZoomIn,
 } from "lucide-react";
 import { downloadPoPdf } from "@/utils/pdfExport";
+import { logActivity } from "@/utils/logActivity";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -356,24 +357,27 @@ export default function PurchaseOrderForm() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => downloadPoPdf({
-                  po_number: po.po_number,
-                  status: po.status,
-                  vendor_name: po.vendor_name,
-                  po_date: po.po_date,
-                  reference_type: po.reference_type,
-                  notes: po.notes,
-                  items: po.items.map(i => ({
-                    item_name: i.item_name,
-                    item_code: i.item_code,
-                    unit_type: i.unit_type,
-                    ordered_quantity: i.ordered_quantity,
-                    received_quantity: i.received_quantity,
-                    pending_quantity: i.pending_quantity,
-                    unit_price: i.unit_price,
-                  })),
-                  receipts: po.receipts,
-                })}
+                onClick={() => {
+                  downloadPoPdf({
+                    po_number: po.po_number,
+                    status: po.status,
+                    vendor_name: po.vendor_name,
+                    po_date: po.po_date,
+                    reference_type: po.reference_type,
+                    notes: po.notes,
+                    items: po.items.map(i => ({
+                      item_name: i.item_name,
+                      item_code: i.item_code,
+                      unit_type: i.unit_type,
+                      ordered_quantity: i.ordered_quantity,
+                      received_quantity: i.received_quantity,
+                      pending_quantity: i.pending_quantity,
+                      unit_price: i.unit_price,
+                    })),
+                    receipts: po.receipts,
+                  });
+                  logActivity(`Downloaded PDF for Purchase Order ${po.po_number} — ${po.vendor_name}`);
+                }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
                 <FileDown className="h-4 w-4" /> Download PDF
               </button>

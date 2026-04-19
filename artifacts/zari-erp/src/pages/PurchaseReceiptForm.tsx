@@ -6,6 +6,7 @@ import {
   Camera, FileText, Trash2,
 } from "lucide-react";
 import { downloadPrPdf } from "@/utils/pdfExport";
+import { logActivity } from "@/utils/logActivity";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -450,22 +451,25 @@ export default function PurchaseReceiptForm() {
             {/* Download PDF — always visible */}
             {!editMode && (
               <button
-                onClick={() => downloadPrPdf({
-                  pr_number: pr.pr_number,
-                  po_number: pr.po_number,
-                  status: pr.status,
-                  vendor_name: pr.vendor_name,
-                  received_date: pr.received_date,
-                  reference_type: pr.reference_type,
-                  items: pr.items.map(item => ({
-                    item_name: item.item_name,
-                    item_code: item.item_code,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                    unit_type: item.unit_type,
-                    warehouse_location: item.warehouse_location,
-                  })),
-                })}
+                onClick={() => {
+                  downloadPrPdf({
+                    pr_number: pr.pr_number,
+                    po_number: pr.po_number,
+                    status: pr.status,
+                    vendor_name: pr.vendor_name,
+                    received_date: pr.received_date,
+                    reference_type: pr.reference_type,
+                    items: pr.items.map(item => ({
+                      item_name: item.item_name,
+                      item_code: item.item_code,
+                      quantity: item.quantity,
+                      unit_price: item.unit_price,
+                      unit_type: item.unit_type,
+                      warehouse_location: item.warehouse_location,
+                    })),
+                  });
+                  logActivity(`Downloaded PDF for Purchase Receipt ${pr.pr_number} — ${pr.vendor_name}`);
+                }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
                 <FileDown className="h-4 w-4" /> Download PDF
               </button>

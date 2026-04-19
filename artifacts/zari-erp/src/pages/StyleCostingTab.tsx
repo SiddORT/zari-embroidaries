@@ -7,6 +7,7 @@ import {
   Pencil, History, FileDown,
 } from "lucide-react";
 import { downloadBomPdf } from "@/utils/pdfExport";
+import { logActivity } from "@/utils/logActivity";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -194,6 +195,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
           unitType: r.unitType,
         })),
       });
+      logActivity(`Downloaded BOM PDF for Style Order ${orderCode}${clientName ? ` — ${clientName}` : ""}`);
       toast({ title: "BOM PDF generated successfully" });
     } catch {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
