@@ -4,7 +4,7 @@ import {
   User, Lock, Globe, ChevronDown, ChevronUp, Save, RefreshCw,
   Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X,
   Building2, Activity, Trash2, Star, Plus, Filter, Search,
-  CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText
+  CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText, Receipt, ToggleLeft, ToggleRight, Info
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import AppLayout from "@/components/layout/AppLayout";
 
 const G = "#C6AF4B";
 
-type Tab = "profile" | "currency" | "banks" | "logs" | "warehouses";
+type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses";
 
 const STATUS_COLORS: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -81,6 +81,9 @@ export default function Settings() {
               {isAdmin && (
                 <NavItem icon={<Landmark size={16} />} label="Bank Details" active={tab === "banks"} onClick={() => setTab("banks")} />
               )}
+              {isAdmin && (
+                <NavItem icon={<Receipt size={16} />} label="GST Settings" active={tab === "gst"} onClick={() => setTab("gst")} />
+              )}
               <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
               {isAdmin && (
                 <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
@@ -93,6 +96,7 @@ export default function Settings() {
             {tab === "profile" && <ProfileTab card={card} inp={inp} label={label} toast={toast} userId={user?.id} />}
             {tab === "currency" && isAdmin && <CurrencyTab card={card} inp={inp} label={label} toast={toast} />}
             {tab === "banks" && isAdmin && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} />}
+            {tab === "gst" && isAdmin && <GSTSettingsTab card={card} inp={inp} label={label} toast={toast} />}
             {tab === "logs" && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} />}
             {tab === "warehouses" && isAdmin && <WarehouseTab card={card} inp={inp} label={label} toast={toast} />}
           </div>
@@ -1545,6 +1549,339 @@ function WarehouseTab({ card, inp, label, toast }: any) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// GST SETTINGS TAB
+// ─────────────────────────────────────────────────────────
+
+const INDIAN_STATES = [
+  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
+  "Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka",
+  "Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram",
+  "Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
+  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
+  "Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry",
+];
+
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+const GST_MODES = ["Auto Detect", "Manual Selection"] as const;
+
+interface GSTForm {
+  company_gstin: string;
+  company_state: string;
+  company_country: string;
+  export_under_lut_enabled: boolean;
+  reverse_charge_enabled: boolean;
+  gst_mode: string;
+  default_service_gst_rate: string;
+}
+
+const EMPTY_GST: GSTForm = {
+  company_gstin: "",
+  company_state: "",
+  company_country: "India",
+  export_under_lut_enabled: true,
+  reverse_charge_enabled: false,
+  gst_mode: "Auto Detect",
+  default_service_gst_rate: "18",
+};
+
+function GSTSettingsTab({ card, inp, label, toast }: any) {
+  const [form, setForm] = useState<GSTForm>(EMPTY_GST);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    customFetch<any>("/api/settings/gst")
+      .then(j => {
+        if (j.data) {
+          setForm({
+            company_gstin:            j.data.company_gstin ?? "",
+            company_state:            j.data.company_state ?? "",
+            company_country:          j.data.company_country ?? "India",
+            export_under_lut_enabled: !!j.data.export_under_lut_enabled,
+            reverse_charge_enabled:   !!j.data.reverse_charge_enabled,
+            gst_mode:                 j.data.gst_mode ?? "Auto Detect",
+            default_service_gst_rate: String(j.data.default_service_gst_rate ?? "18"),
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function f(k: keyof GSTForm, v: string | boolean) {
+    setForm(prev => ({ ...prev, [k]: v }));
+    if (errors[k]) setErrors(e => { const n = { ...e }; delete n[k]; return n; });
+  }
+
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (form.company_gstin.trim() && !GSTIN_REGEX.test(form.company_gstin.trim().toUpperCase()))
+      e.company_gstin = "Invalid GSTIN format (e.g. 27ABCDE1234F1Z5)";
+    if (!form.company_state.trim()) e.company_state = "State is required";
+    if (!form.company_country.trim()) e.company_country = "Country is required";
+    if (!form.gst_mode) e.gst_mode = "GST mode is required";
+    const rate = parseFloat(form.default_service_gst_rate);
+    if (isNaN(rate) || rate < 0) e.default_service_gst_rate = "Must be 0 or greater";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  async function handleSave() {
+    if (!validate()) return;
+    setSaving(true);
+    setSuccess(false);
+    try {
+      await customFetch("/api/settings/gst", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...form,
+          company_gstin: form.company_gstin.trim().toUpperCase(),
+          default_service_gst_rate: parseFloat(form.default_service_gst_rate),
+        }),
+      });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 5000);
+      toast({ title: "GST settings updated successfully" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message?.replace(/^HTTP \d+[^:]*:\s*/, ""), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const Toggle = ({ value, onChange, id }: { value: boolean; onChange: (v: boolean) => void; id: string }) => (
+    <button
+      id={id}
+      type="button"
+      onClick={() => onChange(!value)}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+        value
+          ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+          : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
+      }`}
+    >
+      {value
+        ? <ToggleRight size={18} className="text-emerald-600" />
+        : <ToggleLeft size={18} className="text-gray-400" />}
+      {value ? "Yes — Enabled" : "No — Disabled"}
+    </button>
+  );
+
+  if (loading) {
+    return (
+      <div className={`${card} p-8 flex items-center justify-center`}>
+        <span className="h-6 w-6 border-2 border-[#C6AF4B]/30 border-t-[#C6AF4B] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header card */}
+      <div className={`${card} p-6`}>
+        <div className="flex items-center gap-3 mb-1 border-b border-gray-100 pb-4">
+          <Receipt size={18} style={{ color: G }} />
+          <div>
+            <h2 className="font-bold text-gray-900 text-base">GST Settings</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Company GST configuration used across invoice generation and tax calculations</p>
+          </div>
+        </div>
+
+        <div className="space-y-5 pt-1">
+
+          {/* GSTIN */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={label}>Company GSTIN</label>
+              <input
+                value={form.company_gstin}
+                onChange={e => f("company_gstin", e.target.value.toUpperCase())}
+                className={`${inp} font-mono tracking-wider uppercase ${errors.company_gstin ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
+                placeholder="27ABCDE1234F1Z5"
+                maxLength={15}
+              />
+              {errors.company_gstin
+                ? <p className="text-xs text-red-500 mt-1">{errors.company_gstin}</p>
+                : <p className="text-xs text-gray-400 mt-1">Leave blank if not registered for GST</p>
+              }
+            </div>
+            <div>
+              <label className={label}>Default Service GST Rate (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="28"
+                step="0.01"
+                value={form.default_service_gst_rate}
+                onChange={e => f("default_service_gst_rate", e.target.value)}
+                className={`${inp} ${errors.default_service_gst_rate ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
+                placeholder="18"
+              />
+              {errors.default_service_gst_rate
+                ? <p className="text-xs text-red-500 mt-1">{errors.default_service_gst_rate}</p>
+                : <p className="text-xs text-gray-400 mt-1">Fallback rate when HSN code is absent</p>
+              }
+            </div>
+          </div>
+
+          {/* State + Country */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={label}>Company State <span className="text-red-400">*</span></label>
+              <select
+                value={form.company_state}
+                onChange={e => f("company_state", e.target.value)}
+                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 transition bg-white ${
+                  errors.company_state
+                    ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                    : "border-gray-200 focus:border-[#C6AF4B] focus:ring-[#C6AF4B]/20"
+                }`}
+              >
+                <option value="">Select state…</option>
+                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              {errors.company_state && <p className="text-xs text-red-500 mt-1">{errors.company_state}</p>}
+              <p className="text-xs text-gray-400 mt-1">Used to determine CGST+SGST vs IGST</p>
+            </div>
+            <div>
+              <label className={label}>Company Country <span className="text-red-400">*</span></label>
+              <input
+                value={form.company_country}
+                onChange={e => f("company_country", e.target.value)}
+                className={`${inp} ${errors.company_country ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
+                placeholder="India"
+              />
+              {errors.company_country
+                ? <p className="text-xs text-red-500 mt-1">{errors.company_country}</p>
+                : <p className="text-xs text-gray-400 mt-1">Used for export invoice GST logic</p>
+              }
+            </div>
+          </div>
+
+          {/* GST Mode */}
+          <div>
+            <label className={label}>GST Mode <span className="text-red-400">*</span></label>
+            <div className="flex gap-3">
+              {GST_MODES.map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => f("gst_mode", mode)}
+                  className={`flex-1 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                    form.gst_mode === mode
+                      ? "bg-gray-900 border-gray-900 text-[#C6AF4B]"
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+            {errors.gst_mode && <p className="text-xs text-red-500 mt-1">{errors.gst_mode}</p>}
+            {form.gst_mode === "Auto Detect" && (
+              <div className="flex items-start gap-2 mt-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                <Info size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-600">System automatically determines CGST+SGST or IGST based on company state vs client state, and 0% GST for exports.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Toggles card */}
+      <div className={`${card} p-6`}>
+        <div className="flex items-center gap-3 mb-5 border-b border-gray-100 pb-4">
+          <ToggleRight size={18} style={{ color: G }} />
+          <h2 className="font-bold text-gray-900 text-base">Special GST Rules</h2>
+        </div>
+
+        <div className="space-y-5">
+          {/* Export under LUT */}
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">Export under LUT</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                When enabled, export invoices are issued without GST payment under Letter of Undertaking. Invoice GST will be set to 0%.
+              </p>
+            </div>
+            <Toggle value={form.export_under_lut_enabled} onChange={v => f("export_under_lut_enabled", v)} id="lut" />
+          </div>
+
+          <div className="border-t border-gray-50" />
+
+          {/* Reverse Charge */}
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">Reverse Charge Mechanism</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                When enabled, GST liability on vendor invoices is reversed to the buyer (applicable for unregistered vendors and specific services).
+              </p>
+            </div>
+            <Toggle value={form.reverse_charge_enabled} onChange={v => f("reverse_charge_enabled", v)} id="rcm" />
+          </div>
+        </div>
+      </div>
+
+      {/* Summary info card */}
+      <div className={`${card} p-5`}>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          {[
+            {
+              label: "Intra-State Sales",
+              value: "CGST + SGST",
+              detail: `Client in ${form.company_state || "same state"}`,
+              color: "text-emerald-600",
+            },
+            {
+              label: "Inter-State Sales",
+              value: "IGST",
+              detail: "Client in different state",
+              color: "text-blue-600",
+            },
+            {
+              label: "Export Sales",
+              value: form.export_under_lut_enabled ? "0% (LUT)" : "IGST 0%",
+              detail: `Client outside ${form.company_country || "India"}`,
+              color: "text-violet-600",
+            },
+          ].map(({ label: l, value, detail, color }) => (
+            <div key={l} className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{l}</p>
+              <p className={`text-sm font-bold ${color}`}>{value}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">{detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {success && (
+        <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm">
+          <CheckCircle2 size={16} /> GST settings updated successfully
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
+          style={{ backgroundColor: G }}
+        >
+          {saving
+            ? <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            : <Save size={14} />}
+          Save GST Settings
+        </button>
+      </div>
     </div>
   );
 }

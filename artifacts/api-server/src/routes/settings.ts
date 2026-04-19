@@ -105,6 +105,21 @@ export async function ensureSettingsTables() {
       );
     }
   }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS company_gst_settings (
+      gst_settings_id       SERIAL PRIMARY KEY,
+      company_gstin         TEXT NOT NULL DEFAULT '',
+      company_state         TEXT NOT NULL DEFAULT '',
+      company_country       TEXT NOT NULL DEFAULT 'India',
+      export_under_lut_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
+      reverse_charge_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+      gst_mode              TEXT NOT NULL DEFAULT 'Auto Detect',
+      default_service_gst_rate  NUMERIC(5,2) NOT NULL DEFAULT 18,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -493,6 +508,66 @@ router.delete("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, 
   try {
     await pool.query(`DELETE FROM warehouse_locations WHERE id = $1`, [id]);
     res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// COMPANY GST SETTINGS
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/settings/gst
+router.get("/settings/gst", requireAuth, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM company_gst_settings ORDER BY gst_settings_id LIMIT 1`
+    );
+    if (!rows.length) {
+      return res.json({ data: null });
+    }
+    res.json({ data: rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/settings/gst
+router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
+  if (!adminOnly(req, res)) return;
+  try {
+    const {
+      company_gstin, company_state, company_country,
+      export_under_lut_enabled, reverse_charge_enabled,
+      gst_mode, default_service_gst_rate,
+    } = req.body;
+
+    if (!company_state?.trim()) return res.status(400).json({ error: "Company state is required" });
+    if (!company_country?.trim()) return res.status(400).json({ error: "Company country is required" });
+    if (!gst_mode) return res.status(400).json({ error: "GST mode is required" });
+    const rate = parseFloat(default_service_gst_rate);
+    if (isNaN(rate) || rate < 0) return res.status(400).json({ error: "Default service GST rate must be 0 or greater" });
+
+    const existing = await pool.query(`SELECT gst_settings_id FROM company_gst_settings LIMIT 1`);
+    if (existing.rows.length) {
+      await pool.query(
+        `UPDATE company_gst_settings SET
+           company_gstin=$1, company_state=$2, company_country=$3,
+           export_under_lut_enabled=$4, reverse_charge_enabled=$5,
+           gst_mode=$6, default_service_gst_rate=$7, updated_at=NOW()
+         WHERE gst_settings_id=$8`,
+        [company_gstin?.trim() ?? "", company_state.trim(), company_country.trim(),
+         !!export_under_lut_enabled, !!reverse_charge_enabled,
+         gst_mode, rate, existing.rows[0].gst_settings_id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO company_gst_settings
+           (company_gstin, company_state, company_country, export_under_lut_enabled,
+            reverse_charge_enabled, gst_mode, default_service_gst_rate)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [company_gstin?.trim() ?? "", company_state.trim(), company_country.trim(),
+         !!export_under_lut_enabled, !!reverse_charge_enabled, gst_mode, rate]
+      );
+    }
+
+    res.json({ message: "GST settings updated successfully" });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

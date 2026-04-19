@@ -1,0 +1,319 @@
+Build a minimal GST Settings module inside Settings → Company Profile for the embroidery sampling ERP system.
+
+This module will support GST calculation logic used inside the invoice engine.
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Company GST Settings Module
+
+---
+
+SECTION 1 — COMPANY GST SETTINGS TABLE
+
+Create table:
+
+company_gst_settings
+
+Fields:
+
+gst_settings_id (primary key)
+
+company_gstin
+
+company_state
+
+company_country
+
+export_under_lut_enabled
+
+reverse_charge_enabled
+
+gst_mode
+
+default_service_gst_rate
+
+created_at
+
+updated_at
+
+Only one record allowed in this table.
+
+---
+
+SECTION 2 — COMPANY GSTIN FIELD
+
+Store:
+
+company_gstin
+
+Example:
+
+07ABCDE1234F1Z5
+
+Used inside:
+
+invoice header
+
+PDF export
+
+GST logic engine
+
+Validation:
+
+Must allow only valid GSTIN format
+
+---
+
+SECTION 3 — COMPANY STATE FIELD
+
+Store:
+
+company_state
+
+Example:
+
+Delhi
+
+Used for determining:
+
+CGST + SGST
+
+OR
+
+IGST
+
+Rule:
+
+If client state = company state
+
+Apply:
+
+CGST + SGST
+
+Else:
+
+Apply IGST
+
+---
+
+SECTION 4 — COMPANY COUNTRY FIELD
+
+Store:
+
+company_country
+
+Example:
+
+India
+
+Used for determining:
+
+Export invoice GST logic
+
+Rule:
+
+If client country ≠ company country
+
+Apply:
+
+Export GST = 0%
+
+---
+
+SECTION 5 — EXPORT UNDER LUT TOGGLE
+
+Store:
+
+export_under_lut_enabled
+
+Type:
+
+Boolean (Yes / No)
+
+Default:
+
+Yes
+
+Used for:
+
+Export invoices without IGST payment
+
+If enabled:
+
+Invoice GST must be 0%
+
+---
+
+SECTION 6 — REVERSE CHARGE TOGGLE
+
+Store:
+
+reverse_charge_enabled
+
+Type:
+
+Boolean (Yes / No)
+
+Default:
+
+No
+
+Used for:
+
+Vendor invoices requiring reverse charge GST handling
+
+---
+
+SECTION 7 — GST MODE AUTO-DETECTION SETTING
+
+Store:
+
+gst_mode
+
+Supported values:
+
+Auto Detect
+
+Manual Selection
+
+Recommended default:
+
+Auto Detect
+
+Behavior:
+
+If Auto Detect selected:
+
+System automatically determines GST type using:
+
+company_state
+
+client_state
+
+company_country
+
+client_country
+
+---
+
+SECTION 8 — DEFAULT SERVICE GST RATE FIELD
+
+Store:
+
+default_service_gst_rate
+
+Example:
+
+18
+
+Used when:
+
+HSN code missing
+
+Manual invoice item added
+
+Custom charge added
+
+Apply value as:
+
+fallback GST percentage
+
+---
+
+SECTION 9 — SETTINGS PAGE UI STRUCTURE
+
+Add section:
+
+Settings → Company Profile → GST Settings
+
+Fields visible:
+
+Company GSTIN
+
+Company State
+
+Company Country
+
+Export under LUT toggle
+
+Reverse Charge toggle
+
+GST Mode dropdown
+
+Default Service GST Rate
+
+Use card layout UI
+
+Apply system theme styling
+
+---
+
+SECTION 10 — PERMISSIONS CONTROL
+
+Allow:
+
+View GST settings → authorized users
+
+Edit GST settings → admin users only
+
+Prevent multiple GST configuration records
+
+Allow only one configuration entry
+
+---
+
+SECTION 11 — VALIDATION RULES
+
+Prevent:
+
+empty company_gstin
+
+empty company_state
+
+empty company_country
+
+default_service_gst_rate less than 0
+
+Ensure:
+
+gst_mode must be selected
+
+---
+
+SECTION 12 — SUCCESS MESSAGE
+
+After saving settings:
+
+Display:
+
+GST settings updated successfully
+
+---
+
+SECTION 13 — INVOICE ENGINE INTEGRATION SUPPORT
+
+Make GST settings available to:
+
+invoice creation module
+
+invoice item GST calculation
+
+export invoice generation
+
+vendor bill reverse charge logic
+
+Use:
+
+company_gst_settings table
+
+as single source of truth
+
+---
+
+END OF GST SETTINGS MODULE REQUIREMENTS
+
+Build backend logic and frontend UI accordingly.
