@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import {
-  ArrowLeft, Plus, Trash2, Save, Upload, X, Image as ImageIcon,
-  ChevronDown,
+  ArrowLeft, Plus, Trash2, Save, Upload, X,
+  User, Phone, Mail, MapPin, CreditCard, Search,
 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,11 +32,25 @@ interface Charge {
   price: string;
 }
 
-interface ClientOption {
+interface ClientRecord {
   id: number;
+  client_code: string;
   brand_name: string;
   contact_name: string;
+  email: string;
+  alt_email: string | null;
+  contact_no: string;
+  alt_contact_no: string | null;
+  country: string | null;
+  has_gst: boolean;
+  gst_no: string | null;
+  address1: string | null;
+  address2: string | null;
   state: string | null;
+  city: string | null;
+  pincode: string | null;
+  invoice_currency: string | null;
+  is_active: boolean;
 }
 
 const emptyDesign = (): Design => ({ designName: "", hsnCode: "", designImage: "", remarks: "" });
@@ -51,48 +65,58 @@ export default function QuotationForm() {
   const { mutateAsync: logout } = useLogout();
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
   const user = meData?.data;
 
-  // Client
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  // ── Client State ──────────────────────────────────────────────────────────
+  const [allClients, setAllClients] = useState<ClientRecord[]>([]);
   const [clientSearch, setClientSearch] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientState, setClientState] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
+  // for edit mode when clientId exists but full record may not be in list
+  const [clientId, setClientId] = useState<number | null>(null);
+  const [clientName, setClientName] = useState("");       // fallback if no full record
+  const [clientState, setClientState] = useState("");     // for GST
 
-  // Header
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // ── Form State ─────────────────────────────────────────────────────────────
   const [requirementSummary, setRequirementSummary] = useState("");
   const [estimatedWeight, setEstimatedWeight] = useState("");
   const [estimatedShippingCharges, setEstimatedShippingCharges] = useState("0");
   const [internalNotes, setInternalNotes] = useState("");
   const [clientNotes, setClientNotes] = useState("");
-
-  // Designs
   const [designs, setDesigns] = useState<Design[]>([emptyDesign()]);
-
-  // Charges
   const [charges, setCharges] = useState<Charge[]>([emptyCharge()]);
-
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(isEdit);
 
-  // Computed
+  // ── Computed Totals ────────────────────────────────────────────────────────
   const subtotal = charges.reduce((s, c) => s + (parseFloat(c.quantity) || 0) * (parseFloat(c.price) || 0), 0);
   const shipping = parseFloat(estimatedShippingCharges) || 0;
   const gstAmount = parseFloat((subtotal * 0.18).toFixed(2));
   const total = subtotal + gstAmount + shipping;
   const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
-  // Load clients
+  // ── Load All Clients (once) ────────────────────────────────────────────────
   useEffect(() => {
-    customFetch(`/clients?limit=500`)
+    customFetch(`/clients/all`)
       .then((r) => r.json())
-      .then((j) => setClients((j.data ?? j) as ClientOption[]))
+      .then((j) => setAllClients(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
-  // Load existing quotation for edit
+  // ── Close dropdown on outside click ───────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // ── Load Existing Quotation (edit mode) ────────────────────────────────────
   useEffect(() => {
     if (!isEdit) return;
     setLoadingData(true);
@@ -101,7 +125,7 @@ export default function QuotationForm() {
       .then((j) => {
         if (!j.data) return;
         const d = j.data;
-        setClientId(d.client_id ? String(d.client_id) : "");
+        setClientId(d.client_id ? Number(d.client_id) : null);
         setClientName(d.client_name || "");
         setClientState(d.client_state || "");
         setRequirementSummary(d.requirement_summary || "");
@@ -130,21 +154,42 @@ export default function QuotationForm() {
       .finally(() => setLoadingData(false));
   }, [id, isEdit]);
 
-  const filteredClients = clientSearch
-    ? clients.filter(
-        (c) =>
-          c.brand_name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-          c.contact_name.toLowerCase().includes(clientSearch.toLowerCase())
-      )
-    : clients;
+  // ── Match clientId to full record once both are loaded ────────────────────
+  useEffect(() => {
+    if (clientId && allClients.length && !selectedClient) {
+      const found = allClients.find((c) => c.id === clientId);
+      if (found) setSelectedClient(found);
+    }
+  }, [clientId, allClients]);
 
-  function selectClient(c: ClientOption) {
-    setClientId(String(c.id));
+  // ── Filtered Dropdown ─────────────────────────────────────────────────────
+  const filteredClients = clientSearch.trim()
+    ? allClients.filter((c) =>
+        c.brand_name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        c.contact_name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        c.client_code.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        (c.email || "").toLowerCase().includes(clientSearch.toLowerCase())
+      )
+    : allClients;
+
+  function handleSelectClient(c: ClientRecord) {
+    setSelectedClient(c);
+    setClientId(c.id);
     setClientName(c.brand_name);
     setClientState(c.state || "");
     setClientSearch("");
+    setShowDropdown(false);
   }
 
+  function clearClient() {
+    setSelectedClient(null);
+    setClientId(null);
+    setClientName("");
+    setClientState("");
+    setClientSearch("");
+  }
+
+  // ── Image helper ──────────────────────────────────────────────────────────
   async function toBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -161,19 +206,21 @@ export default function QuotationForm() {
     setDesigns((prev) => prev.map((d, i) => i === idx ? { ...d, designImage: b64 } : d));
   }
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!clientName.trim()) {
-      toast({ title: "Validation", description: "Client name is required", variant: "destructive" }); return;
+    const resolvedName = selectedClient?.brand_name || clientName;
+    if (!resolvedName.trim()) {
+      toast({ title: "Validation", description: "Please select a client", variant: "destructive" }); return;
     }
+    const resolvedState = selectedClient?.state || clientState;
     const validDesigns = designs.filter((d) => d.designName.trim());
     const validCharges = charges.filter((c) => c.chargeName.trim());
-
     setSaving(true);
     try {
       const payload = {
         clientId: clientId || null,
-        clientName: clientName.trim(),
-        clientState: clientState.trim(),
+        clientName: resolvedName.trim(),
+        clientState: resolvedState.trim(),
         requirementSummary: requirementSummary.trim(),
         estimatedWeight: parseFloat(estimatedWeight) || 0,
         estimatedShippingCharges: parseFloat(estimatedShippingCharges) || 0,
@@ -182,14 +229,12 @@ export default function QuotationForm() {
         designs: validDesigns,
         charges: validCharges,
       };
-
       const r = await customFetch(
         isEdit ? `/quotations/${id}` : `/quotations`,
         { method: isEdit ? "PUT" : "POST", body: JSON.stringify(payload) }
       );
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Save failed");
-
       toast({ title: "Saved", description: j.message || "Quotation saved successfully" });
       navigate(isEdit ? `/quotation/${id}` : `/quotation/${j.data.id}`);
     } catch (err: any) {
@@ -224,7 +269,8 @@ export default function QuotationForm() {
     <div className="min-h-screen bg-[#F8F6F0]">
       <TopNavbar username={user?.name || ""} role={user?.role || ""} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-24 pb-10">
-        {/* Header */}
+
+        {/* Page Header */}
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => navigate("/quotation")} className="p-2 rounded-xl hover:bg-gray-100 transition">
             <ArrowLeft size={18} className="text-gray-600" />
@@ -235,48 +281,155 @@ export default function QuotationForm() {
           </div>
         </div>
 
-        {/* Client Section */}
+        {/* ─── Client Details ─────────────────────────────────────────────── */}
         <div className={`${card} p-5 mb-5`}>
-          <h2 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wide" style={{ color: G }}>Client Details</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="relative col-span-2 sm:col-span-1">
-              <label className={labelCls}>Client *</label>
-              <input
-                type="text"
-                placeholder="Search client…"
-                className={inputCls}
-                value={clientSearch || clientName}
-                onChange={(e) => { setClientSearch(e.target.value); setClientName(e.target.value); setClientId(""); }}
-              />
-              {clientSearch && filteredClients.length > 0 && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-                  {filteredClients.slice(0, 15).map((c) => (
+          <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Client Details</h2>
+
+          {/* ── No client selected → search ── */}
+          {!selectedClient ? (
+            <div ref={searchRef} className="relative max-w-md">
+              <label className={labelCls}>Select Client *</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by name, code or email…"
+                  className={`${inputCls} pl-8`}
+                  value={clientSearch}
+                  onChange={(e) => { setClientSearch(e.target.value); setShowDropdown(true); }}
+                  onFocus={() => setShowDropdown(true)}
+                />
+              </div>
+              {showDropdown && (
+                <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                  {filteredClients.length === 0 && (
+                    <p className="px-4 py-3 text-sm text-gray-400 italic">No clients found</p>
+                  )}
+                  {filteredClients.slice(0, 20).map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => selectClient(c)}
-                      className="w-full px-3 py-2 text-sm text-left hover:bg-[#C6AF4B]/10 flex justify-between"
+                      onMouseDown={() => handleSelectClient(c)}
+                      className="w-full px-4 py-2.5 text-sm text-left hover:bg-[#C6AF4B]/10 border-b border-gray-50 last:border-0"
                     >
-                      <span className="font-medium">{c.brand_name}</span>
-                      <span className="text-gray-400 text-xs">{c.state || ""}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <span className="font-semibold text-gray-900">{c.brand_name}</span>
+                          <span className="ml-2 text-xs text-gray-400">{c.client_code}</span>
+                        </div>
+                        {c.state && <span className="text-xs text-gray-400 shrink-0">{c.state}</span>}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{c.contact_name} · {c.contact_no}</p>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            <div>
-              <label className={labelCls}>Client State (for GST)</label>
-              <input
-                type="text"
-                placeholder="e.g. Maharashtra"
-                className={inputCls}
-                value={clientState}
-                onChange={(e) => setClientState(e.target.value)}
-              />
+          ) : (
+            /* ── Client selected → show details card ── */
+            <div className="border border-[#C6AF4B]/20 rounded-xl bg-[#C6AF4B]/[0.04] p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="font-bold text-gray-900 text-base">{selectedClient.brand_name}</p>
+                  <p className="text-xs text-gray-400">{selectedClient.client_code}</p>
+                </div>
+                <button
+                  onClick={clearClient}
+                  className="text-xs font-semibold text-[#C6AF4B] hover:text-amber-700 border border-[#C6AF4B]/30 px-2.5 py-1 rounded-lg hover:bg-[#C6AF4B]/10 transition shrink-0"
+                >
+                  Change
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5 text-sm">
+                {/* Contact */}
+                <div className="flex items-start gap-2">
+                  <User size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-400">Contact Person</p>
+                    <p className="font-medium text-gray-800">{selectedClient.contact_name}</p>
+                  </div>
+                </div>
+                {/* Phone */}
+                <div className="flex items-start gap-2">
+                  <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-400">Phone</p>
+                    <p className="font-medium text-gray-800">{selectedClient.contact_no}</p>
+                    {selectedClient.alt_contact_no && (
+                      <p className="text-xs text-gray-500">{selectedClient.alt_contact_no}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Email */}
+                <div className="flex items-start gap-2">
+                  <Mail size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-400">Email</p>
+                    <p className="font-medium text-gray-800 break-all">{selectedClient.email}</p>
+                    {selectedClient.alt_email && (
+                      <p className="text-xs text-gray-500 break-all">{selectedClient.alt_email}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Address / State */}
+                <div className="flex items-start gap-2">
+                  <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-400">State / City</p>
+                    <p className="font-medium text-gray-800">
+                      {[selectedClient.city, selectedClient.state].filter(Boolean).join(", ") || "—"}
+                    </p>
+                    {selectedClient.pincode && <p className="text-xs text-gray-500">{selectedClient.pincode}</p>}
+                  </div>
+                </div>
+                {/* GST */}
+                <div className="flex items-start gap-2">
+                  <CreditCard size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-400">GST</p>
+                    {selectedClient.has_gst && selectedClient.gst_no
+                      ? <p className="font-medium text-gray-800 font-mono">{selectedClient.gst_no}</p>
+                      : <p className="text-gray-400 italic text-sm">No GST</p>
+                    }
+                  </div>
+                </div>
+                {/* Currency */}
+                {selectedClient.invoice_currency && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-400 text-xs mt-0.5 shrink-0">₹</span>
+                    <div>
+                      <p className="text-xs text-gray-400">Invoice Currency</p>
+                      <p className="font-medium text-gray-800">{selectedClient.invoice_currency}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Address line */}
+              {(selectedClient.address1 || selectedClient.address2) && (
+                <p className="mt-3 text-xs text-gray-500 border-t border-[#C6AF4B]/15 pt-2">
+                  {[selectedClient.address1, selectedClient.address2].filter(Boolean).join(", ")}
+                </p>
+              )}
+
+              {/* GST type note */}
+              <div className="mt-3 pt-2 border-t border-[#C6AF4B]/15">
+                <span className="text-xs text-gray-400">
+                  GST applicable:{" "}
+                  <span className="font-semibold text-gray-700">
+                    {selectedClient.state?.toLowerCase() === "maharashtra"
+                      ? "CGST + SGST (Intra-state)"
+                      : selectedClient.state
+                      ? "IGST (Inter-state)"
+                      : "—"}
+                  </span>
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Requirement Summary */}
+        {/* ─── Requirement Details ────────────────────────────────────────── */}
         <div className={`${card} p-5 mb-5`}>
           <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Requirement Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -293,9 +446,7 @@ export default function QuotationForm() {
             <div>
               <label className={labelCls}>Estimated Weight (kg)</label>
               <input
-                type="number"
-                min="0"
-                step="0.001"
+                type="number" min="0" step="0.001"
                 className={inputCls}
                 value={estimatedWeight}
                 onChange={(e) => setEstimatedWeight(e.target.value)}
@@ -314,7 +465,7 @@ export default function QuotationForm() {
           </div>
         </div>
 
-        {/* Designs */}
+        {/* ─── Designs / Reference Images ─────────────────────────────────── */}
         <div className={`${card} p-5 mb-5`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Designs / Reference Images</h2>
@@ -340,8 +491,7 @@ export default function QuotationForm() {
                   <div className="sm:col-span-2">
                     <label className={labelCls}>Design Name *</label>
                     <input
-                      type="text"
-                      className={inputCls}
+                      type="text" className={inputCls}
                       placeholder="e.g. Floral Embroidery on Kurta"
                       value={d.designName}
                       onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designName: e.target.value } : x))}
@@ -350,9 +500,7 @@ export default function QuotationForm() {
                   <div>
                     <label className={labelCls}>HSN Code</label>
                     <input
-                      type="text"
-                      className={inputCls}
-                      placeholder="e.g. 5810"
+                      type="text" className={inputCls} placeholder="e.g. 5810"
                       value={d.hsnCode}
                       onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}
                     />
@@ -360,8 +508,7 @@ export default function QuotationForm() {
                   <div className="sm:col-span-3">
                     <label className={labelCls}>Remarks</label>
                     <input
-                      type="text"
-                      className={inputCls}
+                      type="text" className={inputCls}
                       placeholder="Additional notes about this design"
                       value={d.remarks}
                       onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, remarks: e.target.value } : x))}
@@ -393,7 +540,7 @@ export default function QuotationForm() {
           </div>
         </div>
 
-        {/* Custom Charges */}
+        {/* ─── Custom Charges ──────────────────────────────────────────────── */}
         <div className={`${card} p-5 mb-5`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Custom Charges</h2>
@@ -424,8 +571,7 @@ export default function QuotationForm() {
                     <tr key={i} className="border-b border-gray-50">
                       <td className="pr-2 py-1.5">
                         <input
-                          type="text"
-                          className={inputCls}
+                          type="text" className={inputCls}
                           placeholder="e.g. Embroidery Charges"
                           value={c.chargeName}
                           onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, chargeName: e.target.value } : x))}
@@ -463,9 +609,7 @@ export default function QuotationForm() {
             <div className="w-56">
               <label className={labelCls}>Shipping Charges (₹)</label>
               <input
-                type="number"
-                min="0"
-                step="0.01"
+                type="number" min="0" step="0.01"
                 className={inputCls}
                 value={estimatedShippingCharges}
                 onChange={(e) => setEstimatedShippingCharges(e.target.value)}
@@ -481,7 +625,14 @@ export default function QuotationForm() {
                 <span className="font-semibold">{fmt(subtotal)}</span>
               </div>
               <div className="flex justify-between w-56">
-                <span className="text-gray-500">GST @ 18%</span>
+                <span className="text-gray-500">
+                  GST @ 18%{" "}
+                  {selectedClient?.state && (
+                    <span className="text-xs text-gray-400">
+                      ({selectedClient.state.toLowerCase() === "maharashtra" ? "CGST+SGST" : "IGST"})
+                    </span>
+                  )}
+                </span>
                 <span className="font-semibold">{fmt(gstAmount)}</span>
               </div>
               <div className="flex justify-between w-56">
@@ -496,7 +647,7 @@ export default function QuotationForm() {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* ─── Actions ─────────────────────────────────────────────────────── */}
         <div className="flex justify-end gap-3">
           <button
             onClick={() => navigate(isEdit ? `/quotation/${id}` : "/quotation")}
