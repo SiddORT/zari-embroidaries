@@ -191,10 +191,25 @@ export default function StyleCostSheetTab({
     const { gstPct } = getBomHsnGst(r);
     return s + m.consumedTotal * (gstPct / 100);
   }, 0);
-  const artisanTotal     = filteredArtisan.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
-  const outsourceTotal   = filteredOutsource.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
-  const customTotal      = filteredCustom.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-  const grandTotal       = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal;
+  const artisanTotal = filteredArtisan.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
+
+  const outsourceBaseTotal = filteredOutsource.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
+  const outsourceGstTotal  = filteredOutsource.reduce((s, r) => {
+    const base = parseFloat(r.totalCost) || 0;
+    const gstPct = parseFloat(r.gstPercentage) || 0;
+    return s + base * gstPct / 100;
+  }, 0);
+  const outsourceTotal = outsourceBaseTotal + (includeGst ? outsourceGstTotal : 0);
+
+  const customBaseTotal = filteredCustom.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+  const customGstTotal  = filteredCustom.reduce((s, r) => {
+    const base = parseFloat(r.totalAmount) || 0;
+    const gstPct = parseFloat(r.gstPercentage) || 0;
+    return s + base * gstPct / 100;
+  }, 0);
+  const customTotal = customBaseTotal + (includeGst ? customGstTotal : 0);
+
+  const grandTotal = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal;
 
   const SHIFT_LABELS: Record<string, string> = { regular: "Regular", night: "Night", sunday: "Sunday", overtime: "Overtime" };
 
@@ -400,17 +415,21 @@ export default function StyleCostSheetTab({
           <SheetTable
             headers={[
               ...((!isFiltered && products.length > 0) ? ["Product"] : []),
-              "Vendor", "HSN", "GST%", "Issue Date", "Target Date", "Delivery Date", "Total Cost ₹",
+              "Vendor", "HSN", "GST%", "Issue Date", "Target Date", "Delivery Date",
+              includeGst ? "Total (incl. GST) ₹" : "Total Cost ₹",
             ]}
             rows={filteredOutsource.map(r => {
+              const base = parseFloat(r.totalCost) || 0;
+              const gstPct = parseFloat(r.gstPercentage) || 0;
+              const totalWithGst = base * (1 + (includeGst ? gstPct / 100 : 0));
               const row: (string | React.ReactNode)[] = [
                 r.vendorName,
-                r.hsnCode,
-                `${r.gstPercentage}%`,
+                includeGst ? (r.hsnCode || "—") : "—",
+                includeGst && gstPct > 0 ? `${gstPct}%` : "—",
                 r.issueDate,
                 r.targetDate ?? "—",
                 r.deliveryDate ?? "—",
-                rupee(parseFloat(r.totalCost)),
+                rupee(totalWithGst),
               ];
               if (!isFiltered && products.length > 0) row.unshift((r as any).styleOrderProductName ?? "—");
               return row;
@@ -428,17 +447,21 @@ export default function StyleCostSheetTab({
           <SheetTable
             headers={[
               ...((!isFiltered && products.length > 0) ? ["Product"] : []),
-              "Vendor", "HSN", "GST%", "Description", "Unit Price ₹", "Qty", "Total ₹",
+              "Vendor", "HSN", "GST%", "Description", "Unit Price ₹", "Qty",
+              includeGst ? "Total (incl. GST) ₹" : "Total ₹",
             ]}
             rows={filteredCustom.map(r => {
+              const base = parseFloat(r.totalAmount) || 0;
+              const gstPct = parseFloat(r.gstPercentage) || 0;
+              const totalWithGst = base * (1 + (includeGst ? gstPct / 100 : 0));
               const row: (string | React.ReactNode)[] = [
                 r.vendorName,
-                r.hsnCode,
-                `${r.gstPercentage}%`,
+                includeGst ? (r.hsnCode || "—") : "—",
+                includeGst && gstPct > 0 ? `${gstPct}%` : "—",
                 r.description,
                 rupee(parseFloat(r.unitPrice)),
                 parseFloat(r.quantity).toFixed(2),
-                rupee(parseFloat(r.totalAmount)),
+                rupee(totalWithGst),
               ];
               if (!isFiltered && products.length > 0) row.unshift((r as any).styleOrderProductName ?? "—");
               return row;
@@ -458,10 +481,12 @@ export default function StyleCostSheetTab({
               <div className="space-y-1.5">
                 {[
                   { label: includeGst ? "Material Consumed (excl. GST)" : "Material Consumed", value: bomConsumedTotal },
-                  ...(includeGst ? [{ label: "Material GST", value: bomGstTotal }] : []),
+                  ...(includeGst && bomGstTotal > 0 ? [{ label: "Material GST", value: bomGstTotal }] : []),
                   { label: "Artisan Labour", value: artisanTotal },
-                  { label: "Outsource Jobs", value: outsourceTotal },
-                  { label: "Custom Charges", value: customTotal },
+                  { label: includeGst ? "Outsource Jobs (excl. GST)" : "Outsource Jobs", value: outsourceBaseTotal },
+                  ...(includeGst && outsourceGstTotal > 0 ? [{ label: "Outsource GST", value: outsourceGstTotal }] : []),
+                  { label: includeGst ? "Custom Charges (excl. GST)" : "Custom Charges", value: customBaseTotal },
+                  ...(includeGst && customGstTotal > 0 ? [{ label: "Custom Charges GST", value: customGstTotal }] : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-xs text-gray-600 px-3 py-0.5">
                     <span>{label}</span>
@@ -496,8 +521,12 @@ export default function StyleCostSheetTab({
                   return s + qty * m.weightedAvg;
                 }, 0);
                 const prodArtisan = artisanTimesheets.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
-                const prodOutsource = outsourceJobs.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
-                const prodCustom = customCharges.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+                const prodOutsourceBase = outsourceJobs.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
+                const prodOutsourceGst  = outsourceJobs.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalCost) || 0) * (parseFloat(r.gstPercentage) || 0) / 100, 0);
+                const prodOutsource = prodOutsourceBase + (includeGst ? prodOutsourceGst : 0);
+                const prodCustomBase = customCharges.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+                const prodCustomGst  = customCharges.filter(r => String((r as any).styleOrderProductId ?? "") === prodId).reduce((s, r) => s + (parseFloat(r.totalAmount) || 0) * (parseFloat(r.gstPercentage) || 0) / 100, 0);
+                const prodCustom = prodCustomBase + (includeGst ? prodCustomGst : 0);
                 const prodTotal = prodConsumedTotal + prodArtisan + prodOutsource + prodCustom;
                 return (
                   <div key={prod.id} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
@@ -531,8 +560,10 @@ export default function StyleCostSheetTab({
                   return s + qty * m.weightedAvg;
                 }, 0);
                 const unassignedArtisan = artisanTimesheets.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
-                const unassignedOutsource = outsourceJobs.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
-                const unassignedCustom = customCharges.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+                const unassignedOutsourceBase = outsourceJobs.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
+                const unassignedOutsource = unassignedOutsourceBase + (includeGst ? outsourceJobs.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalCost) || 0) * (parseFloat(r.gstPercentage) || 0) / 100, 0) : 0);
+                const unassignedCustomBase = customCharges.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+                const unassignedCustom = unassignedCustomBase + (includeGst ? customCharges.filter(r => !(r as any).styleOrderProductId).reduce((s, r) => s + (parseFloat(r.totalAmount) || 0) * (parseFloat(r.gstPercentage) || 0) / 100, 0) : 0);
                 const unassignedTotal = unassignedConsumedTotal + unassignedArtisan + unassignedOutsource + unassignedCustom;
                 if (unassignedTotal <= 0) return null;
                 return (

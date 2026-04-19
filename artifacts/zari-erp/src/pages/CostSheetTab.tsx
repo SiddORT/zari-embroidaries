@@ -155,10 +155,25 @@ export default function CostSheetTab({
     const { gstPct } = getBomHsnGst(r);
     return s + m.consumedTotal * (gstPct / 100);
   }, 0);
-  const artisanTotal     = artisanTimesheets.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
-  const outsourceTotal   = outsourceJobs.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
-  const customTotal      = customCharges.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
-  const grandTotal       = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal;
+  const artisanTotal = artisanTimesheets.reduce((s, r) => s + (parseFloat(r.totalRate) || 0), 0);
+
+  const outsourceBaseTotal = outsourceJobs.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
+  const outsourceGstTotal  = outsourceJobs.reduce((s, r) => {
+    const base = parseFloat(r.totalCost) || 0;
+    const gstPct = parseFloat(r.gstPercentage) || 0;
+    return s + base * gstPct / 100;
+  }, 0);
+  const outsourceTotal = outsourceBaseTotal + (includeGst ? outsourceGstTotal : 0);
+
+  const customBaseTotal = customCharges.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+  const customGstTotal  = customCharges.reduce((s, r) => {
+    const base = parseFloat(r.totalAmount) || 0;
+    const gstPct = parseFloat(r.gstPercentage) || 0;
+    return s + base * gstPct / 100;
+  }, 0);
+  const customTotal = customBaseTotal + (includeGst ? customGstTotal : 0);
+
+  const grandTotal = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal;
 
   function handlePrint() {
     window.print();
@@ -309,40 +324,44 @@ export default function CostSheetTab({
         {/* ── 3. Outsource Jobs ───────────────────────────────────────────── */}
         <SheetSection title="Outsource Jobs">
           <SheetTable
-            headers={["Vendor", "HSN", "GST%", "Issue Date", "Target Date", "Delivery Date", "Total Cost ₹"]}
-            rows={outsourceJobs.map(r => [
-              r.vendorName,
-              r.hsnCode,
-              `${r.gstPercentage}%`,
-              r.issueDate,
-              r.targetDate ?? "—",
-              r.deliveryDate ?? "—",
-              rupee(parseFloat(r.totalCost)),
-            ])}
-            footer={outsourceJobs.length > 0 ? [
-              "", "", "", "", "", "Total",
-              rupee(outsourceTotal),
-            ] : undefined}
+            headers={["Vendor", "HSN", "GST%", "Issue Date", "Target Date", "Delivery Date", includeGst ? "Total (incl. GST) ₹" : "Total Cost ₹"]}
+            rows={outsourceJobs.map(r => {
+              const base = parseFloat(r.totalCost) || 0;
+              const gstPct = parseFloat(r.gstPercentage) || 0;
+              const totalWithGst = base * (1 + (includeGst ? gstPct / 100 : 0));
+              return [
+                r.vendorName,
+                includeGst ? (r.hsnCode || "—") : "—",
+                includeGst && gstPct > 0 ? `${gstPct}%` : "—",
+                r.issueDate,
+                r.targetDate ?? "—",
+                r.deliveryDate ?? "—",
+                rupee(totalWithGst),
+              ];
+            })}
+            footer={outsourceJobs.length > 0 ? ["", "", "", "", "", "Total", rupee(outsourceTotal)] : undefined}
           />
         </SheetSection>
 
         {/* ── 4. Custom Charges ───────────────────────────────────────────── */}
         <SheetSection title="Custom Charges">
           <SheetTable
-            headers={["Vendor", "HSN", "GST%", "Description", "Unit Price ₹", "Qty", "Total ₹"]}
-            rows={customCharges.map(r => [
-              r.vendorName,
-              r.hsnCode,
-              `${r.gstPercentage}%`,
-              r.description,
-              rupee(parseFloat(r.unitPrice)),
-              parseFloat(r.quantity).toFixed(2),
-              rupee(parseFloat(r.totalAmount)),
-            ])}
-            footer={customCharges.length > 0 ? [
-              "", "", "", "", "", "Total",
-              rupee(customTotal),
-            ] : undefined}
+            headers={["Vendor", "HSN", "GST%", "Description", "Unit Price ₹", "Qty", includeGst ? "Total (incl. GST) ₹" : "Total ₹"]}
+            rows={customCharges.map(r => {
+              const base = parseFloat(r.totalAmount) || 0;
+              const gstPct = parseFloat(r.gstPercentage) || 0;
+              const totalWithGst = base * (1 + (includeGst ? gstPct / 100 : 0));
+              return [
+                r.vendorName,
+                includeGst ? (r.hsnCode || "—") : "—",
+                includeGst && gstPct > 0 ? `${gstPct}%` : "—",
+                r.description,
+                rupee(parseFloat(r.unitPrice)),
+                parseFloat(r.quantity).toFixed(2),
+                rupee(totalWithGst),
+              ];
+            })}
+            footer={customCharges.length > 0 ? ["", "", "", "", "", "Total", rupee(customTotal)] : undefined}
           />
         </SheetSection>
 
@@ -353,10 +372,12 @@ export default function CostSheetTab({
               <div className="space-y-1.5">
                 {[
                   { label: includeGst ? "Material Consumed (excl. GST)" : "Material Consumed", value: bomConsumedTotal },
-                  ...(includeGst ? [{ label: "Material GST", value: bomGstTotal }] : []),
+                  ...(includeGst && bomGstTotal > 0 ? [{ label: "Material GST", value: bomGstTotal }] : []),
                   { label: "Artisan Labour", value: artisanTotal },
-                  { label: "Outsource Jobs", value: outsourceTotal },
-                  { label: "Custom Charges", value: customTotal },
+                  { label: includeGst ? "Outsource Jobs (excl. GST)" : "Outsource Jobs", value: outsourceBaseTotal },
+                  ...(includeGst && outsourceGstTotal > 0 ? [{ label: "Outsource GST", value: outsourceGstTotal }] : []),
+                  { label: includeGst ? "Custom Charges (excl. GST)" : "Custom Charges", value: customBaseTotal },
+                  ...(includeGst && customGstTotal > 0 ? [{ label: "Custom Charges GST", value: customGstTotal }] : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-xs text-gray-600 px-3 py-0.5">
                     <span>{label}</span>
