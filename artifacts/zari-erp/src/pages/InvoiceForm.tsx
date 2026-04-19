@@ -555,258 +555,6 @@ export default function InvoiceForm() {
               </div>
             </div>
 
-            {/* Line Items */}
-            <div className={`${card} overflow-hidden`}>
-              <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="font-bold text-gray-900 text-sm">Line Items</h2>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={showHsnOnInvoice}
-                      onChange={e => setShowHsnOnInvoice(e.target.checked)}
-                      className="rounded"
-                    />
-                    Show HSN on printed invoice
-                  </label>
-                  <button
-                    onClick={() => setItems(prev => [...prev, blank()])}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
-                    style={{ color: G }}
-                  >
-                    <Plus size={13} /> Add Item
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[32%]">Description</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[16%]">Category</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Qty</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[14%]">Unit Price</th>
-                      <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">GST</th>
-                      <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[12%]">Total</th>
-                      <th className="w-[4%]"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map(it => {
-                      const needsHsn = HSN_CATEGORIES.has(it.category);
-                      const itemGst = needsHsn && it.hsnGstPct ? (it.total * parseFloat(it.hsnGstPct)) / 100 : 0;
-                      return (
-                        <Fragment key={it.id}>
-                          <tr className="border-b border-gray-50">
-                            <td className="px-3 py-2">
-                              {it.category === "Fabric" ? (
-                                <select
-                                  value={it.description}
-                                  onChange={e => {
-                                    const label = e.target.value;
-                                    const fab = fabricMaster.find(f => `${f.fabricCode} · ${f.fabricType} · ${f.quality} · ${f.colorName}` === label);
-                                    if (fab) {
-                                      const hsn = hsnList.find(h => h.hsnCode === fab.hsnCode);
-                                      setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                        ...x,
-                                        description: label,
-                                        hsnCode: fab.hsnCode,
-                                        hsnGstPct: hsn?.gstPercentage ?? "",
-                                      }));
-                                    } else {
-                                      updateItem(it.id, "description", label);
-                                    }
-                                  }}
-                                  className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
-                                >
-                                  <option value="">— Select Fabric —</option>
-                                  {fabricMaster.map(f => {
-                                    const label = `${f.fabricCode} · ${f.fabricType} · ${f.quality} · ${f.colorName}`;
-                                    return <option key={f.id} value={label}>{label}</option>;
-                                  })}
-                                </select>
-                              ) : (it.category === "Material" || it.category === "Item") ? (
-                                <select
-                                  value={it.description}
-                                  onChange={e => {
-                                    const label = e.target.value;
-                                    const mat = materialMaster.find(m => `${m.materialCode} · ${m.itemType} · ${m.quality} · ${m.colorName}` === label);
-                                    if (mat) {
-                                      const hsn = hsnList.find(h => h.hsnCode === mat.hsnCode);
-                                      setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                        ...x,
-                                        description: label,
-                                        hsnCode: mat.hsnCode,
-                                        hsnGstPct: hsn?.gstPercentage ?? "",
-                                      }));
-                                    } else {
-                                      updateItem(it.id, "description", label);
-                                    }
-                                  }}
-                                  className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
-                                >
-                                  <option value="">— Select {it.category} —</option>
-                                  {materialMaster.map(m => {
-                                    const label = `${m.materialCode} · ${m.itemType} · ${m.quality} · ${m.colorName}`;
-                                    return <option key={m.id} value={label}>{label}</option>;
-                                  })}
-                                </select>
-                              ) : (
-                                <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <select
-                                value={it.category}
-                                onChange={e => {
-                                  const cat = e.target.value;
-                                  setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                    ...x, category: cat,
-                                    hsnCode: HSN_CATEGORIES.has(cat) ? x.hsnCode : "",
-                                    hsnGstPct: HSN_CATEGORIES.has(cat) ? x.hsnGstPct : "",
-                                  }));
-                                }}
-                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
-                              >
-                                {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            </td>
-                            <td className="px-3 py-2">
-                              <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
-                            </td>
-                            <td className="px-3 py-2">
-                              <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
-                            </td>
-                            <td className="px-3 py-2 text-right text-sm text-gray-600">
-                              {needsHsn && it.hsnGstPct ? (
-                                <span className="text-xs">
-                                  <span className="text-gray-400">{it.hsnGstPct}%</span>
-                                  <br />
-                                  <span className="font-medium text-gray-700">{itemGst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                </span>
-                              ) : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-3 py-2 font-semibold text-gray-900 text-right pr-3">
-                              {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="px-2 py-2">
-                              {items.length > 1 && (
-                                <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                                  <Trash2 size={13} />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                          {needsHsn && (
-                            <tr className="bg-gray-50 border-b border-gray-100">
-                              <td colSpan={7} className="px-4 py-2">
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">HSN:</span>
-                                  <select
-                                    value={it.hsnCode}
-                                    onChange={e => {
-                                      const code = e.target.value;
-                                      const hsn = hsnList.find(h => h.hsnCode === code);
-                                      setItems(prev => prev.map(x => x.id !== it.id ? x : {
-                                        ...x, hsnCode: code, hsnGstPct: hsn?.gstPercentage ?? "",
-                                      }));
-                                    }}
-                                    className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer min-w-[220px]"
-                                  >
-                                    <option value="">— Select HSN Code —</option>
-                                    {hsnList.map(h => (
-                                      <option key={h.id} value={h.hsnCode}>
-                                        {h.hsnCode} · {h.govtDescription} · GST {h.gstPercentage}%
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {it.hsnGstPct && (
-                                    <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-2 py-1">
-                                      GST: <strong>{it.hsnGstPct}%</strong>
-                                    </span>
-                                  )}
-                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer ml-auto">
-                                    <input
-                                      type="checkbox"
-                                      checked={it.showHsn}
-                                      onChange={e => updateItem(it.id, "showHsn", e.target.checked)}
-                                      className="rounded"
-                                    />
-                                    Show HSN for this item
-                                  </label>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Remarks & Notes */}
-            <div className={`${card} p-6`}>
-              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Remarks & Notes</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={lbl}>Remarks</label>
-                  <textarea value={form.remarks} onChange={e => setF("remarks", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Internal remarks" />
-                </div>
-                <div>
-                  <label className={lbl}>Notes (printed on invoice)</label>
-                  <textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Payment terms, thank you note…" />
-                </div>
-                <div>
-                  <label className={lbl}>Payment Terms</label>
-                  <input value={form.paymentTerms} onChange={e => setF("paymentTerms", e.target.value)} className={inp} placeholder="e.g. Net 30, Advance 50%" />
-                </div>
-              </div>
-            </div>
-
-            {/* Bank Details */}
-            <div className={`${card} p-6`}>
-              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Bank Details</h2>
-              {bankAccounts.length > 0 && (
-                <div className="mb-4">
-                  <label className={lbl}>Select Saved Bank Account</label>
-                  <select
-                    className={selClass}
-                    value=""
-                    onChange={e => {
-                      const id = parseInt(e.target.value);
-                      const b = bankAccounts.find(a => a.id === id);
-                      if (b) setForm(f => ({
-                        ...f,
-                        bankName: b.bank_name,
-                        bankAccount: b.account_no,
-                        bankIfsc: b.ifsc_code,
-                        bankBranch: b.branch,
-                        bankUpi: b.bank_upi,
-                      }));
-                    }}
-                  >
-                    <option value="">— Pick a bank account —</option>
-                    {bankAccounts.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.bank_name} · {b.account_no}{b.is_default ? " (Default)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">Selecting will fill the fields below. You can still edit them manually.</p>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className={lbl}>Bank Name</label><input value={form.bankName} onChange={e => setF("bankName", e.target.value)} className={inp} /></div>
-                <div><label className={lbl}>Account No</label><input value={form.bankAccount} onChange={e => setF("bankAccount", e.target.value)} className={inp} /></div>
-                <div><label className={lbl}>IFSC Code</label><input value={form.bankIfsc} onChange={e => setF("bankIfsc", e.target.value)} className={inp} /></div>
-                <div><label className={lbl}>Branch</label><input value={form.bankBranch} onChange={e => setF("bankBranch", e.target.value)} className={inp} /></div>
-                <div><label className={lbl}>UPI</label><input value={form.bankUpi} onChange={e => setF("bankUpi", e.target.value)} className={inp} placeholder="upi@bank" /></div>
-              </div>
-            </div>
           </div>
 
           {/* RIGHT — Sidebar */}
@@ -855,7 +603,6 @@ export default function InvoiceForm() {
                   <span className="text-gray-500">Subtotal</span>
                   <span className="font-medium text-gray-900">{totals.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <select value={form.discountType} onChange={e => setF("discountType", e.target.value)} className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-600 focus:outline-none focus:border-[#C6AF4B]">
                     <option value="flat">Flat Discount</option>
@@ -868,7 +615,6 @@ export default function InvoiceForm() {
                     <span>Discount</span><span>− {totals.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-600">CGST %</label>
@@ -889,7 +635,6 @@ export default function InvoiceForm() {
                     </div>
                   </>
                 )}
-
                 <div>
                   <label className="text-xs text-gray-600">Shipping Amount</label>
                   <input type="number" min="0" step="0.01" value={form.shippingAmount} onChange={e => setF("shippingAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
@@ -898,7 +643,6 @@ export default function InvoiceForm() {
                   <label className="text-xs text-gray-600">Adjustment (+ / −)</label>
                   <input type="number" step="0.01" value={form.adjustmentAmount} onChange={e => setF("adjustmentAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                 </div>
-
                 {(() => {
                   const hsnGstTotal = items.reduce((s, it) => {
                     if (HSN_CATEGORIES.has(it.category) && it.hsnGstPct) {
@@ -916,7 +660,6 @@ export default function InvoiceForm() {
                     </div>
                   );
                 })()}
-
                 <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
                   <span className="font-bold text-gray-900">Total</span>
                   <span className="text-lg font-bold" style={{ color: G }}>
@@ -926,19 +669,62 @@ export default function InvoiceForm() {
               </div>
             </div>
 
-            {/* Payment */}
+            {/* Bank Details */}
             <div className={`${card} p-5`}>
-              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Payment Tracking</h2>
+              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Bank Details</h2>
+              {bankAccounts.length > 0 && (
+                <div className="mb-4">
+                  <label className={lbl}>Select Saved Bank Account</label>
+                  <select
+                    className={selClass}
+                    value=""
+                    onChange={e => {
+                      const id = parseInt(e.target.value);
+                      const b = bankAccounts.find(a => a.id === id);
+                      if (b) setForm(f => ({
+                        ...f,
+                        bankName: b.bank_name,
+                        bankAccount: b.account_no,
+                        bankIfsc: b.ifsc_code,
+                        bankBranch: b.branch,
+                        bankUpi: b.bank_upi,
+                      }));
+                    }}
+                  >
+                    <option value="">— Pick a bank account —</option>
+                    {bankAccounts.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.bank_name} · {b.account_no}{b.is_default ? " (Default)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Selecting fills the fields below. You can still edit manually.</p>
+                </div>
+              )}
+              <div className="space-y-3">
+                <div><label className={lbl}>Bank Name</label><input value={form.bankName} onChange={e => setF("bankName", e.target.value)} className={inp} /></div>
+                <div><label className={lbl}>Account No</label><input value={form.bankAccount} onChange={e => setF("bankAccount", e.target.value)} className={inp} /></div>
+                <div><label className={lbl}>IFSC Code</label><input value={form.bankIfsc} onChange={e => setF("bankIfsc", e.target.value)} className={inp} /></div>
+                <div><label className={lbl}>Branch</label><input value={form.bankBranch} onChange={e => setF("bankBranch", e.target.value)} className={inp} /></div>
+                <div><label className={lbl}>UPI</label><input value={form.bankUpi} onChange={e => setF("bankUpi", e.target.value)} className={inp} placeholder="upi@bank" /></div>
+              </div>
+            </div>
+
+            {/* Remarks & Notes */}
+            <div className={`${card} p-5`}>
+              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Remarks & Notes</h2>
               <div className="space-y-3">
                 <div>
-                  <label className={lbl}>Amount Received</label>
-                  <input type="number" min="0" step="0.01" value={form.receivedAmount} onChange={e => setF("receivedAmount", e.target.value)} className={inp} />
+                  <label className={lbl}>Remarks</label>
+                  <textarea value={form.remarks} onChange={e => setF("remarks", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Internal remarks" />
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Pending</span>
-                  <span className={`font-bold ${Math.max(0, totals.total - parseFloat(form.receivedAmount || "0")) > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                    {Math.max(0, totals.total - parseFloat(form.receivedAmount || "0")).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </span>
+                <div>
+                  <label className={lbl}>Notes (printed on invoice)</label>
+                  <textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={3} className={`${inp} resize-none`} placeholder="Payment terms, thank you note…" />
+                </div>
+                <div>
+                  <label className={lbl}>Payment Terms</label>
+                  <input value={form.paymentTerms} onChange={e => setF("paymentTerms", e.target.value)} className={inp} placeholder="e.g. Net 30, Advance 50%" />
                 </div>
               </div>
             </div>
@@ -955,6 +741,211 @@ export default function InvoiceForm() {
             </button>
           </div>
         </div>
+
+        {/* Line Items — full width */}
+        <div className={`${card} overflow-hidden`}>
+          <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-bold text-gray-900 text-sm">Line Items</h2>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showHsnOnInvoice}
+                  onChange={e => setShowHsnOnInvoice(e.target.checked)}
+                  className="rounded"
+                />
+                Show HSN on printed invoice
+              </label>
+              <button
+                onClick={() => setItems(prev => [...prev, blank()])}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
+                style={{ color: G }}
+              >
+                <Plus size={13} /> Add Item
+              </button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[32%]">Description</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[16%]">Category</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Qty</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-gray-400 w-[14%]">Unit Price</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[13%]">GST</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[12%]">Total</th>
+                  <th className="w-[4%]"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(it => {
+                  const needsHsn = HSN_CATEGORIES.has(it.category);
+                  const itemGst = needsHsn && it.hsnGstPct ? (it.total * parseFloat(it.hsnGstPct)) / 100 : 0;
+                  return (
+                    <Fragment key={it.id}>
+                      <tr className="border-b border-gray-50">
+                        <td className="px-3 py-2">
+                          {it.category === "Fabric" ? (
+                            <select
+                              value={it.description}
+                              onChange={e => {
+                                const label = e.target.value;
+                                const fab = fabricMaster.find(f => `${f.fabricCode} · ${f.fabricType} · ${f.quality} · ${f.colorName}` === label);
+                                if (fab) {
+                                  const hsn = hsnList.find(h => h.hsnCode === fab.hsnCode);
+                                  setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                    ...x, description: label, hsnCode: fab.hsnCode, hsnGstPct: hsn?.gstPercentage ?? "",
+                                  }));
+                                } else {
+                                  updateItem(it.id, "description", label);
+                                }
+                              }}
+                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                            >
+                              <option value="">— Select Fabric —</option>
+                              {fabricMaster.map(f => {
+                                const label = `${f.fabricCode} · ${f.fabricType} · ${f.quality} · ${f.colorName}`;
+                                return <option key={f.id} value={label}>{label}</option>;
+                              })}
+                            </select>
+                          ) : (it.category === "Material" || it.category === "Item") ? (
+                            <select
+                              value={it.description}
+                              onChange={e => {
+                                const label = e.target.value;
+                                const mat = materialMaster.find(m => `${m.materialCode} · ${m.itemType} · ${m.quality} · ${m.colorName}` === label);
+                                if (mat) {
+                                  const hsn = hsnList.find(h => h.hsnCode === mat.hsnCode);
+                                  setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                    ...x, description: label, hsnCode: mat.hsnCode, hsnGstPct: hsn?.gstPercentage ?? "",
+                                  }));
+                                } else {
+                                  updateItem(it.id, "description", label);
+                                }
+                              }}
+                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                            >
+                              <option value="">— Select {it.category} —</option>
+                              {materialMaster.map(m => {
+                                const label = `${m.materialCode} · ${m.itemType} · ${m.quality} · ${m.colorName}`;
+                                return <option key={m.id} value={label}>{label}</option>;
+                              })}
+                            </select>
+                          ) : (
+                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={it.category}
+                            onChange={e => {
+                              const cat = e.target.value;
+                              setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                ...x, category: cat,
+                                hsnCode: HSN_CATEGORIES.has(cat) ? x.hsnCode : "",
+                                hsnGstPct: HSN_CATEGORIES.has(cat) ? x.hsnGstPct : "",
+                              }));
+                            }}
+                            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
+                          >
+                            {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="number" min="0" step="0.01" value={it.unitPrice} onChange={e => updateItem(it.id, "unitPrice", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm text-gray-600">
+                          {needsHsn && it.hsnGstPct ? (
+                            <span className="text-xs">
+                              <span className="text-gray-400">{it.hsnGstPct}%</span>
+                              <br />
+                              <span className="font-medium text-gray-700">{itemGst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                            </span>
+                          ) : <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-gray-900 text-right pr-3">
+                          {it.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-2 py-2">
+                          {items.length > 1 && (
+                            <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {needsHsn && (
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <td colSpan={7} className="px-4 py-2">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">HSN:</span>
+                              <select
+                                value={it.hsnCode}
+                                onChange={e => {
+                                  const code = e.target.value;
+                                  const hsn = hsnList.find(h => h.hsnCode === code);
+                                  setItems(prev => prev.map(x => x.id !== it.id ? x : {
+                                    ...x, hsnCode: code, hsnGstPct: hsn?.gstPercentage ?? "",
+                                  }));
+                                }}
+                                className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer min-w-[220px]"
+                              >
+                                <option value="">— Select HSN Code —</option>
+                                {hsnList.map(h => (
+                                  <option key={h.id} value={h.hsnCode}>
+                                    {h.hsnCode} · {h.govtDescription} · GST {h.gstPercentage}%
+                                  </option>
+                                ))}
+                              </select>
+                              {it.hsnGstPct && (
+                                <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-2 py-1">
+                                  GST: <strong>{it.hsnGstPct}%</strong>
+                                </span>
+                              )}
+                              <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer ml-auto">
+                                <input
+                                  type="checkbox"
+                                  checked={it.showHsn}
+                                  onChange={e => updateItem(it.id, "showHsn", e.target.checked)}
+                                  className="rounded"
+                                />
+                                Show HSN for this item
+                              </label>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Payment Tracking — full width */}
+        <div className={`${card} p-6`}>
+          <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Payment Tracking</h2>
+          <div className="grid grid-cols-3 gap-6 items-start">
+            <div>
+              <label className={lbl}>Amount Received</label>
+              <input type="number" min="0" step="0.01" value={form.receivedAmount} onChange={e => setF("receivedAmount", e.target.value)} className={inp} />
+            </div>
+            <div className="pt-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Pending Amount</span>
+                <span className={`font-bold text-base ${Math.max(0, totals.total - parseFloat(form.receivedAmount || "0")) > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {Math.max(0, totals.total - parseFloat(form.receivedAmount || "0")).toLocaleString("en-IN", { minimumFractionDigits: 2 })} {form.currencyCode}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </AppLayout>
   );
