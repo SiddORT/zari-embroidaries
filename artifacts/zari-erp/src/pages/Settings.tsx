@@ -2353,7 +2353,7 @@ function InvoiceTemplatesTab({ card, toast }: any) {
 
           {/* Edit panel */}
           {selectedTpl && (
-            <div className={`${card} space-y-4`}>
+            <div className={`${card} space-y-4 p-6`}>
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
