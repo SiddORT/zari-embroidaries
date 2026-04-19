@@ -696,7 +696,7 @@ export default function InvoiceForm() {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
-                  <span className="font-medium">{totals.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium text-gray-900">{totals.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -714,11 +714,11 @@ export default function InvoiceForm() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-gray-400">CGST %</label>
+                    <label className="text-xs text-gray-600">CGST %</label>
                     <input type="number" min="0" value={form.cgstRate} onChange={e => setF("cgstRate", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400">SGST %</label>
+                    <label className="text-xs text-gray-600">SGST %</label>
                     <input type="number" min="0" value={form.sgstRate} onChange={e => setF("sgstRate", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                   </div>
                 </div>
@@ -734,11 +734,11 @@ export default function InvoiceForm() {
                 )}
 
                 <div>
-                  <label className="text-xs text-gray-400">Shipping Amount</label>
+                  <label className="text-xs text-gray-600">Shipping Amount</label>
                   <input type="number" min="0" step="0.01" value={form.shippingAmount} onChange={e => setF("shippingAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400">Adjustment (+ / −)</label>
+                  <label className="text-xs text-gray-600">Adjustment (+ / −)</label>
                   <input type="number" step="0.01" value={form.adjustmentAmount} onChange={e => setF("adjustmentAmount", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right mt-1" />
                 </div>
 
