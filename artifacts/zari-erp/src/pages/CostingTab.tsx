@@ -1544,6 +1544,18 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
               ))}
             </select>
           )}
+          <button
+            onClick={() => setIncludeGst(v => !v)}
+            className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all ${
+              includeGst
+                ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                : "bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200"
+            }`}>
+            <span className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full transition-colors ${includeGst ? "bg-emerald-500" : "bg-gray-300"}`}>
+              <span className={`absolute top-0.5 left-0.5 h-2.5 w-2.5 rounded-full bg-white shadow transition-transform ${includeGst ? "translate-x-2.5" : "translate-x-0"}`} />
+            </span>
+            {includeGst ? "HSN / GST On" : "HSN / GST Off"}
+          </button>
           {bomRows.length > 0 && (
             <button onClick={openAddModal}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
