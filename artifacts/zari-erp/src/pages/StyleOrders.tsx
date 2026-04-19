@@ -75,9 +75,6 @@ function OrderCard({ order, onView, onDelete }: {
               <PriorityDot priority={order.priority} />
             </div>
             <h3 className="text-sm font-semibold text-gray-900 truncate">{order.styleName}</h3>
-            {order.styleNo && (
-              <p className="text-xs text-gray-400 mt-0.5 font-mono">{order.styleNo}</p>
-            )}
             {order.clientName && (
               <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                 <User className="h-3 w-3" />{order.clientName}
