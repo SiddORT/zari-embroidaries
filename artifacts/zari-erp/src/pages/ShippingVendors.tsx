@@ -1,16 +1,138 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, Edit2, Power, Phone, Mail, Package, IndianRupee } from "lucide-react";
+import { Edit2, Power, Phone, Mail, ChevronDown } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
-import ZariButton from "@/components/ui/ZariButton";
+import MasterHeader from "@/components/master/MasterHeader";
+import SearchBar from "@/components/master/SearchBar";
+import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
+import MasterFormModal from "@/components/master/MasterFormModal";
+import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 
-const G = "#C6AF4B";
+/* ─── Country codes ─── */
+const COUNTRIES = [
+  { code: "IN", dial: "+91",  flag: "🇮🇳", name: "India" },
+  { code: "US", dial: "+1",   flag: "🇺🇸", name: "United States" },
+  { code: "GB", dial: "+44",  flag: "🇬🇧", name: "United Kingdom" },
+  { code: "AE", dial: "+971", flag: "🇦🇪", name: "UAE" },
+  { code: "CN", dial: "+86",  flag: "🇨🇳", name: "China" },
+  { code: "DE", dial: "+49",  flag: "🇩🇪", name: "Germany" },
+  { code: "FR", dial: "+33",  flag: "🇫🇷", name: "France" },
+  { code: "IT", dial: "+39",  flag: "🇮🇹", name: "Italy" },
+  { code: "JP", dial: "+81",  flag: "🇯🇵", name: "Japan" },
+  { code: "KR", dial: "+82",  flag: "🇰🇷", name: "South Korea" },
+  { code: "AU", dial: "+61",  flag: "🇦🇺", name: "Australia" },
+  { code: "CA", dial: "+1",   flag: "🇨🇦", name: "Canada" },
+  { code: "SG", dial: "+65",  flag: "🇸🇬", name: "Singapore" },
+  { code: "MY", dial: "+60",  flag: "🇲🇾", name: "Malaysia" },
+  { code: "BD", dial: "+880", flag: "🇧🇩", name: "Bangladesh" },
+  { code: "PK", dial: "+92",  flag: "🇵🇰", name: "Pakistan" },
+  { code: "LK", dial: "+94",  flag: "🇱🇰", name: "Sri Lanka" },
+  { code: "NP", dial: "+977", flag: "🇳🇵", name: "Nepal" },
+  { code: "HK", dial: "+852", flag: "🇭🇰", name: "Hong Kong" },
+  { code: "SA", dial: "+966", flag: "🇸🇦", name: "Saudi Arabia" },
+];
 
+/* ─── Phone input component ─── */
+interface PhoneInputProps {
+  dialCode: string;
+  number: string;
+  onDialChange: (d: string) => void;
+  onNumberChange: (n: string) => void;
+  error?: string;
+}
+
+function PhoneInput({ dialCode, number, onDialChange, onNumberChange, error }: PhoneInputProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const selected = COUNTRIES.find(c => c.dial === dialCode) ?? COUNTRIES[0];
+  const filtered = search
+    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.dial.includes(search))
+    : COUNTRIES;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-gray-700">Phone</label>
+      <div className="flex gap-2">
+        {/* Country code picker */}
+        <div className="relative shrink-0" ref={ref}>
+          <button
+            type="button"
+            onClick={() => { setOpen(v => !v); setSearch(""); }}
+            className={`flex items-center gap-1.5 h-[42px] px-3 rounded-lg border bg-white text-sm transition focus:outline-none focus:ring-2 ${
+              error ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 focus:border-gray-900 focus:ring-gray-900/10"
+            }`}
+          >
+            <span className="text-base leading-none">{selected.flag}</span>
+            <span className="text-gray-700 font-medium">{selected.dial}</span>
+            <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+
+          {open && (
+            <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search country…"
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 outline-none focus:border-gray-400"
+                />
+              </div>
+              <ul className="max-h-52 overflow-y-auto py-1">
+                {filtered.length === 0 && (
+                  <li className="px-3 py-2 text-sm text-gray-400">No results</li>
+                )}
+                {filtered.map(c => (
+                  <li key={c.code}>
+                    <button
+                      type="button"
+                      onClick={() => { onDialChange(c.dial); setOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
+                        c.dial === dialCode ? "bg-amber-50 font-medium" : ""
+                      }`}
+                    >
+                      <span className="text-base">{c.flag}</span>
+                      <span className="flex-1 text-gray-800">{c.name}</span>
+                      <span className="text-gray-400 text-xs">{c.dial}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Number field */}
+        <input
+          type="tel"
+          value={number}
+          onChange={e => onNumberChange(e.target.value)}
+          placeholder="Mobile / Landline"
+          className={`flex-1 rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:ring-2 ${
+            error ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 focus:border-gray-900 focus:ring-gray-900/10"
+          }`}
+        />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+/* ─── Types ─── */
 interface Vendor {
   id: number;
   vendor_name: string;
@@ -25,10 +147,22 @@ interface Vendor {
 }
 
 const EMPTY_FORM = {
-  vendor_name: "", contact_person: "", phone_number: "",
+  vendor_name: "", contact_person: "", phone_dial: "+91", phone_number: "",
   email_address: "", weight_rate_per_kg: "", minimum_charge: "", remarks: "",
 };
 
+/* ─── Helpers ─── */
+function splitPhone(raw: string | null): { dial: string; num: string } {
+  if (!raw) return { dial: "+91", num: "" };
+  const match = COUNTRIES.find(c => raw.startsWith(c.dial));
+  if (match) return { dial: match.dial, num: raw.slice(match.dial.length).trim() };
+  return { dial: "+91", num: raw };
+}
+
+const fmt = (n: string | number) =>
+  parseFloat(String(n)).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+
+/* ─── Page ─── */
 export default function ShippingVendors() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
@@ -41,6 +175,7 @@ export default function ShippingVendors() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,8 +184,6 @@ export default function ShippingVendors() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<Vendor | null>(null);
-
-  const LIMIT = 15;
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -65,7 +198,7 @@ export default function ShippingVendors() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (search) params.set("search", search);
       const j = await customFetch<any>(`/api/shipping/vendors/all?${params}`);
       setVendors(j.data);
@@ -75,17 +208,24 @@ export default function ShippingVendors() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, limit, search]);
 
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() { setEditing(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
+  function openCreate() {
+    setEditing(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true);
+  }
   function openEdit(v: Vendor) {
+    const { dial, num } = splitPhone(v.phone_number);
     setEditing(v);
     setForm({
-      vendor_name: v.vendor_name, contact_person: v.contact_person ?? "",
-      phone_number: v.phone_number ?? "", email_address: v.email_address ?? "",
-      weight_rate_per_kg: v.weight_rate_per_kg, minimum_charge: v.minimum_charge,
+      vendor_name: v.vendor_name,
+      contact_person: v.contact_person ?? "",
+      phone_dial: dial,
+      phone_number: num,
+      email_address: v.email_address ?? "",
+      weight_rate_per_kg: v.weight_rate_per_kg,
+      minimum_charge: v.minimum_charge,
       remarks: v.remarks ?? "",
     });
     setErrors({});
@@ -105,10 +245,15 @@ export default function ShippingVendors() {
     if (!validate()) return;
     setSaving(true);
     try {
+      const combined = form.phone_number.trim() ? `${form.phone_dial} ${form.phone_number.trim()}` : "";
       const body = {
-        ...form,
+        vendor_name: form.vendor_name,
+        contact_person: form.contact_person,
+        phone_number: combined,
+        email_address: form.email_address,
         weight_rate_per_kg: parseFloat(form.weight_rate_per_kg) || 0,
         minimum_charge: parseFloat(form.minimum_charge) || 0,
+        remarks: form.remarks,
       };
       if (editing) {
         await customFetch(`/api/shipping/vendors/${editing.id}`, { method: "PUT", body: JSON.stringify(body) });
@@ -137,109 +282,128 @@ export default function ShippingVendors() {
     }
   }
 
-  const totalPages = Math.ceil(total / LIMIT);
-  const fmt = (n: string | number) => parseFloat(String(n)).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+  /* ─── Table columns ─── */
+  const columns: Column[] = [
+    {
+      key: "vendor_name",
+      label: "Vendor",
+      render: (row) => (
+        <div>
+          <p className="font-semibold text-gray-900">{String(row.vendor_name)}</p>
+          {row.remarks && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[220px]">{String(row.remarks)}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "contact",
+      label: "Contact",
+      render: (row) => (
+        <div className="space-y-0.5">
+          {row.contact_person && <p className="text-gray-800">{String(row.contact_person)}</p>}
+          {row.phone_number && (
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              <Phone size={10} className="shrink-0" />{String(row.phone_number)}
+            </p>
+          )}
+          {row.email_address && (
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              <Mail size={10} className="shrink-0" />{String(row.email_address)}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "weight_rate_per_kg",
+      label: "Rate / KG",
+      className: "text-right",
+      render: (row) => (
+        <span className="font-semibold text-gray-900">₹{fmt(row.weight_rate_per_kg as string)}</span>
+      ),
+    },
+    {
+      key: "minimum_charge",
+      label: "Min Charge",
+      className: "text-right",
+      render: (row) => <span>₹{fmt(row.minimum_charge as string)}</span>,
+    },
+    {
+      key: "is_active",
+      label: "Status",
+      className: "text-center",
+      render: (row) => (
+        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${
+          row.is_active
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+            : "bg-gray-50 text-gray-400 border-gray-200"
+        }`}>
+          {row.is_active ? "Active" : "Inactive"}
+        </span>
+      ),
+    },
+    {
+      key: "_actions",
+      label: "Actions",
+      className: "text-center",
+      render: (row) => {
+        const v = row as unknown as Vendor;
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            <button
+              onClick={() => openEdit(v)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
+              title="Edit"
+            >
+              <Edit2 size={14} />
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setToggleTarget(v)}
+                className={`p-1.5 rounded-lg transition ${
+                  v.is_active
+                    ? "hover:bg-red-50 text-red-400 hover:text-red-600"
+                    : "hover:bg-emerald-50 text-emerald-400 hover:text-emerald-600"
+                }`}
+                title={v.is_active ? "Deactivate" : "Activate"}
+              >
+                <Power size={14} />
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
-  const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
-  const inp = "w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 transition";
+  const inp = "w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10";
 
   return (
     <AppLayout username={user?.name ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Shipping Vendors</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage courier partners and their rate cards</p>
-          </div>
-          {isAdmin && (
-            <ZariButton onClick={openCreate}>
-              <Plus size={16} /> Add Vendor
-            </ZariButton>
-          )}
-        </div>
+      <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
 
-        {/* Search */}
-        <div className={`${card} p-4`}>
-          <input
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by vendor name, contact, phone…"
-            className={inp}
-          />
-        </div>
+        <MasterHeader title="Shipping Vendors" addLabel="Add Vendor" onAdd={openCreate} />
 
-        {/* Table */}
-        <div className={`${card} overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[#C6AF4B]/15">
-                  <th className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wide text-gray-400">Vendor Name</th>
-                  <th className="text-left px-5 py-3 text-xs font-bold uppercase tracking-wide text-gray-400">Contact</th>
-                  <th className="text-right px-5 py-3 text-xs font-bold uppercase tracking-wide text-gray-400">Rate/KG</th>
-                  <th className="text-right px-5 py-3 text-xs font-bold uppercase tracking-wide text-gray-400">Min Charge</th>
-                  <th className="text-center px-5 py-3 text-xs font-bold uppercase tracking-wide text-gray-400">Status</th>
-                  <th className="text-center px-5 py-3 text-xs font-bold uppercase tracking-wide text-gray-400">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-b border-gray-50">
-                      {Array.from({ length: 6 }).map((_, j) => (
-                        <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
-                      ))}
-                    </tr>
-                  ))
-                ) : vendors.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-400">No shipping vendors found</td></tr>
-                ) : vendors.map(v => (
-                  <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
-                    <td className="px-5 py-3">
-                      <p className="font-semibold text-gray-900">{v.vendor_name}</p>
-                      {v.remarks && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">{v.remarks}</p>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {v.contact_person && <p className="text-gray-700">{v.contact_person}</p>}
-                      {v.phone_number && <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5"><Phone size={10} />{v.phone_number}</p>}
-                      {v.email_address && <p className="text-xs text-gray-400 flex items-center gap-1"><Mail size={10} />{v.email_address}</p>}
-                    </td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-900">₹{fmt(v.weight_rate_per_kg)}</td>
-                    <td className="px-5 py-3 text-right text-gray-700">₹{fmt(v.minimum_charge)}</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${v.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-50 text-gray-400 border-gray-200"}`}>
-                        {v.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => openEdit(v)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition" title="Edit">
-                          <Edit2 size={14} />
-                        </button>
-                        {isAdmin && (
-                          <button onClick={() => setToggleTarget(v)} className={`p-1.5 rounded-lg transition ${v.is_active ? "hover:bg-red-50 text-red-400 hover:text-red-600" : "hover:bg-emerald-50 text-emerald-400 hover:text-emerald-600"}`} title={v.is_active ? "Deactivate" : "Activate"}>
-                            <Power size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
-              <span className="text-xs text-gray-400">{total} vendors</span>
-              <div className="flex gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                  <button key={p} onClick={() => setPage(p)} className={`w-7 h-7 text-xs rounded-lg transition ${page === p ? "text-white font-semibold" : "text-gray-500 hover:bg-gray-100"}`} style={page === p ? { background: G } : undefined}>{p}</button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <SearchBar
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1); }}
+          placeholder="Search by vendor name, contact, phone…"
+        />
+
+        <MasterTable
+          columns={columns}
+          rows={vendors as unknown as TableRow[]}
+          loading={loading}
+          emptyText="No shipping vendors found."
+          rowKey={(r) => (r as unknown as Vendor).id}
+          showSerial
+          pagination={{
+            page, limit, total,
+            onPageChange: setPage,
+            onLimitChange: (l) => { setLimit(l); setPage(1); },
+          }}
+        />
       </div>
 
       {/* Toggle confirm */}
@@ -253,55 +417,84 @@ export default function ShippingVendors() {
         />
       )}
 
-      {/* Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className={`${card} w-full max-w-lg p-6`}>
-            <h2 className="text-lg font-bold text-gray-900 mb-5">{editing ? "Edit Shipping Vendor" : "Add Shipping Vendor"}</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Vendor Name *</label>
-                <input value={form.vendor_name} onChange={e => setForm(f => ({ ...f, vendor_name: e.target.value }))} className={inp} placeholder="e.g. Blue Dart, DTDC" />
-                {errors.vendor_name && <p className="text-red-500 text-xs mt-1">{errors.vendor_name}</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Contact Person</label>
-                  <input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} className={inp} placeholder="Name" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Phone</label>
-                  <input value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))} className={inp} placeholder="Mobile / Landline" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Email</label>
-                <input value={form.email_address} onChange={e => setForm(f => ({ ...f, email_address: e.target.value }))} className={inp} type="email" placeholder="vendor@example.com" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Rate per KG (₹) *</label>
-                  <input value={form.weight_rate_per_kg} onChange={e => setForm(f => ({ ...f, weight_rate_per_kg: e.target.value }))} className={inp} type="number" step="0.01" placeholder="0.00" />
-                  {errors.weight_rate_per_kg && <p className="text-red-500 text-xs mt-1">{errors.weight_rate_per_kg}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Minimum Charge (₹)</label>
-                  <input value={form.minimum_charge} onChange={e => setForm(f => ({ ...f, minimum_charge: e.target.value }))} className={inp} type="number" step="0.01" placeholder="0.00" />
-                  {errors.minimum_charge && <p className="text-red-500 text-xs mt-1">{errors.minimum_charge}</p>}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Remarks</label>
-                <textarea value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} className={inp + " resize-none"} rows={2} placeholder="Optional notes" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <ZariButton variant="secondary" onClick={() => setModalOpen(false)}>Cancel</ZariButton>
-              <ZariButton loading={saving} onClick={handleSave}>{editing ? "Update Vendor" : "Add Vendor"}</ZariButton>
-            </div>
+      {/* Add / Edit modal */}
+      <MasterFormModal
+        open={modalOpen}
+        title={editing ? "Edit Shipping Vendor" : "Add Shipping Vendor"}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleSave}
+        submitting={saving}
+        submitLabel={editing ? "Update Vendor" : "Add Vendor"}
+      >
+        <div className="space-y-4">
+          <InputField
+            label="Vendor Name"
+            required
+            value={form.vendor_name}
+            onChange={e => setForm(f => ({ ...f, vendor_name: e.target.value }))}
+            placeholder="e.g. Blue Dart, DTDC, FedEx"
+            error={errors.vendor_name}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <InputField
+              label="Contact Person"
+              value={form.contact_person}
+              onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))}
+              placeholder="Full name"
+            />
+
+            <PhoneInput
+              dialCode={form.phone_dial}
+              number={form.phone_number}
+              onDialChange={d => setForm(f => ({ ...f, phone_dial: d }))}
+              onNumberChange={n => setForm(f => ({ ...f, phone_number: n }))}
+              error={errors.phone_number}
+            />
+          </div>
+
+          <InputField
+            label="Email"
+            type="email"
+            value={form.email_address}
+            onChange={e => setForm(f => ({ ...f, email_address: e.target.value }))}
+            placeholder="vendor@example.com"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <InputField
+              label="Rate per KG (₹)"
+              required
+              type="number"
+              step="0.01"
+              value={form.weight_rate_per_kg}
+              onChange={e => setForm(f => ({ ...f, weight_rate_per_kg: e.target.value }))}
+              placeholder="0.00"
+              error={errors.weight_rate_per_kg}
+            />
+            <InputField
+              label="Minimum Charge (₹)"
+              type="number"
+              step="0.01"
+              value={form.minimum_charge}
+              onChange={e => setForm(f => ({ ...f, minimum_charge: e.target.value }))}
+              placeholder="0.00"
+              error={errors.minimum_charge}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Remarks</label>
+            <textarea
+              value={form.remarks}
+              onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
+              rows={2}
+              placeholder="Optional notes"
+              className={inp + " resize-none"}
+            />
           </div>
         </div>
-      )}
+      </MasterFormModal>
     </AppLayout>
   );
 }

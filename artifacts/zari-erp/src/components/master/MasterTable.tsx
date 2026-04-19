@@ -25,6 +25,7 @@ interface MasterTableProps {
   emptyText?: string;
   pagination: PaginationState;
   rowKey: (row: TableRow) => string | number;
+  showSerial?: boolean;
 }
 
 export default function MasterTable({
@@ -34,11 +35,14 @@ export default function MasterTable({
   emptyText = "No records found.",
   pagination,
   rowKey,
+  showSerial = false,
 }: MasterTableProps) {
   const { page, limit, total, onPageChange, onLimitChange } = pagination;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const start = total === 0 ? 0 : (page - 1) * limit + 1;
   const end = Math.min(page * limit, total);
+  const serialStart = (page - 1) * limit + 1;
+  const totalCols = columns.length + (showSerial ? 1 : 0);
 
   return (
     <div className="bg-white rounded-2xl border border-[#C6AF4B]/20 shadow-[0_2px_16px_rgba(198,175,75,0.10),0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
@@ -46,6 +50,11 @@ export default function MasterTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#C6AF4B]/10" style={{ background: "linear-gradient(to right, rgba(198,175,75,0.04), rgba(198,175,75,0.02))" }}>
+              {showSerial && (
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap w-12">
+                  Sr.
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -60,8 +69,8 @@ export default function MasterTable({
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3">
+                  {Array.from({ length: totalCols }).map((_, j) => (
+                    <td key={j} className="px-4 py-3">
                       <div className="h-4 bg-gray-100 rounded animate-pulse w-3/4" />
                     </td>
                   ))}
@@ -69,13 +78,18 @@ export default function MasterTable({
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-gray-400">
+                <td colSpan={totalCols} className="px-4 py-12 text-center text-gray-400">
                   {emptyText}
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              rows.map((row, idx) => (
                 <tr key={rowKey(row)} className="hover:bg-amber-50/40 transition-colors">
+                  {showSerial && (
+                    <td className="px-4 py-3 text-gray-400 text-xs font-medium w-12">
+                      {serialStart + idx}
+                    </td>
+                  )}
                   {columns.map((col) => (
                     <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.className ?? ""}`}>
                       {col.render ? col.render(row) : String(row[col.key] ?? "")}
