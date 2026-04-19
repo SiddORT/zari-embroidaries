@@ -411,15 +411,16 @@ export default function InventoryStockList() {
 
         {/* Summary Cards */}
         {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
             {[
-              { label: "Total Items",    value: summary.total_items,    icon: Boxes,          color: SLATE },
-              { label: "In Stock",       value: summary.in_stock,       icon: CheckCircle2,   color: "#10B981" },
-              { label: "Low Stock",      value: summary.low_stock,      icon: AlertTriangle,  color: "#F59E0B" },
-              { label: "Out of Stock",   value: summary.out_of_stock,   icon: XCircle,        color: "#EF4444" },
-              { label: "Fabrics",        value: summary.fabric_count,   icon: Package,        color: "#6366F1", sub: `${summary.material_count} mat` },
-              { label: "Item Masters",   value: summary.packaging_count,icon: Package,        color: "#F59E0B" },
-            ].map(({ label, value, icon: Icon, color, sub }) => (
+              { label: "Total Items",    value: summary.total_items,     icon: Boxes,         color: SLATE },
+              { label: "In Stock",       value: summary.in_stock,        icon: CheckCircle2,  color: "#10B981" },
+              { label: "Low Stock",      value: summary.low_stock,       icon: AlertTriangle, color: "#F59E0B" },
+              { label: "Out of Stock",   value: summary.out_of_stock,    icon: XCircle,       color: "#EF4444" },
+              { label: "Fabrics",        value: summary.fabric_count,    icon: Package,       color: "#6366F1" },
+              { label: "Materials",      value: summary.material_count,  icon: Package,       color: "#0EA5E9" },
+              { label: "Item Masters",   value: summary.packaging_count, icon: Package,       color: "#F59E0B" },
+            ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} className={`${card} p-4 flex items-start gap-3`}>
                 <div className="flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: `${color}18` }}>
                   <Icon className="h-5 w-5" style={{ color }} />
@@ -427,7 +428,6 @@ export default function InventoryStockList() {
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{value}</p>
                   <p className="text-xs text-gray-700 mt-0.5">{label}</p>
-                  {sub && <p className="text-[10px] text-gray-500">{sub}</p>}
                 </div>
               </div>
             ))}
