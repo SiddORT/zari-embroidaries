@@ -114,33 +114,28 @@ export default function StyleCostSheetTab({
   const isLoading = loadingBom || loadingPos || loadingPrs;
 
   // ── HSN/GST master data ──────────────────────────────────────────────────────
-  type HsnRow = { hsnCode: string; gstPercentage: string };
-  type MatRow = { code: string; hsnCode?: string };
-  const [hsnList, setHsnList] = useState<HsnRow[]>([]);
-  const [materialsMaster, setMaterialsMaster] = useState<MatRow[]>([]);
-  const [fabricsMaster, setFabricsMaster] = useState<MatRow[]>([]);
+  type MatMasterRow = { materialCode: string; hsnCode: string; gstPercent: string };
+  type FabMasterRow = { fabricCode: string; hsnCode: string; gstPercent: string };
+  const [materialsMaster, setMaterialsMaster] = useState<MatMasterRow[]>([]);
+  const [fabricsMaster, setFabricsMaster] = useState<FabMasterRow[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     const hdrs: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-    fetch("/api/hsn/all", { headers: hdrs }).then(r => r.json()).then((d: HsnRow[] | { data: HsnRow[] }) => {
-      setHsnList(Array.isArray(d) ? d : (d as { data: HsnRow[] }).data ?? []);
+    fetch("/api/materials/all", { headers: hdrs }).then(r => r.json()).then((d: MatMasterRow[] | { data: MatMasterRow[] }) => {
+      setMaterialsMaster(Array.isArray(d) ? d : (d as { data: MatMasterRow[] }).data ?? []);
     }).catch(() => {});
-    fetch("/api/materials/all", { headers: hdrs }).then(r => r.json()).then((d: MatRow[] | { data: MatRow[] }) => {
-      setMaterialsMaster(Array.isArray(d) ? d : (d as { data: MatRow[] }).data ?? []);
-    }).catch(() => {});
-    fetch("/api/fabrics/all", { headers: hdrs }).then(r => r.json()).then((d: MatRow[] | { data: MatRow[] }) => {
-      setFabricsMaster(Array.isArray(d) ? d : (d as { data: MatRow[] }).data ?? []);
+    fetch("/api/fabrics/all", { headers: hdrs }).then(r => r.json()).then((d: FabMasterRow[] | { data: FabMasterRow[] }) => {
+      setFabricsMaster(Array.isArray(d) ? d : (d as { data: FabMasterRow[] }).data ?? []);
     }).catch(() => {});
   }, []);
 
   function getBomHsnGst(r: BomRecord): { hsnCode: string; gstPct: number } {
     const master = r.materialType === "fabric"
-      ? fabricsMaster.find(f => f.code === r.materialCode)
-      : materialsMaster.find(m => m.code === r.materialCode);
+      ? fabricsMaster.find(f => f.fabricCode === r.materialCode)
+      : materialsMaster.find(m => m.materialCode === r.materialCode);
     const hsnCode = master?.hsnCode ?? "";
-    const hsnRow = hsnCode ? hsnList.find(h => h.hsnCode === hsnCode) : undefined;
-    const gstPct = hsnRow ? (parseFloat(hsnRow.gstPercentage) || 0) : 0;
+    const gstPct = master ? (parseFloat(master.gstPercent) || 0) : 0;
     return { hsnCode, gstPct };
   }
 
