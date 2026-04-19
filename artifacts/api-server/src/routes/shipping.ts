@@ -138,6 +138,18 @@ router.patch("/shipping/vendors/:id/status", requireAuth, async (req: AuthReques
   }
 });
 
+// DELETE /api/shipping/vendors/:id  (admin only)
+router.delete("/shipping/vendors/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const r = await pool.query(`DELETE FROM shipping_vendors WHERE id=$1 RETURNING id`, [id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Vendor not found" });
+    res.json({ message: "Vendor deleted" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // SHIPPING DETAILS
 // ═══════════════════════════════════════════════════════════════

@@ -124,7 +124,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
           </Link>
 
           {/* CENTER — Desktop nav */}
-          <nav className="hidden md:flex items-center gap-0.5 flex-1">
+          <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-end">
 
             {/* Dashboard */}
             <Link href="/dashboard" className={navLink(location === "/dashboard")}>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { Pencil, Power, Phone, Mail, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, Phone, Mail, ChevronDown } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -200,8 +200,9 @@ export default function ShippingVendors() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [toggleTarget, setToggleTarget] = useState<Vendor | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -295,12 +296,25 @@ export default function ShippingVendors() {
     try {
       await customFetch(`/api/shipping/vendors/${v.id}/status`, { method: "PATCH" });
       toast({ title: v.is_active ? "Vendor deactivated" : "Vendor activated" });
-      setToggleTarget(null);
       load();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setToggling(false);
+    }
+  }
+
+  async function handleDelete(v: Vendor) {
+    setDeleting(true);
+    try {
+      await customFetch(`/api/shipping/vendors/${v.id}`, { method: "DELETE" });
+      toast({ title: "Vendor deleted", description: `"${v.vendor_name}" has been removed.` });
+      setDeleteTarget(null);
+      load();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -357,8 +371,8 @@ export default function ShippingVendors() {
       render: (r) => (
         <StatusToggle
           isActive={asV(r).is_active}
-          onToggle={() => { if (isAdmin) setToggleTarget(asV(r)); }}
-          loading={toggling && toggleTarget?.id === asV(r).id}
+          onToggle={() => handleToggle(asV(r))}
+          loading={toggling}
         />
       ),
     },
@@ -388,6 +402,16 @@ export default function ShippingVendors() {
           >
             <Pencil className="h-4 w-4" />
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setDeleteTarget(asV(r))}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              title="Delete"
+              disabled={deleting}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -402,7 +426,7 @@ export default function ShippingVendors() {
       onLogout={handleLogout}
       isLoggingOut={logoutMutation.isPending}
     >
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 py-4 space-y-5">
 
         <MasterHeader title="Shipping Vendors" addLabel="Add Vendor" onAdd={openCreate} />
 
@@ -427,14 +451,14 @@ export default function ShippingVendors() {
         />
       </div>
 
-      {/* Toggle confirm */}
-      {toggleTarget && (
+      {/* Delete confirm */}
+      {deleteTarget && (
         <ConfirmModal
-          title={toggleTarget.is_active ? "Deactivate Vendor" : "Activate Vendor"}
-          message={`Are you sure you want to ${toggleTarget.is_active ? "deactivate" : "activate"} "${toggleTarget.vendor_name}"?`}
-          confirmLabel={toggleTarget.is_active ? "Deactivate" : "Activate"}
-          onConfirm={() => handleToggle(toggleTarget)}
-          onCancel={() => setToggleTarget(null)}
+          title="Delete Vendor"
+          message={`Are you sure you want to permanently delete "${deleteTarget.vendor_name}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => handleDelete(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
 
