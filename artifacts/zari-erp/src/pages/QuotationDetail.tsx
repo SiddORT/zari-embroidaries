@@ -107,6 +107,13 @@ export default function QuotationDetail() {
 
   // Status change
   const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  function extractApiError(err: any): string {
+    const msg: string = err?.message ?? String(err);
+    const match = msg.match(/^HTTP \d{3}[^:]*:\s*(.+)$/s);
+    return match ? match[1].trim() : msg;
+  }
 
   // Feedback
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -137,6 +144,7 @@ export default function QuotationDetail() {
 
   async function changeStatus(newStatus: string) {
     setStatusBusy(true);
+    setStatusError(null);
     try {
       const j = await customFetch<{ message: string }>(`/api/quotations/${id}/status`, {
         method: "POST",
@@ -145,7 +153,12 @@ export default function QuotationDetail() {
       toast({ title: "Status Updated", description: j.message });
       fetchData();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      const clean = extractApiError(err);
+      if (clean.toLowerCase().includes("already approved") || clean.toLowerCase().includes("revision in this quotation chain")) {
+        setStatusError(clean);
+      } else {
+        toast({ title: "Cannot change status", description: clean, variant: "destructive" });
+      }
     } finally {
       setStatusBusy(false);
     }
@@ -296,6 +309,20 @@ export default function QuotationDetail() {
                     {ns} {statusBusy && <span className="ml-1 animate-pulse">…</span>}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Approval conflict inline alert */}
+            {statusError && (
+              <div className="w-full mt-2 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-amber-500" />
+                <div className="flex-1">
+                  <p className="font-semibold">Approval Conflict</p>
+                  <p className="mt-0.5 text-amber-800">{statusError}</p>
+                </div>
+                <button onClick={() => setStatusError(null)} className="text-amber-400 hover:text-amber-700 flex-shrink-0 mt-0.5">
+                  <X size={14} />
+                </button>
               </div>
             )}
 
