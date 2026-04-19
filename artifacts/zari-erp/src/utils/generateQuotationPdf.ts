@@ -28,7 +28,7 @@ export interface QuotationPdfData {
   total_amount: string;
   cover_page: string;
   cover_page_image: string | null;
-  designs: Array<{ design_name: string; hsn_code: string | null; remarks: string | null }>;
+  designs: Array<{ design_name: string; hsn_code: string | null; design_image: string | null; remarks: string | null }>;
   charges: Array<{ charge_name: string; hsn_code: string | null; unit: string | null; quantity: string; price: string; amount: string }>;
 }
 
@@ -211,26 +211,63 @@ function addContentPage(doc: jsPDF, data: QuotationPdfData) {
 
   if (data.designs.length > 0) {
     curY += 4;
+    const PH = doc.internal.pageSize.getHeight();
     doc.setFontSize(11); doc.setTextColor(...GOLD_RGB); doc.setFont("helvetica", "bold");
     doc.text("DESIGNS", 14, curY);
     doc.setDrawColor(...GOLD_RGB); doc.setLineWidth(0.4); doc.line(14, curY + 2, W - 14, curY + 2);
-    curY += 6;
-    autoTable(doc, {
-      startY: curY,
-      head: [["#", "Design Name", "HSN Code", "Remarks"]],
-      body: data.designs.map((d, i) => [
-        String(i + 1),
-        d.design_name,
-        d.hsn_code || "—",
-        d.remarks || "—",
-      ]),
-      headStyles: { fillColor: GOLD_RGB, textColor: WHITE_RGB, fontStyle: "bold", fontSize: 9 },
-      bodyStyles: { fontSize: 9, textColor: DARK_RGB },
-      alternateRowStyles: { fillColor: [252, 250, 240] },
-      columnStyles: { 0: { cellWidth: 10, halign: "center" } },
-      margin: { left: 14, right: 14 },
+    curY += 8;
+
+    const IMG_W = 32;
+    const IMG_H = 32;
+    const CARD_H = IMG_H + 6;
+    const CARD_PAD = 4;
+
+    data.designs.forEach((d, i) => {
+      if (curY + CARD_H + 6 > PH - 20) { doc.addPage(); curY = 30; }
+
+      const hasImg = !!d.design_image;
+      const textX = 14 + (hasImg ? IMG_W + CARD_PAD + 4 : 0);
+
+      doc.setFillColor(252, 250, 240);
+      doc.roundedRect(14, curY, W - 28, CARD_H, 3, 3, "F");
+      doc.setDrawColor(230, 220, 180); doc.setLineWidth(0.3);
+      doc.roundedRect(14, curY, W - 28, CARD_H, 3, 3, "S");
+
+      if (hasImg) {
+        try {
+          const imgFmt = d.design_image!.startsWith("data:image/png") ? "PNG" : "JPEG";
+          doc.addImage(d.design_image!, imgFmt, 16, curY + 2, IMG_W, IMG_H + 2);
+        } catch {
+          doc.setFillColor(220, 218, 210);
+          doc.rect(16, curY + 2, IMG_W, IMG_H + 2, "F");
+          doc.setFontSize(6); doc.setTextColor(...GRAY_RGB);
+          doc.text("Image", 16 + IMG_W / 2, curY + IMG_H / 2 + 4, { align: "center" });
+        }
+      }
+
+      doc.setFontSize(7); doc.setTextColor(...GOLD_RGB); doc.setFont("helvetica", "bold");
+      doc.text(`#${i + 1}`, textX, curY + 9);
+
+      doc.setFontSize(10); doc.setTextColor(...DARK_RGB); doc.setFont("helvetica", "bold");
+      const nameMaxW = W - 28 - (hasImg ? IMG_W + CARD_PAD + 4 : 0) - 10;
+      const nameLines = doc.splitTextToSize(d.design_name, nameMaxW) as string[];
+      doc.text(nameLines[0], textX + 10, curY + 9);
+
+      let infoY = curY + 16;
+      if (d.hsn_code) {
+        doc.setFontSize(8); doc.setTextColor(...GRAY_RGB); doc.setFont("helvetica", "normal");
+        doc.text(`HSN: ${d.hsn_code}`, textX, infoY);
+        infoY += 6;
+      }
+      if (d.remarks) {
+        doc.setFontSize(8); doc.setTextColor(80, 80, 80); doc.setFont("helvetica", "normal");
+        const rLines = doc.splitTextToSize(d.remarks, nameMaxW + 10) as string[];
+        doc.text(rLines.slice(0, 2), textX, infoY);
+      }
+
+      curY += CARD_H + 4;
     });
-    curY = (doc as any).lastAutoTable.finalY + 6;
+    curY += 4;
   }
 
   if (data.charges.length > 0) {
