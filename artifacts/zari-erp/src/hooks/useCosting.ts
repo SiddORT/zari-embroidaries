@@ -104,8 +104,12 @@ export function useSwatchBom(swatchOrderId: number) {
 export function useAddBomRow() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: BomRecord }>("/api/costing/bom", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["swatch-bom"] }); },
+    mutationFn: (body: Record<string, unknown>) =>
+      customFetch<{ data: BomRecord; reservation: { status: string; reason?: string } }>("/api/costing/bom", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["swatch-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
+    },
   });
 }
 
@@ -432,8 +436,12 @@ export function useStyleBom(styleOrderId: number) {
 export function useAddStyleBomRow() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) => customFetch<{ data: BomRecord }>("/api/costing/style-bom", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-bom"] }); },
+    mutationFn: (body: Record<string, unknown>) =>
+      customFetch<{ data: BomRecord; reservation: { status: string; reason?: string } }>("/api/costing/style-bom", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["style-bom"] });
+      void qc.invalidateQueries({ queryKey: ["inventory-items"] });
+    },
   });
 }
 

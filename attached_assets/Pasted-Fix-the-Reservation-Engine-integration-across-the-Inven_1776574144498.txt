@@ -1,0 +1,264 @@
+Fix the Reservation Engine integration across the Inventory system.
+
+Currently reservations created from Swatch BOM and Style BOM are not updating:
+
+inventory_items.style_reserved_qty
+inventory_items.swatch_reserved_qty
+available_stock
+stock_ledger entries
+Inventory list screen values
+
+Update backend logic so reservation entries correctly propagate across all inventory layers.
+
+Follow structure exactly as defined below.
+
+---
+
+## OBJECTIVE
+
+Ensure that whenever reservation created from:
+
+Swatch BOM
+Style BOM
+Manual reservation entry
+
+system automatically updates:
+
+inventory_items reserved quantities
+
+available_stock
+
+stock_ledger reservation entries
+
+inventory list UI
+
+---
+
+## SECTION 1 — TRIGGER RESERVATION FROM SWATCH BOM
+
+Whenever reservation created from:
+
+Swatch BOM → Auto Reserve Materials
+
+System must:
+
+create record in:
+
+material_reservations table
+
+Then immediately update:
+
+inventory_items.swatch_reserved_qty += reserved_quantity
+
+Then recalculate:
+
+available_stock
+
+Formula:
+
+available_stock =
+current_stock
+− style_reserved_qty
+− swatch_reserved_qty
+
+---
+
+## SECTION 2 — TRIGGER RESERVATION FROM STYLE BOM
+
+Whenever reservation created from:
+
+Style BOM → Auto Reserve Materials
+
+System must:
+
+create record in:
+
+material_reservations table
+
+Then immediately update:
+
+inventory_items.style_reserved_qty += reserved_quantity
+
+Then recalculate:
+
+available_stock
+
+---
+
+## SECTION 3 — MANUAL RESERVATION ENTRY UPDATE
+
+When reservation created manually:
+
+system must detect:
+
+reservation_type
+
+If:
+
+reservation_type = Style
+
+update:
+
+style_reserved_qty
+
+If:
+
+reservation_type = Swatch
+
+update:
+
+swatch_reserved_qty
+
+Then recalculate:
+
+available_stock
+
+---
+
+## SECTION 4 — CREATE STOCK LEDGER ENTRY FOR RESERVATION
+
+Whenever reservation created:
+
+create ledger entry inside:
+
+stock_ledger
+
+Fields:
+
+transaction_type = Style Reservation OR Swatch Reservation
+
+reference_type = Style OR Swatch
+
+reference_number = reference_id
+
+reserved_quantity stored inside remarks
+
+balance_quantity remains unchanged
+
+---
+
+## SECTION 5 — RESERVATION RELEASE UPDATE LOGIC
+
+When reservation released:
+
+system must:
+
+subtract reserved_quantity from:
+
+style_reserved_qty
+
+OR
+
+swatch_reserved_qty
+
+Then recalculate:
+
+available_stock
+
+Then create ledger entry:
+
+transaction_type = Reservation Release
+
+reference_type = Style OR Swatch
+
+reference_number = reference_id
+
+---
+
+## SECTION 6 — RESERVATION DELETE UPDATE LOGIC
+
+If reservation deleted:
+
+system must:
+
+reverse reservation quantity from inventory_items
+
+update:
+
+available_stock
+
+delete related ledger entry
+
+---
+
+## SECTION 7 — INVENTORY LIST SCREEN REFRESH
+
+After reservation create/update/delete:
+
+refresh values:
+
+style_reserved_qty
+
+swatch_reserved_qty
+
+available_stock
+
+without requiring manual page reload
+
+---
+
+## SECTION 8 — PREVENT DUPLICATE RESERVATIONS FROM SAME BOM
+
+When Auto Reserve Materials clicked multiple times:
+
+system must:
+
+check existing reservation for:
+
+same item_id
+
+same reference_id
+
+same reservation_type
+
+If exists:
+
+update reservation instead of inserting duplicate record
+
+---
+
+## SECTION 9 — RESERVATION VALIDATION RULE
+
+Before creating reservation:
+
+system must validate:
+
+reserved_quantity <= available_stock
+
+Otherwise:
+
+show error:
+
+Insufficient available stock for reservation
+
+---
+
+## SECTION 10 — AUTO UPDATE inventory_items.last_updated_at
+
+Whenever reservation created / updated / released:
+
+update:
+
+inventory_items.last_updated_at
+
+---
+
+## SECTION 11 — UI UPDATE REQUIREMENT
+
+After reservation created from:
+
+Swatch BOM
+
+Style BOM
+
+Inventory Manual Entry
+
+Display message:
+
+Reservation created successfully and inventory updated
+
+---
+
+## END OF RESERVATION SYNC FIX
+
+Update backend logic accordingly without modifying existing table structure.

@@ -150,10 +150,19 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
   async function handleAdd() {
     if (!form.materialId) { toast({ title: "Select a material or fabric first", variant: "destructive" }); return; }
     if (!form.requiredQty || parseFloat(form.requiredQty) <= 0) { toast({ title: "Required quantity must be > 0", variant: "destructive" }); return; }
-    await addRow.mutateAsync({ ...form, styleOrderId, estimatedAmount: estimatedAmount.toFixed(2) });
+    const result = await addRow.mutateAsync({ ...form, styleOrderId, estimatedAmount: estimatedAmount.toFixed(2) });
     setForm({ materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "" });
     setShowForm(false);
-    toast({ title: "BOM row added" });
+    const resv = result?.reservation;
+    if (resv?.status === "created") {
+      toast({ title: "BOM row added — reservation created and inventory updated" });
+    } else if (resv?.status === "updated") {
+      toast({ title: "BOM row added — existing reservation updated" });
+    } else if (resv?.status === "skipped" && resv?.reason) {
+      toast({ title: "BOM row added", description: `Note: ${resv.reason}`, variant: "destructive" });
+    } else {
+      toast({ title: "BOM row added" });
+    }
   }
 
   const filteredRows = typeFilter === "all" ? rows : rows.filter(r => r.materialType === typeFilter);
