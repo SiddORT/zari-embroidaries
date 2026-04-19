@@ -504,7 +504,22 @@ router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(swatchBomTable)
     .where(eq(swatchBomTable.styleOrderId, Number(req.params.styleOrderId)))
     .orderBy(swatchBomTable.createdAt);
-  res.json({ data: rows });
+
+  // Enrich each row with live stock figures from inventory_items
+  const enriched = await Promise.all(rows.map(async (r) => {
+    const inv = await pool.query(
+      `SELECT current_stock, available_stock FROM inventory_items WHERE source_type = $1 AND source_id = $2 LIMIT 1`,
+      [r.materialType, r.materialId]
+    );
+    const live = inv.rows[0] ?? null;
+    return {
+      ...r,
+      liveCurrentStock: live ? live.current_stock : null,
+      liveAvailableStock: live ? live.available_stock : null,
+    };
+  }));
+
+  res.json({ data: enriched });
 });
 
 router.post("/style-bom", requireAuth, async (req, res) => {

@@ -248,7 +248,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
           )}
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="text-[10px] text-gray-500 font-medium">Required Qty</label>
+              <label className="text-[10px] text-gray-500 font-medium">Required / Reserved Qty</label>
               <input type="number" min="0" step="any" value={form.requiredQty}
                 onChange={e => setForm(f => ({ ...f, requiredQty: e.target.value }))}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
@@ -277,7 +277,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
             <tr className="border-b border-gray-100 bg-gray-50/60">
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Code</th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Material / Fabric</th>
-              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Stock</th>
+              <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Current / Available Stock</th>
               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
                 <span className="flex items-center gap-1">Avg Price <span title="Weighted average of current stock price and all PR actual prices received" className="cursor-help text-gray-300 hover:text-gray-500"><Info className="h-3 w-3" /></span></span>
               </th>
@@ -301,7 +301,6 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
               <EmptyRow text={rows.length === 0 ? "No BOM rows yet. Add a material above." : "No rows match the current filter."} />
             ) : filteredRows.map(r => {
               const m = computeRowMetrics(r, pos, prs);
-              const liveStock = m.stockNum + m.prQty;
               return (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.materialCode}</td>
@@ -314,9 +313,24 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                     </div>
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
-                    <span className="font-semibold text-gray-800">{liveStock.toFixed(2)}</span>
-                    <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
-                    {m.prQty > 0 && <span title={`Base: ${m.stockNum} + PR: ${m.prQty.toFixed(2)}`} className="ml-1 text-[9px] text-blue-500 cursor-help">+PR</span>}
+                    {r.liveCurrentStock != null ? (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-gray-400 w-10 shrink-0">Current</span>
+                          <span className="font-semibold text-gray-800">{parseFloat(r.liveCurrentStock).toFixed(3)}</span>
+                          <span className="text-gray-400 text-[10px]">{r.unitType}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-gray-400 w-10 shrink-0">Avail</span>
+                          <span className={`font-semibold text-[11px] ${parseFloat(r.liveAvailableStock ?? "0") <= 0 ? "text-red-600" : "text-green-700"}`}>
+                            {parseFloat(r.liveAvailableStock ?? "0").toFixed(3)}
+                          </span>
+                          <span className="text-gray-400 text-[10px]">{r.unitType}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-[10px] italic">not in inventory</span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">₹{m.weightedAvg.toFixed(2)}</td>
                   <td className="px-3 py-2.5 text-amber-700 whitespace-nowrap">{m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}</td>
