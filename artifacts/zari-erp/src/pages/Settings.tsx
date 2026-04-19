@@ -593,7 +593,7 @@ function CurrencyTab({ card, inp, label, toast }: any) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                {["Currency", "Rate", "Last Updated", "Source", "Action"].map(h => (
+                {["Currency", `1 CCY = X ${baseCurrency?.code ?? "Base"}`, `1 ${baseCurrency?.code ?? "Base"} = X CCY (Raw Rate)`, "Last Updated", "Source", "Action"].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400">{h}</th>
                 ))}
               </tr>
@@ -602,60 +602,75 @@ function CurrencyTab({ card, inp, label, toast }: any) {
               {ratesLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 5 }).map((_, j) => (
+                    {Array.from({ length: 6 }).map((_, j) => (
                       <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                     ))}
                   </tr>
                 ))
               ) : rates.length === 0 ? (
-                <tr><td colSpan={5} className="py-10 text-center text-gray-400 text-sm">
+                <tr><td colSpan={6} className="py-10 text-center text-gray-400 text-sm">
                   No exchange rates yet. Click "Refresh Exchange Rates" to fetch current rates.
                 </td></tr>
-              ) : rates.map(r => (
-                <tr key={r.currency_code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
-                  <td className="px-5 py-3">
-                    <p className="font-mono font-bold text-gray-900">{r.currency_code}</p>
-                    <p className="text-xs text-gray-400">{r.currency_name}</p>
-                  </td>
-                  <td className="px-5 py-3">
-                    {editRate?.code === r.currency_code ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          step="0.0001"
-                          value={editRate.value}
-                          onChange={e => setEditRate(v => v ? { ...v, value: e.target.value } : null)}
-                          className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]"
-                          autoFocus
-                        />
-                        <button onClick={handleSaveRate} disabled={savingRate} className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium transition disabled:opacity-60" style={{ backgroundColor: G }}>
-                          {savingRate ? "…" : "Save"}
-                        </button>
-                        <button onClick={() => setEditRate(null)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="font-semibold text-gray-900">{parseFloat(r.rate).toFixed(4)}</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(r.created_at)}</td>
-                  <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${r.is_manual_override ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>
-                      {r.source_type}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <button
-                      onClick={() => setEditRate({ code: r.currency_code, value: r.rate })}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                      title="Override rate manually"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              ) : rates.map(r => {
+                const rate = parseFloat(r.rate);
+                const inverseRate = rate > 0 ? 1 / rate : 0;
+                const base = baseCurrency;
+                return (
+                  <tr key={r.currency_code} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                    <td className="px-5 py-3">
+                      <p className="font-mono font-bold text-gray-900">{r.currency_code}</p>
+                      <p className="text-xs text-gray-400">{r.currency_name}</p>
+                    </td>
+                    {/* 1 foreign = X base */}
+                    <td className="px-5 py-3">
+                      <span className="font-semibold text-gray-900">
+                        {base?.symbol}{inverseRate.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                      </span>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        1 {r.currency_code} = {base?.symbol}{inverseRate.toFixed(2)} {base?.code}
+                      </p>
+                    </td>
+                    {/* 1 base = X foreign */}
+                    <td className="px-5 py-3">
+                      {editRate?.code === r.currency_code ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.0001"
+                            value={editRate.value}
+                            onChange={e => setEditRate(v => v ? { ...v, value: e.target.value } : null)}
+                            className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]"
+                            autoFocus
+                          />
+                          <button onClick={handleSaveRate} disabled={savingRate} className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium transition disabled:opacity-60" style={{ backgroundColor: G }}>
+                            {savingRate ? "…" : "Save"}
+                          </button>
+                          <button onClick={() => setEditRate(null)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-gray-700">{rate.toFixed(4)}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(r.created_at)}</td>
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${r.is_manual_override ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>
+                        {r.source_type}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <button
+                        onClick={() => setEditRate({ code: r.currency_code, value: r.rate })}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                        title="Override rate manually"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
