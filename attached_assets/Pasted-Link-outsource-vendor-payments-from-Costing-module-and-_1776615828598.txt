@@ -1,0 +1,171 @@
+Link outsource vendor payments from Costing module and Artwork module to Vendor Ledger.
+
+Do not create duplicate payment fields if they already exist.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Vendor Ledger Integration for Outsource Payments
+
+---
+
+SECTION 1 — COSTING MODULE PAYMENT SUPPORT
+
+Inside:
+
+Swatch Costing
+
+Style Costing
+
+Under sections:
+
+Outsource Artisan
+
+Custom Vendor Work
+
+Ensure fields exist:
+
+vendor_id
+
+payment_type
+
+payment_amount
+
+payment_status
+
+transaction_id
+
+payment_date
+
+remarks
+
+Allow:
+
+multiple payment entries per vendor
+
+---
+
+SECTION 2 — CREATE VENDOR LEDGER ENTRY FROM COSTING PAYMENTS
+
+Whenever costing payment saved:
+
+Create Vendor Ledger entry
+
+Fields mapped:
+
+vendor_id
+
+reference_type = Costing
+
+reference_id = swatch_id OR style_id
+
+entry_type = Vendor Payment
+
+payment_type
+
+payment_amount
+
+transaction_id
+
+payment_date
+
+status = payment_status
+
+---
+
+SECTION 3 — LINK EXISTING ARTWORK OUTSOURCE PAYMENTS TO LEDGER
+
+Artwork module already stores outsource vendor payment details.
+
+Whenever artwork outsource payment saved:
+
+Create Vendor Ledger entry
+
+Fields mapped:
+
+vendor_id
+
+reference_type = Artwork
+
+reference_id = artwork_id
+
+entry_type = Artwork Vendor Payment
+
+payment_type
+
+payment_amount
+
+transaction_id
+
+payment_date
+
+status = payment_status
+
+---
+
+SECTION 4 — PREVENT DUPLICATE LEDGER ENTRIES
+
+Before creating Vendor Ledger entry:
+
+Check if entry already exists
+
+Match using:
+
+reference_type
+
+reference_id
+
+transaction_id
+
+If exists:
+
+update existing record
+
+Do not create duplicate entry
+
+---
+
+SECTION 5 — VENDOR LEDGER SUMMARY UPDATE
+
+Vendor Ledger must automatically update:
+
+Total Payable
+
+Total Paid
+
+Balance Pending
+
+Include entries from:
+
+Purchase Receipt vendor invoices
+
+Costing outsource payments
+
+Artwork outsource payments
+
+---
+
+SECTION 6 — PERMISSIONS CONTROL
+
+Allow:
+
+Add payment → authorized users
+
+Edit payment → authorized users
+
+Delete payment → admin users only
+
+---
+
+SECTION 7 — SUCCESS MESSAGE
+
+After saving payment:
+
+Display:
+
+Vendor payment recorded in vendor ledger
+
+END OF MODULE

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike } from "drizzle-orm";
-import { db, styleOrderArtworksTable } from "@workspace/db";
+import { db, styleOrderArtworksTable, pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 
@@ -110,10 +110,10 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
 
-  const [existing] = await db.select({ id: styleOrderArtworksTable.id })
+  const [fullExisting] = await db.select()
     .from(styleOrderArtworksTable)
     .where(and(eq(styleOrderArtworksTable.id, id), eq(styleOrderArtworksTable.isDeleted, false)));
-  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (!fullExisting) { res.status(404).json({ error: "Not found" }); return; }
 
   const [row] = await db.update(styleOrderArtworksTable).set({
     styleOrderProductId: body.styleOrderProductId !== undefined ? (body.styleOrderProductId ? Number(body.styleOrderProductId) : null) : undefined,
@@ -141,6 +141,44 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
     updatedBy: user?.email ?? "system",
     updatedAt: new Date(),
   }).where(eq(styleOrderArtworksTable.id, id)).returning();
+
+  // Sync costing_payments credit for style artwork outsource payment
+  const vendorId = body.outsourceVendorId ?? row.outsourceVendorId;
+  const payAmount = body.outsourcePaymentAmount ?? row.outsourcePaymentAmount;
+  const txnId = (body.outsourceTransactionId ?? row.outsourceTransactionId) as string | null;
+  if (vendorId && payAmount && parseFloat(String(payAmount)) > 0) {
+    try {
+      const styleOrderId = row.styleOrderId;
+      const existingRows = txnId
+        ? (await pool.query(
+            `SELECT id FROM costing_payments WHERE reference_type='artwork_style' AND reference_id=$1 AND transaction_id=$2 LIMIT 1`,
+            [id, txnId]
+          )).rows
+        : [];
+      if (existingRows.length > 0) {
+        await pool.query(
+          `UPDATE costing_payments SET vendor_id=$1,vendor_name=$2,payment_mode=$3,payment_amount=$4,payment_status=$5,payment_date=$6 WHERE id=$7`,
+          [parseInt(String(vendorId)), body.outsourceVendorName ?? row.outsourceVendorName,
+           body.outsourcePaymentMode ?? row.outsourcePaymentMode,
+           parseFloat(String(payAmount)), body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? "Pending",
+           body.outsourcePaymentDate ? new Date(String(body.outsourcePaymentDate)) : null,
+           existingRows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,style_order_id,payment_mode,payment_amount,payment_status,transaction_id,payment_date,created_by)
+           VALUES ($1,$2,'artwork_style',$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT DO NOTHING`,
+          [parseInt(String(vendorId)), body.outsourceVendorName ?? row.outsourceVendorName,
+           id, styleOrderId,
+           body.outsourcePaymentMode ?? row.outsourcePaymentMode,
+           parseFloat(String(payAmount)), body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? "Pending",
+           txnId, body.outsourcePaymentDate ? new Date(String(body.outsourcePaymentDate)) : null,
+           user?.email ?? "system"]
+        );
+      }
+    } catch (e) { logger.error(e, "Failed to sync artwork style costing_payment"); }
+  }
 
   res.json({ data: row });
 });

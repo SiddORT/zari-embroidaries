@@ -1688,4 +1688,108 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
   res.json({ data: items, shippingAmount, orderId, type });
 });
 
+// ──────────────────────────────────────────────────────────────────────────────
+// COSTING PAYMENTS  (credits against outsource jobs / custom charges / artworks)
+// ──────────────────────────────────────────────────────────────────────────────
+
+// GET /costing/costing-payments?referenceType=outsource_job&referenceId=5
+router.get("/costing-payments", requireAuth, async (req, res) => {
+  try {
+    const { referenceType, referenceId } = req.query as Record<string, string>;
+    if (!referenceType || !referenceId) {
+      return res.status(400).json({ error: "referenceType and referenceId are required" });
+    }
+    const { rows } = await pool.query(
+      `SELECT * FROM costing_payments
+       WHERE reference_type = $1 AND reference_id = $2
+       ORDER BY created_at ASC`,
+      [referenceType, parseInt(referenceId)]
+    );
+    res.json({ data: rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /costing/costing-payments — upsert by (reference_type, reference_id, transaction_id)
+router.post("/costing-payments", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const {
+      vendorId, vendorName, referenceType, referenceId,
+      swatchOrderId, styleOrderId,
+      paymentType, paymentMode, paymentAmount, paymentStatus,
+      transactionId, paymentDate, remarks,
+    } = req.body;
+
+    if (!vendorId || !referenceType || !referenceId || !paymentAmount) {
+      return res.status(400).json({ error: "vendorId, referenceType, referenceId, paymentAmount are required" });
+    }
+
+    // Upsert: if transaction_id is provided and a matching record exists, update it
+    if (transactionId) {
+      const existing = await pool.query(
+        `SELECT id FROM costing_payments
+         WHERE reference_type = $1 AND reference_id = $2 AND transaction_id = $3
+         LIMIT 1`,
+        [referenceType, parseInt(referenceId), transactionId]
+      );
+      if (existing.rows.length > 0) {
+        const { rows } = await pool.query(
+          `UPDATE costing_payments SET
+             vendor_id = $1, vendor_name = $2, payment_type = $3, payment_mode = $4,
+             payment_amount = $5, payment_status = $6, payment_date = $7, remarks = $8
+           WHERE id = $9
+           RETURNING *`,
+          [
+            parseInt(vendorId), vendorName, paymentType, paymentMode,
+            parseFloat(paymentAmount), paymentStatus,
+            paymentDate ? new Date(paymentDate) : null,
+            remarks, existing.rows[0].id,
+          ]
+        );
+        return res.json({ data: rows[0], updated: true });
+      }
+    }
+
+    // Insert new payment
+    const { rows } = await pool.query(
+      `INSERT INTO costing_payments
+         (vendor_id, vendor_name, reference_type, reference_id, swatch_order_id, style_order_id,
+          payment_type, payment_mode, payment_amount, payment_status, transaction_id, payment_date, remarks, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       RETURNING *`,
+      [
+        parseInt(vendorId), vendorName, referenceType, parseInt(referenceId),
+        swatchOrderId ? parseInt(swatchOrderId) : null,
+        styleOrderId ? parseInt(styleOrderId) : null,
+        paymentType, paymentMode,
+        parseFloat(paymentAmount), paymentStatus || "Pending",
+        transactionId || null,
+        paymentDate ? new Date(paymentDate) : null,
+        remarks || null,
+        user?.username ?? "system",
+      ]
+    );
+    res.status(201).json({ data: rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /costing/costing-payments/:id — admin only
+router.delete("/costing-payments/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (user?.role !== "admin") {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const id = parseInt(req.params.id);
+    await pool.query("DELETE FROM costing_payments WHERE id = $1", [id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

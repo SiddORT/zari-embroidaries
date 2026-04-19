@@ -188,6 +188,30 @@ export const customChargesTable = pgTable("custom_charges", {
 
 export type CustomChargeRecord = typeof customChargesTable.$inferSelect;
 
+// ─── Costing Payments ─────────────────────────────────────────────────────────
+// Records actual payments made to vendors for outsource jobs, custom charges,
+// and artwork outsource work. These appear as CREDITS in the vendor ledger.
+export const costingPaymentsTable = pgTable("costing_payments", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull(),
+  vendorName: text("vendor_name"),
+  referenceType: text("reference_type").notNull(), // 'outsource_job' | 'custom_charge' | 'artwork_swatch' | 'artwork_style'
+  referenceId: integer("reference_id").notNull(),   // id in the source table
+  swatchOrderId: integer("swatch_order_id"),
+  styleOrderId: integer("style_order_id"),
+  paymentType: text("payment_type"),   // Advance | Partial | Full
+  paymentMode: text("payment_mode"),   // Cash | Bank Transfer | UPI | Cheque | Other
+  paymentAmount: numeric("payment_amount", { precision: 12, scale: 2 }).notNull(),
+  paymentStatus: text("payment_status").default("Pending"), // Pending | Processing | Completed | Failed
+  transactionId: text("transaction_id"),
+  paymentDate: timestamp("payment_date", { withTimezone: true }),
+  remarks: text("remarks"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CostingPaymentRecord = typeof costingPaymentsTable.$inferSelect;
+
 // ─── BOM Change Log ───────────────────────────────────────────────────────────
 export const bomChangeLogTable = pgTable("bom_change_log", {
   id: serial("id").primaryKey(),

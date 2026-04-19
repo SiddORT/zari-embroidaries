@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike } from "drizzle-orm";
-import { db, artworksTable } from "@workspace/db";
+import { db, artworksTable, pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 
@@ -90,7 +90,7 @@ router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
 
-  const [existing] = await db.select({ id: artworksTable.id })
+  const [existing] = await db.select()
     .from(artworksTable).where(and(eq(artworksTable.id, id), eq(artworksTable.isDeleted, false)));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -103,6 +103,13 @@ router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
     workHours: (body.workHours as string) ?? null,
     hourlyRate: (body.hourlyRate as string) ?? null,
     totalCost: (body.totalCost as string) ?? null,
+    outsourceVendorId: (body.outsourceVendorId as string) ?? null,
+    outsourceVendorName: (body.outsourceVendorName as string) ?? null,
+    outsourcePaymentDate: (body.outsourcePaymentDate as string) ?? null,
+    outsourcePaymentAmount: (body.outsourcePaymentAmount as string) ?? null,
+    outsourcePaymentMode: (body.outsourcePaymentMode as string) ?? null,
+    outsourceTransactionId: (body.outsourceTransactionId as string) ?? null,
+    outsourcePaymentStatus: (body.outsourcePaymentStatus as string) ?? null,
     feedbackStatus: (body.feedbackStatus as string) || undefined,
     files: (body.files as object[]) ?? undefined,
     refImages: (body.refImages as object[]) ?? undefined,
@@ -111,6 +118,43 @@ router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
     updatedBy: user?.email ?? "system",
     updatedAt: new Date(),
   }).where(eq(artworksTable.id, id)).returning();
+
+  // Sync costing_payments credit when outsource payment details are present
+  const vendorId = body.outsourceVendorId ?? row.outsourceVendorId;
+  const payAmount = body.outsourcePaymentAmount ?? row.outsourcePaymentAmount;
+  const txnId = (body.outsourceTransactionId ?? row.outsourceTransactionId) as string | null;
+  if (vendorId && payAmount && parseFloat(String(payAmount)) > 0) {
+    try {
+      const swatchOrderId = row.swatchOrderId;
+      const upsertRef = txnId
+        ? `SELECT id FROM costing_payments WHERE reference_type='artwork_swatch' AND reference_id=$1 AND transaction_id=$2 LIMIT 1`
+        : null;
+      const existingRows = upsertRef
+        ? (await pool.query(upsertRef, [id, txnId])).rows
+        : [];
+      if (existingRows.length > 0) {
+        await pool.query(
+          `UPDATE costing_payments SET vendor_id=$1,vendor_name=$2,payment_mode=$3,payment_amount=$4,payment_status=$5,payment_date=$6 WHERE id=$7`,
+          [parseInt(String(vendorId)), body.outsourceVendorName ?? row.outsourceVendorName,
+           body.outsourcePaymentMode ?? row.outsourcePaymentMode,
+           parseFloat(String(payAmount)), body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? "Pending",
+           body.outsourcePaymentDate ? new Date(String(body.outsourcePaymentDate)) : (row.outsourcePaymentDate ? new Date(row.outsourcePaymentDate) : null),
+           existingRows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,swatch_order_id,payment_mode,payment_amount,payment_status,transaction_id,payment_date,created_by)
+           VALUES ($1,$2,'artwork_swatch',$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT DO NOTHING`,
+          [parseInt(String(vendorId)), body.outsourceVendorName ?? row.outsourceVendorName, id, swatchOrderId,
+           body.outsourcePaymentMode ?? row.outsourcePaymentMode,
+           parseFloat(String(payAmount)), body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? "Pending",
+           txnId, body.outsourcePaymentDate ? new Date(String(body.outsourcePaymentDate)) : null,
+           user?.email ?? "system"]
+        );
+      }
+    } catch (e) { logger.error(e, "Failed to sync artwork swatch costing_payment"); }
+  }
 
   res.json({ data: row });
 });

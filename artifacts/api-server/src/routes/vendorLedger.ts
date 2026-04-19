@@ -25,7 +25,8 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           + COALESCE(soa_sum.total, 0)
           + COALESCE(toi_sum.total, 0)
           + COALESCE(vil_sum.total, 0)  AS total_debits,
-        COALESCE(vp_sum.total, 0)        AS total_credits,
+        COALESCE(vp_sum.total, 0)
+          + COALESCE(cp_sum.total, 0)   AS total_credits,
         COALESCE(oj_sum.cnt,  0)
           + COALESCE(cc_sum.cnt,  0)
           + COALESCE(lc_sum.cnt,  0)
@@ -104,6 +105,12 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
         SELECT vendor_id, SUM(amount::numeric) AS total, COUNT(*) AS cnt
         FROM vendor_payments GROUP BY vendor_id
       ) vp_sum ON vp_sum.vendor_id = v.id
+
+      /* costing payments — outsource jobs / custom charges / artwork (credits) */
+      LEFT JOIN (
+        SELECT vendor_id, SUM(payment_amount::numeric) AS total, COUNT(*) AS cnt
+        FROM costing_payments GROUP BY vendor_id
+      ) cp_sum ON cp_sum.vendor_id = v.id
 
       WHERE v.is_deleted = false
       ORDER BY v.brand_name ASC
@@ -280,6 +287,37 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
           vp.amount::numeric AS credit
         FROM vendor_payments vp
         WHERE vp.vendor_id = $1
+
+        UNION ALL
+
+        /* ── Costing payments (credits — outsource/custom/artwork) ── */
+        SELECT
+          CONCAT('costing_payment_', cp.reference_type) AS entry_type,
+          cp.id::text          AS entry_id,
+          COALESCE(cp.payment_date, cp.created_at) AS entry_date,
+          CONCAT(
+            CASE cp.reference_type
+              WHEN 'outsource_job'  THEN 'Outsource Payment'
+              WHEN 'custom_charge'  THEN 'Custom Charge Payment'
+              WHEN 'artwork_swatch' THEN 'Artwork Payment (Swatch)'
+              WHEN 'artwork_style'  THEN 'Artwork Payment (Style)'
+              ELSE 'Costing Payment'
+            END,
+            COALESCE(' — ' || cp.payment_mode, ''),
+            COALESCE(' [' || cp.transaction_id || ']', '')
+          ) AS description,
+          CASE
+            WHEN cp.swatch_order_id IS NOT NULL THEN 'swatch'
+            WHEN cp.style_order_id  IS NOT NULL THEN 'style'
+            ELSE 'general'
+          END AS order_type,
+          COALESCE(so.order_code, sw.order_code) AS order_code,
+          0::numeric            AS debit,
+          cp.payment_amount     AS credit
+        FROM costing_payments cp
+        LEFT JOIN style_orders  so ON cp.style_order_id  = so.id
+        LEFT JOIN swatch_orders sw ON cp.swatch_order_id = sw.id
+        WHERE cp.vendor_id = $1
 
       ) ledger
       WHERE 1=1${dateFilter}${orderTypeFilter}

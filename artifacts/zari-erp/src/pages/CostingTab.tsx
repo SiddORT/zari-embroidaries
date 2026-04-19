@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import * as XLSX from "xlsx";
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { downloadBomPdf } from "@/utils/pdfExport";
 import { logActivity } from "@/utils/logActivity";
+import CostingPaymentsPanel from "@/components/CostingPaymentsPanel";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useAllMaterials } from "@/hooks/useMaterials";
@@ -2048,6 +2049,7 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
   const [filterVendor, setFilterVendor] = useState("all");
   const [showVendorDrop, setShowVendorDrop] = useState(false);
   const [showHsnDrop, setShowHsnDrop] = useState(false);
+  const [expandedPayRow, setExpandedPayRow] = useState<number | null>(null);
 
   const { data: vendorResults = [] } = useVendorSearch(form.vendorQuery);
   const { data: hsnResults = [] } = useHsnSearch(form.hsnQuery);
@@ -2116,26 +2118,47 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
               {filtered.length === 0 ? (
                 <EmptyRow text={rows.length === 0 ? "No outsource jobs yet." : "No jobs for selected vendor."} />
               ) : filtered.map(r => (
-                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40">
-                  <td className="px-3 py-2.5 font-medium text-gray-800">{r.vendorName}</td>
-                  <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.hsnCode}</td>
-                  <td className="px-3 py-2.5">
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{r.gstPercentage}%</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-600">{r.issueDate}</td>
-                  <td className="px-3 py-2.5 text-gray-400">{r.targetDate ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-gray-400">{r.deliveryDate ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalCost).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 text-gray-400 max-w-[120px] truncate" title={r.notes ?? ""}>{r.notes ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    <button onClick={() => deleteMutation.mutate(r.id, {
-                      onSuccess: () => toast({ title: "Job deleted" }),
-                      onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr className="border-b border-gray-50 hover:bg-gray-50/40">
+                    <td className="px-3 py-2.5 font-medium text-gray-800">{r.vendorName}</td>
+                    <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.hsnCode}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{r.gstPercentage}%</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600">{r.issueDate}</td>
+                    <td className="px-3 py-2.5 text-gray-400">{r.targetDate ?? "—"}</td>
+                    <td className="px-3 py-2.5 text-gray-400">{r.deliveryDate ?? "—"}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalCost).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-gray-400 max-w-[120px] truncate" title={r.notes ?? ""}>{r.notes ?? "—"}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
+                          className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                          <CreditCard className="h-3 w-3" /> Pay
+                        </button>
+                        <button onClick={() => deleteMutation.mutate(r.id, {
+                          onSuccess: () => toast({ title: "Job deleted" }),
+                          onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
+                        })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedPayRow === r.id && (
+                    <tr className="bg-amber-50/30 border-b border-amber-100">
+                      <td colSpan={9} className="px-5 py-3">
+                        <CostingPaymentsPanel
+                          referenceType="outsource_job"
+                          referenceId={r.id}
+                          vendorId={r.vendorId}
+                          vendorName={r.vendorName}
+                          swatchOrderId={swatchOrderId}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
             {filtered.length > 0 && (
@@ -2299,6 +2322,7 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
   const [filterVendor, setFilterVendor] = useState("all");
   const [showVendorDrop, setShowVendorDrop] = useState(false);
   const [showHsnDrop, setShowHsnDrop] = useState(false);
+  const [expandedPayRow, setExpandedPayRow] = useState<number | null>(null);
 
   const { data: vendorResults = [] } = useVendorSearch(form.vendorQuery);
   const { data: hsnResults = [] } = useHsnSearch(form.hsnQuery);
@@ -2366,25 +2390,46 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
               {filtered.length === 0 ? (
                 <EmptyRow text={rows.length === 0 ? "No custom charges yet." : "No charges for selected vendor."} />
               ) : filtered.map(r => (
-                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/40">
-                  <td className="px-3 py-2.5 font-medium text-gray-800">{r.vendorName}</td>
-                  <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.hsnCode}</td>
-                  <td className="px-3 py-2.5">
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{r.gstPercentage}%</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-800">{r.description}</td>
-                  <td className="px-3 py-2.5 text-right text-gray-800">₹{parseFloat(r.unitPrice).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 text-right text-gray-800">{parseFloat(r.quantity).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalAmount).toFixed(2)}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    <button onClick={() => deleteMutation.mutate(r.id, {
-                      onSuccess: () => toast({ title: "Charge deleted" }),
-                      onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                    })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr className="border-b border-gray-50 hover:bg-gray-50/40">
+                    <td className="px-3 py-2.5 font-medium text-gray-800">{r.vendorName}</td>
+                    <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{r.hsnCode}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{r.gstPercentage}%</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-800">{r.description}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-800">₹{parseFloat(r.unitPrice).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-800">{parseFloat(r.quantity).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalAmount).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
+                          className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                          <CreditCard className="h-3 w-3" /> Pay
+                        </button>
+                        <button onClick={() => deleteMutation.mutate(r.id, {
+                          onSuccess: () => toast({ title: "Charge deleted" }),
+                          onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
+                        })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedPayRow === r.id && (
+                    <tr className="bg-amber-50/30 border-b border-amber-100">
+                      <td colSpan={8} className="px-5 py-3">
+                        <CostingPaymentsPanel
+                          referenceType="custom_charge"
+                          referenceId={r.id}
+                          vendorId={r.vendorId}
+                          vendorName={r.vendorName}
+                          swatchOrderId={swatchOrderId}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
             {filtered.length > 0 && (
