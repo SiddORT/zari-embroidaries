@@ -159,20 +159,32 @@ export default function InventoryDashboard() {
   const today          = new Date().toISOString().slice(0, 10);
   const threeMonthsAgo = new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10);
 
-  const [dateFrom,    setDateFrom]    = useState(threeMonthsAgo);
-  const [dateTo,      setDateTo]      = useState(today);
-  const [category,    setCategory]    = useState("all");
-  const [data,        setData]        = useState<DashboardData | null>(null);
-  const [lowStock,    setLowStock]    = useState<LowStockItem[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [dateFrom,       setDateFrom]       = useState(threeMonthsAgo);
+  const [dateTo,         setDateTo]         = useState(today);
+  const [category,       setCategory]       = useState("all");
+  const [subCategory,    setSubCategory]    = useState("all");
+  const [subCategories,  setSubCategories]  = useState<string[]>([]);
+  const [data,           setData]           = useState<DashboardData | null>(null);
+  const [lowStock,       setLowStock]       = useState<LowStockItem[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [lastFetched,    setLastFetched]    = useState<Date | null>(null);
 
   useEffect(() => { if (isError) navigate("/login"); }, [isError, navigate]);
+
+  useEffect(() => {
+    if (!token) return;
+    setSubCategory("all");
+    const src = category !== "all" ? `?sourceType=${category === "item" ? "packaging" : category}` : "";
+    customFetch<string[]>(`/api/inventory/item-categories${src}`)
+      .then(d => setSubCategories(Array.isArray(d) ? d : []))
+      .catch(() => setSubCategories([]));
+  }, [category, token]);
 
   const fetchDashboard = useCallback(() => {
     if (!token) return;
     setLoading(true);
-    const params = new URLSearchParams({ dateFrom, dateTo, category });
+    const apiCategory = category === "item" ? "packaging" : category;
+    const params = new URLSearchParams({ dateFrom, dateTo, category: apiCategory, subCategory });
     Promise.all([
       customFetch<DashboardData>(`/api/inventory/dashboard?${params}`),
       customFetch<{ data: LowStockItem[] }>("/api/inventory/low-stock-alerts"),
@@ -184,7 +196,7 @@ export default function InventoryDashboard() {
       })
       .catch(() => toast({ title: "Failed to load dashboard", variant: "destructive" }))
       .finally(() => setLoading(false));
-  }, [token, dateFrom, dateTo, category, toast]);
+  }, [token, dateFrom, dateTo, category, subCategory, toast]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
@@ -233,15 +245,15 @@ export default function InventoryDashboard() {
   }));
 
   const statusDonut = [
-    { name: "In Stock",     value: parseInt(String(s?.in_stock    ?? "0"), 10), color: "#22C55E" },
-    { name: "Low Stock",    value: parseInt(String(s?.low_stock   ?? "0"), 10), color: "#F59E0B" },
-    { name: "Out of Stock", value: parseInt(String(s?.out_of_stock ?? "0"), 10), color: "#EF4444" },
+    { name: "In Stock",     value: parseInt(String(s?.in_stock     ?? "0"), 10), color: SLATE      },
+    { name: "Low Stock",    value: parseInt(String(s?.low_stock    ?? "0"), 10), color: G          },
+    { name: "Out of Stock", value: parseInt(String(s?.out_of_stock ?? "0"), 10), color: "#CBD5E1"  },
   ].filter(d => d.value > 0);
 
   const categoryDonut = [
-    { name: "Fabric",    value: parseInt(String(s?.fabric_count    ?? "0"), 10), color: G           },
-    { name: "Material",  value: parseInt(String(s?.material_count  ?? "0"), 10), color: SLATE        },
-    { name: "Packaging", value: parseInt(String(s?.packaging_count ?? "0"), 10), color: "#8B5CF6"   },
+    { name: "Fabric",    value: parseInt(String(s?.fabric_count    ?? "0"), 10), color: G         },
+    { name: "Material",  value: parseInt(String(s?.material_count  ?? "0"), 10), color: SLATE     },
+    { name: "Item",      value: parseInt(String(s?.packaging_count ?? "0"), 10), color: "#B8C0CC" },
   ].filter(d => d.value > 0);
 
   const swatchReserved = parseFloat(String(r?.total_swatch_reserved ?? "0"));
@@ -295,7 +307,18 @@ export default function InventoryDashboard() {
               <option value="all">All Categories</option>
               <option value="fabric">Fabric</option>
               <option value="material">Material</option>
-              <option value="packaging">Packaging</option>
+              <option value="item">Item</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Sub Category</label>
+            <select value={subCategory} onChange={e => setSubCategory(e.target.value)}
+              disabled={subCategories.length === 0}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40 min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed">
+              <option value="all">All Item Types</option>
+              {subCategories.map(sc => (
+                <option key={sc} value={sc}>{sc}</option>
+              ))}
             </select>
           </div>
           <div className="flex flex-col gap-1">

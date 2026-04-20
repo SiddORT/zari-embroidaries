@@ -1166,24 +1166,44 @@ router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest
   }
 });
 
+router.get("/inventory/item-categories", requireAuth, async (req, res) => {
+  try {
+    const { sourceType = "all" } = req.query as Record<string, string>;
+    const VALID_CATS = ["fabric", "material", "packaging"];
+    const safeSource = VALID_CATS.includes(sourceType) ? sourceType : null;
+    const params: string[] = [];
+    const conds = ["is_active = true", "category IS NOT NULL", "category != ''"];
+    if (safeSource) { params.push(safeSource); conds.push(`source_type = $${params.length}`); }
+    const r = await pool.query(
+      `SELECT DISTINCT category FROM inventory_items WHERE ${conds.join(" AND ")} ORDER BY category`,
+      params
+    );
+    res.json(r.rows.map((row: { category: string }) => row.category));
+  } catch (err) {
+    console.error("[item-categories]", err);
+    res.status(500).json({ error: "Failed to load item categories" });
+  }
+});
+
 router.get("/inventory/dashboard", requireAuth, async (req, res) => {
   try {
-    const { dateFrom, dateTo, category = "all", department = "all" } = req.query as Record<string, string>;
+    const { dateFrom, dateTo, category = "all", subCategory = "all", department = "all" } = req.query as Record<string, string>;
 
     const now = new Date();
     const dfrom = dateFrom || new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10);
     const dto   = dateTo   || now.toISOString().slice(0, 10);
 
-    const VALID_CATS  = ["fabric", "material", "packaging"];
-    const safeCategory   = VALID_CATS.includes(category)   ? category   : null;
-    const safeDepartment = department !== "all" && /^[\w\s-]+$/.test(department) ? department : null;
+    const VALID_CATS     = ["fabric", "material", "packaging"];
+    const safeCategory    = VALID_CATS.includes(category) ? category : null;
+    const safeSubCategory = subCategory !== "all" && /^[\w\s\-\/]+$/.test(subCategory) ? subCategory : null;
+    const safeDepartment  = department !== "all" && /^[\w\s-]+$/.test(department) ? department : null;
 
-    const itemWhere   = [
-      "is_active = true",
-      safeCategory   ? "source_type = $1" : null,
-      safeDepartment ? `department = $${safeCategory ? 2 : 1}` : null,
-    ].filter(Boolean).join(" AND ");
-    const itemParams: string[] = [safeCategory, safeDepartment].filter(Boolean) as string[];
+    const itemConditions = ["is_active = true"];
+    const itemParams: string[] = [];
+    if (safeCategory)    { itemParams.push(safeCategory);    itemConditions.push(`source_type = $${itemParams.length}`); }
+    if (safeSubCategory) { itemParams.push(safeSubCategory); itemConditions.push(`category = $${itemParams.length}`); }
+    if (safeDepartment)  { itemParams.push(safeDepartment);  itemConditions.push(`department = $${itemParams.length}`); }
+    const itemWhere = itemConditions.join(" AND ");
 
     const [summary, reservations, procurement] = await Promise.all([
       pool.query(`
@@ -1218,9 +1238,12 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
       `),
     ]);
 
-    const ledgerCatClause  = safeCategory   ? "AND ii.source_type = $3" : "";
-    const ledgerDeptClause = safeDepartment ? `AND ii.department = $${safeCategory ? 4 : 3}` : "";
-    const ledgerParams = [dfrom, dto, safeCategory, safeDepartment].filter(Boolean) as string[];
+    const ledgerExtra: string[] = [];
+    const ledgerParams: string[] = [dfrom, dto];
+    if (safeCategory)    { ledgerParams.push(safeCategory);    ledgerExtra.push(`AND ii.source_type = $${ledgerParams.length}`); }
+    if (safeSubCategory) { ledgerParams.push(safeSubCategory); ledgerExtra.push(`AND ii.category = $${ledgerParams.length}`); }
+    if (safeDepartment)  { ledgerParams.push(safeDepartment);  ledgerExtra.push(`AND ii.department = $${ledgerParams.length}`); }
+    const ledgerClauses = ledgerExtra.join(" ");
 
     const [stockTrend, topConsumed, totalConsumedR] = await Promise.all([
       pool.query(`
@@ -1232,7 +1255,7 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
         FROM stock_ledger sl
         JOIN inventory_items ii ON ii.id = sl.item_id
         WHERE sl.created_at BETWEEN $1 AND $2::date + interval '1 day'
-          ${ledgerCatClause} ${ledgerDeptClause}
+          ${ledgerClauses}
         GROUP BY date_trunc('week', sl.created_at)
         ORDER BY date_trunc('week', sl.created_at)
         LIMIT 16
@@ -1244,7 +1267,7 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
         JOIN inventory_items ii ON ii.id = sl.item_id
         WHERE sl.transaction_type ILIKE '%consumption%'
           AND sl.created_at BETWEEN $1 AND $2::date + interval '1 day'
-          ${ledgerCatClause} ${ledgerDeptClause}
+          ${ledgerClauses}
         GROUP BY ii.id, ii.item_name, ii.unit_type, ii.department
         ORDER BY total_consumed DESC
         LIMIT 5
@@ -1255,7 +1278,7 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
         JOIN inventory_items ii ON ii.id = sl.item_id
         WHERE sl.transaction_type ILIKE '%consumption%'
           AND sl.created_at BETWEEN $1 AND $2::date + interval '1 day'
-          ${ledgerCatClause} ${ledgerDeptClause}
+          ${ledgerClauses}
       `, ledgerParams),
     ]);
 
