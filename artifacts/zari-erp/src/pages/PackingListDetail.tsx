@@ -58,11 +58,16 @@ interface EligibleOrder {
   quantity: string | null; already_added: boolean;
 }
 
+interface Shipment {
+  id: number; reference_type: string; tracking_number: string | null;
+  shipment_status: string; order_code: string | null;
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">{label}</div>
-      <div className="text-sm text-gray-800 font-medium">{value || "—"}</div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-0.5">{label}</div>
+      <div className="text-sm text-gray-900 font-medium">{value || "—"}</div>
     </div>
   );
 }
@@ -105,6 +110,12 @@ export default function PackingListDetail() {
   const [artworkImages, setArtworkImages] = useState<Record<number, { data: string; name: string } | null>>({});
   const imageTargetRef = useRef<{ pkgId: number; itemId: number } | null>(null);
 
+  // Shipment linking
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [editingShipment, setEditingShipment] = useState(false);
+  const [draftShipmentId, setDraftShipmentId] = useState<number | "">("");
+  const [savingShipment, setSavingShipment] = useState(false);
+
   // Deleting
   const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
   const [deletingPkgId, setDeletingPkgId] = useState<number | null>(null);
@@ -135,6 +146,28 @@ export default function PackingListDetail() {
   }
 
   useEffect(() => { loadPl(); }, [params.id]);
+
+  // Load all shipments for linking
+  useEffect(() => {
+    customFetch<any>("/api/shipping/details?limit=500")
+      .then(j => setShipments(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveShipment() {
+    setSavingShipment(true);
+    try {
+      await customFetch(`/api/packing-lists/${params.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ shipment_id: draftShipmentId || null }),
+      });
+      await loadPl();
+      setEditingShipment(false);
+      toast({ title: "Shipment linked", description: "Packing list updated" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Failed to update", variant: "destructive" });
+    } finally { setSavingShipment(false); }
+  }
 
   // Fetch artwork images for items without uploaded images
   useEffect(() => {
@@ -446,32 +479,71 @@ export default function PackingListDetail() {
 
             {/* Grouping + Shipment */}
             <div className={`${card} p-6`}>
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Grouping &amp; Shipment</h2>
+              <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Grouping &amp; Shipment</h2>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
                 <Field label="Client" value={pl.client_name} />
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Delivery Address</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-0.5">Delivery Address</div>
                   {pl.delivery_address_label ? (
                     <div className="flex items-start gap-1.5">
                       <MapPin className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
                       <div>
-                        <div className="text-sm font-medium text-gray-800">{pl.delivery_address_label}</div>
-                        <div className="text-xs text-gray-400">{addrParts.join(", ")}</div>
+                        <div className="text-sm font-medium text-gray-900">{pl.delivery_address_label}</div>
+                        <div className="text-xs text-gray-600">{addrParts.join(", ")}</div>
                       </div>
                     </div>
-                  ) : <div className="text-sm text-gray-400">—</div>}
+                  ) : <div className="text-sm text-gray-500">—</div>}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Shipment</div>
-                  {pl.shipment_tracking ? (
+                  <div className="flex items-center justify-between mb-0.5">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Shipment</div>
+                    {!editingShipment ? (
+                      <button
+                        onClick={() => { setEditingShipment(true); setDraftShipmentId(pl.shipment_id ?? ""); }}
+                        className="text-[10px] font-semibold hover:underline"
+                        style={{ color: G }}
+                      >
+                        {pl.shipment_id ? "Change" : "Link"}
+                      </button>
+                    ) : (
+                      <button onClick={() => setEditingShipment(false)} className="text-[10px] text-gray-400 hover:text-gray-600">Cancel</button>
+                    )}
+                  </div>
+                  {editingShipment ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        value={draftShipmentId}
+                        onChange={e => setDraftShipmentId(e.target.value ? parseInt(e.target.value) : "")}
+                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                      >
+                        <option value="">No shipment</option>
+                        {shipments.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.reference_type} — {s.tracking_number ?? `#${s.id}`} ({s.shipment_status})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={handleSaveShipment}
+                        disabled={savingShipment}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+                        style={{ backgroundColor: G }}
+                      >
+                        {savingShipment
+                          ? <div className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                          : <Save className="h-3 w-3" />}
+                        Save
+                      </button>
+                    </div>
+                  ) : pl.shipment_tracking ? (
                     <div className="flex items-start gap-1.5">
                       <Truck className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
                       <div>
-                        <div className="text-sm font-medium text-gray-800 font-mono">{pl.shipment_tracking}</div>
-                        {pl.shipment_date && <div className="text-xs text-gray-400">{new Date(pl.shipment_date).toLocaleDateString("en-IN")}</div>}
+                        <div className="text-sm font-medium text-gray-900 font-mono">{pl.shipment_tracking}</div>
+                        {pl.shipment_date && <div className="text-xs text-gray-600">{new Date(pl.shipment_date).toLocaleDateString("en-IN")}</div>}
                       </div>
                     </div>
-                  ) : <div className="text-sm text-gray-400">—</div>}
+                  ) : <div className="text-sm text-gray-500">—</div>}
                 </div>
                 <Field label="Destination" value={pl.destination_country} />
                 {pl.remarks && <div className="sm:col-span-4"><Field label="Remarks" value={pl.remarks} /></div>}

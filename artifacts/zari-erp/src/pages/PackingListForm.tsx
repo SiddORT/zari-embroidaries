@@ -107,7 +107,7 @@ export default function PackingListForm() {
   // Load clients + shipments
   useEffect(() => {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
-    customFetch<any>("/api/shipping?limit=500").then(j => setShipments(j.data ?? [])).catch(() => {});
+    customFetch<any>("/api/shipping/details?limit=500").then(j => setShipments(j.data ?? [])).catch(() => {});
   }, []);
 
   // Load addresses when client changes
