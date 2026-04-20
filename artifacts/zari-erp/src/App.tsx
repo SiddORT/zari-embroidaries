@@ -59,6 +59,7 @@ import InvoiceForm from "@/pages/InvoiceForm";
 import Accounts from "@/pages/Accounts";
 import CreditDebitNotes from "@/pages/CreditDebitNotes";
 import AccountPurchases from "@/pages/AccountPurchases";
+import AccountSales from "@/pages/AccountSales";
 import OtherExpenses from "@/pages/OtherExpenses";
 import AccountsDashboard from "@/pages/AccountsDashboard";
 
@@ -132,6 +133,7 @@ function Router() {
       <Route path="/accounts/payments" component={Accounts} />
       <Route path="/accounts/credit-debit-notes" component={CreditDebitNotes} />
       <Route path="/accounts/purchases" component={AccountPurchases} />
+      <Route path="/accounts/sales" component={AccountSales} />
       <Route path="/accounts/other-expenses" component={OtherExpenses} />
       <Route path="/inventory/dashboard" component={InventoryDashboard} />
       <Route path="/inventory/items" component={InventoryStockList} />

@@ -1,0 +1,279 @@
+Build Accounts → Sales page to track all incoming client payments across the ERP system.
+
+This page must act as centralized receivables console for Accounts users.
+
+Include invoices, shipment recovery billing, order-linked billing, advances, and adjustments.
+
+Use existing tables only.
+
+Do NOT create duplicate receivable tracking tables.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Accounts Unified Sales Receivables Console
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Inside:
+
+Accounts
+
+Add submenu:
+
+Sales
+
+This page tracks all incoming client payments.
+
+---
+
+SECTION 2 — GLOBAL FILTER ROW
+
+Add filters:
+
+Date Range
+
+Client selector
+
+Reference Type selector
+
+Payment Status selector
+
+Currency selector
+
+Filters refresh data instantly.
+
+---
+
+SECTION 3 — REFERENCE TYPE FILTER VALUES
+
+Include:
+
+Sales Invoice
+
+Advance Payment
+
+Shipment Recovery Charges
+
+Custom Charges
+
+Order Billing
+
+Adjustment Entry
+
+Credit Note Adjustment
+
+---
+
+SECTION 4 — SUMMARY CARDS (TOP SECTION)
+
+Display cards:
+
+Total Invoice Amount
+
+Total Advance Received
+
+Total Shipment Recovery Charges
+
+Total Custom Charges
+
+Total Received Amount
+
+Pending Receivables
+
+Overdue Receivables
+
+Fetch data from:
+
+invoices
+
+invoice_payments
+
+shipments
+
+credit_debit_notes
+
+order billing tables
+
+---
+
+SECTION 5 — UNIFIED RECEIVABLE TABLE
+
+Display combined table:
+
+Columns:
+
+Date
+
+Reference Type
+
+Reference Number
+
+Client Name
+
+Order Reference
+
+Amount
+
+Received Amount
+
+Pending Amount
+
+Currency
+
+Status
+
+Reference Type values:
+
+Sales Invoice
+
+Advance Payment
+
+Shipment Recovery
+
+Custom Charges
+
+Order Billing
+
+Credit Note Adjustment
+
+---
+
+SECTION 6 — PAYMENT ENTRY SUPPORT
+
+Add button per row:
+
+Record Payment
+
+Open modal:
+
+Client Payment Entry
+
+Fields:
+
+Payment Amount
+
+Payment Type
+
+Transaction ID
+
+Payment Date
+
+Currency
+
+Exchange Rate Snapshot
+
+Remarks
+
+Save entry inside:
+
+client_ledger
+
+Update automatically:
+
+pending_amount
+
+status
+
+---
+
+SECTION 7 — STATUS FILTER TABS
+
+Add quick tabs above table:
+
+All
+
+Pending
+
+Partially Received
+
+Completed
+
+Overdue
+
+Switch table instantly.
+
+---
+
+SECTION 8 — CLIENT RECEIVABLE PANEL
+
+Display right-side panel:
+
+Top Clients Pending Payment
+
+Columns:
+
+Client Name
+
+Pending Amount
+
+Click action:
+
+Open Client Ledger
+
+---
+
+SECTION 9 — UI DESIGN REQUIREMENTS
+
+Apply system theme styling:
+
+counter summary cards
+
+searchable dropdown filters
+
+soft card shadows
+
+sticky table header
+
+consistent action icons
+
+modal styling matching ERP theme
+
+responsive layout
+
+minor hover animations
+
+---
+
+SECTION 10 — LIVE DATA REQUIREMENT
+
+Page must:
+
+fetch real-time balances
+
+respect filters instantly
+
+update values after payment entry
+
+not cache totals
+
+---
+
+SECTION 11 — PERMISSIONS CONTROL
+
+Allow access:
+
+Accounts users
+
+Admin users
+
+Restrict:
+
+non-accounts users
+
+---
+
+SECTION 12 — SUCCESS MESSAGE
+
+After payment recorded:
+
+Display:
+
+Client payment recorded successfully
+
+END OF MODULE
