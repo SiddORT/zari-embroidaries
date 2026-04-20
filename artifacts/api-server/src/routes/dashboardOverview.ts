@@ -26,12 +26,12 @@ router.get("/dashboard/overview", requireAuth, async (_req, res) => {
         SELECT
           (SELECT COUNT(*) FROM style_orders  WHERE is_deleted = false OR is_deleted IS NULL)::int  AS style_total,
           (SELECT COUNT(*) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled'))::int AS style_active,
-          (SELECT COUNT(*) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', order_issue_date::date) = date_trunc('month', NOW()))::int AS style_this_month,
-          (SELECT COUNT(*) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', order_issue_date::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS style_last_month,
+          (SELECT COUNT(*) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW()))::int AS style_this_month,
+          (SELECT COUNT(*) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS style_last_month,
           (SELECT COUNT(*) FROM swatch_orders WHERE is_deleted = false OR is_deleted IS NULL)::int  AS swatch_total,
           (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled'))::int AS swatch_active,
-          (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', order_issue_date::date) = date_trunc('month', NOW()))::int AS swatch_this_month,
-          (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', order_issue_date::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS swatch_last_month,
+          (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW()))::int AS swatch_this_month,
+          (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS swatch_last_month,
           (SELECT COUNT(*) FROM style_order_artworks)::int + (SELECT COUNT(*) FROM artworks)::int   AS artwork_total,
           (SELECT COUNT(DISTINCT client_id) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled') AND client_id IS NOT NULL)::int
           + (SELECT COUNT(DISTINCT client_id) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled') AND client_id IS NOT NULL)::int AS active_clients
@@ -49,9 +49,9 @@ router.get("/dashboard/overview", requireAuth, async (_req, res) => {
           INTERVAL '1 month'
         ) AS gs(month)
         LEFT JOIN (
-          SELECT date_trunc('month', order_issue_date::date) AS m, COUNT(*) AS c
+          SELECT date_trunc('month', NULLIF(order_issue_date,'')::date) AS m, COUNT(*) AS c
           FROM style_orders
-          WHERE is_deleted = false OR is_deleted IS NULL
+          WHERE (is_deleted = false OR is_deleted IS NULL) AND order_issue_date IS NOT NULL AND order_issue_date != ''
           GROUP BY 1
         ) cnt ON cnt.m = gs.month
         ORDER BY gs.month
@@ -68,9 +68,9 @@ router.get("/dashboard/overview", requireAuth, async (_req, res) => {
           INTERVAL '1 month'
         ) AS gs(month)
         LEFT JOIN (
-          SELECT date_trunc('month', order_issue_date::date) AS m, COUNT(*) AS c
+          SELECT date_trunc('month', NULLIF(order_issue_date,'')::date) AS m, COUNT(*) AS c
           FROM swatch_orders
-          WHERE is_deleted = false OR is_deleted IS NULL
+          WHERE (is_deleted = false OR is_deleted IS NULL) AND order_issue_date IS NOT NULL AND order_issue_date != ''
           GROUP BY 1
         ) cnt ON cnt.m = gs.month
         ORDER BY gs.month
