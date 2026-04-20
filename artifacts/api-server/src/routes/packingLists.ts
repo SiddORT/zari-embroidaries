@@ -1,6 +1,22 @@
 import { Router, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const plItemStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(process.cwd(), "uploads", "packing-list-items");
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `item-${Date.now()}${ext}`);
+  },
+});
+const plItemUpload = multer({ storage: plItemStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -357,6 +373,45 @@ router.patch("/packing-lists/:id/items/:itemId", requireAuth, async (req, res) =
   } catch (e) { err(res, e, "Failed to update item"); }
 });
 
+// POST /api/packing-lists/:id/items/:itemId/image — upload item image
+router.post("/packing-lists/:id/items/:itemId/image", requireAuth, plItemUpload.single("image"), async (req: any, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const imageUrl = `/uploads/packing-list-items/${req.file.filename}`;
+
+    // Delete old image file if exists
+    const old = await pool.query(`SELECT item_image_url FROM packing_list_items WHERE id = $1 AND packing_list_id = $2`, [req.params.itemId, req.params.id]);
+    if (old.rows[0]?.item_image_url) {
+      const oldPath = path.join(process.cwd(), old.rows[0].item_image_url);
+      fs.unlink(oldPath, () => {});
+    }
+
+    const r = await pool.query(
+      `UPDATE packing_list_items SET item_image_url = $1 WHERE id = $2 AND packing_list_id = $3 RETURNING *`,
+      [imageUrl, req.params.itemId, req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
+    res.json({ data: r.rows[0] });
+  } catch (e) { err(res, e, "Failed to upload image"); }
+});
+
+// DELETE /api/packing-lists/:id/items/:itemId/image — remove item image
+router.delete("/packing-lists/:id/items/:itemId/image", requireAuth, async (req, res) => {
+  try {
+    const old = await pool.query(`SELECT item_image_url FROM packing_list_items WHERE id = $1 AND packing_list_id = $2`, [req.params.itemId, req.params.id]);
+    if (old.rows[0]?.item_image_url) {
+      const oldPath = path.join(process.cwd(), old.rows[0].item_image_url);
+      fs.unlink(oldPath, () => {});
+    }
+    const r = await pool.query(
+      `UPDATE packing_list_items SET item_image_url = NULL WHERE id = $1 AND packing_list_id = $2 RETURNING *`,
+      [req.params.itemId, req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
+    res.json({ data: r.rows[0] });
+  } catch (e) { err(res, e, "Failed to delete image"); }
+});
+
 // DELETE /api/packing-lists/:id/items/:itemId
 router.delete("/packing-lists/:id/items/:itemId", requireAuth, async (req, res) => {
   try {
@@ -450,16 +505,30 @@ router.get("/packing-lists/:id/pdf-html", requireAuth, async (req, res) => {
     const addrParts = [pl.address_line1, pl.address_line2, pl.city, pl.state, pl.addr_country, pl.addr_pincode]
       .filter(Boolean).join(", ");
 
-    const rowsHtml = items.rows.map((item, i) => `
+    // Build base64-embedded image tags for PDF items
+    const rowsHtml = items.rows.map((item, i) => {
+      let imgTag = "";
+      if (item.item_image_url) {
+        try {
+          const filePath = path.join(process.cwd(), item.item_image_url);
+          const buf = fs.readFileSync(filePath);
+          const ext = path.extname(item.item_image_url).slice(1).toLowerCase() || "jpeg";
+          const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
+          imgTag = `<img src="data:${mime};base64,${buf.toString("base64")}" style="max-width:72px;max-height:72px;border-radius:4px;object-fit:cover;display:block;" />`;
+        } catch {}
+      }
+      return `
       <tr>
         <td>${i + 1}</td>
+        <td style="text-align:center;">${imgTag || '<span style="color:#ccc;font-size:10px;">—</span>'}</td>
         <td>${item.item_type}</td>
         <td>${item.order_code ?? ""}</td>
         <td>${item.description ?? ""}</td>
         <td>${item.qty ?? ""}</td>
         <td>${item.unit ?? ""}</td>
         <td>${item.weight_kg != null ? Number(item.weight_kg).toFixed(3) + " kg" : "—"}</td>
-      </tr>`).join("");
+      </tr>`;
+    }).join("");
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -537,6 +606,7 @@ ${pl.remarks ? `<p style="margin-bottom:16px;font-size:12px;"><strong>Remarks:</
   <thead>
     <tr>
       <th>#</th>
+      <th>Image</th>
       <th>Type</th>
       <th>Order Code</th>
       <th>Description</th>
@@ -546,7 +616,7 @@ ${pl.remarks ? `<p style="margin-bottom:16px;font-size:12px;"><strong>Remarks:</
     </tr>
   </thead>
   <tbody>
-    ${rowsHtml || '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">No items added</td></tr>'}
+    ${rowsHtml || '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">No items added</td></tr>'}
   </tbody>
 </table>
 

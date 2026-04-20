@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   Package, ArrowLeft, Edit2, Printer, MapPin, Truck,
-  Trash2, Plus, CheckCircle, AlertCircle, Search, X
+  Trash2, Plus, CheckCircle, AlertCircle, Search, X, Camera, XCircle
 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -38,6 +38,7 @@ interface PLItem {
   id: number; packing_list_id: number; item_type: string;
   item_id: number; order_code: string | null; description: string | null;
   qty: string | null; unit: string | null; weight_kg: string | null;
+  item_image_url: string | null;
 }
 
 interface EligibleOrder {
@@ -75,6 +76,59 @@ export default function PackingListDetail() {
   const [orderTab, setOrderTab] = useState<"Swatch" | "Style">("Swatch");
   const [orderSearch, setOrderSearch] = useState("");
   const [addingItem, setAddingItem] = useState<number | null>(null);
+
+  // Image upload state
+  const [uploadingImageId, setUploadingImageId] = useState<number | null>(null);
+  const [removingImageId, setRemovingImageId] = useState<number | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const imageTargetItemId = useRef<number | null>(null);
+
+  function triggerImageUpload(itemId: number) {
+    imageTargetItemId.current = itemId;
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/*";
+    inp.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setUploadingImageId(itemId);
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const token = localStorage.getItem("zarierp_token");
+        const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+        const res = await fetch(`${base}/api/packing-lists/${pl?.id}/items/${itemId}/image`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setPl(prev => prev ? {
+          ...prev,
+          items: prev.items.map(i => i.id === itemId ? { ...i, item_image_url: json.data?.item_image_url ?? null } : i)
+        } : prev);
+        toast({ title: "Image uploaded" });
+      } catch {
+        toast({ title: "Failed to upload image", variant: "destructive" });
+      } finally { setUploadingImageId(null); }
+    };
+    inp.click();
+  }
+
+  async function handleRemoveImage(item: PLItem) {
+    setRemovingImageId(item.id);
+    try {
+      await customFetch(`/api/packing-lists/${pl?.id}/items/${item.id}/image`, { method: "DELETE" });
+      setPl(prev => prev ? {
+        ...prev,
+        items: prev.items.map(i => i.id === item.id ? { ...i, item_image_url: null } : i)
+      } : prev);
+      toast({ title: "Image removed" });
+    } catch {
+      toast({ title: "Failed to remove image", variant: "destructive" });
+    } finally { setRemovingImageId(null); }
+  }
 
   // Weight editing state: itemId → draft value
   const [itemWeights, setItemWeights] = useState<Record<number, string>>({});
@@ -318,7 +372,7 @@ export default function PackingListDetail() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-100 bg-gray-50">
-                          {["#", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", ""].map(h => (
+                          {["#", "Image", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", ""].map(h => (
                             <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                           ))}
                         </tr>
@@ -327,6 +381,36 @@ export default function PackingListDetail() {
                         {pl.items.map((item, idx) => (
                           <tr key={item.id}>
                             <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                            <td className="px-4 py-3">
+                              {item.item_image_url ? (
+                                <div className="relative group w-14 h-14">
+                                  <img
+                                    src={`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}${item.item_image_url}`}
+                                    alt="item"
+                                    className="w-14 h-14 object-cover rounded-lg border border-gray-200"
+                                  />
+                                  <button
+                                    onClick={() => handleRemoveImage(item)}
+                                    disabled={removingImageId === item.id}
+                                    className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Remove image"
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => triggerImageUpload(item.id)}
+                                  disabled={uploadingImageId === item.id}
+                                  className="flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 border-dashed border-gray-200 text-gray-300 hover:border-amber-400 hover:text-amber-400 transition-colors"
+                                  title="Attach image"
+                                >
+                                  {uploadingImageId === item.id
+                                    ? <span className="text-[10px] text-amber-500">...</span>
+                                    : <Camera className="h-5 w-5" />}
+                                </button>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${item.item_type === "Swatch" ? "bg-purple-50 text-purple-700" : "bg-teal-50 text-teal-700"}`}>
                                 {item.item_type}
