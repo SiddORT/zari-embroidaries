@@ -27,7 +27,6 @@ const MASTERS_ITEMS = [
 const ORDERS_ITEMS = [
   { label: "Swatch Orders", href: "/swatch-orders" },
   { label: "Style Orders",  href: "/style-orders" },
-  { label: "Shipments",     href: "/shipping" },
 ];
 
 const OPERATIONS_SECTIONS = [
@@ -98,7 +97,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const mastersActive    = location.startsWith("/masters");
   const ordersActive     = ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
   const operationsActive = ALL_OPERATIONS_HREFS.some(h => location === h || location.startsWith(h + "/"));
-  const accountsActive   = location.startsWith("/accounts");
+  const accountsActive   = location.startsWith("/accounts") || location.startsWith("/shipping");
 
   const initials = (displayName || displayEmail || "")
     .split(/[\s@]/)
@@ -285,6 +284,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
                     { label: "Purchases",            href: "/accounts/purchases" },
+                    { label: "Shipments",            href: "/shipping" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
@@ -517,6 +517,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
                     { label: "Purchases",            href: "/accounts/purchases" },
+                    { label: "Shipments",            href: "/shipping" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
