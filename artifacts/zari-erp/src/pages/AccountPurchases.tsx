@@ -503,27 +503,27 @@ function OtherExpensesTab() {
       </div>
 
       {/* Filters + Add */}
-      <div className={`${CARD} p-4 flex items-center gap-3 flex-wrap`}>
-        <div className="flex-1 min-w-[180px] relative">
+      <div className={`${CARD} p-4 flex items-center gap-2`}>
+        <div className="relative flex-1 min-w-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses…" className={`${INP} pl-9`} />
         </div>
-        <select value={categoryF} onChange={e => setCategoryF(e.target.value)} className={`${INP} w-44`}>
+        <select value={categoryF} onChange={e => setCategoryF(e.target.value)} className={`${INP} w-36 shrink-0`}>
           <option value="">All Categories</option>
           {categories.map(c => <option key={c}>{c}</option>)}
         </select>
-        <select value={vendorF} onChange={e => setVendorF(e.target.value)} className={`${INP} w-40`}>
+        <select value={vendorF} onChange={e => setVendorF(e.target.value)} className={`${INP} w-32 shrink-0`}>
           <option value="">All Vendors</option>
           {vendors.map(v => <option key={v.id} value={v.id}>{v.brand_name}</option>)}
         </select>
-        <select value={statusF} onChange={e => setStatusF(e.target.value)} className={`${INP} w-36`}>
+        <select value={statusF} onChange={e => setStatusF(e.target.value)} className={`${INP} w-32 shrink-0`}>
           <option value="">All Status</option>
           {["Unpaid","Partially Paid","Paid"].map(s => <option key={s}>{s}</option>)}
         </select>
-        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className={`${INP} w-36`} />
-        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={`${INP} w-36`} />
+        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className={`${INP} w-34 shrink-0`} />
+        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={`${INP} w-34 shrink-0`} />
         <button onClick={() => { setEditRow(null); setShowCreate(true); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white whitespace-nowrap"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white whitespace-nowrap shrink-0"
           style={{ background: G }}>
           <Plus size={15} /> Add Expense
         </button>
