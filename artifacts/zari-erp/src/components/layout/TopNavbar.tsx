@@ -280,7 +280,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountsOpen ? "rotate-180" : ""}`} />
               </button>
               {accountsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                <div className="absolute top-full left-0 mt-1.5 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50 grid grid-cols-2 gap-0.5">
                   {[
                     { label: "Dashboard",            href: "/accounts/dashboard" },
                     { label: "Ledgers",              href: "/accounts/ledgers" },
