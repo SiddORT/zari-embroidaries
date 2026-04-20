@@ -214,7 +214,7 @@ function InvoicePaymentsPanel({
             </div>
             <span className="text-[10px] text-gray-400 tabular-nums">{Math.round(pct)}%</span>
           </div>
-          {currentStatus !== "Cancelled" && (
+          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && (
             <button onClick={openModal}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shrink-0"
               style={{ backgroundColor: G }}>
