@@ -4,6 +4,7 @@ import {
   Search, Plus, ShoppingCart, FileText, Receipt, MoreHorizontal,
   CreditCard, Eye, Trash2, X, CheckCircle2, Clock, AlertTriangle,
   ChevronDown, Package, DollarSign, TrendingDown, Filter,
+  TrendingUp, Wallet, BarChart3, RefreshCw, ArrowRight,
 } from "lucide-react";
 import { useGetMe } from "@workspace/api-client-react";
 import { customFetch } from "@workspace/api-client-react";
@@ -764,6 +765,199 @@ function ExpenseModal({
 }
 
 /* ══════════════════════════════════════════════════════
+   PURCHASE SUMMARY DASHBOARD
+══════════════════════════════════════════════════════ */
+interface SummaryData {
+  purchaseOrders:   { totalCount: number; totalAmount: number; pendingAmount: number; completedAmount: number };
+  purchaseReceipts: { totalCount: number; receivedValue: number; pendingValue: number; closedValue: number };
+  vendorBills:      { totalCount: number; totalAmount: number; paidAmount: number; pendingAmount: number };
+  paidToVendors:    { totalCount: number; totalPaid: number };
+  pendingPayables:  { totalPending: number; billPending: number; expPending: number };
+  otherExpenses:    { totalCount: number; totalAmount: number; paidAmount: number; pendingAmount: number };
+}
+
+function PurchaseSummaryDashboard({ onTabChange }: { onTabChange: (tab: string) => void }) {
+  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate]     = useState("");
+  const [vendorId, setVendorId] = useState("");
+  const [vendors, setVendors]   = useState<any[]>([]);
+  const { toast } = useToast();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (fromDate)  params.set("from_date", fromDate);
+      if (toDate)    params.set("to_date",   toDate);
+      if (vendorId)  params.set("vendor_id", vendorId);
+      const j = await customFetch<any>(`/api/account-purchases/summary?${params}`);
+      setSummary(j.data ?? null);
+      toast({ title: "Enhanced purchase summary loaded successfully" });
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, [fromDate, toDate, vendorId]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    customFetch<any>("/api/vendors?limit=500").then(j => setVendors(j.data ?? [])).catch(() => {});
+  }, []);
+
+  const s = summary;
+
+  function SummaryCard({
+    title, icon, iconBg, rows, badge, viewTab, viewLabel,
+  }: {
+    title: string;
+    icon: React.ReactNode;
+    iconBg: string;
+    rows: { label: string; value: string; color?: string }[];
+    badge?: string;
+    viewTab?: string;
+    viewLabel?: string;
+  }) {
+    return (
+      <div className={`${CARD} p-5 flex flex-col gap-3`}>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${iconBg}`}>{icon}</div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
+              {badge && <span className="mt-0.5 inline-block text-[10px] px-2 py-0.5 rounded-full bg-[#C6AF4B]/10 text-[#8a7a2e] font-semibold">{badge}</span>}
+            </div>
+          </div>
+          {loading && <RefreshCw size={13} className="text-gray-300 animate-spin mt-1" />}
+        </div>
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.label} className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">{r.label}</span>
+              <span className={`text-sm font-bold ${r.color ?? "text-gray-900"}`}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+        {viewTab && (
+          <button
+            onClick={() => onTabChange(viewTab)}
+            className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[#C6AF4B] hover:text-[#a8922e] transition self-start"
+          >
+            {viewLabel ?? "View"} <ArrowRight size={12} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 mb-8">
+      {/* Filters */}
+      <div className={`${CARD} p-4 flex items-center gap-3 flex-wrap`}>
+        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <Filter size={13} /> Filters
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">From</span>
+          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className={`${INP} w-36`} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">To</span>
+          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={`${INP} w-36`} />
+        </div>
+        <select value={vendorId} onChange={e => setVendorId(e.target.value)} className={`${INP} w-44`}>
+          <option value="">All Vendors</option>
+          {vendors.map(v => <option key={v.id} value={v.id}>{v.brand_name}</option>)}
+        </select>
+        <button
+          onClick={() => { setFromDate(""); setToDate(""); setVendorId(""); }}
+          className="text-xs text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl border border-gray-200 transition"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Row 1 */}
+      <div className="grid grid-cols-3 gap-4">
+        <SummaryCard
+          title="Purchase Orders"
+          icon={<ShoppingCart size={18} className="text-[#C6AF4B]" />}
+          iconBg="bg-[#C6AF4B]/10"
+          badge={s ? `${s.purchaseOrders.totalCount} POs` : "—"}
+          rows={[
+            { label: "Total PO Amount",    value: fmtAmt(s?.purchaseOrders.totalAmount ?? 0) },
+            { label: "Pending PO Amount",  value: fmtAmt(s?.purchaseOrders.pendingAmount ?? 0),   color: "text-amber-600" },
+            { label: "Completed PO Amount",value: fmtAmt(s?.purchaseOrders.completedAmount ?? 0), color: "text-green-700" },
+          ]}
+          viewTab="po"
+          viewLabel="View Purchase Orders"
+        />
+        <SummaryCard
+          title="Purchase Receipts"
+          icon={<Package size={18} className="text-blue-500" />}
+          iconBg="bg-blue-50"
+          badge={s ? `${s.purchaseReceipts.totalCount} Receipts` : "—"}
+          rows={[
+            { label: "Received Value",      value: fmtAmt(s?.purchaseReceipts.receivedValue ?? 0) },
+            { label: "Pending Delivery",    value: fmtAmt(s?.purchaseReceipts.pendingValue ?? 0),  color: "text-amber-600" },
+            { label: "Closed Receipt Value",value: fmtAmt(s?.purchaseReceipts.closedValue ?? 0),   color: "text-green-700" },
+          ]}
+          viewTab="po"
+          viewLabel="View Purchase Receipts"
+        />
+        <SummaryCard
+          title="Vendor Bills"
+          icon={<FileText size={18} className="text-indigo-500" />}
+          iconBg="bg-indigo-50"
+          badge={s ? `${s.vendorBills.totalCount} Bills` : "—"}
+          rows={[
+            { label: "Total Bill Amount", value: fmtAmt(s?.vendorBills.totalAmount ?? 0) },
+            { label: "Paid Amount",       value: fmtAmt(s?.vendorBills.paidAmount ?? 0),   color: "text-green-700" },
+            { label: "Pending Amount",    value: fmtAmt(s?.vendorBills.pendingAmount ?? 0), color: "text-red-600" },
+          ]}
+          viewTab="bills"
+          viewLabel="View Vendor Bills"
+        />
+      </div>
+
+      {/* Row 2 */}
+      <div className="grid grid-cols-3 gap-4">
+        <SummaryCard
+          title="Total Paid to Vendors"
+          icon={<Wallet size={18} className="text-green-600" />}
+          iconBg="bg-green-50"
+          badge={s ? `${s.paidToVendors.totalCount} Payments` : "—"}
+          rows={[
+            { label: "Total Paid Amount", value: fmtAmt(s?.paidToVendors.totalPaid ?? 0), color: "text-green-700" },
+          ]}
+        />
+        <SummaryCard
+          title="Pending Vendor Payables"
+          icon={<AlertTriangle size={18} className="text-red-500" />}
+          iconBg="bg-red-50"
+          rows={[
+            { label: "Total Pending",       value: fmtAmt(s?.pendingPayables.totalPending ?? 0), color: "text-red-600" },
+            { label: "Unpaid Vendor Bills", value: fmtAmt(s?.pendingPayables.billPending ?? 0),  color: "text-red-500" },
+            { label: "Unpaid Expenses",     value: fmtAmt(s?.pendingPayables.expPending ?? 0),   color: "text-amber-600" },
+          ]}
+        />
+        <SummaryCard
+          title="Other Expenses"
+          icon={<BarChart3 size={18} className="text-purple-500" />}
+          iconBg="bg-purple-50"
+          badge={s ? `${s.otherExpenses.totalCount} Expenses` : "—"}
+          rows={[
+            { label: "Total Expense Amount", value: fmtAmt(s?.otherExpenses.totalAmount ?? 0) },
+            { label: "Paid Expense Amount",  value: fmtAmt(s?.otherExpenses.paidAmount ?? 0),   color: "text-green-700" },
+            { label: "Pending Amount",       value: fmtAmt(s?.otherExpenses.pendingAmount ?? 0), color: "text-red-600" },
+          ]}
+          viewTab="expenses"
+          viewLabel="View Other Expenses"
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════════ */
 const TABS = [
@@ -794,6 +988,9 @@ export default function AccountPurchases() {
             <p className="text-sm text-gray-500 mt-0.5">Purchase orders, vendor bills & expense management</p>
           </div>
         </div>
+
+        {/* Summary Dashboard */}
+        <PurchaseSummaryDashboard onTabChange={setActiveTab} />
 
         {/* Tabs */}
         <div className="flex items-center gap-1 mb-6 bg-white border border-[#C6AF4B]/15 rounded-2xl p-1 shadow-sm w-fit">

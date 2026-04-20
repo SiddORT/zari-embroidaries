@@ -1,0 +1,217 @@
+Update the Purchase Summary Dashboard cards inside:
+
+Accounts → Purchases Summary
+
+to include Purchase Orders and Purchase Receipts data in totals.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Enhanced Purchase Summary Cards Engine
+
+---
+
+SECTION 1 — PURCHASE SUMMARY CARD STRUCTURE
+
+Replace existing purchase cards with:
+
+Total Purchase Orders
+
+Total Purchase Receipts
+
+Total Vendor Bills
+
+Total Paid to Vendors
+
+Pending Vendor Payables
+
+Other Expenses Total
+
+---
+
+SECTION 2 — TOTAL PURCHASE ORDERS CARD
+
+Fetch from:
+
+purchase_orders table
+
+Display:
+
+Total PO Amount
+
+Pending PO Amount
+
+Completed PO Amount
+
+Allow button:
+
+View Purchase Orders
+
+Redirect to:
+
+Purchase Orders module
+
+---
+
+SECTION 3 — TOTAL PURCHASE RECEIPTS CARD
+
+Fetch from:
+
+purchase_receipts table
+
+Display:
+
+Total PR Amount
+
+Received Quantity Value
+
+Pending Delivery Value
+
+Allow button:
+
+View Purchase Receipts
+
+Redirect to:
+
+Purchase Receipts module
+
+---
+
+SECTION 4 — TOTAL VENDOR BILLS CARD
+
+Fetch from:
+
+vendor bills linked with PR
+
+Display:
+
+Total Vendor Bill Amount
+
+Paid Amount
+
+Pending Amount
+
+Redirect button:
+
+View Vendor Bills
+
+---
+
+SECTION 5 — TOTAL PAID TO VENDORS CARD
+
+Fetch from:
+
+vendor_ledger
+
+Include entry types:
+
+Vendor Payment
+
+Artwork Vendor Payment
+
+Costing Vendor Payment
+
+Other Expense Payment
+
+Display:
+
+Total Paid Amount
+
+---
+
+SECTION 6 — PENDING VENDOR PAYABLES CARD
+
+Fetch from:
+
+vendor_ledger
+
+Include:
+
+PR vendor invoices
+
+costing outsource payments
+
+artwork outsource payments
+
+other expenses
+
+Display:
+
+Total Pending Payables
+
+---
+
+SECTION 7 — OTHER EXPENSES SUMMARY CARD
+
+Fetch from:
+
+other_expenses table
+
+Display:
+
+Total Expense Amount
+
+Paid Expense Amount
+
+Pending Expense Amount
+
+Redirect button:
+
+View Other Expenses
+
+---
+
+SECTION 8 — FILTER SUPPORT
+
+All purchase summary cards must respect:
+
+Date Range filter
+
+Vendor filter
+
+Expense Category filter
+
+---
+
+SECTION 9 — UI STRUCTURE
+
+Display cards in grid layout:
+
+Row 1:
+
+Purchase Orders
+
+Purchase Receipts
+
+Vendor Bills
+
+Row 2:
+
+Paid to Vendors
+
+Pending Vendor Payables
+
+Other Expenses
+
+Use:
+
+dashboard counter card styling
+
+consistent spacing
+
+consistent icon placement
+
+---
+
+SECTION 10 — SUCCESS MESSAGE
+
+After dashboard loads:
+
+Display:
+
+Enhanced purchase summary loaded successfully
+
+END OF MODULE
