@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useGetMe } from "@workspace/api-client-react";
-import { Plus, Trash2, Loader2, Pencil, X, Check } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, X, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export interface CostingPaymentRecord {
@@ -55,6 +55,7 @@ export default function CostingPaymentsPanel({
   const { data: meData } = useGetMe();
   const isAdmin = (meData as any)?.role === "admin";
 
+  const [collapsed, setCollapsed] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -162,12 +163,20 @@ export default function CostingPaymentsPanel({
   const lblCls = "text-[10px] text-gray-500 font-medium";
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-          Payments{totalPaid > 0 ? ` — Total Paid: ₹${totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : ""}
-        </p>
-        {!hasCompleted && (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/60 overflow-hidden">
+      {/* Collapsible header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200/60">
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+        >
+          {collapsed ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+          Payments{payments.length > 0 ? ` (${payments.length})` : ""}
+          {totalPaid > 0 && !collapsed && (
+            <span className="ml-1 text-gray-400 font-normal">— Total Paid: ₹{totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+          )}
+        </button>
+        {!collapsed && !hasCompleted && (
           <button
             onClick={() => { setShowForm(v => !v); setEditingId(null); }}
             className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors"
@@ -175,15 +184,15 @@ export default function CostingPaymentsPanel({
             <Plus className="h-3 w-3" /> Add Payment
           </button>
         )}
-        {hasCompleted && (
+        {!collapsed && hasCompleted && (
           <span className="text-[10px] font-semibold px-2.5 py-1 rounded-lg border border-green-200 bg-green-50 text-green-700">
             Payment Completed
           </span>
         )}
       </div>
 
-      {showForm && !hasCompleted && (
-        <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2.5">
+      {!collapsed && showForm && !hasCompleted && (
+        <div className="mx-3 my-2 p-3 bg-white rounded-xl border border-gray-200 space-y-2.5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <div>
               <label className={lblCls}>Type</label>
@@ -245,12 +254,12 @@ export default function CostingPaymentsPanel({
         </div>
       )}
 
-      {isLoading ? (
-        <div className="py-3 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></div>
-      ) : payments.length === 0 ? (
-        <p className="text-[10px] text-gray-400 text-center py-2">No payments recorded yet.</p>
-      ) : (
-        <div className="space-y-1">
+      {!collapsed && isLoading ? (
+        <div className="py-3 text-center px-3"><Loader2 className="h-4 w-4 animate-spin mx-auto text-gray-400" /></div>
+      ) : !collapsed && payments.length === 0 ? (
+        <p className="text-[10px] text-gray-400 text-center py-2 px-3">No payments recorded yet.</p>
+      ) : !collapsed ? (
+        <div className="space-y-1 p-3">
           {payments.map(p => (
             editingId === p.id ? (
               <div key={p.id} className="p-3 bg-white rounded-xl border border-amber-200 space-y-2">
@@ -360,7 +369,7 @@ export default function CostingPaymentsPanel({
             )
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
