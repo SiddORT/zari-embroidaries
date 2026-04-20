@@ -8,7 +8,7 @@ import {
   Package, Palette, Users, Clock, ArrowUpRight, ArrowDownRight,
   Layers, ChevronRight, Star, Zap, Activity, TrendingUp,
   FileText, CheckCircle, AlertTriangle, Wallet, Receipt,
-  LogIn, UserCheck, ScrollText, ShoppingCart, RefreshCw, XCircle,
+  LogIn, UserCheck, ScrollText, ShoppingCart, RefreshCw,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -131,8 +131,6 @@ export default function Dashboard() {
   const [ovLoading, setOvLoading] = useState(true);
   const [ovError, setOvError]   = useState(false);
 
-  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
-  const [lowStockLoading, setLowStockLoading] = useState(true);
 
   useEffect(() => {
     if (!authToken || isError) {
@@ -167,16 +165,6 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
-  useEffect(() => {
-    if (!authToken) return;
-    const t = localStorage.getItem("zarierp_token");
-    if (!t) return;
-    setLowStockLoading(true);
-    fetch("/api/inventory/low-stock-alerts", { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.ok ? r.json() : { data: [] })
-      .then(d => { setLowStockItems(d.data ?? []); setLowStockLoading(false); })
-      .catch(() => setLowStockLoading(false));
-  }, [authToken]);
 
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
@@ -670,88 +658,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-
-        {/* ── Low-Stock Alert Panel ─────────────────────────────────── */}
-        {(lowStockLoading || lowStockItems.length > 0) && (
-          <div className={`${card} fade-up p-5`} style={{ animationDelay: "820ms" }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-lg flex items-center justify-center"
-                  style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0" style={{ color: "#C6AF4B" }}>INVENTORY</p>
-                  <h3 className="text-sm font-bold text-gray-800 leading-tight">Low-Stock &amp; Out-of-Stock Alerts</h3>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {!lowStockLoading && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                    {lowStockItems.length} item{lowStockItems.length !== 1 ? "s" : ""}
-                  </span>
-                )}
-                <button onClick={() => setLocation("/inventory/stock")}
-                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:opacity-80"
-                  style={{ color: G_DIM, background: `${G}15`, border: `1px solid ${G}25` }}>
-                  View All →
-                </button>
-              </div>
-            </div>
-            {lowStockLoading ? (
-              <div className="space-y-2">{Array(3).fill(0).map((_,i)=>(
-                <div key={i} className="h-10 rounded-xl bg-gray-100 animate-pulse" />
-              ))}</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      {["Item", "Code", "Type", "Current Stock", "Reorder Level", "Status", "Action"].map(h => (
-                        <th key={h} className="text-left pb-2 pr-4 text-[9px] font-black uppercase tracking-widest text-gray-400">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lowStockItems.map((item: any) => {
-                      const cur = parseFloat(item.current_stock ?? "0");
-                      const reord = parseFloat(item.reorder_level ?? "0");
-                      const isOut = cur <= 0;
-                      return (
-                        <tr key={item.id} className="border-b border-gray-50 hover:bg-amber-50/20 transition-colors">
-                          <td className="py-2.5 pr-4 font-medium text-gray-900 max-w-[180px] truncate">{item.item_name}</td>
-                          <td className="py-2.5 pr-4 font-mono text-gray-500">{item.item_code ?? "—"}</td>
-                          <td className="py-2.5 pr-4 text-gray-500 capitalize">{item.source_type ?? "—"}</td>
-                          <td className="py-2.5 pr-4 font-mono font-bold" style={{ color: isOut ? "#EF4444" : "#F59E0B" }}>
-                            {cur} {item.unit_type ?? ""}
-                          </td>
-                          <td className="py-2.5 pr-4 font-mono text-gray-700">{reord > 0 ? reord : "—"}</td>
-                          <td className="py-2.5 pr-4">
-                            {isOut ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                                <XCircle className="h-3 w-3" /> Out of Stock
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
-                                <AlertTriangle className="h-3 w-3" /> Low Stock
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2.5">
-                            <button onClick={() => setLocation(`/procurement/purchase-orders/new?itemId=${item.id}&itemName=${encodeURIComponent(item.item_name)}`)}
-                              className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors whitespace-nowrap">
-                              <ShoppingCart className="h-3 w-3" /> Create PO
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── Priority × Status Heatmap ────────────────────────────── */}
         <div className={`${card} fade-up p-6`} style={{ animationDelay: "840ms" }}>
