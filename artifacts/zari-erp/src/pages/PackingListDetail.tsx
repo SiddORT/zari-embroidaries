@@ -385,7 +385,7 @@ export default function PackingListDetail() {
                               {item.item_image_url ? (
                                 <div className="relative group w-14 h-14">
                                   <img
-                                    src={`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}${item.item_image_url}`}
+                                    src={item.item_image_url ?? ""}
                                     alt="item"
                                     className="w-14 h-14 object-cover rounded-lg border border-gray-200"
                                   />

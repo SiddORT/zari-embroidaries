@@ -373,16 +373,28 @@ router.patch("/packing-lists/:id/items/:itemId", requireAuth, async (req, res) =
   } catch (e) { err(res, e, "Failed to update item"); }
 });
 
+// GET /api/packing-lists/item-images/:filename — serve uploaded item images
+router.get("/packing-lists/item-images/:filename", async (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename); // sanitise
+    const filePath = path.join(process.cwd(), "uploads", "packing-list-items", filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Image not found" });
+    res.sendFile(filePath);
+  } catch (e) { err(res, e, "Failed to serve image"); }
+});
+
 // POST /api/packing-lists/:id/items/:itemId/image — upload item image
 router.post("/packing-lists/:id/items/:itemId/image", requireAuth, plItemUpload.single("image"), async (req: any, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const imageUrl = `/uploads/packing-list-items/${req.file.filename}`;
+    // Store as an API path so the browser can fetch it via /api/
+    const imageUrl = `/api/packing-lists/item-images/${req.file.filename}`;
 
     // Delete old image file if exists
     const old = await pool.query(`SELECT item_image_url FROM packing_list_items WHERE id = $1 AND packing_list_id = $2`, [req.params.itemId, req.params.id]);
     if (old.rows[0]?.item_image_url) {
-      const oldPath = path.join(process.cwd(), old.rows[0].item_image_url);
+      const fname = path.basename(old.rows[0].item_image_url);
+      const oldPath = path.join(process.cwd(), "uploads", "packing-list-items", fname);
       fs.unlink(oldPath, () => {});
     }
 
@@ -400,7 +412,8 @@ router.delete("/packing-lists/:id/items/:itemId/image", requireAuth, async (req,
   try {
     const old = await pool.query(`SELECT item_image_url FROM packing_list_items WHERE id = $1 AND packing_list_id = $2`, [req.params.itemId, req.params.id]);
     if (old.rows[0]?.item_image_url) {
-      const oldPath = path.join(process.cwd(), old.rows[0].item_image_url);
+      const fname = path.basename(old.rows[0].item_image_url);
+      const oldPath = path.join(process.cwd(), "uploads", "packing-list-items", fname);
       fs.unlink(oldPath, () => {});
     }
     const r = await pool.query(
@@ -510,7 +523,8 @@ router.get("/packing-lists/:id/pdf-html", requireAuth, async (req, res) => {
       let imgTag = "";
       if (item.item_image_url) {
         try {
-          const filePath = path.join(process.cwd(), item.item_image_url);
+          const fname = path.basename(item.item_image_url);
+          const filePath = path.join(process.cwd(), "uploads", "packing-list-items", fname);
           const buf = fs.readFileSync(filePath);
           const ext = path.extname(item.item_image_url).slice(1).toLowerCase() || "jpeg";
           const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
