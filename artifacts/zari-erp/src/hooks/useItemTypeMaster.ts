@@ -1,0 +1,73 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+
+export type ItemTypeMasterRecord = {
+  id: number;
+  name: string;
+  isActive: boolean;
+  isDeleted: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type ItemTypeMasterFormData = { name: string; isActive: boolean };
+export type StatusFilter = "all" | "active" | "inactive";
+
+const BASE = "/api/item-types";
+const QK = "item-types-master";
+
+export function useItemTypeMasterList(p: { search: string; status: StatusFilter; page: number; limit: number }) {
+  return useQuery({
+    queryKey: [QK, p],
+    queryFn: () => customFetch<{ data: ItemTypeMasterRecord[]; total: number; page: number; limit: number }>(
+      `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useCreateItemType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ItemTypeMasterFormData) => customFetch<ItemTypeMasterRecord>(BASE, { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ["lookups", "item-types"] });
+    },
+  });
+}
+
+export function useUpdateItemType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<ItemTypeMasterFormData> }) =>
+      customFetch<ItemTypeMasterRecord>(`${BASE}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ["lookups", "item-types"] });
+    },
+  });
+}
+
+export function useToggleItemTypeStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<ItemTypeMasterRecord>(`${BASE}/${id}/status`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ["lookups", "item-types"] });
+    },
+  });
+}
+
+export function useDeleteItemType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ["lookups", "item-types"] });
+    },
+  });
+}

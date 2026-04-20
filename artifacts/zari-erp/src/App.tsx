@@ -19,6 +19,7 @@ import VendorMaster from "@/pages/VendorMaster";
 import VendorForm from "@/pages/VendorForm";
 import ClientForm from "@/pages/ClientForm";
 import StyleCategoryMaster from "@/pages/StyleCategoryMaster";
+import ItemTypeMaster from "@/pages/ItemTypeMaster";
 import SwatchCategoryMaster from "@/pages/SwatchCategoryMaster";
 import SwatchMaster from "@/pages/SwatchMaster";
 import StyleMaster from "@/pages/StyleMaster";
@@ -92,6 +93,7 @@ function Router() {
       <Route path="/masters/vendors/:id" component={VendorForm} />
       <Route path="/masters/vendors" component={VendorMaster} />
       <Route path="/masters/style-categories" component={StyleCategoryMaster} />
+      <Route path="/masters/item-types" component={ItemTypeMaster} />
       <Route path="/masters/swatch-categories" component={SwatchCategoryMaster} />
       <Route path="/masters/swatches" component={SwatchMaster} />
       <Route path="/masters/styles" component={StyleMaster} />
