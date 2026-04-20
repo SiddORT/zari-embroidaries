@@ -118,8 +118,10 @@ function InvoicePaymentsPanel({
   const deletePmt = useDeleteInvoicePayment();
 
   const payments = data?.data ?? [];
+  // Convert each payment's INR base back to invoice currency so comparisons stay in one currency
+  const fx = exchangeRate > 0 ? exchangeRate : 1;
   const totalReceived = payments.filter(p => p.payment_status === "Completed")
-    .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)), 0);
+    .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0);
   const pendingAmt = Math.max(0, totalAmount - totalReceived);
   const pct = totalAmount > 0 ? Math.min(100, (totalReceived / totalAmount) * 100) : 0;
 
@@ -201,11 +203,11 @@ function InvoicePaymentsPanel({
           </div>
           <div className="text-right">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Received</p>
-            <p className="text-sm font-bold text-emerald-600">{fmtN(totalReceived)}</p>
+            <p className="text-sm font-bold text-emerald-600">{currencyCode} {fmtN(totalReceived)}</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pending</p>
-            <p className={`text-sm font-bold ${pendingAmt <= 0 ? "text-emerald-600" : "text-red-500"}`}>{fmtN(pendingAmt)}</p>
+            <p className={`text-sm font-bold ${pendingAmt <= 0 ? "text-emerald-600" : "text-red-500"}`}>{currencyCode} {fmtN(pendingAmt)}</p>
           </div>
           <div className="flex items-center gap-2 min-w-[80px]">
             <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-gray-100">
@@ -298,7 +300,7 @@ function InvoicePaymentsPanel({
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lblCls}>Payment Amount *</label>
+                  <label className={lblCls}>Payment Amount ({form.currency_code}) *</label>
                   <input type="number" min="0.01" step="0.01" required value={form.payment_amount}
                     onChange={e => setF("payment_amount", e.target.value)} className={inpCls} />
                 </div>
