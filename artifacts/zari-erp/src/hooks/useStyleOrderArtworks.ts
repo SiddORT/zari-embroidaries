@@ -28,15 +28,27 @@ export type StyleOrderArtworkRecord = {
   toileVendorId: string | null;
   toileVendorName: string | null;
   toileCost: string | null;
+  toilePaymentType: string | null;
+  toilePaymentAmount: string | null;
   toilePaymentDate: string | null;
   toilePaymentMode: string | null;
   toilePaymentStatus: string | null;
   toileTransactionId: string | null;
+  toileRemarks: string | null;
   toileImages: FileAttachment[];
   patternType: string | null;
   patternMakingCost: string | null;
   patternDoc: FileAttachment[];
   patternOuthouseDoc: FileAttachment[];
+  patternVendorId: string | null;
+  patternVendorName: string | null;
+  patternPaymentType: string | null;
+  patternPaymentMode: string | null;
+  patternPaymentStatus: string | null;
+  patternPaymentAmount: string | null;
+  patternTransactionId: string | null;
+  patternPaymentDate: string | null;
+  patternRemarks: string | null;
   feedbackStatus: string;
   files: FileAttachment[];
   refImages: FileAttachment[];
@@ -82,7 +94,10 @@ export function useUpdateStyleOrderArtwork() {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<StyleOrderArtworkRecord> }) =>
       customFetch<{ data: StyleOrderArtworkRecord }>(`${BASE}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    onSuccess: (res) => qc.invalidateQueries({ queryKey: [QK, res.data.styleOrderId] }),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: [QK, res.data.styleOrderId] });
+      void qc.invalidateQueries({ queryKey: [QK, "single", res.data.id] });
+    },
   });
 }
 
