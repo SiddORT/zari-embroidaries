@@ -9,29 +9,46 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 export const ALL_PERMISSIONS = [
-  { key: "dashboard",                    label: "Dashboard",                group: "Main" },
-  { key: "orders",                       label: "Orders",                   group: "Main" },
-  { key: "accounts",                     label: "Accounts",                 group: "Main" },
-  { key: "quotation",                    label: "Quotation",                group: "Main" },
-  { key: "shipping",                     label: "Shipping",                 group: "Main" },
-  { key: "masters:hsn",                  label: "HSN",                      group: "Masters" },
-  { key: "masters:materials",            label: "Materials",                group: "Masters" },
-  { key: "masters:fabric",               label: "Fabric",                   group: "Masters" },
-  { key: "masters:clients",              label: "Clients",                  group: "Masters" },
-  { key: "masters:vendors",              label: "Vendors",                  group: "Masters" },
-  { key: "masters:style_categories",     label: "Style Categories",         group: "Masters" },
-  { key: "masters:swatch_categories",    label: "Swatch Categories",        group: "Masters" },
-  { key: "masters:swatches",             label: "Swatches",                 group: "Masters" },
-  { key: "masters:styles",               label: "Styles",                   group: "Masters" },
-  { key: "masters:packaging_materials",  label: "Item Master",              group: "Masters" },
-  { key: "user_management",             label: "User Management",           group: "Admin" },
+  /* ── Main ──────────────────────────────────────────────── */
+  { key: "dashboard",                   label: "Main Dashboard",          group: "Main" },
+  { key: "style_orders",                label: "Style Orders",            group: "Main" },
+  { key: "swatch_orders",               label: "Swatch Orders",           group: "Main" },
+  { key: "artwork",                     label: "Artwork",                 group: "Main" },
+  { key: "shipping",                    label: "Shipping",                group: "Main" },
+
+  /* ── Accounts ───────────────────────────────────────────── */
+  { key: "accounts:dashboard",          label: "Accounts Dashboard",      group: "Accounts" },
+  { key: "accounts:invoices",           label: "Invoice Master",          group: "Accounts" },
+  { key: "accounts:vendor_ledgers",     label: "Vendor Ledgers",          group: "Accounts" },
+  { key: "accounts:payments",           label: "Payment Engine",          group: "Accounts" },
+  { key: "accounts:credit_debit_notes", label: "Credit / Debit Notes",   group: "Accounts" },
+  { key: "accounts:purchases",          label: "Purchases",               group: "Accounts" },
+  { key: "accounts:other_expenses",     label: "Other Expenses",          group: "Accounts" },
+
+  /* ── Masters ────────────────────────────────────────────── */
+  { key: "masters:hsn",                 label: "HSN",                     group: "Masters" },
+  { key: "masters:materials",           label: "Materials",               group: "Masters" },
+  { key: "masters:fabric",              label: "Fabric",                  group: "Masters" },
+  { key: "masters:clients",             label: "Clients",                 group: "Masters" },
+  { key: "masters:vendors",             label: "Vendors",                 group: "Masters" },
+  { key: "masters:style_categories",    label: "Style Categories",        group: "Masters" },
+  { key: "masters:swatch_categories",   label: "Swatch Categories",       group: "Masters" },
+  { key: "masters:swatches",            label: "Swatches",                group: "Masters" },
+  { key: "masters:styles",              label: "Styles",                  group: "Masters" },
+  { key: "masters:packaging_materials", label: "Item Master",             group: "Masters" },
+
+  /* ── Admin ──────────────────────────────────────────────── */
+  { key: "user_management",             label: "User Management",         group: "Admin" },
+  { key: "settings",                    label: "Settings",                group: "Admin" },
 ];
 
 const requireAdmin = requireAuth;
 
 async function seedSystemRoles() {
   const existing = await db.select().from(rolesTable);
+
   if (existing.length === 0) {
+    /* ── First boot: create admin + user roles ─────────── */
     const [adminRole] = await db.insert(rolesTable).values({
       name: "admin", description: "Full system access", isSystem: true,
     }).returning();
@@ -41,6 +58,23 @@ async function seedSystemRoles() {
     const allKeys = ALL_PERMISSIONS.map(p => ({ roleId: adminRole.id, permission: p.key }));
     if (allKeys.length) await db.insert(rolePermissionsTable).values(allKeys);
     logger.info("System roles seeded");
+  } else {
+    /* ── Subsequent boots: ensure admin has every permission ─ */
+    const adminRole = existing.find(r => r.name === "admin");
+    if (adminRole) {
+      const existingPerms = await db
+        .select({ permission: rolePermissionsTable.permission })
+        .from(rolePermissionsTable)
+        .where(eq(rolePermissionsTable.roleId, adminRole.id));
+      const existingKeys = new Set(existingPerms.map(p => p.permission));
+      const missing = ALL_PERMISSIONS.filter(p => !existingKeys.has(p.key));
+      if (missing.length > 0) {
+        await db.insert(rolePermissionsTable).values(
+          missing.map(p => ({ roleId: adminRole.id, permission: p.key }))
+        );
+        logger.info({ count: missing.length }, "Synced new permissions to admin role");
+      }
+    }
   }
 }
 
