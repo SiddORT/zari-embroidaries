@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useLocation, useParams } from "wouter";
-import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download } from "lucide-react";
+import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download, Wallet, X, ChevronDown, ChevronRight, Loader2, AlertCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 import type { PreviewInvoice } from "@/components/InvoicePreviewModal";
+import { useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
+import type { InvoicePayment } from "@/hooks/useInvoicePayments";
 
 const G = "#C6AF4B";
 
@@ -77,6 +79,299 @@ function calcTotals(items: LineItem[], shipping: number, adjustment: number, dis
   const sgstAmt = (taxable * sgst) / 100;
   const total = taxable + cgstAmt + sgstAmt + shipping + adjustment;
   return { subtotal, discount, taxable, cgstAmt, sgstAmt, total };
+}
+
+/* ─── Invoice Payments Panel (shown on saved invoices) ────────────────────── */
+const PAYMENT_TYPES_INV  = ["Cash", "Bank Transfer", "UPI", "Cheque", "Online Gateway", "Adjustment", "Other"] as const;
+const PAYMENT_STATUSES_INV = ["Completed", "Processing", "Failed"] as const;
+const CURRENCIES_INV = ["INR", "USD", "EUR", "GBP", "AED", "JPY", "CNY"];
+const PMT_PILL: Record<string, string> = {
+  Completed: "bg-emerald-50 text-emerald-700",
+  Processing: "bg-sky-50 text-sky-700",
+  Failed: "bg-red-50 text-red-600",
+};
+const PMT_STATUS_ICON: Record<string, React.ReactNode> = {
+  Completed: <CheckCircle2 size={12} className="text-emerald-500" />,
+  Processing: <Clock size={12} className="text-sky-500" />,
+  Failed: <AlertCircle size={12} className="text-red-500" />,
+};
+
+function fmtN(n: number | string | null | undefined) {
+  return parseFloat(String(n ?? 0)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtDt(d: string | null | undefined) {
+  if (!d) return "—";
+  try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
+}
+
+function InvoicePaymentsPanel({
+  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus,
+  onStatusChange,
+}: {
+  invoiceId: number; direction: string; totalAmount: number;
+  currencyCode: string; exchangeRate: number; currentStatus: string;
+  onStatusChange: (status: string, received: number, pending: number) => void;
+}) {
+  const { toast } = useToast();
+  const { data, isLoading, refetch } = useInvoicePaymentsList(invoiceId);
+  const addPmt   = useAddInvoicePayment();
+  const deletePmt = useDeleteInvoicePayment();
+
+  const payments = data?.data ?? [];
+  const totalReceived = payments.filter(p => p.payment_status === "Completed")
+    .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)), 0);
+  const pendingAmt = Math.max(0, totalAmount - totalReceived);
+  const pct = totalAmount > 0 ? Math.min(100, (totalReceived / totalAmount) * 100) : 0;
+
+  const [showModal, setShowModal]   = useState(false);
+  const [expanded, setExpanded]     = useState(true);
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    payment_type: "Bank Transfer", payment_amount: "",
+    currency_code: currencyCode || "INR",
+    exchange_rate_snapshot: String(exchangeRate || 1),
+    transaction_reference: "", payment_status: "Completed",
+    payment_date: today, remarks: "",
+  });
+
+  function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })); }
+
+  function openModal() {
+    setForm(p => ({
+      ...p, currency_code: currencyCode || "INR",
+      exchange_rate_snapshot: String(exchangeRate || 1),
+      payment_amount: fmtN(pendingAmt).replace(/,/g, ""),
+    }));
+    setShowModal(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const amt = parseFloat(form.payment_amount);
+    if (!amt || amt <= 0) return toast({ title: "Enter a valid amount", variant: "destructive" });
+    try {
+      const res = await addPmt.mutateAsync({
+        invoice_id: invoiceId, ...form,
+        payment_amount: amt,
+        exchange_rate_snapshot: parseFloat(form.exchange_rate_snapshot),
+      });
+      onStatusChange(res.invoice_status, res.received_amount, res.pending_amount);
+      setShowModal(false);
+      toast({ title: direction === "Vendor" ? "Payment recorded" : "Payment received" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  }
+
+  async function handleDelete(p: InvoicePayment) {
+    if (!confirm(`Delete payment of ${p.currency_code} ${fmtN(p.payment_amount)} on ${fmtDt(p.payment_date)}?`)) return;
+    try {
+      const res = await deletePmt.mutateAsync(p.payment_id);
+      onStatusChange(res.invoice_status ?? currentStatus, res.received_amount ?? 0, res.pending_amount ?? 0);
+      toast({ title: "Payment deleted" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  }
+
+  const inpCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 bg-white";
+  const lblCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
+  const basePreview = parseFloat(form.payment_amount || "0") * parseFloat(form.exchange_rate_snapshot || "1");
+
+  return (
+    <div className="rounded-2xl bg-white border border-[#C6AF4B]/20 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-[#F8F6F0]">
+        <button onClick={() => setExpanded(p => !p)} className="flex items-center gap-2 text-left group">
+          {expanded ? <ChevronDown size={15} className="text-gray-400" /> : <ChevronRight size={15} className="text-gray-400" />}
+          <Wallet size={15} style={{ color: G }} />
+          <span className="font-bold text-sm text-gray-900">Payments</span>
+          {payments.length > 0 && (
+            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: G }}>
+              {payments.length}
+            </span>
+          )}
+        </button>
+
+        {/* Summary strip */}
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Total</p>
+            <p className="text-sm font-bold text-gray-900">{currencyCode} {fmtN(totalAmount)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Received</p>
+            <p className="text-sm font-bold text-emerald-600">{fmtN(totalReceived)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pending</p>
+            <p className={`text-sm font-bold ${pendingAmt <= 0 ? "text-emerald-600" : "text-red-500"}`}>{fmtN(pendingAmt)}</p>
+          </div>
+          <div className="flex items-center gap-2 min-w-[80px]">
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-gray-100">
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? "#10b981" : G }} />
+            </div>
+            <span className="text-[10px] text-gray-400 tabular-nums">{Math.round(pct)}%</span>
+          </div>
+          {currentStatus !== "Paid" && currentStatus !== "Cancelled" && currentStatus !== "Draft" && (
+            <button onClick={openModal}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shrink-0"
+              style={{ backgroundColor: G }}>
+              <Plus size={13} /> Record Payment
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Payment history */}
+      {expanded && (
+        <div className="px-5 pb-4 pt-3">
+          {isLoading ? (
+            <div className="flex items-center gap-2 py-4 text-xs text-gray-400 justify-center">
+              <Loader2 size={14} className="animate-spin" /> Loading payments…
+            </div>
+          ) : payments.length === 0 ? (
+            <div className="py-6 text-center text-sm text-gray-400">
+              No payments recorded yet. Click <strong>Record Payment</strong> to add the first one.
+            </div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-400">
+                  <th className="py-2 text-left font-semibold uppercase tracking-wide">#</th>
+                  <th className="py-2 text-left font-semibold uppercase tracking-wide">Date</th>
+                  <th className="py-2 text-left font-semibold uppercase tracking-wide">Type</th>
+                  <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount</th>
+                  <th className="py-2 text-right font-semibold uppercase tracking-wide">INR Base</th>
+                  <th className="py-2 text-left font-semibold uppercase tracking-wide">Reference</th>
+                  <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
+                  <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
+                  <th className="py-2 w-6"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p, i) => (
+                  <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
+                    <td className="py-2 text-gray-400">{i + 1}</td>
+                    <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
+                    <td className="py-2 text-gray-700">{p.payment_type}</td>
+                    <td className="py-2 text-right font-medium text-gray-900 tabular-nums">{p.currency_code} {fmtN(p.payment_amount)}</td>
+                    <td className="py-2 text-right text-gray-500 tabular-nums">₹{fmtN(p.base_currency_amount)}</td>
+                    <td className="py-2 text-gray-500 max-w-[120px] truncate" title={p.transaction_reference}>{p.transaction_reference || "—"}</td>
+                    <td className="py-2">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
+                        {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
+                      </span>
+                    </td>
+                    <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
+                    <td className="py-2">
+                      <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
+                        className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={11} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setShowModal(false)}>
+          <div className="rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Record Payment</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Pending: {currencyCode} {fmtN(pendingAmt)}</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X size={15} /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lblCls}>Payment Amount *</label>
+                  <input type="number" min="0.01" step="0.01" required value={form.payment_amount}
+                    onChange={e => setF("payment_amount", e.target.value)} className={inpCls} />
+                </div>
+                <div>
+                  <label className={lblCls}>Currency</label>
+                  <select value={form.currency_code} onChange={e => setF("currency_code", e.target.value)} className={inpCls}>
+                    {CURRENCIES_INV.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              {form.currency_code !== "INR" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={lblCls}>Exchange Rate (1 {form.currency_code} = ? INR)</label>
+                    <input type="number" min="0.0001" step="0.0001" value={form.exchange_rate_snapshot}
+                      onChange={e => setF("exchange_rate_snapshot", e.target.value)} className={inpCls} />
+                  </div>
+                  <div>
+                    <label className={lblCls}>INR Equivalent</label>
+                    <div className={`${inpCls} bg-gray-50 text-gray-500 cursor-default`}>₹ {fmtN(basePreview)}</div>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lblCls}>Payment Type *</label>
+                  <select value={form.payment_type} onChange={e => setF("payment_type", e.target.value)} className={inpCls}>
+                    {PAYMENT_TYPES_INV.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lblCls}>Payment Date *</label>
+                  <input type="date" required value={form.payment_date}
+                    onChange={e => setF("payment_date", e.target.value)} className={inpCls} />
+                </div>
+              </div>
+              <div>
+                <label className={lblCls}>Transaction Reference</label>
+                <input type="text" placeholder="UTR / Cheque No. / Receipt No."
+                  value={form.transaction_reference} onChange={e => setF("transaction_reference", e.target.value)} className={inpCls} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lblCls}>Payment Status</label>
+                  <select value={form.payment_status} onChange={e => setF("payment_status", e.target.value)} className={inpCls}>
+                    {PAYMENT_STATUSES_INV.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lblCls}>Remarks</label>
+                  <input type="text" placeholder="Optional" value={form.remarks}
+                    onChange={e => setF("remarks", e.target.value)} className={inpCls} />
+                </div>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-[#C6AF4B]/20 px-4 py-3 text-xs flex items-center justify-between">
+                <span className="text-gray-500">Pending after this payment:</span>
+                <span className={`font-bold ${Math.max(0, pendingAmt - parseFloat(form.payment_amount || "0")) <= 0 ? "text-emerald-600" : "text-amber-700"}`}>
+                  {currencyCode} {fmtN(Math.max(0, pendingAmt - parseFloat(form.payment_amount || "0")))}
+                </span>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={addPmt.isPending}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ backgroundColor: G }}>
+                  {addPmt.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                  {addPmt.isPending ? "Saving…" : "Save Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function InvoiceForm() {
@@ -1073,6 +1368,23 @@ export default function InvoiceForm() {
             </table>
           </div>
         </div>
+
+        {/* Payments Panel — shown on saved invoices only */}
+        {isEdit && form.invoiceStatus !== "Draft" && form.invoiceStatus !== "Cancelled" && params.id && (
+          <InvoicePaymentsPanel
+            invoiceId={parseInt(params.id)}
+            direction={form.invoiceDirection}
+            totalAmount={totals.total}
+            currencyCode={form.currencyCode}
+            exchangeRate={parseFloat(form.exchangeRateSnapshot || "1")}
+            currentStatus={form.invoiceStatus}
+            onStatusChange={(status, received, pending) => {
+              setF("invoiceStatus", status);
+              setF("receivedAmount", String(received));
+              setF("pendingAmount", String(pending));
+            }}
+          />
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-between gap-3 pt-1 pb-4">
