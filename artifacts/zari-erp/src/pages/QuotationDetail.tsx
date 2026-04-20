@@ -249,7 +249,7 @@ export default function QuotationDetail() {
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-5xl mx-auto">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
           <div className="flex items-start gap-3">

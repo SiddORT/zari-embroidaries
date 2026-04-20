@@ -64,7 +64,7 @@ export default function Settings() {
 
   return (
     <AppLayout username={user?.name ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-5xl mx-auto px-4 py-4">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>

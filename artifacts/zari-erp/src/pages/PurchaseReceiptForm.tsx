@@ -426,7 +426,7 @@ export default function PurchaseReceiptForm() {
     return (
       <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
         <TopNavbar username={(me as any)?.name ?? ""} role={(me as any)?.role ?? ""} onLogout={handleLogout} isLoggingOut={false} />
-        <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-5">
+        <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
 
           {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -814,7 +814,7 @@ export default function PurchaseReceiptForm() {
   return (
     <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
       <TopNavbar username={(me as any)?.name ?? ""} role={(me as any)?.role ?? ""} onLogout={handleLogout} isLoggingOut={false} />
-      <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-5">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
 
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/procurement/purchase-receipts")}

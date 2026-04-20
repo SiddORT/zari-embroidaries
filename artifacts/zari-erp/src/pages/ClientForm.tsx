@@ -237,7 +237,7 @@ export default function ClientForm() {
     <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
       <TopNavbar username={(user as any)?.name ?? user.username ?? ""} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending} />
 
-      <div className="max-w-[900px] mx-auto px-4 py-6 space-y-5">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-3">

@@ -328,7 +328,7 @@ export default function StockAdjustments() {
     <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
       <TopNavbar username={actor} role={role} onLogout={handleLogout} isLoggingOut={false} />
 
-      <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-5">
+      <div className="py-6 px-6 max-w-screen-2xl mx-auto space-y-5">
 
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">

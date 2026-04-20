@@ -301,11 +301,11 @@ export default function ArtworkDetail() {
 
   return (
     <AppLayout>
-      <div className="px-6 py-5 max-w-5xl mx-auto min-h-screen bg-[#f8f9fb]">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto min-h-screen bg-[#f8f9fb]">
 
         {/* Sticky header */}
         <div className="sticky top-0 z-20 -mx-6 px-6 py-3 bg-[#f8f9fb]/95 backdrop-blur border-b border-gray-200">
-          <div className="max-w-5xl mx-auto flex items-center gap-4">
+          <div className="max-w-screen-xl mx-auto flex items-center gap-4">
             <button onClick={() => setLocation(`/swatch-orders/${swatchOrderId}?tab=2`)}
               className="p-2 rounded-xl hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
               <ArrowLeft className="h-4 w-4" />

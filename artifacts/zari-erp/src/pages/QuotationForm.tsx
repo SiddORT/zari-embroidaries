@@ -229,7 +229,7 @@ export default function QuotationForm() {
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="py-6 px-6 max-w-5xl mx-auto space-y-5">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
 
         {/* Page Header */}
         <div className="flex items-center gap-3">
