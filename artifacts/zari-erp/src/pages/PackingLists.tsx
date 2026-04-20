@@ -55,6 +55,8 @@ export default function PackingLists() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterClient, setFilterClient] = useState("");
+  const [clients, setClients] = useState<{ id: number; brandName: string }[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const LIMIT = 10;
@@ -72,11 +74,11 @@ export default function PackingLists() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
       const params = new URLSearchParams({
         page: String(page),
         limit: String(LIMIT),
         ...(filterStatus ? { status: filterStatus } : {}),
+        ...(filterClient ? { client_id: filterClient } : {}),
       });
       const res = await customFetch<any>(`/api/packing-lists?${params}`);
       let rows: PL[] = res.data ?? [];
@@ -92,9 +94,15 @@ export default function PackingLists() {
     } catch {
       toast({ title: "Error", description: "Failed to load packing lists", variant: "destructive" });
     } finally { setLoading(false); }
-  }, [page, filterStatus, search]);
+  }, [page, filterStatus, filterClient, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    customFetch<any>("/api/clients/all")
+      .then(res => setClients(res ?? []))
+      .catch(() => {});
+  }, []);
 
   async function handlePrintPdf(id: number) {
     try {
@@ -183,9 +191,17 @@ export default function PackingLists() {
               )}
             </div>
             <select
+              value={filterClient}
+              onChange={e => { setFilterClient(e.target.value); setPage(1); }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+            >
+              <option value="">All Clients</option>
+              {clients.map(c => <option key={c.id} value={String(c.id)}>{c.brandName}</option>)}
+            </select>
+            <select
               value={filterStatus}
               onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
             >
               <option value="">All Statuses</option>
               {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
