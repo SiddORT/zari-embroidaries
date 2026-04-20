@@ -1936,9 +1936,10 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
                     <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center gap-1 justify-end">
                         {(() => { const cost = parseFloat(r.totalCost); const paid = outsourcePaidTotals.get(r.id) ?? 0; const fullyPaid = cost > 0 && paid >= cost; return fullyPaid ? (
-                          <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-green-200 bg-green-50 text-green-700 cursor-not-allowed select-none">
+                          <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
+                            className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-green-700 text-white border-green-700" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}>
                             <CreditCard className="h-3 w-3" /> Paid
-                          </span>
+                          </button>
                         ) : (
                           <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
                             className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
@@ -2236,9 +2237,10 @@ function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
                   <td className="px-3 py-2.5 text-right">
                     <div className="flex items-center gap-1 justify-end">
                       {(() => { const amt = parseFloat(r.totalAmount); const paid = customChargePaidTotals.get(r.id) ?? 0; const fullyPaid = amt > 0 && paid >= amt; return fullyPaid ? (
-                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border border-green-200 bg-green-50 text-green-700 cursor-not-allowed select-none">
+                        <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
+                          className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-green-700 text-white border-green-700" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}>
                           <CreditCard className="h-3 w-3" /> Paid
-                        </span>
+                        </button>
                       ) : (
                         <button onClick={() => setExpandedPayRow(v => v === r.id ? null : r.id)}
                           className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${expandedPayRow === r.id ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
