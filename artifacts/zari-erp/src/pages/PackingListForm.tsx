@@ -98,13 +98,14 @@ export default function PackingListForm() {
   // Shipment creation modal
   const [showShipModal, setShowShipModal] = useState(false);
   const [vendors, setVendors] = useState<ShippingVendor[]>([]);
-  const [savingShip, setSavingShip] = useState(false);
   const [newShip, setNewShip] = useState({
     shipping_vendor_id: "" as number | "",
     tracking_number: "", tracking_url: "",
     shipment_weight: "", shipment_status: "Pending",
     shipment_date: "", expected_delivery_date: "", remarks: "",
   });
+  // Shipment staged for creation on save (not yet persisted)
+  const [pendingNewShip, setPendingNewShip] = useState<typeof newShip | null>(null);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -203,29 +204,12 @@ export default function PackingListForm() {
     } finally { setSavingAddr(false); }
   }
 
-  async function handleCreateShipment() {
+  function handleStageShipment() {
     if (!newShip.shipping_vendor_id || !newShip.shipment_weight) return;
-    setSavingShip(true);
-    try {
-      const res = await customFetch<any>("/api/shipping/details", {
-        method: "POST",
-        body: JSON.stringify({ ...newShip }),
-      });
-      const created = res.data;
-      const newEntry: Shipment = {
-        id: created.id,
-        reference_type: created.reference_type,
-        tracking_number: created.tracking_number,
-        shipment_status: created.shipment_status,
-      };
-      setShipments(prev => [newEntry, ...prev]);
-      setShipmentId(created.id);
-      setShowShipModal(false);
-      setNewShip({ shipping_vendor_id: "", tracking_number: "", tracking_url: "", shipment_weight: "", shipment_status: "Pending", shipment_date: "", expected_delivery_date: "", remarks: "" });
-      toast({ title: "Shipment created", description: "Shipment has been linked to this packing list" });
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Failed to create shipment", variant: "destructive" });
-    } finally { setSavingShip(false); }
+    setPendingNewShip({ ...newShip });
+    setShipmentId("");   // clear any previously selected existing shipment
+    setShowShipModal(false);
+    setNewShip({ shipping_vendor_id: "", tracking_number: "", tracking_url: "", shipment_weight: "", shipment_status: "Pending", shipment_date: "", expected_delivery_date: "", remarks: "" });
   }
 
   function createPackage() {
@@ -304,10 +288,24 @@ export default function PackingListForm() {
 
     setSaving(true);
     try {
+      // If there's a staged new shipment, create it first then get its ID
+      let resolvedShipmentId: number | null = shipmentId ? Number(shipmentId) : null;
+      if (pendingNewShip) {
+        const shipRes = await customFetch<any>("/api/shipping/details", {
+          method: "POST",
+          body: JSON.stringify({ ...pendingNewShip }),
+        });
+        resolvedShipmentId = shipRes.data.id;
+        // Update the shipments list so it's available going forward
+        setShipments(prev => [{ id: shipRes.data.id, reference_type: shipRes.data.reference_type, tracking_number: shipRes.data.tracking_number, shipment_status: shipRes.data.shipment_status }, ...prev]);
+        setPendingNewShip(null);
+        setShipmentId(shipRes.data.id);
+      }
+
       const body = {
         client_id: clientId,
         delivery_address_id: deliveryAddressId,
-        shipment_id: shipmentId || null,
+        shipment_id: resolvedShipmentId,
         destination_country: destinationCountry || null,
         remarks: remarks || null,
         status,
@@ -472,27 +470,47 @@ export default function PackingListForm() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-gray-600">Linked Shipment</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowShipModal(true)}
-                      className="flex items-center gap-1 text-xs font-medium hover:underline"
-                      style={{ color: G }}
-                    >
-                      <Plus className="h-3 w-3" /> Create New
-                    </button>
+                    {!pendingNewShip && (
+                      <button
+                        type="button"
+                        onClick={() => setShowShipModal(true)}
+                        className="flex items-center gap-1 text-xs font-medium hover:underline"
+                        style={{ color: G }}
+                      >
+                        <Plus className="h-3 w-3" /> Create New
+                      </button>
+                    )}
                   </div>
-                  <select
-                    value={shipmentId}
-                    onChange={e => setShipmentId(e.target.value ? parseInt(e.target.value) : "")}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
-                  >
-                    <option value="">No shipment linked</option>
-                    {shipments.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.reference_type} — {s.tracking_number ?? `#${s.id}`} ({s.shipment_status})
-                      </option>
-                    ))}
-                  </select>
+                  {pendingNewShip ? (
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                      <Truck className="h-4 w-4 mt-0.5 shrink-0" style={{ color: G }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-gray-900">
+                          {vendors.find(v => v.id === pendingNewShip.shipping_vendor_id)?.vendor_name ?? "New Shipment"}
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          {pendingNewShip.tracking_number || "No tracking"} · {pendingNewShip.shipment_weight} kg · {pendingNewShip.shipment_status}
+                        </div>
+                        <div className="text-[10px] font-medium mt-0.5" style={{ color: G }}>Will be created when packing list is saved</div>
+                      </div>
+                      <button onClick={() => setPendingNewShip(null)} className="text-gray-400 hover:text-red-500 shrink-0">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={shipmentId}
+                      onChange={e => setShipmentId(e.target.value ? parseInt(e.target.value) : "")}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                    >
+                      <option value="">No shipment linked</option>
+                      {shipments.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.reference_type} — {s.tracking_number ?? `#${s.id}`} ({s.shipment_status})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Destination Country</label>
@@ -901,15 +919,13 @@ export default function PackingListForm() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowShipModal(false)} className="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
               <button
-                onClick={handleCreateShipment}
-                disabled={savingShip || !newShip.shipping_vendor_id || !newShip.shipment_weight}
+                onClick={handleStageShipment}
+                disabled={!newShip.shipping_vendor_id || !newShip.shipment_weight}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
                 style={{ backgroundColor: G }}
               >
-                {savingShip
-                  ? <div className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                  : <Save className="h-4 w-4" />}
-                {savingShip ? "Saving…" : "Create Shipment"}
+                <Save className="h-4 w-4" />
+                Add Shipment
               </button>
             </div>
           </div>
