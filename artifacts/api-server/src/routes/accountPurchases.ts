@@ -238,7 +238,7 @@ router.get("/unified-summary", requireAuth, async (req, res) => {
 router.get("/unified-liabilities", requireAuth, async (req, res) => {
   try {
     const { from_date, to_date, vendor_id, ref_type, status, department,
-            search, page = "1", limit = "50" } = req.query as Record<string, string>;
+            search, ref_no, page = "1", limit = "50" } = req.query as Record<string, string>;
     const vid     = vendor_id ? parseInt(vendor_id) : null;
     const offset  = (parseInt(page) - 1) * parseInt(limit);
     const pLimit  = parseInt(limit);
@@ -261,6 +261,10 @@ router.get("/unified-liabilities", requireAuth, async (req, res) => {
 
     const searchClause = search
       ? `AND (LOWER(vendor_name) LIKE LOWER('%${search.replace(/'/g, "''")}%') OR LOWER(ref_number) LIKE LOWER('%${search.replace(/'/g, "''")}%'))`
+      : "";
+
+    const refNoClause = ref_no
+      ? `AND LOWER(ref_number) LIKE LOWER('%${ref_no.replace(/'/g, "''")}%')`
       : "";
 
     const { rows } = await pool.query(`
@@ -383,7 +387,7 @@ router.get("/unified-liabilities", requireAuth, async (req, res) => {
       )
       SELECT *, COUNT(*) OVER () AS total_count
       FROM all_liabilities
-      WHERE 1=1 ${statusClause} ${refTypeClause} ${deptClause} ${searchClause}
+      WHERE 1=1 ${statusClause} ${refTypeClause} ${deptClause} ${searchClause} ${refNoClause}
       ORDER BY
         CASE status
           WHEN 'Unpaid'          THEN 1
