@@ -35,6 +35,7 @@ import StyleOrderDetail from "@/pages/StyleOrderDetail";
 import StyleOrderArtworkDetail from "@/pages/StyleOrderArtworkDetail";
 import VendorLedgers from "@/pages/VendorLedgers";
 import VendorLedgerDetail from "@/pages/VendorLedgerDetail";
+import InventoryDashboard from "@/pages/InventoryDashboard";
 import InventoryStockList from "@/pages/InventoryStockList";
 import InventoryLedger from "@/pages/InventoryLedger";
 import LowStockAlerts from "@/pages/LowStockAlerts";
@@ -127,6 +128,7 @@ function Router() {
       <Route path="/accounts/credit-debit-notes" component={CreditDebitNotes} />
       <Route path="/accounts/purchases" component={AccountPurchases} />
       <Route path="/accounts/other-expenses" component={OtherExpenses} />
+      <Route path="/inventory/dashboard" component={InventoryDashboard} />
       <Route path="/inventory/items" component={InventoryStockList} />
       <Route path="/inventory/low-stock-alerts" component={LowStockAlerts} />
       <Route path="/inventory/ledger" component={InventoryLedger} />

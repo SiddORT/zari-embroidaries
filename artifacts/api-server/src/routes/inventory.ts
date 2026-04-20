@@ -1166,6 +1166,110 @@ router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest
   }
 });
 
+router.get("/inventory/dashboard", requireAuth, async (req, res) => {
+  try {
+    const { dateFrom, dateTo, category = "all", department = "all" } = req.query as Record<string, string>;
+
+    const now = new Date();
+    const dfrom = dateFrom || new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10);
+    const dto   = dateTo   || now.toISOString().slice(0, 10);
+
+    const VALID_CATS  = ["fabric", "material", "packaging"];
+    const safeCategory   = VALID_CATS.includes(category)   ? category   : null;
+    const safeDepartment = department !== "all" && /^[\w\s-]+$/.test(department) ? department : null;
+
+    const itemWhere   = [
+      "is_active = true",
+      safeCategory   ? "source_type = $1" : null,
+      safeDepartment ? `department = $${safeCategory ? 2 : 1}` : null,
+    ].filter(Boolean).join(" AND ");
+    const itemParams: string[] = [safeCategory, safeDepartment].filter(Boolean) as string[];
+
+    const [summary, reservations, procurement] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)                                                                                AS total_items,
+          COUNT(*) FILTER (WHERE current_stock::numeric <= 0)                                    AS out_of_stock,
+          COUNT(*) FILTER (WHERE current_stock::numeric > 0 AND reorder_level::numeric > 0
+            AND current_stock::numeric <= reorder_level::numeric)                                AS low_stock,
+          COUNT(*) FILTER (WHERE current_stock::numeric > 0
+            AND (reorder_level::numeric = 0 OR current_stock::numeric > reorder_level::numeric)) AS in_stock,
+          COALESCE(SUM(available_stock::numeric * average_price::numeric), 0)                    AS total_stock_value
+        FROM inventory_items WHERE ${itemWhere}
+      `, itemParams),
+      pool.query(`
+        SELECT
+          COALESCE(SUM(swatch_reserved_qty::numeric), 0) AS total_swatch_reserved,
+          COALESCE(SUM(style_reserved_qty::numeric),  0) AS total_style_reserved,
+          COALESCE(SUM(available_stock::numeric),      0) AS total_available
+        FROM inventory_items WHERE ${itemWhere}
+      `, itemParams),
+      pool.query(`
+        SELECT
+          (SELECT COUNT(DISTINCT po.id) FROM purchase_orders po WHERE po.status NOT IN ('Cancelled','Closed'))                 AS active_pos,
+          (SELECT COUNT(DISTINCT poi.id) FROM purchase_order_items poi JOIN purchase_orders po ON po.id = poi.po_id
+            WHERE po.status NOT IN ('Cancelled','Closed'))                                                                      AS active_po_items,
+          (SELECT COALESCE(SUM(poi.ordered_quantity - poi.received_quantity),0) FROM purchase_order_items poi
+            JOIN purchase_orders po ON po.id = poi.po_id WHERE po.status NOT IN ('Cancelled','Closed'))                        AS pending_qty,
+          (SELECT COUNT(DISTINCT pr.id) FROM purchase_receipts pr)                                                             AS total_receipts
+      `),
+    ]);
+
+    const ledgerCatClause  = safeCategory   ? "AND ii.source_type = $3" : "";
+    const ledgerDeptClause = safeDepartment ? `AND ii.department = $${safeCategory ? 4 : 3}` : "";
+    const ledgerParams = [dfrom, dto, safeCategory, safeDepartment].filter(Boolean) as string[];
+
+    const [stockTrend, topConsumed, totalConsumedR] = await Promise.all([
+      pool.query(`
+        SELECT
+          to_char(date_trunc('week', sl.created_at), 'DD Mon') AS period,
+          COALESCE(SUM(CASE WHEN sl.transaction_type IN ('purchase_receipt','adjustment_in') THEN sl.in_quantity  ELSE 0 END), 0) AS added,
+          COALESCE(SUM(CASE WHEN sl.transaction_type ILIKE '%consumption%' THEN sl.out_quantity ELSE 0 END), 0)                   AS consumed,
+          COALESCE(SUM(CASE WHEN sl.transaction_type ILIKE '%wastage%' THEN sl.out_quantity ELSE 0 END), 0)                       AS wasted
+        FROM stock_ledger sl
+        JOIN inventory_items ii ON ii.id = sl.item_id
+        WHERE sl.created_at BETWEEN $1 AND $2::date + interval '1 day'
+          ${ledgerCatClause} ${ledgerDeptClause}
+        GROUP BY date_trunc('week', sl.created_at)
+        ORDER BY date_trunc('week', sl.created_at)
+        LIMIT 16
+      `, ledgerParams),
+      pool.query(`
+        SELECT ii.item_name, ii.unit_type, ii.department,
+               COALESCE(SUM(sl.out_quantity), 0) AS total_consumed
+        FROM stock_ledger sl
+        JOIN inventory_items ii ON ii.id = sl.item_id
+        WHERE sl.transaction_type ILIKE '%consumption%'
+          AND sl.created_at BETWEEN $1 AND $2::date + interval '1 day'
+          ${ledgerCatClause} ${ledgerDeptClause}
+        GROUP BY ii.id, ii.item_name, ii.unit_type, ii.department
+        ORDER BY total_consumed DESC
+        LIMIT 5
+      `, ledgerParams),
+      pool.query(`
+        SELECT COALESCE(SUM(sl.out_quantity), 0) AS total
+        FROM stock_ledger sl
+        JOIN inventory_items ii ON ii.id = sl.item_id
+        WHERE sl.transaction_type ILIKE '%consumption%'
+          AND sl.created_at BETWEEN $1 AND $2::date + interval '1 day'
+          ${ledgerCatClause} ${ledgerDeptClause}
+      `, ledgerParams),
+    ]);
+
+    res.json({
+      summary:       summary.rows[0],
+      reservations:  reservations.rows[0],
+      procurement:   procurement.rows[0],
+      totalConsumed: parseFloat(totalConsumedR.rows[0]?.total ?? "0"),
+      topConsumed:   topConsumed.rows,
+      stockTrend:    stockTrend.rows,
+    });
+  } catch (err) {
+    console.error("[dashboard]", err);
+    res.status(500).json({ error: "Failed to load inventory dashboard" });
+  }
+});
+
 router.get("/inventory/low-stock-alerts", requireAuth, async (_req, res) => {
   try {
     const r = await pool.query(`
