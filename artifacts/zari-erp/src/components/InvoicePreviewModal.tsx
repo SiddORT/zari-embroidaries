@@ -48,6 +48,11 @@ export interface PreviewInvoice {
   bankUpi: string;
   referenceType?: string;
   referenceId?: string;
+  shippingAddress?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  dispatchDate?: string;
+  expectedDelivery?: string;
 }
 
 interface CompanyInfo {
@@ -130,8 +135,8 @@ function ClassicTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: 
         </div>
       </div>
 
-      {/* Bill To + Reference */}
-      <div style={{ display: "flex", gap: 40, marginBottom: 28 }}>
+      {/* Bill To + Ship To + Reference */}
+      <div style={{ display: "flex", gap: 28, marginBottom: 28 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>Bill To</div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{inv.clientName || "—"}</div>
@@ -141,12 +146,29 @@ function ClassicTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: 
           {inv.clientPhone && <div style={{ fontSize: 11, color: "#444" }}>{inv.clientPhone}</div>}
           {inv.clientState && <div style={{ fontSize: 11, color: "#444" }}>{inv.clientState}</div>}
         </div>
-        {inv.referenceId && (
-          <div style={{ minWidth: 140 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>Reference</div>
-            <div style={{ fontSize: 12, color: "#555" }}><span style={{ fontWeight: 600 }}>{inv.referenceType}:</span> {inv.referenceId}</div>
+        {inv.shippingAddress && (
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>Ship To</div>
+            <div style={{ color: "#555", lineHeight: 1.5, whiteSpace: "pre-line", fontSize: 12 }}>{inv.shippingAddress}</div>
           </div>
         )}
+        <div style={{ minWidth: 140 }}>
+          {inv.referenceId && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>Reference</div>
+              <div style={{ fontSize: 12, color: "#555", marginBottom: 10 }}><span style={{ fontWeight: 600 }}>{inv.referenceType}:</span> {inv.referenceId}</div>
+            </>
+          )}
+          {(inv.carrier || inv.trackingNumber || inv.dispatchDate || inv.expectedDelivery) && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#888", marginBottom: 6 }}>Shipping Details</div>
+              {inv.carrier && <div style={{ fontSize: 11, color: "#555" }}><span style={{ fontWeight: 600 }}>Carrier:</span> {inv.carrier}</div>}
+              {inv.trackingNumber && <div style={{ fontSize: 11, color: "#555" }}><span style={{ fontWeight: 600 }}>Tracking:</span> {inv.trackingNumber}</div>}
+              {inv.dispatchDate && <div style={{ fontSize: 11, color: "#555" }}><span style={{ fontWeight: 600 }}>Dispatch:</span> {fmtDate(inv.dispatchDate)}</div>}
+              {inv.expectedDelivery && <div style={{ fontSize: 11, color: "#555" }}><span style={{ fontWeight: 600 }}>Est. Delivery:</span> {fmtDate(inv.expectedDelivery)}</div>}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Line Items */}
@@ -265,17 +287,44 @@ function ModernTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: C
       </div>
 
       <div style={{ padding: "28px 40px" }}>
-        {/* Bill To */}
-        <div style={{ marginBottom: 24, background: "#f8f8f8", borderRadius: 8, padding: "14px 18px", borderLeft: `4px solid ${G}` }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: "#888", marginBottom: 6 }}>Bill To</div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{inv.clientName || "—"}</div>
-          {inv.clientAddress && <div style={{ color: "#555", fontSize: 12, marginTop: 2, whiteSpace: "pre-line" }}>{inv.clientAddress}</div>}
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 4, fontSize: 11, color: "#666" }}>
-            {inv.clientGstin && <span>GSTIN: {inv.clientGstin}</span>}
-            {inv.clientEmail && <span>{inv.clientEmail}</span>}
-            {inv.clientPhone && <span>{inv.clientPhone}</span>}
-            {inv.clientState && <span>{inv.clientState}</span>}
+        {/* Bill To + Ship To */}
+        <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+          <div style={{ flex: 1, background: "#f8f8f8", borderRadius: 8, padding: "14px 18px", borderLeft: `4px solid ${G}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: "#888", marginBottom: 6 }}>Bill To</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{inv.clientName || "—"}</div>
+            {inv.clientAddress && <div style={{ color: "#555", fontSize: 12, marginTop: 2, whiteSpace: "pre-line" }}>{inv.clientAddress}</div>}
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 4, fontSize: 11, color: "#666" }}>
+              {inv.clientGstin && <span>GSTIN: {inv.clientGstin}</span>}
+              {inv.clientEmail && <span>{inv.clientEmail}</span>}
+              {inv.clientPhone && <span>{inv.clientPhone}</span>}
+              {inv.clientState && <span>{inv.clientState}</span>}
+            </div>
           </div>
+          {inv.shippingAddress && (
+            <div style={{ flex: 1, background: "#f8f8f8", borderRadius: 8, padding: "14px 18px", borderLeft: `4px solid #94a3b8` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: "#888", marginBottom: 6 }}>Ship To</div>
+              <div style={{ color: "#555", fontSize: 12, whiteSpace: "pre-line", lineHeight: 1.5 }}>{inv.shippingAddress}</div>
+              {(inv.carrier || inv.trackingNumber || inv.dispatchDate || inv.expectedDelivery) && (
+                <div style={{ marginTop: 8, fontSize: 11, color: "#666" }}>
+                  {inv.carrier && <div><span style={{ fontWeight: 600 }}>Carrier:</span> {inv.carrier}</div>}
+                  {inv.trackingNumber && <div><span style={{ fontWeight: 600 }}>Tracking:</span> {inv.trackingNumber}</div>}
+                  {inv.dispatchDate && <div><span style={{ fontWeight: 600 }}>Dispatch:</span> {fmtDate(inv.dispatchDate)}</div>}
+                  {inv.expectedDelivery && <div><span style={{ fontWeight: 600 }}>Est. Delivery:</span> {fmtDate(inv.expectedDelivery)}</div>}
+                </div>
+              )}
+            </div>
+          )}
+          {!inv.shippingAddress && (inv.carrier || inv.trackingNumber || inv.dispatchDate || inv.expectedDelivery) && (
+            <div style={{ flex: 1, background: "#f8f8f8", borderRadius: 8, padding: "14px 18px", borderLeft: `4px solid #94a3b8` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: "#888", marginBottom: 6 }}>Shipping Details</div>
+              <div style={{ fontSize: 11, color: "#555" }}>
+                {inv.carrier && <div><span style={{ fontWeight: 600 }}>Carrier:</span> {inv.carrier}</div>}
+                {inv.trackingNumber && <div><span style={{ fontWeight: 600 }}>Tracking:</span> {inv.trackingNumber}</div>}
+                {inv.dispatchDate && <div><span style={{ fontWeight: 600 }}>Dispatch:</span> {fmtDate(inv.dispatchDate)}</div>}
+                {inv.expectedDelivery && <div><span style={{ fontWeight: 600 }}>Est. Delivery:</span> {fmtDate(inv.expectedDelivery)}</div>}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Items */}
@@ -406,16 +455,32 @@ function PremiumTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: 
       </div>
 
       <div style={{ padding: "28px 48px" }}>
-        {/* Bill To */}
-        <div style={{ marginBottom: 28, padding: "16px 20px", border: "1px solid #d4b86a", borderRadius: 2, background: "#fffdf5" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "#8B6914", marginBottom: 8 }}>Billed To</div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "#2d2410" }}>{inv.clientName || "—"}</div>
-          {inv.clientAddress && <div style={{ color: "#5a4700", fontSize: 12, marginTop: 4, whiteSpace: "pre-line", lineHeight: 1.6 }}>{inv.clientAddress}</div>}
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 4, fontSize: 11, color: "#8B6914" }}>
-            {inv.clientGstin && <span>GSTIN: {inv.clientGstin}</span>}
-            {inv.clientEmail && <span>{inv.clientEmail}</span>}
-            {inv.clientPhone && <span>{inv.clientPhone}</span>}
+        {/* Bill To + Ship To */}
+        <div style={{ display: "flex", gap: 16, marginBottom: 28 }}>
+          <div style={{ flex: 1, padding: "16px 20px", border: "1px solid #d4b86a", borderRadius: 2, background: "#fffdf5" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "#8B6914", marginBottom: 8 }}>Billed To</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#2d2410" }}>{inv.clientName || "—"}</div>
+            {inv.clientAddress && <div style={{ color: "#5a4700", fontSize: 12, marginTop: 4, whiteSpace: "pre-line", lineHeight: 1.6 }}>{inv.clientAddress}</div>}
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 4, fontSize: 11, color: "#8B6914" }}>
+              {inv.clientGstin && <span>GSTIN: {inv.clientGstin}</span>}
+              {inv.clientEmail && <span>{inv.clientEmail}</span>}
+              {inv.clientPhone && <span>{inv.clientPhone}</span>}
+            </div>
           </div>
+          {(inv.shippingAddress || inv.carrier || inv.trackingNumber || inv.dispatchDate || inv.expectedDelivery) && (
+            <div style={{ flex: 1, padding: "16px 20px", border: "1px solid #d4b86a", borderRadius: 2, background: "#fffdf5" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "#8B6914", marginBottom: 8 }}>{inv.shippingAddress ? "Ship To" : "Shipping Details"}</div>
+              {inv.shippingAddress && <div style={{ color: "#5a4700", fontSize: 12, whiteSpace: "pre-line", lineHeight: 1.6 }}>{inv.shippingAddress}</div>}
+              {(inv.carrier || inv.trackingNumber || inv.dispatchDate || inv.expectedDelivery) && (
+                <div style={{ marginTop: inv.shippingAddress ? 8 : 0, fontSize: 11, color: "#8B6914" }}>
+                  {inv.carrier && <div><span style={{ fontWeight: 600 }}>Carrier:</span> {inv.carrier}</div>}
+                  {inv.trackingNumber && <div><span style={{ fontWeight: 600 }}>Tracking:</span> {inv.trackingNumber}</div>}
+                  {inv.dispatchDate && <div><span style={{ fontWeight: 600 }}>Dispatch:</span> {fmtDate(inv.dispatchDate)}</div>}
+                  {inv.expectedDelivery && <div><span style={{ fontWeight: 600 }}>Est. Delivery:</span> {fmtDate(inv.expectedDelivery)}</div>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Line Items */}
@@ -561,6 +626,11 @@ export default function InvoicePreviewModal({ invoiceId, formSnapshot, onClose }
               bankUpi: d.bankUpi ?? d.bank_upi ?? "",
               referenceType: d.referenceType ?? d.reference_type ?? "",
               referenceId: d.referenceId ?? d.reference_id ?? "",
+              shippingAddress: d.shippingAddress ?? d.shipping_address ?? "",
+              carrier: d.carrier ?? "",
+              trackingNumber: d.trackingNumber ?? d.tracking_number ?? "",
+              dispatchDate: (d.dispatchDate ?? d.dispatch_date ?? "").slice(0, 10),
+              expectedDelivery: (d.expectedDelivery ?? d.expected_delivery ?? "").slice(0, 10),
             });
           }
         }

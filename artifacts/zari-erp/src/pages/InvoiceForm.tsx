@@ -250,8 +250,6 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Date</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Type</th>
                   <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
-                  {currencyCode !== "INR" && <th className="py-2 text-right font-semibold uppercase tracking-wide">INR Base</th>}
-                  <th className="py-2 text-left font-semibold uppercase tracking-wide">Reference</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
                   <th className="py-2 w-6"></th>
@@ -272,10 +270,6 @@ function InvoicePaymentsPanel({
                         <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
                       )}
                     </td>
-                    {currencyCode !== "INR" && (
-                      <td className="py-2 text-right text-gray-500 tabular-nums">₹{fmtN(p.base_currency_amount)}</td>
-                    )}
-                    <td className="py-2 text-gray-500 max-w-[120px] truncate" title={p.transaction_reference}>{p.transaction_reference || "—"}</td>
                     <td className="py-2">
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
                         {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
@@ -1492,7 +1486,7 @@ export default function InvoiceForm() {
           <InvoicePaymentsPanel
             invoiceId={parseInt(params.id)}
             direction={form.invoiceDirection}
-            totalAmount={totals.total}
+            totalAmount={toInvCcy(totals.total)}
             currencyCode={form.currencyCode}
             exchangeRate={parseFloat(form.exchangeRateSnapshot || "1")}
             currentStatus={form.invoiceStatus}
@@ -1574,6 +1568,11 @@ export default function InvoiceForm() {
             bankUpi: form.bankUpi,
             referenceType: form.referenceType,
             referenceId: form.referenceId,
+            shippingAddress: form.shippingAddress,
+            carrier: form.carrier,
+            trackingNumber: form.trackingNumber,
+            dispatchDate: form.dispatchDate,
+            expectedDelivery: form.expectedDelivery,
           } as PreviewInvoice}
           onClose={() => setShowPreview(false)}
         />
