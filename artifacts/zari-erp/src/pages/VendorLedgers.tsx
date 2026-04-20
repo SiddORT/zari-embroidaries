@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Wallet, Building2, TrendingDown, TrendingUp, ArrowRight,
-  Search, Users, IndianRupee, Clock, CheckCircle2, ChevronRight,
+  Search, Users, IndianRupee, Clock, CheckCircle2, ChevronRight, LayoutGrid, LayoutList,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,6 +57,7 @@ export default function VendorLedgers() {
   const [vendors, setVendors] = useState<VendorSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"grid" | "table">("grid");
 
   useEffect(() => {
     if (!token || isError) { localStorage.removeItem("zarierp_token"); setLocation("/login"); }
@@ -116,6 +117,16 @@ export default function VendorLedgers() {
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Vendor Ledgers</h1>
             <p className="text-xs text-gray-400 mt-0.5">{vendors.length} vendors · outstanding and payment history</p>
           </div>
+          <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+            <button onClick={() => setView("grid")} title="Grid view"
+              className={`p-2 transition-colors ${view === "grid" ? "bg-gray-900 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button onClick={() => setView("table")} title="Table view"
+              className={`p-2 transition-colors ${view === "table" ? "bg-gray-900 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+              <LayoutList className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Summary KPIs */}
@@ -156,12 +167,17 @@ export default function VendorLedgers() {
           </div>
         </div>
 
-        {/* Vendor Grid */}
+        {/* Vendor Content */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="h-8 w-8 rounded-full border-2 animate-spin" style={{ borderColor: G, borderTopColor: "transparent" }} />
           </div>
-        ) : (
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <Building2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
+            <p className="text-sm font-medium">No vendors found</p>
+          </div>
+        ) : view === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((v, idx) => {
               const debit   = parseFloat(v.total_debits  || "0");
@@ -231,13 +247,57 @@ export default function VendorLedgers() {
                 </button>
               );
             })}
-
-            {filtered.length === 0 && !loading && (
-              <div className="col-span-full text-center py-16 text-gray-400">
-                <Building2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                <p className="text-sm font-medium">No vendors found</p>
-              </div>
-            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-[#C6AF4B]/15 overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Code</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Debits</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Paid</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Balance</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Entries</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map(v => {
+                  const debit   = parseFloat(v.total_debits  || "0");
+                  const credit  = parseFloat(v.total_credits || "0");
+                  const balance = debit - credit;
+                  const settled = balance <= 0;
+                  return (
+                    <tr key={v.vendor_id}
+                      onClick={() => setLocation(`/accounts/ledgers/${v.vendor_id}`)}
+                      className="hover:bg-[#C6AF4B]/04 cursor-pointer transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-black text-white shrink-0"
+                            style={{ background: settled ? "#10B981" : G_DIM }}>
+                            {initials(v.brand_name)}
+                          </div>
+                          <span className="font-semibold text-gray-900">{v.brand_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-400">{v.vendor_code}</td>
+                      <td className="px-4 py-3 text-gray-600">{v.contact_name || "—"}</td>
+                      <td className="px-4 py-3 text-right font-semibold" style={{ color: G_DIM }}>{fmt(debit)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-600">{fmt(credit)}</td>
+                      <td className="px-4 py-3 text-right font-bold" style={{ color: settled ? "#10B981" : "#EF4444" }}>{fmt(Math.abs(balance))}</td>
+                      <td className="px-4 py-3 text-center">
+                        {settled
+                          ? <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Settled</span>
+                          : <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Outstanding</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-gray-400 font-mono">{v.total_entries}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, Plus, ChevronLeft, ChevronRight, FileText,
   Eye, Edit2, Trash2, RefreshCw, ChevronDown, ChevronUp,
-  CheckCircle2, GitBranch, FileDown,
+  CheckCircle2, GitBranch, FileDown, LayoutGrid, LayoutList,
 } from "lucide-react";
 import { downloadQuotationPdf } from "@/utils/generateQuotationPdf";
 import { logActivity } from "@/utils/logActivity";
@@ -88,6 +88,7 @@ export default function QuotationList() {
   const [deleting, setDeleting] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [revisions, setRevisions] = useState<RevisionRow[]>([]);
+  const [view, setView] = useState<"table" | "grid">("table");
   const [loadingRevisions, setLoadingRevisions] = useState(false);
 
   const isAdmin = user?.role === "admin";
@@ -188,13 +189,25 @@ export default function QuotationList() {
               <p className="text-sm text-gray-400 mt-0.5">Manage client quotations and revisions</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate("/quotation/new")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition"
-            style={{ background: G }}
-          >
-            <Plus size={16} /> New Quotation
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+              <button onClick={() => setView("grid")} title="Grid view"
+                className={`p-2 transition-colors ${view === "grid" ? "bg-gray-900 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button onClick={() => setView("table")} title="Table view"
+                className={`p-2 transition-colors ${view === "table" ? "bg-gray-900 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+                <LayoutList className="h-4 w-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => navigate("/quotation/new")}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition"
+              style={{ background: G }}
+            >
+              <Plus size={16} /> New Quotation
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -236,8 +249,72 @@ export default function QuotationList() {
           </div>
         </div>
 
+        {/* Grid View */}
+        {view === "grid" && (
+          <>
+            {loading && (
+              <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+                <RefreshCw size={18} className="animate-spin" /> Loading…
+              </div>
+            )}
+            {!loading && rows.length === 0 && (
+              <div className="flex flex-col items-center py-16 text-gray-400 gap-2">
+                <FileText size={36} strokeWidth={1.2} />
+                <p className="text-sm">No quotations found</p>
+                <button onClick={() => navigate("/quotation/new")}
+                  className="mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: G }}>
+                  Create First Quotation
+                </button>
+              </div>
+            )}
+            {!loading && rows.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {rows.map(row => {
+                  const sc = STATUS_COLORS[row.latest_status] ?? "bg-gray-100 text-gray-600";
+                  return (
+                    <div key={row.id} className={`${card} overflow-hidden hover:-translate-y-0.5 transition-all duration-300`}>
+                      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${G}, transparent)` }} />
+                      <div className="p-5">
+                        <div className="flex items-start justify-between mb-3">
+                          <span className="text-xs font-mono font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            {row.quotation_number}
+                          </span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sc}`}>{row.latest_status}</span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{row.requirement_summary || "—"}</p>
+                        <p className="text-xs text-gray-500 mb-3">{row.client_name || "—"}</p>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-base font-black text-gray-900">₹{parseFloat(row.total_amount || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                          <span className="text-[10px] text-gray-400">{row.revision_count} rev{row.revision_count !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="flex gap-2 pt-3 border-t border-gray-100">
+                          <button onClick={() => navigate(`/quotation/${row.id}`)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium bg-gray-900 hover:bg-black transition-colors"
+                            style={{ color: G }}>
+                            <Eye size={12} /> View
+                          </button>
+                          <button onClick={() => handleDownloadPdf(row.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors border border-gray-100">
+                            <FileDown size={13} />
+                          </button>
+                          {isAdmin && (
+                            <button onClick={() => setDeleteId(row.id)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         {/* Table */}
-        <div className={`${card} overflow-hidden`}>
+        {view === "table" && <div className={`${card} overflow-hidden`}>
           {loading && (
             <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
               <RefreshCw size={18} className="animate-spin" /> Loading…
@@ -493,7 +570,24 @@ export default function QuotationList() {
               </div>
             </div>
           )}
-        </div>
+        </div>}
+
+        {/* Grid Pagination */}
+        {view === "grid" && !loading && totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-xs text-gray-500">Page {page} of {totalPages} · {total} total</p>
+            <div className="flex gap-2">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
+                className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                <ChevronLeft size={15} />
+              </button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
+                className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirm */}

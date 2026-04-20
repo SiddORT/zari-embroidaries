@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Eye, Trash2, ChevronLeft, ChevronRight, Layers, Calendar, User, Hash, Palette } from "lucide-react";
+import { Plus, Search, Eye, Trash2, ChevronLeft, ChevronRight, Layers, Calendar, User, Hash, Palette, LayoutGrid, LayoutList } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
@@ -142,6 +142,7 @@ export default function StyleOrders() {
   const [chargeableFilter, setChargeableFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [view, setView] = useState<"grid" | "table">("grid");
 
   const { data, isLoading } = useStyleOrderList({ search, status: statusFilter, priority: priorityFilter, chargeable: chargeableFilter, page, limit: 24 });
   const deleteOrder = useDeleteStyleOrder();
@@ -187,13 +188,25 @@ export default function StyleOrders() {
               {total} order{total !== 1 ? "s" : ""} total
             </p>
           </div>
-          <button
-            onClick={() => setLocation("/style-orders/new")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-sm font-medium hover:bg-black transition-colors shadow-sm"
-            style={{ color: G }}
-          >
-            <Plus className="h-4 w-4" /> New Style Order
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+              <button onClick={() => setView("grid")} title="Grid view"
+                className={`p-2 transition-colors ${view === "grid" ? "bg-gray-900 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button onClick={() => setView("table")} title="Table view"
+                className={`p-2 transition-colors ${view === "table" ? "bg-gray-900 text-white" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+                <LayoutList className="h-4 w-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => setLocation("/style-orders/new")}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-sm font-medium hover:bg-black transition-colors shadow-sm"
+              style={{ color: G }}
+            >
+              <Plus className="h-4 w-4" /> New Style Order
+            </button>
+          </div>
         </div>
 
         {/* Status pills quick filter */}
@@ -235,7 +248,7 @@ export default function StyleOrders() {
           </select>
         </div>
 
-        {/* Grid */}
+        {/* Content */}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -253,7 +266,7 @@ export default function StyleOrders() {
               + New Style Order
             </button>
           </div>
-        ) : (
+        ) : view === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {orders.map(order => (
               <OrderCard key={order.id} order={order}
@@ -261,6 +274,50 @@ export default function StyleOrders() {
                 onDelete={() => setDeleteId(order.id)}
               />
             ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-[#C6AF4B]/15 overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Order Code</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Style Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Priority</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Season</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Delivery</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {orders.map(order => (
+                  <tr key={order.id} className="hover:bg-[#C6AF4B]/04 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-gray-400 whitespace-nowrap">{order.orderCode}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{order.styleName}</td>
+                    <td className="px-4 py-3 text-gray-600">{order.clientName ?? "—"}</td>
+                    <td className="px-4 py-3"><StatusBadge status={order.orderStatus} /></td>
+                    <td className="px-4 py-3"><PriorityDot priority={order.priority} /></td>
+                    <td className="px-4 py-3 text-gray-600">{order.quantity ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{order.season ?? "—"}{order.colorway ? ` · ${order.colorway}` : ""}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{order.deliveryDate ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setLocation(`/style-orders/${order.id}`)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => setDeleteId(order.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
