@@ -232,7 +232,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 onClick={() => setOperationsOpen(v => !v)}
                 className={`flex items-center gap-1 ${navLink(operationsActive)}`}
               >
-                Operations
+                Stock
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${operationsOpen ? "rotate-180" : ""}`} />
               </button>
               {operationsOpen && (
@@ -462,7 +462,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   operationsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                <span>Operations</span>
+                <span>Stock</span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${mobileOperationsOpen ? "rotate-180" : ""}`} />
               </button>
               {mobileOperationsOpen && (
