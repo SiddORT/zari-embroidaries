@@ -728,9 +728,6 @@ export default function InventoryStockList() {
                   { label: "Last Purchase Price (₹)", key: "lastPurchasePrice", placeholder: "0.00" },
                   { label: "Warehouse Location", key: "warehouseLocation", placeholder: "e.g. Rack A-12" },
                   { label: "Department", key: "department", placeholder: "e.g. Embroidery" },
-                  { label: "Minimum Level", key: "minimumLevel", placeholder: "0" },
-                  { label: "Reorder Level", key: "reorderLevel", placeholder: "0" },
-                  { label: "Maximum Level", key: "maximumLevel", placeholder: "0" },
                 ].map(({ label, key, placeholder }) => (
                   <div key={key} className={(key === "warehouseLocation" || key === "department") ? "col-span-2" : ""}>
                     <label className="block text-xs font-medium text-gray-900 mb-1">{label}</label>
