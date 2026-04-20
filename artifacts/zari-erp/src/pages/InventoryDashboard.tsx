@@ -88,49 +88,58 @@ function InventoryDonut({ title, subtitle, data, loading }: {
   return (
     <div className={`${card} p-5`}>
       <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>{title}</p>
-      <p className="text-sm font-bold text-gray-800 mb-4">{subtitle}</p>
+      <p className="text-sm font-bold text-gray-800 mb-5">{subtitle}</p>
 
       {loading ? (
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-[120px] w-[120px] rounded-full bg-gray-100 animate-pulse" />
-          <div className="w-full space-y-2">
-            {Array(3).fill(0).map((_, i) => <div key={i} className="h-4 rounded bg-gray-100 animate-pulse" />)}
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-[190px] w-[190px] rounded-full bg-gray-100 animate-pulse" />
+          <div className="w-full space-y-3 mt-2">
+            {Array(3).fill(0).map((_, i) => <div key={i} className="h-4 rounded-lg bg-gray-100 animate-pulse" />)}
           </div>
         </div>
       ) : total === 0 ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">No data</div>
+        <div className="flex items-center justify-center h-48 text-gray-400 text-sm">No data</div>
       ) : (
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex justify-center">
+        <>
+          <div className="flex justify-center mb-5">
             <div className="relative">
-              <PieChart width={120} height={120}>
-                <Pie data={data} cx={55} cy={55} innerRadius={36} outerRadius={54}
-                  dataKey="value" strokeWidth={2} stroke="#ffffff"
-                  animationBegin={200} animationDuration={800}>
+              <PieChart width={190} height={190}>
+                <Pie
+                  data={data}
+                  cx={91} cy={91}
+                  innerRadius={56} outerRadius={88}
+                  dataKey="value"
+                  strokeWidth={3}
+                  stroke="#ffffff"
+                  paddingAngle={2}
+                  animationBegin={200}
+                  animationDuration={900}
+                >
                   {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <ReTooltip content={<PieTooltip />} />
               </PieChart>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xl font-black text-gray-900">{total}</span>
-                <span className="text-[8px] uppercase tracking-widest font-bold" style={{ color: G }}>Total</span>
+                <span className="text-4xl font-black text-gray-900 leading-none">{total}</span>
+                <span className="text-[9px] uppercase tracking-[0.22em] font-black mt-1" style={{ color: G }}>TOTAL</span>
               </div>
             </div>
           </div>
-          <div className="w-full space-y-2">
+
+          <div className="space-y-2.5">
             {data.map((seg) => (
-              <div key={seg.name} className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: seg.color }} />
-                <span className="text-[11px] text-gray-600 flex-1 truncate">{seg.name}</span>
-                <div className="w-12 h-1.5 rounded-full overflow-hidden bg-gray-100">
+              <div key={seg.name} className="flex items-center gap-2.5">
+                <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ background: seg.color }} />
+                <span className="text-xs text-gray-600 flex-1 min-w-0 truncate">{seg.name}</span>
+                <div className="w-14 h-1.5 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${seg.color}22` }}>
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${total > 0 ? (seg.value / total) * 100 : 0}%`, background: seg.color }} />
                 </div>
-                <span className="text-[11px] font-bold text-gray-800 w-5 text-right">{seg.value}</span>
+                <span className="text-xs font-bold text-gray-800 w-5 text-right flex-shrink-0">{seg.value}</span>
               </div>
             ))}
           </div>
-        </div>
+        </>
       )}
     </div>
   );
