@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Users, Shield, Plus, Pencil, Trash2, Copy, Check, RefreshCw, X, ChevronDown } from "lucide-react";
+import { Users, Shield, Plus, Pencil, Trash2, Copy, Check, RefreshCw, X, ChevronDown, LayoutDashboard, BookOpen, ClipboardList, Package, DollarSign, ShieldCheck } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -382,6 +382,34 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
   );
 }
 
+const MENU_ORDER = ["Dashboard", "Masters", "Orders", "Stock", "Accounts", "Admin"];
+
+const MENU_ICONS: Record<string, React.ReactNode> = {
+  Dashboard: <LayoutDashboard className="h-4 w-4" />,
+  Masters:   <BookOpen       className="h-4 w-4" />,
+  Orders:    <ClipboardList  className="h-4 w-4" />,
+  Stock:     <Package        className="h-4 w-4" />,
+  Accounts:  <DollarSign     className="h-4 w-4" />,
+  Admin:     <ShieldCheck    className="h-4 w-4" />,
+};
+
+function buildMenuTree(allPermissions: PermissionDef[]) {
+  const map = new Map<string, PermissionDef[]>();
+  for (const p of allPermissions) {
+    const m = p.menu;
+    if (!map.has(m)) map.set(m, []);
+    map.get(m)!.push(p);
+  }
+  const ordered: Array<{ menu: string; perms: PermissionDef[] }> = [];
+  for (const m of MENU_ORDER) {
+    if (map.has(m)) ordered.push({ menu: m, perms: map.get(m)! });
+  }
+  for (const [m, perms] of map) {
+    if (!MENU_ORDER.includes(m)) ordered.push({ menu: m, perms });
+  }
+  return ordered;
+}
+
 function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   role: RoleRecord;
   allPermissions: PermissionDef[];
@@ -389,34 +417,36 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   saving: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions));
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   useEffect(() => { setSelected(new Set(role.permissions)); }, [role.id, role.permissions.join(",")]);
 
-  const groups = [...new Set(allPermissions.map(p => p.group))];
+  const tree = buildMenuTree(allPermissions);
 
   function toggle(key: string) {
+    setSelected(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  }
+
+  function toggleMenu(perms: PermissionDef[]) {
+    const keys = perms.map(p => p.key);
+    const allOn = keys.every(k => selected.has(k));
     setSelected(s => {
       const n = new Set(s);
-      n.has(key) ? n.delete(key) : n.add(key);
+      keys.forEach(k => allOn ? n.delete(k) : n.add(k));
       return n;
     });
   }
 
-  function toggleGroup(group: string) {
-    const groupKeys = allPermissions.filter(p => p.group === group).map(p => p.key);
-    const allOn = groupKeys.every(k => selected.has(k));
-    setSelected(s => {
-      const n = new Set(s);
-      groupKeys.forEach(k => allOn ? n.delete(k) : n.add(k));
-      return n;
-    });
+  function toggleCollapse(menu: string) {
+    setCollapsed(s => { const n = new Set(s); n.has(menu) ? n.delete(menu) : n.add(menu); return n; });
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">{role.name}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 capitalize">{role.name}</h3>
           {role.description && <p className="text-xs text-gray-400 mt-0.5">{role.description}</p>}
         </div>
         <button onClick={() => onSave([...selected])} disabled={saving}
@@ -425,33 +455,110 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
         </button>
       </div>
 
-      <div className="space-y-4 overflow-y-auto flex-1">
-        {groups.map(group => {
-          const groupPerms = allPermissions.filter(p => p.group === group);
-          const allOn = groupPerms.every(p => selected.has(p.key));
-          const someOn = groupPerms.some(p => selected.has(p.key));
+      {/* Nav tree */}
+      <div className="space-y-1.5 overflow-y-auto flex-1 pr-0.5">
+        {tree.map(({ menu, perms }) => {
+          const isCollapsed = collapsed.has(menu);
+          const keys = perms.map(p => p.key);
+          const allOn  = keys.every(k => selected.has(k));
+          const someOn = keys.some(k => selected.has(k));
+          const isSingle = perms.length === 1;
+
+          /* collect unique subgroups in declaration order */
+          const subgroups: string[] = [];
+          for (const p of perms) {
+            if (p.subgroup && !subgroups.includes(p.subgroup)) subgroups.push(p.subgroup);
+          }
+          const hasSubgroups = subgroups.length > 0;
+
+          const countLabel = isSingle
+            ? null
+            : `${keys.filter(k => selected.has(k)).length} / ${keys.length}`;
+
           return (
-            <div key={group} className="bg-white border border-gray-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <input type="checkbox" checked={allOn} ref={el => { if (el) el.indeterminate = someOn && !allOn; }}
-                  onChange={() => toggleGroup(group)}
-                  className="h-4 w-4 rounded border-gray-300 text-gray-900 accent-gray-900" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{group}</span>
+            <div key={menu} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+
+              {/* Menu header row */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 select-none"
+                style={{ cursor: isSingle ? "default" : "pointer" }}
+                onClick={() => !isSingle && toggleCollapse(menu)}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSingle ? selected.has(keys[0]) : allOn}
+                  ref={el => { if (el && !isSingle) el.indeterminate = someOn && !allOn; }}
+                  onChange={e => {
+                    e.stopPropagation();
+                    isSingle ? toggle(keys[0]) : toggleMenu(perms);
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  className="h-4 w-4 rounded border-gray-300 accent-gray-900 shrink-0"
+                />
+                <span className="text-[#C9B45C] shrink-0">{MENU_ICONS[menu] ?? <Shield className="h-4 w-4" />}</span>
+                <span className="text-sm font-semibold text-gray-800 flex-1">{menu}</span>
+                {countLabel && (
+                  <span className="text-xs font-medium text-gray-400 tabular-nums">{countLabel}</span>
+                )}
+                {!isSingle && (
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isCollapsed ? "" : "rotate-180"}`} />
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-                {groupPerms.map(p => (
-                  <label key={p.key} className="flex items-center gap-2 cursor-pointer group">
-                    <input type="checkbox" checked={selected.has(p.key)} onChange={() => toggle(p.key)}
-                      className="h-4 w-4 rounded border-gray-300 accent-gray-900 shrink-0" />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">{p.label}</span>
-                  </label>
-                ))}
-              </div>
+
+              {/* Submenu items */}
+              {!isSingle && !isCollapsed && (
+                <div className="border-t border-gray-100 px-4 pt-2 pb-3">
+                  {hasSubgroups ? (
+                    /* Render each subgroup with a header, then items with no subgroup first */
+                    <>
+                      {perms.filter(p => !p.subgroup).length > 0 && (
+                        <div className="grid grid-cols-2 gap-y-1.5 gap-x-6 mb-2">
+                          {perms.filter(p => !p.subgroup).map(p => (
+                            <PermItem key={p.key} p={p} selected={selected} toggle={toggle} />
+                          ))}
+                        </div>
+                      )}
+                      {subgroups.map(sg => (
+                        <div key={sg} className="mb-2 last:mb-0">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 py-1.5 border-b border-gray-100 mb-1.5">
+                            {sg}
+                          </p>
+                          <div className="grid grid-cols-2 gap-y-1.5 gap-x-6 pl-1">
+                            {perms.filter(p => p.subgroup === sg).map(p => (
+                              <PermItem key={p.key} p={p} selected={selected} toggle={toggle} />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-y-1.5 gap-x-6">
+                      {perms.map(p => (
+                        <PermItem key={p.key} p={p} selected={selected} toggle={toggle} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function PermItem({ p, selected, toggle }: { p: PermissionDef; selected: Set<string>; toggle: (key: string) => void }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer group py-0.5">
+      <input
+        type="checkbox"
+        checked={selected.has(p.key)}
+        onChange={() => toggle(p.key)}
+        className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 shrink-0"
+      />
+      <span className="text-sm text-gray-700 group-hover:text-gray-900 leading-tight">{p.label}</span>
+    </label>
   );
 }
 

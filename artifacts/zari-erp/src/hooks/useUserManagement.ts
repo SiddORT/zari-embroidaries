@@ -26,7 +26,8 @@ export interface RoleRecord {
 export interface PermissionDef {
   key: string;
   label: string;
-  group: string;
+  menu: string;
+  subgroup: string | null;
 }
 
 export function useUsers() {

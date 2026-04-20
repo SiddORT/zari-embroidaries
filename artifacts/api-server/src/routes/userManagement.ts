@@ -9,37 +9,48 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 export const ALL_PERMISSIONS = [
-  /* ── Main ──────────────────────────────────────────────── */
-  { key: "dashboard",                   label: "Main Dashboard",          group: "Main" },
-  { key: "style_orders",                label: "Style Orders",            group: "Main" },
-  { key: "swatch_orders",               label: "Swatch Orders",           group: "Main" },
-  { key: "artwork",                     label: "Artwork",                 group: "Main" },
-  { key: "shipping",                    label: "Shipping",                group: "Main" },
-
-  /* ── Accounts ───────────────────────────────────────────── */
-  { key: "accounts:dashboard",          label: "Accounts Dashboard",      group: "Accounts" },
-  { key: "accounts:invoices",           label: "Invoice Master",          group: "Accounts" },
-  { key: "accounts:vendor_ledgers",     label: "Vendor Ledgers",          group: "Accounts" },
-  { key: "accounts:payments",           label: "Payment Engine",          group: "Accounts" },
-  { key: "accounts:credit_debit_notes", label: "Credit / Debit Notes",   group: "Accounts" },
-  { key: "accounts:purchases",          label: "Purchases",               group: "Accounts" },
-  { key: "accounts:other_expenses",     label: "Other Expenses",          group: "Accounts" },
+  /* ── Dashboard ──────────────────────────────────────────── */
+  { key: "dashboard",                    label: "Dashboard",            menu: "Dashboard",  subgroup: null },
 
   /* ── Masters ────────────────────────────────────────────── */
-  { key: "masters:hsn",                 label: "HSN",                     group: "Masters" },
-  { key: "masters:materials",           label: "Materials",               group: "Masters" },
-  { key: "masters:fabric",              label: "Fabric",                  group: "Masters" },
-  { key: "masters:clients",             label: "Clients",                 group: "Masters" },
-  { key: "masters:vendors",             label: "Vendors",                 group: "Masters" },
-  { key: "masters:style_categories",    label: "Style Categories",        group: "Masters" },
-  { key: "masters:swatch_categories",   label: "Swatch Categories",       group: "Masters" },
-  { key: "masters:swatches",            label: "Swatches",                group: "Masters" },
-  { key: "masters:styles",              label: "Styles",                  group: "Masters" },
-  { key: "masters:packaging_materials", label: "Item Master",             group: "Masters" },
+  { key: "masters:hsn",                  label: "HSN",                  menu: "Masters",    subgroup: null },
+  { key: "masters:materials",            label: "Materials",            menu: "Masters",    subgroup: null },
+  { key: "masters:fabric",               label: "Fabric",               menu: "Masters",    subgroup: null },
+  { key: "masters:clients",              label: "Clients",              menu: "Masters",    subgroup: null },
+  { key: "masters:vendors",              label: "Vendors",              menu: "Masters",    subgroup: null },
+  { key: "masters:style_categories",     label: "Style Categories",     menu: "Masters",    subgroup: null },
+  { key: "masters:swatch_categories",    label: "Swatch Categories",    menu: "Masters",    subgroup: null },
+  { key: "masters:swatches",             label: "Swatch",               menu: "Masters",    subgroup: null },
+  { key: "masters:styles",               label: "Style",                menu: "Masters",    subgroup: null },
+  { key: "masters:item_types",           label: "Item Types",           menu: "Masters",    subgroup: null },
+  { key: "masters:packaging_materials",  label: "Item Master",          menu: "Masters",    subgroup: null },
+  { key: "masters:shipping_vendors",     label: "Shipping Vendors",     menu: "Masters",    subgroup: null },
+
+  /* ── Orders ─────────────────────────────────────────────── */
+  { key: "swatch_orders",               label: "Swatch Orders",         menu: "Orders",     subgroup: null },
+  { key: "style_orders",                label: "Style Orders",          menu: "Orders",     subgroup: null },
+  { key: "artwork",                     label: "Artwork",               menu: "Orders",     subgroup: null },
+
+  /* ── Stock ──────────────────────────────────────────────── */
+  { key: "stock:items",                 label: "Item Stock List",       menu: "Stock",      subgroup: "Inventory" },
+  { key: "stock:ledger",                label: "Stock Ledger",          menu: "Stock",      subgroup: "Inventory" },
+  { key: "stock:reservations",          label: "Reservations",          menu: "Stock",      subgroup: "Inventory" },
+  { key: "stock:adjustments",           label: "Stock Adjustments",     menu: "Stock",      subgroup: "Inventory" },
+  { key: "stock:purchase_orders",       label: "Purchase Orders",       menu: "Stock",      subgroup: "Procurement" },
+  { key: "stock:purchase_receipts",     label: "Purchase Receipts",     menu: "Stock",      subgroup: "Procurement" },
+
+  /* ── Accounts ───────────────────────────────────────────── */
+  { key: "accounts:dashboard",          label: "Dashboard",             menu: "Accounts",   subgroup: null },
+  { key: "accounts:vendor_ledgers",     label: "Ledgers",               menu: "Accounts",   subgroup: null },
+  { key: "accounts:invoices",           label: "Invoices",              menu: "Accounts",   subgroup: null },
+  { key: "accounts:payments",           label: "Payments",              menu: "Accounts",   subgroup: null },
+  { key: "accounts:credit_debit_notes", label: "Credit / Debit Notes",  menu: "Accounts",   subgroup: null },
+  { key: "accounts:other_expenses",     label: "Other Expenses",        menu: "Accounts",   subgroup: null },
+  { key: "shipping",                    label: "Shipments",             menu: "Accounts",   subgroup: null },
 
   /* ── Admin ──────────────────────────────────────────────── */
-  { key: "user_management",             label: "User Management",         group: "Admin" },
-  { key: "settings",                    label: "Settings",                group: "Admin" },
+  { key: "settings",                    label: "Settings",              menu: "Admin",      subgroup: null },
+  { key: "user_management",             label: "User Management",       menu: "Admin",      subgroup: null },
 ];
 
 const requireAdmin = requireAuth;
