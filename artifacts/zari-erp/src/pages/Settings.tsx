@@ -45,7 +45,11 @@ export default function Settings() {
   const { data: user, isError } = useGetMe({ enabled: !!token });
   const logoutMutation = useLogout();
 
-  const [tab, setTab] = useState<Tab>("profile");
+  const [tab, setTab] = useState<Tab>(() => {
+    const valid: Tab[] = ["profile", "currency", "banks", "gst", "logs", "warehouses", "templates"];
+    const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+    return p && valid.includes(p) ? p : "profile";
+  });
   const isAdmin = user?.role === "admin";
 
   function handleLogout() {
