@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, ChevronUp, ChevronDown,
   Edit2, X, ChevronLeft, ChevronRight, Boxes,
   Clock, CalendarRange, ArrowUpCircle, ArrowDownCircle,
-  MinusCircle, Info, BookOpen, ZoomIn,
+  MinusCircle, Info, BookOpen, ZoomIn, ShoppingCart,
 } from "lucide-react";
 import { useGetMe, getGetMeQueryKey, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -134,16 +134,16 @@ function fmtDateShort(val: string) {
 }
 
 function StockBadge({ item }: { item: InventoryItem }) {
-  const avail = parseFloat(item.available_stock ?? "0");
+  const current = parseFloat(item.current_stock ?? "0");
   const reorder = parseFloat(item.reorder_level ?? "0");
-  if (avail <= 0) {
+  if (current <= 0) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
         <XCircle className="h-3 w-3" /> Out of Stock
       </span>
     );
   }
-  if (reorder > 0 && avail <= reorder) {
+  if (reorder > 0 && current <= reorder) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
         <AlertTriangle className="h-3 w-3" /> Low Stock
@@ -152,7 +152,7 @@ function StockBadge({ item }: { item: InventoryItem }) {
   }
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-      <CheckCircle2 className="h-3 w-3" /> In Stock
+      <CheckCircle2 className="h-3 w-3" /> Normal
     </span>
   );
 }
@@ -452,7 +452,7 @@ export default function InventoryStockList() {
               { value: category,   onChange: (v: string) => { setCategory(v); setPage(1); },   opts: [["all","All Categories"], ...filters.categories.map(c => [c,c])] },
               { value: department, onChange: (v: string) => { setDepartment(v); setPage(1); }, opts: [["all","All Departments"], ...filters.departments.map(d => [d,d])] },
               { value: location,   onChange: (v: string) => { setLocation(v); setPage(1); },   opts: [["all","All Locations"], ...filters.locations.map(l => [l,l])] },
-              { value: stockLevel, onChange: (v: string) => { setStockLevel(v); setPage(1); }, opts: [["all","All Stock Levels"],["in-stock","In Stock"],["low","Low Stock"],["out","Out of Stock"]] },
+              { value: stockLevel, onChange: (v: string) => { setStockLevel(v); setPage(1); }, opts: [["all","All Stock Levels"],["in-stock","Normal"],["low","Low Stock"],["out","Out of Stock"]] },
             ].map((sel, i) => (
               <select key={i} value={sel.value} onChange={e => sel.onChange(e.target.value)}
                 className="px-3 py-2 text-sm text-gray-900 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
@@ -618,6 +618,19 @@ export default function InventoryStockList() {
                               className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
                               <BookOpen className="h-3 w-3" /> Ledger
                             </button>
+                            {(() => {
+                              const cur = parseFloat(item.current_stock ?? "0");
+                              const reord = parseFloat(item.reorder_level ?? "0");
+                              if (reord > 0 && cur <= reord) {
+                                return (
+                                  <button onClick={() => navigate(`/procurement/purchase-orders/new?itemId=${item.id}&itemCode=${encodeURIComponent(item.item_code ?? "")}&itemName=${encodeURIComponent(item.item_name)}&vendor=${encodeURIComponent(item.preferred_vendor ?? "")}`)}
+                                    className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors whitespace-nowrap">
+                                    <ShoppingCart className="h-3 w-3" /> Create PO
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         </td>
                       )}

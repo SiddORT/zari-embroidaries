@@ -1166,4 +1166,27 @@ router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest
   }
 });
 
+router.get("/inventory/low-stock-alerts", requireAuth, async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT id, item_name, item_code, current_stock, available_stock,
+             reorder_level, minimum_level, maximum_level, unit_type, source_type
+      FROM inventory_items
+      WHERE is_active = true
+        AND (
+          current_stock::numeric <= 0
+          OR (reorder_level::numeric > 0 AND current_stock::numeric <= reorder_level::numeric)
+        )
+      ORDER BY
+        CASE WHEN current_stock::numeric <= 0 THEN 0 ELSE 1 END ASC,
+        item_name ASC
+      LIMIT 20
+    `);
+    res.json({ data: r.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch low-stock alerts" });
+  }
+});
+
 export default router;

@@ -4,7 +4,24 @@ import { db, packagingMaterialsTable, insertPackagingMaterialSchema, updatePacka
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { ensureInventoryRecord } from "../services/inventoryService";
+import { pool } from "@workspace/db";
 import type { Request } from "express";
+
+async function syncStockLevelsToInventory(sourceId: number, reorderLevel?: string | null, minimumLevel?: string | null, maximumLevel?: string | null) {
+  try {
+    await pool.query(
+      `UPDATE inventory_items
+         SET reorder_level = COALESCE(NULLIF($1,'')::numeric, reorder_level),
+             minimum_level = COALESCE(NULLIF($2,'')::numeric, minimum_level),
+             maximum_level = COALESCE(NULLIF($3,'')::numeric, maximum_level),
+             last_updated_at = NOW()
+       WHERE source_type = 'packaging' AND source_id = $4`,
+      [reorderLevel ?? "", minimumLevel ?? "", maximumLevel ?? "", sourceId]
+    );
+  } catch (e) {
+    logger.warn({ sourceId, e }, "Failed to sync stock levels to inventory_items");
+  }
+}
 
 const router: IRouter = Router();
 type AuthRequest = Request & { user?: { userId: number; email: string; role: string } };
@@ -50,7 +67,7 @@ router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): 
   const itemCode = `ITM${String(total.length + 1).padStart(4, "0")}`;
   const [record] = await db.insert(packagingMaterialsTable).values({ ...parsed.data, itemCode, createdBy }).returning();
   logger.info({ id: record.id, itemCode }, "Item master record created");
-  ensureInventoryRecord("packaging", record.id, {
+  await ensureInventoryRecord("packaging", record.id, {
     itemName: record.itemName,
     itemCode: record.itemCode,
     category: record.itemType ?? undefined,
@@ -60,6 +77,7 @@ router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): 
     averagePrice: record.unitPrice ? String(record.unitPrice) : undefined,
     preferredVendor: record.vendor ?? undefined,
   });
+  await syncStockLevelsToInventory(record.id, record.reorderLevel, record.minimumLevel, record.maximumLevel);
   res.status(201).json(record);
 });
 
@@ -74,6 +92,7 @@ router.put("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res
     .where(and(eq(packagingMaterialsTable.id, id), eq(packagingMaterialsTable.isDeleted, false)))
     .returning();
   if (!record) { res.status(404).json({ error: "Record not found" }); return; }
+  await syncStockLevelsToInventory(record.id, record.reorderLevel, record.minimumLevel, record.maximumLevel);
   res.json(record);
 });
 

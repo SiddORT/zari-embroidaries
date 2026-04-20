@@ -13,6 +13,9 @@ export type PackagingMaterialRecord = {
   currentStock: string | null;
   vendor: string | null;
   location: string | null;
+  reorderLevel: string | null;
+  minimumLevel: string | null;
+  maximumLevel: string | null;
   isActive: boolean;
   isDeleted: boolean;
   createdBy: string;
@@ -31,6 +34,9 @@ export type PackagingMaterialFormData = {
   currentStock: string;
   vendor: string;
   location: string;
+  reorderLevel: string;
+  minimumLevel: string;
+  maximumLevel: string;
   isActive: boolean;
 };
 

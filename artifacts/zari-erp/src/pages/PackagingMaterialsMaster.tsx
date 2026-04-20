@@ -35,6 +35,7 @@ const STATUS_OPTIONS = [
 const EMPTY_FORM: PackagingMaterialFormData = {
   itemType: "", itemName: "", department: "", size: "", unitType: "",
   unitPrice: "", currentStock: "", vendor: "", location: "", isActive: true,
+  reorderLevel: "", minimumLevel: "", maximumLevel: "",
 };
 type FormErrors = Partial<Record<keyof PackagingMaterialFormData, string>>;
 const asPM = (r: TableRow) => r as unknown as PackagingMaterialRecord;
@@ -184,19 +185,33 @@ export default function PackagingMaterialsMaster() {
       unitType: r.unitType ?? "", unitPrice: r.unitPrice ?? "",
       currentStock: r.currentStock ?? "",
       vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive,
+      reorderLevel: r.reorderLevel ?? "", minimumLevel: r.minimumLevel ?? "", maximumLevel: r.maximumLevel ?? "",
     });
     setErrors({}); setModalOpen(true);
   }
   function validate() {
     const e: FormErrors = {};
     if (!form.itemName.trim()) e.itemName = "Item Name is required";
+    const reorder = form.reorderLevel !== "" ? parseFloat(form.reorderLevel) : null;
+    const min = form.minimumLevel !== "" ? parseFloat(form.minimumLevel) : null;
+    const max = form.maximumLevel !== "" ? parseFloat(form.maximumLevel) : null;
+    if (reorder !== null && reorder < 0) e.reorderLevel = "Reorder level cannot be negative";
+    if (min !== null && min < 0) e.minimumLevel = "Minimum level cannot be negative";
+    if (max !== null && max < 0) e.maximumLevel = "Maximum level cannot be negative";
+    if (min !== null && max !== null && min > max) e.minimumLevel = "Minimum level must be ≤ maximum level";
+    if (max !== null && reorder !== null && max < reorder) e.maximumLevel = "Maximum level must be ≥ reorder level";
     setErrors(e); return Object.keys(e).length === 0;
   }
   async function handleSubmit() {
     if (!validate()) return;
     try {
-      if (editRecord) { await updateMutation.mutateAsync({ id: editRecord.id, data: form }); toast({ title: "Item updated" }); }
-      else { await createMutation.mutateAsync(form); toast({ title: "Item created" }); }
+      if (editRecord) {
+        await updateMutation.mutateAsync({ id: editRecord.id, data: form });
+        toast({ title: "Stock control settings saved successfully" });
+      } else {
+        await createMutation.mutateAsync(form);
+        toast({ title: "Item created successfully" });
+      }
       setModalOpen(false);
     } catch (err: unknown) { toast({ title: "Error", description: err instanceof Error ? err.message : "Error", variant: "destructive" }); }
   }
@@ -362,6 +377,42 @@ export default function PackagingMaterialsMaster() {
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}>
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`} />
             </button>
+          </div>
+
+          {/* Stock Control Settings */}
+          <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-3" style={{ color: "#B8A240" }}>
+              Stock Control Settings
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Minimum Level</label>
+                <input type="number" min="0" value={form.minimumLevel}
+                  onChange={(e) => setForm(f => ({ ...f, minimumLevel: e.target.value }))}
+                  placeholder="0"
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Reorder Level</label>
+                <input type="number" min="0" value={form.reorderLevel}
+                  onChange={(e) => setForm(f => ({ ...f, reorderLevel: e.target.value }))}
+                  placeholder="0"
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Maximum Level</label>
+                <input type="number" min="0" value={form.maximumLevel}
+                  onChange={(e) => setForm(f => ({ ...f, maximumLevel: e.target.value }))}
+                  placeholder="0"
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-2">
+              When stock falls at or below the reorder level, a Low Stock alert will be triggered.
+            </p>
           </div>
         </MasterFormModal>
 

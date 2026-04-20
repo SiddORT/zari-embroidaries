@@ -13,6 +13,9 @@ export const packagingMaterialsTable = pgTable("packaging_materials", {
   currentStock: numeric("current_stock", { precision: 14, scale: 3 }).default("0"),
   vendor: text("vendor"),
   location: text("location"),
+  reorderLevel: numeric("reorder_level", { precision: 14, scale: 3 }),
+  minimumLevel: numeric("minimum_level", { precision: 14, scale: 3 }),
+  maximumLevel: numeric("maximum_level", { precision: 14, scale: 3 }),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -33,6 +36,9 @@ export const insertPackagingMaterialSchema = z.object({
   currentStock: z.string().optional(),
   vendor: z.string().optional(),
   location: z.string().optional(),
+  reorderLevel: z.string().optional(),
+  minimumLevel: z.string().optional(),
+  maximumLevel: z.string().optional(),
   isActive: z.boolean().default(true),
 });
 
