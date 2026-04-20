@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings, BarChart2 } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -100,6 +100,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const ordersActive     = ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
   const operationsActive = ALL_OPERATIONS_HREFS.some(h => location === h || location.startsWith(h + "/"));
   const accountsActive   = location.startsWith("/accounts") || location.startsWith("/shipping");
+  const reportsActive    = location.startsWith("/settings/reports");
 
   const initials = (displayName || displayEmail || "")
     .split(/[\s@]/)
@@ -305,6 +306,11 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 </div>
               )}
             </div>
+
+            {/* Reports — direct link */}
+            <Link href="/settings/reports" className={navLink(reportsActive)}>
+              Reports
+            </Link>
 
           </nav>
 
@@ -536,6 +542,18 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   ))}
                 </div>
               )}
+
+              {/* Mobile Reports */}
+              <Link
+                href="/settings/reports"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  reportsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <BarChart2 className="h-4 w-4" />
+                Reports
+              </Link>
 
               <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-1">
                 <Link href="/settings" onClick={() => setMobileOpen(false)}

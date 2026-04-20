@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Package, BarChart2, ShoppingCart, FileText,
   Users, User, TrendingUp, Scale,
   Download, RefreshCw, ChevronRight, CheckCircle2,
+  Search, ChevronLeft,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +26,8 @@ const inp = "border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900
 
 const fmtCurr = (n: number | string) => "₹" + parseFloat(String(n ?? 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 const fmtNum  = (n: number | string) => parseFloat(String(n ?? 0)).toLocaleString("en-IN", { maximumFractionDigits: 3 });
+
+const PAGE_SIZE = 25;
 
 type ReportId =
   | "stock-summary"
@@ -132,8 +135,6 @@ function statusBadge(val: string) {
   return map[v] ?? "bg-gray-50 text-gray-600 border-gray-200";
 }
 
-const STATUS_COLS = new Set(["Status", "stock_status"]);
-
 interface FilterOptions {
   clients: { id: number; brand_name: string }[];
   vendors: { id: number; brand_name: string }[];
@@ -167,6 +168,9 @@ export default function Reports() {
   const [filterVendor, setFilterVendor] = useState("all");
   const [filterItem,   setFilterItem]   = useState("all");
 
+  const [search, setSearch] = useState("");
+  const [page,   setPage]   = useState(1);
+
   useEffect(() => {
     if (!token) return;
     customFetch<FilterOptions>("/api/reports/filter-options")
@@ -184,6 +188,8 @@ export default function Reports() {
     if (!token || !id) return;
     setLoading(true);
     setLoaded(false);
+    setSearch("");
+    setPage(1);
     const p = new URLSearchParams({ from: dateFrom, to: dateTo });
     if (filterClient !== "all") p.set("client", filterClient);
     if (filterVendor !== "all") p.set("vendor", filterVendor);
@@ -192,7 +198,7 @@ export default function Reports() {
       .then(d => {
         setRows(d.data ?? []);
         setLoaded(true);
-        toast({ title: "Report loaded successfully", description: `${d.data?.length ?? 0} records`, duration: 2500 });
+        toast({ title: "Report loaded", description: `${d.data?.length ?? 0} records`, duration: 2000 });
       })
       .catch(() => toast({ title: "Failed to load report", variant: "destructive" }))
       .finally(() => setLoading(false));
@@ -207,15 +213,28 @@ export default function Reports() {
 
   const refresh = () => { if (selected) fetchReport(selected); };
 
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(row =>
+      Object.values(row).some(v => String(v ?? "").toLowerCase().includes(q))
+    );
+  }, [rows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pagedRows  = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => { setPage(1); }, [search]);
+
   function exportCSV() {
-    if (!selected || rows.length === 0) return;
+    if (!selected || filteredRows.length === 0) return;
     const cols = REPORT_COLS[selected];
-    const header = cols.join(",");
-    const body = rows.map(row =>
-      cols.map(col => {
+    const header = ["Sr No", ...cols].join(",");
+    const body = filteredRows.map((row, i) =>
+      [`"${i + 1}"`, ...cols.map(col => {
         const v = rowVal(selected, row, col).replace(/₹/g, "").replace(/,/g, "");
         return `"${v}"`;
-      }).join(",")
+      })].join(",")
     ).join("\n");
     const blob = new Blob([header + "\n" + body], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
@@ -257,28 +276,18 @@ export default function Reports() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="h-px w-6 rounded-full" style={{ background: `linear-gradient(90deg, ${G}, transparent)` }} />
-              <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: G }}>SETTINGS · REPORTS</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: G }}>REPORTS</p>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
             <p className="text-sm text-gray-500 mt-0.5">Select a report, apply filters, and export data</p>
           </div>
           {selected && (
-            <div className="flex items-center gap-2">
-              <button onClick={refresh} disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                {loading ? "Loading…" : "Refresh"}
-              </button>
-              {rows.length > 0 && (
-                <button onClick={exportCSV}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all hover:bg-gray-50"
-                  style={{ borderColor: `${G}40`, color: G }}>
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </button>
-              )}
-            </div>
+            <button onClick={refresh} disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+              style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
           )}
         </div>
 
@@ -396,6 +405,33 @@ export default function Reports() {
                   </button>
                 </div>
 
+                {/* Search + Export row — shown only when data is loaded */}
+                {loaded && rows.length > 0 && (
+                  <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 bg-white">
+                    <div className="relative flex-1 max-w-sm">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Search within results…"
+                        className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40 focus:bg-white"
+                      />
+                    </div>
+                    {search && (
+                      <span className="text-xs text-gray-400">{filteredRows.length} of {rows.length} matching</span>
+                    )}
+                    <div className="ml-auto">
+                      <button onClick={exportCSV}
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all hover:bg-gray-50"
+                        style={{ borderColor: `${G}40`, color: G }}>
+                        <Download className="h-3.5 w-3.5" />
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Table */}
                 <div className="overflow-x-auto">
                   {loading ? (
@@ -407,10 +443,17 @@ export default function Reports() {
                       <FileText className="h-10 w-10 opacity-30" />
                       <p className="text-sm">No data found for the selected filters</p>
                     </div>
+                  ) : filteredRows.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-2">
+                      <Search className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">No results match your search</p>
+                    </div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-100">
+                        <tr className="border-b border-gray-100 bg-gray-50/50">
+                          <th className="text-left text-[10px] font-black uppercase tracking-[0.12em] px-4 py-3 whitespace-nowrap w-12"
+                            style={{ color: G }}>Sr No</th>
                           {REPORT_COLS[selected].map(col => (
                             <th key={col}
                               className="text-left text-[10px] font-black uppercase tracking-[0.12em] px-4 py-3 whitespace-nowrap"
@@ -421,43 +464,90 @@ export default function Reports() {
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.map((row, ri) => (
-                          <tr key={ri} className={`border-b border-gray-50 transition-colors ${ri % 2 === 0 ? "bg-white" : "bg-gray-50/40"} hover:bg-[${G}]/4`}>
-                            {REPORT_COLS[selected].map((col, ci) => {
-                              const val = rowVal(selected, row, col);
-                              const isStatus = col === "Status" || col === "stock_status";
-                              const isNeg = val.startsWith("₹-") || (col === "Net Revenue" && parseFloat(String((row as Record<string, unknown>)["net_revenue"] ?? 0)) < 0);
-                              return (
-                                <td key={ci} className="px-4 py-3 whitespace-nowrap">
-                                  {isStatus ? (
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge(val)}`}>
-                                      {val}
-                                    </span>
-                                  ) : (
-                                    <span className={`text-sm ${isNeg ? "text-red-600 font-semibold" : ci === 0 ? "font-medium text-gray-900" : "text-gray-700"}`}>
-                                      {val}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
+                        {pagedRows.map((row, ri) => {
+                          const globalIdx = (page - 1) * PAGE_SIZE + ri;
+                          return (
+                            <tr key={ri} className={`border-b border-gray-50 transition-colors ${ri % 2 === 0 ? "bg-white" : "bg-gray-50/40"} hover:bg-amber-50/20`}>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-xs font-semibold text-gray-400">{globalIdx + 1}</span>
+                              </td>
+                              {REPORT_COLS[selected].map((col, ci) => {
+                                const val = rowVal(selected, row, col);
+                                const isStatus = col === "Status" || col === "stock_status";
+                                const isNeg = val.startsWith("₹-") || (col === "Net Revenue" && parseFloat(String((row as Record<string, unknown>)["net_revenue"] ?? 0)) < 0);
+                                return (
+                                  <td key={ci} className="px-4 py-3 whitespace-nowrap">
+                                    {isStatus ? (
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge(val)}`}>
+                                        {val}
+                                      </span>
+                                    ) : (
+                                      <span className={`text-sm ${isNeg ? "text-red-600 font-semibold" : ci === 0 ? "font-medium text-gray-900" : "text-gray-700"}`}>
+                                        {val}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
                 </div>
 
-                {/* Footer with export */}
-                {rows.length > 0 && (
-                  <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/40">
-                    <p className="text-xs text-gray-400">{rows.length} records · {new Date().toLocaleString("en-IN")}</p>
-                    <button onClick={exportCSV}
-                      className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all hover:bg-white"
-                      style={{ borderColor: `${G}40`, color: G }}>
-                      <Download className="h-3.5 w-3.5" />
-                      Export CSV
-                    </button>
+                {/* Pagination footer */}
+                {loaded && filteredRows.length > 0 && (
+                  <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/40 gap-4 flex-wrap">
+                    <p className="text-xs text-gray-400">
+                      Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRows.length)} of {filteredRows.length} records
+                      {search && rows.length !== filteredRows.length ? ` (filtered from ${rows.length})` : ""}
+                      {" · "}{new Date().toLocaleString("en-IN")}
+                    </p>
+                    {totalPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setPage(p => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 2)
+                          .reduce<(number | "…")[]>((acc, n, i, arr) => {
+                            if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("…");
+                            acc.push(n);
+                            return acc;
+                          }, [])
+                          .map((n, i) =>
+                            n === "…" ? (
+                              <span key={`e${i}`} className="px-1.5 text-xs text-gray-400">…</span>
+                            ) : (
+                              <button
+                                key={n}
+                                onClick={() => setPage(n as number)}
+                                className={`min-w-[28px] h-7 rounded-lg text-xs font-semibold border transition-colors ${
+                                  page === n
+                                    ? "text-white border-transparent"
+                                    : "border-gray-200 text-gray-600 hover:bg-gray-100"
+                                }`}
+                                style={page === n ? { background: `linear-gradient(135deg, ${G}, ${G_DIM})`, borderColor: "transparent" } : {}}
+                              >
+                                {n}
+                              </button>
+                            )
+                          )}
+                        <button
+                          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                          disabled={page === totalPages}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X,
   Building2, Activity, Trash2, Star, Plus, Filter, Search,
   CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText, Receipt, ToggleLeft, ToggleRight, Info,
-  Layers, Check, ChevronRight, BarChart2
+  Layers, Check, ChevronRight
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,7 +50,6 @@ export default function Settings() {
     const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     return p && valid.includes(p) ? p : "profile";
   });
-  const goReports = () => setLocation("/settings/reports");
   const isAdmin = user?.role === "admin";
 
   function handleLogout() {
@@ -97,7 +96,6 @@ export default function Settings() {
                   <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => setTab("templates")} />
                 </>
               )}
-              <NavItem icon={<BarChart2 size={16} />} label="Reports" active={false} onClick={goReports} />
             </div>
           </aside>
 
