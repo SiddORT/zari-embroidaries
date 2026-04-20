@@ -405,6 +405,54 @@ export default function InvoiceList() {
         </div>
       </div>
 
+      {/* Actions Dropdown — portal-rendered to escape overflow:hidden card */}
+      {openActionId !== null && dropdownPos && (() => {
+        const inv = invoices.find(i => i.id === openActionId);
+        if (!inv) return null;
+        return createPortal(
+          <div
+            ref={actionMenuRef}
+            className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl min-w-[170px] py-1"
+            style={{ top: dropdownPos.top, right: dropdownPos.right }}
+          >
+            <button
+              onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}`); }}
+              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+            >
+              <Eye className="h-3.5 w-3.5" /> View Invoice
+            </button>
+            <button
+              onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}/edit`); }}
+              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+            >
+              <Edit2 className="h-3.5 w-3.5" /> Edit Invoice
+            </button>
+            {PAY_ELIGIBLE.includes(inv.invoiceStatus) && (
+              <button
+                onClick={() => { setOpenActionId(null); openPayModal(inv); }}
+                className="w-full text-left px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2.5"
+              >
+                <Wallet className="h-3.5 w-3.5" /> Record Payment
+              </button>
+            )}
+            <button
+              onClick={() => { setOpenActionId(null); setPreviewInvId(inv.id); }}
+              className="w-full text-left px-3 py-2 text-xs text-amber-700 hover:bg-amber-50 flex items-center gap-2.5"
+            >
+              <Printer className="h-3.5 w-3.5" /> Preview / PDF
+            </button>
+            <div className="mx-2 my-1 border-t border-gray-100" />
+            <button
+              onClick={() => { setOpenActionId(null); setDeleteTarget(inv); }}
+              className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+          </div>,
+          document.body
+        );
+      })()}
+
       {/* Record Payment Modal */}
       {payTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setPayTarget(null)}>
