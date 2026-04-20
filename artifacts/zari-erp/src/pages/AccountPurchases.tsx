@@ -19,7 +19,7 @@ const TH   = "px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase 
 const TD   = "px-3 py-3 text-sm text-gray-800";
 const INP  = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
 const LBL  = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const PAYMENT_TYPES = ["Bank Transfer", "UPI", "NEFT", "RTGS", "Cash", "Cheque", "Other"];
 const REF_TYPES = [
@@ -253,6 +253,7 @@ export default function AccountPurchases() {
   const [paymentRow, setPaymentRow]         = useState<any>(null);
   const [sidebarOpen, setSidebarOpen]       = useState(true);
   const [refreshKey, setRefreshKey]         = useState(0);
+  const [pendingSearch, setPendingSearch]   = useState("");
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -439,17 +440,6 @@ export default function AccountPurchases() {
                     {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                   </select>
                 </div>
-                <div className="lg:col-span-2">
-                  <label className={LBL}>Search</label>
-                  <div className="relative">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      className={`${INP} pl-8`}
-                      placeholder="Vendor name or reference no…"
-                      value={search}
-                      onChange={e => changeFilter(() => setSearch(e.target.value))} />
-                  </div>
-                </div>
               </div>
 
               {hasFilters && (
@@ -499,11 +489,39 @@ export default function AccountPurchases() {
                 </div>
               </div>
 
+              {/* Table Search Bar */}
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+                <div className="relative flex-1 max-w-sm">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    className="w-full border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30"
+                    placeholder="Vendor name or reference no…"
+                    value={pendingSearch}
+                    onChange={e => setPendingSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { setSearch(pendingSearch); setPage(1); } }}
+                  />
+                </div>
+                <button
+                  onClick={() => { setSearch(pendingSearch); setPage(1); }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all shrink-0"
+                  style={{ background: G }}>
+                  Search
+                </button>
+                {search && (
+                  <button
+                    onClick={() => { setPendingSearch(""); setSearch(""); setPage(1); }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-200 bg-white transition-all shrink-0">
+                    <X size={11}/> Clear
+                  </button>
+                )}
+              </div>
+
               {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[960px]">
+                <table className="w-full min-w-[980px]">
                   <thead className="sticky top-0 bg-white border-b border-gray-100 z-10">
                     <tr>
+                      <th className={`${TH} text-center w-10`}>Sr.</th>
                       <th className={TH}>Date</th>
                       <th className={TH}>Reference Type</th>
                       <th className={TH}>Reference No.</th>
@@ -520,7 +538,7 @@ export default function AccountPurchases() {
                     {loadingTable ? (
                       Array.from({ length: 8 }).map((_, i) => (
                         <tr key={i} className="border-b border-gray-50">
-                          {Array.from({ length: 10 }).map((_, j) => (
+                          {Array.from({ length: 11 }).map((_, j) => (
                             <td key={j} className={TD}>
                               <div className="h-3.5 bg-gray-100 rounded animate-pulse"
                                 style={{ width: `${50 + (j * 13) % 40}%` }} />
@@ -530,7 +548,7 @@ export default function AccountPurchases() {
                       ))
                     ) : liabilities.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center">
+                        <td colSpan={11} className="py-16 text-center">
                           <div className="flex flex-col items-center gap-3">
                             <Filter size={34} className="text-gray-200" />
                             <p className="text-sm text-gray-400">No payables found for the selected filters</p>
@@ -547,9 +565,11 @@ export default function AccountPurchases() {
                     ) : (
                       liabilities.map((row, i) => {
                         const settled = row.status === "Paid" || row.status === "Completed";
+                        const srNo = (page - 1) * PAGE_SIZE + i + 1;
                         return (
                           <tr key={`${row.ref_type}-${row.source_id}-${i}`}
                             className="border-b border-gray-50 hover:bg-[#C6AF4B]/[0.03] transition-colors group">
+                            <td className={`${TD} text-center text-xs font-medium text-gray-400`}>{srNo}</td>
                             <td className={`${TD} text-gray-500`}>{fmtDate(row.date)}</td>
                             <td className={TD}>{refTypeBadge(row.ref_type)}</td>
                             <td className={`${TD} font-mono text-xs text-gray-500`}>{row.ref_number || "—"}</td>
@@ -689,7 +709,7 @@ export default function AccountPurchases() {
         <PaymentModal
           row={paymentRow}
           onClose={() => setPaymentRow(null)}
-          onSuccess={() => setRefreshTick(t => t + 1)}
+          onSuccess={() => setRefreshKey(k => k + 1)}
         />
       )}
     </div>

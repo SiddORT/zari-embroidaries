@@ -384,7 +384,17 @@ router.get("/unified-liabilities", requireAuth, async (req, res) => {
       SELECT *, COUNT(*) OVER () AS total_count
       FROM all_liabilities
       WHERE 1=1 ${statusClause} ${refTypeClause} ${deptClause} ${searchClause}
-      ORDER BY date DESC NULLS LAST, amount DESC
+      ORDER BY
+        CASE status
+          WHEN 'Unpaid'          THEN 1
+          WHEN 'Partially Paid'  THEN 2
+          WHEN 'Pending'         THEN 3
+          WHEN 'Paid'            THEN 4
+          WHEN 'Completed'       THEN 5
+          ELSE 6
+        END,
+        date DESC NULLS LAST,
+        amount DESC
       LIMIT ${pLimit} OFFSET ${offset}
     `);
 
