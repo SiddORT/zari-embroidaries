@@ -432,6 +432,11 @@ export default function InvoiceForm() {
     paymentTerms: "",
     remarks: "",
     notes: "",
+    shippingAddress: "",
+    carrier: "",
+    trackingNumber: "",
+    dispatchDate: "",
+    expectedDelivery: "",
   });
 
   const [items, setItems] = useState<LineItem[]>([]);
@@ -585,6 +590,11 @@ export default function InvoiceForm() {
         paymentTerms: inv.paymentTerms ?? "",
         remarks: inv.remarks ?? "",
         notes: inv.notes ?? "",
+        shippingAddress: inv.shippingAddress ?? "",
+        carrier: inv.carrier ?? "",
+        trackingNumber: inv.trackingNumber ?? "",
+        dispatchDate: (inv.dispatchDate ?? "").slice(0, 10),
+        expectedDelivery: (inv.expectedDelivery ?? "").slice(0, 10),
       });
       if (Array.isArray(inv.items) && inv.items.length > 0) setItems(inv.items);
     }).catch(() => {});
@@ -806,6 +816,12 @@ export default function InvoiceForm() {
                             const c: Client = j.data ?? j;
                             if (!c) return;
                             const addr = [c.address1, c.address2, c.city, c.state, c.pincode].filter(Boolean).join(", ");
+                            const deliveryAddr = Array.isArray(c.addresses)
+                              ? c.addresses.find((a: any) => a.type === "Delivery Address")
+                              : null;
+                            const shipAddr = deliveryAddr
+                              ? [deliveryAddr.name, deliveryAddr.address1, deliveryAddr.address2, deliveryAddr.city, deliveryAddr.state, deliveryAddr.pincode, deliveryAddr.country].filter(Boolean).join(", ")
+                              : addr;
                             setForm(f => ({
                               ...f,
                               clientId: id,
@@ -815,6 +831,7 @@ export default function InvoiceForm() {
                               clientEmail: c.email ?? f.clientEmail,
                               clientPhone: c.contactNo ?? f.clientPhone,
                               clientState: c.state ?? f.clientState,
+                              shippingAddress: f.shippingAddress || shipAddr,
                             }));
                           }).catch(() => {
                             const c = clients.find(x => String(x.id) === id);
@@ -970,6 +987,87 @@ export default function InvoiceForm() {
                 <div>
                   <label className={lbl}>Payment Terms</label>
                   <input value={form.paymentTerms} onChange={e => setF("paymentTerms", e.target.value)} className={inp} placeholder="e.g. Net 30, Advance 50%" />
+                </div>
+              </div>
+            </div>
+
+            {/* Shipping Address */}
+            <div className={`${card} p-6`}>
+              <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                <h2 className="font-bold text-gray-900 text-sm">Shipping Address</h2>
+                {form.clientId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      customFetch<any>(`/api/clients/${form.clientId}`).then(j => {
+                        const c = j.data ?? j;
+                        if (!c) return;
+                        const deliveryAddr = Array.isArray(c.addresses)
+                          ? c.addresses.find((a: any) => a.type === "Delivery Address")
+                          : null;
+                        const addr = deliveryAddr
+                          ? [deliveryAddr.name, deliveryAddr.address1, deliveryAddr.address2, deliveryAddr.city, deliveryAddr.state, deliveryAddr.pincode, deliveryAddr.country].filter(Boolean).join(", ")
+                          : [c.address1, c.address2, c.city, c.state, c.pincode].filter(Boolean).join(", ");
+                        if (addr) setF("shippingAddress", addr);
+                      }).catch(() => {});
+                    }}
+                    className="text-xs font-semibold text-[#C6AF4B] hover:text-[#a89135] border border-[#C6AF4B]/40 hover:border-[#C6AF4B] rounded-lg px-3 py-1.5 transition"
+                  >
+                    Use Client Delivery Address
+                  </button>
+                )}
+              </div>
+              <div>
+                <label className={lbl}>Delivery / Ship-to Address</label>
+                <textarea
+                  value={form.shippingAddress}
+                  onChange={e => setF("shippingAddress", e.target.value)}
+                  rows={3}
+                  className={`${inp} resize-none`}
+                  placeholder="Full delivery address…"
+                />
+              </div>
+            </div>
+
+            {/* Tracking Details */}
+            <div className={`${card} p-6`}>
+              <h2 className="font-bold text-gray-900 text-sm mb-4 border-b border-gray-100 pb-3">Tracking Details</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Carrier / Courier</label>
+                  <input
+                    value={form.carrier}
+                    onChange={e => setF("carrier", e.target.value)}
+                    className={inp}
+                    placeholder="e.g. FedEx, DHL, DTDC, BlueDart"
+                  />
+                </div>
+                <div>
+                  <label className={lbl}>Tracking / AWB Number</label>
+                  <input
+                    value={form.trackingNumber}
+                    onChange={e => setF("trackingNumber", e.target.value)}
+                    className={inp}
+                    placeholder="Waybill / tracking number"
+                  />
+                </div>
+                <div>
+                  <label className={lbl}>Dispatch Date</label>
+                  <input
+                    type="date"
+                    value={form.dispatchDate}
+                    onChange={e => setF("dispatchDate", e.target.value)}
+                    className={inp}
+                  />
+                </div>
+                <div>
+                  <label className={lbl}>Expected Delivery</label>
+                  <input
+                    type="date"
+                    value={form.expectedDelivery}
+                    onChange={e => setF("expectedDelivery", e.target.value)}
+                    className={inp}
+                  />
                 </div>
               </div>
             </div>

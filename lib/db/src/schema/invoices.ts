@@ -70,6 +70,13 @@ export const invoicesTable = pgTable("invoices", {
   bankBranch: text("bank_branch").default(""),
   bankUpi: text("bank_upi").default(""),
 
+  // Shipping & tracking
+  shippingAddress: text("shipping_address").default(""),
+  carrier: text("carrier").default(""),
+  trackingNumber: text("tracking_number").default(""),
+  dispatchDate: text("dispatch_date").default(""),
+  expectedDelivery: text("expected_delivery").default(""),
+
   // Notes
   remarks: text("remarks").default(""),
   notes: text("notes").default(""),
