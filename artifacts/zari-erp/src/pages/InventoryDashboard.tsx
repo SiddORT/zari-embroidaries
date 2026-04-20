@@ -311,6 +311,16 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
+        {/* ── Procurement Pipeline ────────────────────────────── */}
+        <div>
+          <SectionHeader eyebrow="PROCUREMENT" title="Pipeline Snapshot" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {procurementCards.map(({ label, value, icon: Icon, color, bg }) => (
+              <StatCard key={label} label={label} value={value} Icon={Icon} color={color} bg={bg} loading={loading} />
+            ))}
+          </div>
+        </div>
+
         {/* ── Doughnut Charts + Reservation Card ─────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <InventoryDonut
@@ -412,50 +422,16 @@ export default function InventoryDashboard() {
               </div>
             </div>
 
-            {/* Consumption Summary */}
+            {/* Consumption — total number */}
             <div>
               <SectionHeader eyebrow="CONSUMPTION" title="Period Summary" />
-              <div className="flex flex-col gap-3">
-                <div className={`${card} p-4 flex items-center gap-4`}>
-                  <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-50">
-                    <Flame className="h-5 w-5 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{loading ? "…" : fmt(data?.totalConsumed ?? 0)}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Total units consumed · {dateFrom} → {dateTo}</p>
-                  </div>
+              <div className={`${card} p-4 flex items-center gap-4 h-[calc(100%-2rem)]`}>
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-50">
+                  <Flame className="h-5 w-5 text-red-500" />
                 </div>
-
-                <div className={`${card} p-4`}>
-                  <p className="text-[9px] font-black uppercase tracking-[0.15em] mb-3" style={{ color: G }}>Top 5 Consumed Items</p>
-                  {loading ? (
-                    <div className="space-y-2">{Array(5).fill(0).map((_, i) => <div key={i} className="h-6 rounded-lg bg-gray-100 animate-pulse" />)}</div>
-                  ) : (data?.topConsumed ?? []).length === 0 ? (
-                    <p className="text-sm text-gray-400 py-2 text-center">No consumption data for this period</p>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {(data?.topConsumed ?? []).map((item, i) => {
-                        const max = parseFloat((data?.topConsumed ?? [])[0]?.total_consumed ?? "1");
-                        const pct = max > 0 ? (parseFloat(item.total_consumed) / max) * 100 : 0;
-                        return (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                              style={{ background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }}>{i + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2 mb-1">
-                                <span className="text-[11px] font-medium text-gray-800 truncate">{item.item_name}</span>
-                                <span className="text-[11px] font-semibold text-gray-600 flex-shrink-0">{fmt(item.total_consumed)} {item.unit_type ?? ""}</span>
-                              </div>
-                              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-700"
-                                  style={{ width: `${pct}%`, background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }} />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{loading ? "…" : fmt(data?.totalConsumed ?? 0)}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Total units consumed · {dateFrom} → {dateTo}</p>
                 </div>
               </div>
             </div>
@@ -463,43 +439,72 @@ export default function InventoryDashboard() {
           </div>
         )}
 
-        {/* ── Procurement Pipeline ────────────────────────────── */}
+        {/* ── Trend Chart (left) + Top 5 Consumed (right) ────── */}
         <div>
-          <SectionHeader eyebrow="PROCUREMENT" title="Pipeline Snapshot" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {procurementCards.map(({ label, value, icon: Icon, color, bg }) => (
-              <StatCard key={label} label={label} value={value} Icon={Icon} color={color} bg={bg} loading={loading} />
-            ))}
-          </div>
-        </div>
+          <SectionHeader eyebrow="TREND & CONSUMPTION" title="Stock Movement · Top Consumed" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* ── Stock Movement Trend Chart ──────────────────────── */}
-        <div>
-          <SectionHeader eyebrow="TREND" title="Stock Movement Trend (Weekly)" />
-          <div className={`${card} p-5`}>
-            {loading ? (
-              <div className="h-56 rounded-xl bg-gray-100 animate-pulse" />
-            ) : trendData.length === 0 ? (
-              <div className="flex items-center justify-center h-56 text-gray-400 text-sm">
-                No stock movement data for selected period
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={trendData} barCategoryGap="30%" barGap={3}>
-                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#9CA3AF", fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#D1D5DB" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v)} />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <ReTooltip
-                    contentStyle={{ borderRadius: "12px", border: "1px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
-                    cursor={{ fill: `${G}08`, radius: 6 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                  <Bar dataKey="Added"    fill={G}       radius={[5,5,0,0]} animationBegin={200} animationDuration={700} />
-                  <Bar dataKey="Consumed" fill={SLATE}   radius={[5,5,0,0]} animationBegin={300} animationDuration={700} />
-                  <Bar dataKey="Wasted"   fill="#F87171" radius={[5,5,0,0]} animationBegin={400} animationDuration={700} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            {/* Trend Chart */}
+            <div className={`${card} p-5`}>
+              <p className="text-[9px] font-black uppercase tracking-[0.15em] mb-4" style={{ color: G }}>WEEKLY STOCK MOVEMENT</p>
+              {loading ? (
+                <div className="h-52 rounded-xl bg-gray-100 animate-pulse" />
+              ) : trendData.length === 0 ? (
+                <div className="flex items-center justify-center h-52 text-gray-400 text-sm">
+                  No stock movement data for selected period
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={trendData} barCategoryGap="30%" barGap={3}>
+                    <XAxis dataKey="period" tick={{ fontSize: 10, fill: "#9CA3AF", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#D1D5DB" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v)} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                    <ReTooltip
+                      contentStyle={{ borderRadius: "12px", border: "1px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      cursor={{ fill: `${G}08`, radius: 6 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                    <Bar dataKey="Added"    fill={G}       radius={[5,5,0,0]} animationBegin={200} animationDuration={700} />
+                    <Bar dataKey="Consumed" fill={SLATE}   radius={[5,5,0,0]} animationBegin={300} animationDuration={700} />
+                    <Bar dataKey="Wasted"   fill="#F87171" radius={[5,5,0,0]} animationBegin={400} animationDuration={700} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Top 5 Consumed */}
+            <div className={`${card} p-5`}>
+              <p className="text-[9px] font-black uppercase tracking-[0.15em] mb-4" style={{ color: G }}>TOP 5 CONSUMED ITEMS</p>
+              {loading ? (
+                <div className="space-y-3">{Array(5).fill(0).map((_, i) => <div key={i} className="h-8 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+              ) : (data?.topConsumed ?? []).length === 0 ? (
+                <div className="flex items-center justify-center h-52 text-gray-400 text-sm">No consumption data for this period</div>
+              ) : (
+                <div className="space-y-3.5">
+                  {(data?.topConsumed ?? []).map((item, i) => {
+                    const max = parseFloat((data?.topConsumed ?? [])[0]?.total_consumed ?? "1");
+                    const pct = max > 0 ? (parseFloat(item.total_consumed) / max) * 100 : 0;
+                    return (
+                      <div key={i} className="flex items-center gap-2.5">
+                        <span className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                          style={{ background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }}>{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="text-xs font-medium text-gray-800 truncate">{item.item_name}</span>
+                            <span className="text-xs font-semibold text-gray-600 flex-shrink-0">{fmt(item.total_consumed)} <span className="text-gray-400">{item.unit_type ?? ""}</span></span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${pct}%`, background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
