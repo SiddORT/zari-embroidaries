@@ -303,14 +303,14 @@ router.post("/packing-lists", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { err(res, e, "Failed to create packing list"); }
 });
 
-// PUT /api/packing-lists/:id  (header fields only)
+// PUT /api/packing-lists/:id  (header + packages full replace)
 router.put("/packing-lists/:id", requireAuth, async (req, res) => {
   try {
     const existing = await pool.query(`SELECT * FROM packing_lists WHERE id = $1`, [req.params.id]);
     if (!existing.rows.length) return res.status(404).json({ error: "Not found" });
     const ex = existing.rows[0];
 
-    const { delivery_address_id, shipment_id, destination_country, status, remarks } = req.body;
+    const { delivery_address_id, shipment_id, destination_country, status, remarks, packages } = req.body;
 
     if (delivery_address_id && delivery_address_id !== ex.delivery_address_id) {
       const addrCheck = await pool.query(
@@ -335,6 +335,32 @@ router.put("/packing-lists/:id", requireAuth, async (req, res) => {
         req.params.id,
       ]
     );
+
+    // If packages array provided, do a clean replace
+    if (Array.isArray(packages)) {
+      // Delete all existing packages (cascades to items via FK)
+      await pool.query(`DELETE FROM packing_packages WHERE packing_list_id = $1`, [req.params.id]);
+
+      for (let i = 0; i < packages.length; i++) {
+        const pkg = packages[i];
+        const pkgRow = await pool.query(
+          `INSERT INTO packing_packages (packing_list_id, package_number, length, width, height, net_weight, gross_weight, shipment_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+          [req.params.id, i + 1, pkg.length || null, pkg.width || null, pkg.height || null,
+           pkg.net_weight || null, pkg.gross_weight || null, pkg.shipment_id || shipment_id || null]
+        );
+        const pkgId = pkgRow.rows[0].id;
+        for (const item of (pkg.items ?? [])) {
+          await pool.query(
+            `INSERT INTO packing_package_items (package_id, order_type, order_id, order_code, description, quantity, unit, item_weight)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [pkgId, item.order_type, item.order_id, item.order_code || null,
+             item.description || null, item.quantity || null, item.unit || null, item.item_weight || null]
+          );
+        }
+      }
+    }
+
     res.json({ data: r.rows[0] });
   } catch (e) { err(res, e, "Failed to update packing list"); }
 });

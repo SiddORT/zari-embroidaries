@@ -364,7 +364,7 @@ export default function PackingListForm() {
                   <select
                     value={clientId}
                     onChange={e => { setClientId(e.target.value ? parseInt(e.target.value) : ""); setDeliveryAddressId(""); setPackages([]); setActivePackageId(null); }}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
                     disabled={isEdit}
                   >
                     <option value="">Select client…</option>
@@ -386,7 +386,7 @@ export default function PackingListForm() {
                     <select
                       value={deliveryAddressId}
                       onChange={e => { setDeliveryAddressId(e.target.value ? parseInt(e.target.value) : ""); setPackages([]); setActivePackageId(null); }}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
                       disabled={!clientId || isEdit}
                     >
                       <option value="">Select delivery address…</option>
@@ -436,7 +436,7 @@ export default function PackingListForm() {
                   <select
                     value={shipmentId}
                     onChange={e => setShipmentId(e.target.value ? parseInt(e.target.value) : "")}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
                   >
                     <option value="">No shipment linked</option>
                     {shipments.map(s => (
@@ -452,7 +452,7 @@ export default function PackingListForm() {
                     value={destinationCountry}
                     onChange={e => setDestinationCountry(e.target.value)}
                     placeholder="e.g. France"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -462,7 +462,7 @@ export default function PackingListForm() {
                     onChange={e => setRemarks(e.target.value)}
                     rows={2}
                     placeholder="Any additional notes…"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200 resize-none"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200 resize-none"
                   />
                 </div>
               </div>
@@ -547,7 +547,7 @@ export default function PackingListForm() {
                                   value={pkg[key]}
                                   onChange={e => updatePackageField(pkg.tempId, key, e.target.value)}
                                   placeholder="0"
-                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                                 />
                               </div>
                             ))}
@@ -578,7 +578,7 @@ export default function PackingListForm() {
                                         <input
                                           value={item.description}
                                           onChange={e => updateItemField(pkg.tempId, itemIdx, "description", e.target.value)}
-                                          className="w-full border border-gray-100 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                          className="w-full border border-gray-100 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                                         />
                                       </td>
                                       <td className="px-3 py-2">
@@ -586,14 +586,14 @@ export default function PackingListForm() {
                                           type="number"
                                           value={item.quantity}
                                           onChange={e => updateItemField(pkg.tempId, itemIdx, "quantity", e.target.value)}
-                                          className="w-16 border border-gray-100 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                          className="w-16 border border-gray-100 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                                         />
                                       </td>
                                       <td className="px-3 py-2">
                                         <input
                                           value={item.unit}
                                           onChange={e => updateItemField(pkg.tempId, itemIdx, "unit", e.target.value)}
-                                          className="w-14 border border-gray-100 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                          className="w-14 border border-gray-100 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                                         />
                                       </td>
                                       <td className="px-3 py-2">
@@ -602,7 +602,7 @@ export default function PackingListForm() {
                                           step="0.001"
                                           value={item.item_weight}
                                           onChange={e => updateItemField(pkg.tempId, itemIdx, "item_weight", e.target.value)}
-                                          className="w-16 border border-gray-100 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                          className="w-16 border border-gray-100 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                                           placeholder="0.000"
                                         />
                                       </td>
@@ -709,7 +709,7 @@ export default function PackingListForm() {
                       value={orderSearch}
                       onChange={e => setOrderSearch(e.target.value)}
                       placeholder="Search orders…"
-                      className="w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                      className="w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                     />
                   </div>
                   <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
@@ -770,7 +770,7 @@ export default function PackingListForm() {
                     value={(newAddr as any)[key]}
                     onChange={e => setNewAddr(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder={placeholder}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
                   />
                 </div>
               ))}
