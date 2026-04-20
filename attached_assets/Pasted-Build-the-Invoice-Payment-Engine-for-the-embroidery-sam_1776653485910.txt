@@ -1,0 +1,274 @@
+Build the Invoice Payment Engine for the embroidery sampling ERP system.
+
+This module must support:
+
+Client invoice payment tracking
+
+Vendor bill payment tracking
+
+Partial payments
+
+Multiple payments per invoice
+
+Multi-currency payment recording
+
+Exchange-rate snapshot locking
+
+Automatic invoice status updates
+
+Client ledger integration
+
+Vendor ledger integration
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Invoice Payment Engine
+
+---
+
+SECTION 1 — PAYMENT TABLE STRUCTURE
+
+---
+
+Create table:
+
+invoice_payments
+
+Fields:
+
+payment_id (primary key)
+
+invoice_id
+
+payment_direction
+
+party_id
+
+payment_type
+
+payment_amount
+
+currency_code
+
+exchange_rate_snapshot
+
+base_currency_amount
+
+transaction_reference
+
+payment_status
+
+payment_date
+
+remarks
+
+attachment
+
+created_by
+
+created_at
+
+updated_at
+
+payment_direction values:
+
+Received
+
+Paid
+
+Logic:
+
+Client Invoice → Received
+
+Vendor Bill → Paid
+
+---
+
+SECTION 2 — PAYMENT TYPE VALUES
+
+---
+
+payment_type values:
+
+Cash
+
+Bank Transfer
+
+UPI
+
+Cheque
+
+Online Gateway
+
+Adjustment
+
+Other
+
+---
+
+SECTION 3 — PAYMENT STATUS VALUES
+
+---
+
+payment_status values:
+
+Processing
+
+Completed
+
+Failed
+
+---
+
+SECTION 4 — MULTI-CURRENCY SUPPORT
+
+---
+
+Allow payments in:
+
+invoice currency
+
+OR
+
+base currency
+
+Store:
+
+currency_code
+
+exchange_rate_snapshot
+
+Calculate:
+
+base_currency_amount
+
+Formula:
+
+base_currency_amount =
+payment_amount × exchange_rate_snapshot
+
+Lock exchange_rate_snapshot after save.
+
+---
+
+SECTION 5 — MULTIPLE PAYMENTS PER INVOICE SUPPORT
+
+---
+
+Allow:
+
+multiple payment entries
+
+against same invoice
+
+Example:
+
+Invoice amount = 10,000
+
+Payment 1 = 4,000
+
+Payment 2 = 3,000
+
+Payment 3 = 3,000
+
+Final status:
+
+Paid
+
+---
+
+SECTION 6 — AUTOMATIC INVOICE STATUS UPDATE
+
+---
+
+After each payment entry:
+
+Update:
+
+received_amount
+
+pending_amount
+
+Apply rules:
+
+If pending_amount = total_amount
+
+status = Generated
+
+If pending_amount > 0 AND pending_amount < total_amount
+
+status = Partially Paid
+
+If pending_amount = 0
+
+status = Paid
+
+---
+
+SECTION 7 — CLIENT LEDGER ENTRY CREATION
+
+---
+
+If payment_direction = Received
+
+Create ledger entry inside:
+
+Client Ledger
+
+Fields mapped:
+
+client_id
+
+invoice_id
+
+entry_type = Payment Received
+
+payment_amount
+
+payment_date
+
+transaction_reference
+
+status = payment_status
+
+---
+
+SECTION 8 — VENDOR LEDGER ENTRY CREATION
+
+---
+
+If payment_direction = Paid
+
+Create ledger entry inside:
+
+Vendor Ledger
+
+Fields mapped:
+
+vendor_id
+
+invoice_id
+
+entry_type = Vendor Payment
+
+payment_amount
+
+payment_date
+
+transaction_reference
+
+status = payment_status
+
+---
+
+SECTION 9 — PAYMENT ENTRY SCREEN UI
+
+---
+
+Create page:
+
+Accounts

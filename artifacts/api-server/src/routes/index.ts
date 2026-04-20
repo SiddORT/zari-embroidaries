@@ -30,6 +30,7 @@ import procurementRouter from "./procurement";
 import quotationsRouter from "./quotations";
 import shippingRouter from "./shipping";
 import settingsRouter from "./settings";
+import invoicePaymentsRouter from "./invoicePayments";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(procurementRouter);
 router.use(quotationsRouter);
 router.use(shippingRouter);
 router.use(settingsRouter);
+router.use(invoicePaymentsRouter);
 
 export default router;

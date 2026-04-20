@@ -282,6 +282,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   {[
                     { label: "Ledgers",  href: "/accounts/ledgers" },
                     { label: "Invoices", href: "/accounts/invoices" },
+                    { label: "Payments", href: "/accounts/payments" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
@@ -511,6 +512,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   {[
                     { label: "Ledgers",  href: "/accounts/ledgers" },
                     { label: "Invoices", href: "/accounts/invoices" },
+                    { label: "Payments", href: "/accounts/payments" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
