@@ -13,7 +13,7 @@ import AppLayout from "@/components/layout/AppLayout";
 const G = "#C6AF4B";
 const card = "bg-white rounded-2xl border border-gray-200 shadow-sm";
 
-interface Client { id: number; brand_name: string; client_code: string; }
+interface Client { id: number; brandName: string; client_code: string; }
 interface DeliveryAddress {
   id: number; client_id: number; label: string;
   address_line1: string | null; city: string | null; state: string | null;
@@ -368,7 +368,7 @@ export default function PackingListForm() {
                     disabled={isEdit}
                   >
                     <option value="">Select client…</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.brand_name}</option>)}
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.brandName}</option>)}
                   </select>
                 </div>
                 <div>
