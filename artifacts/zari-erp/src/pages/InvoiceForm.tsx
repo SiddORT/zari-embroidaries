@@ -214,7 +214,7 @@ function InvoicePaymentsPanel({
             </div>
             <span className="text-[10px] text-gray-400 tabular-nums">{Math.round(pct)}%</span>
           </div>
-          {currentStatus !== "Paid" && currentStatus !== "Cancelled" && currentStatus !== "Draft" && (
+          {currentStatus !== "Cancelled" && (
             <button onClick={openModal}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shrink-0"
               style={{ backgroundColor: G }}>
@@ -1369,8 +1369,8 @@ export default function InvoiceForm() {
           </div>
         </div>
 
-        {/* Payments Panel — shown on saved invoices only */}
-        {isEdit && form.invoiceStatus !== "Draft" && form.invoiceStatus !== "Cancelled" && params.id && (
+        {/* Payments Panel — shown on all saved invoices */}
+        {isEdit && params.id && (
           <InvoicePaymentsPanel
             invoiceId={parseInt(params.id)}
             direction={form.invoiceDirection}
