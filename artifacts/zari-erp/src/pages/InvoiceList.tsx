@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useLocation } from "wouter";
-import { Plus, Search, FileText, Filter, ChevronDown, Eye, Trash2, Edit2, Printer } from "lucide-react";
+import { useLocation } from "wouter";
+import { Plus, Search, FileText, Eye, Trash2, Edit2, Printer, Wallet, X, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import InvoicePreviewModal from "@/components/InvoicePreviewModal";
+import { useAddInvoicePayment } from "@/hooks/useInvoicePayments";
 
 const G = "#C6AF4B";
 
@@ -71,6 +72,10 @@ interface Invoice {
   createdAt: string;
 }
 
+const PAYMENT_TYPES_LIST = ["Cash", "Bank Transfer", "UPI", "Cheque", "Online Gateway", "Adjustment", "Other"] as const;
+const PAYMENT_STATUSES_LIST = ["Completed", "Processing", "Failed"] as const;
+const PAY_ELIGIBLE = ["Sent", "Generated", "Partially Paid", "Overdue"];
+
 export default function InvoiceList() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -88,6 +93,50 @@ export default function InvoiceList() {
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [previewInvId, setPreviewInvId] = useState<number | null>(null);
+
+  const [payTarget, setPayTarget] = useState<Invoice | null>(null);
+  const [payForm, setPayForm] = useState({
+    payment_type: "Bank Transfer", payment_amount: "",
+    currency_code: "INR", exchange_rate_snapshot: "1",
+    transaction_reference: "", payment_status: "Completed",
+    payment_date: new Date().toISOString().slice(0, 10), remarks: "",
+  });
+  const addPmt = useAddInvoicePayment();
+
+  function openPayModal(inv: Invoice) {
+    const pending = parseFloat(String(inv.pendingAmount ?? 0));
+    setPayForm({
+      payment_type: "Bank Transfer",
+      payment_amount: pending > 0 ? pending.toFixed(2) : "",
+      currency_code: inv.currencyCode || "INR",
+      exchange_rate_snapshot: "1",
+      transaction_reference: "",
+      payment_status: "Completed",
+      payment_date: new Date().toISOString().slice(0, 10),
+      remarks: "",
+    });
+    setPayTarget(inv);
+  }
+
+  async function handlePaySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!payTarget) return;
+    const amt = parseFloat(payForm.payment_amount);
+    if (!amt || amt <= 0) return toast({ title: "Enter a valid amount", variant: "destructive" });
+    try {
+      await addPmt.mutateAsync({
+        invoice_id: payTarget.id,
+        ...payForm,
+        payment_amount: amt,
+        exchange_rate_snapshot: parseFloat(payForm.exchange_rate_snapshot),
+      });
+      toast({ title: "Payment recorded successfully" });
+      setPayTarget(null);
+      load();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -334,6 +383,15 @@ export default function InvoiceList() {
                         >
                           <Edit2 size={14} />
                         </button>
+                        {PAY_ELIGIBLE.includes(inv.invoiceStatus) && (
+                          <button
+                            onClick={() => openPayModal(inv)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
+                            title="Record Payment"
+                          >
+                            <Wallet size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => setPreviewInvId(inv.id)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition"
@@ -357,6 +415,85 @@ export default function InvoiceList() {
           </div>
         </div>
       </div>
+
+      {/* Record Payment Modal */}
+      {payTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setPayTarget(null)}>
+          <div className="rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Record Payment</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {payTarget.invoiceNo} · Pending: {payTarget.currencyCode} {parseFloat(String(payTarget.pendingAmount ?? 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <button onClick={() => setPayTarget(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X size={15} /></button>
+            </div>
+            <form onSubmit={handlePaySubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amount *</label>
+                  <input type="number" min="0.01" step="0.01" required value={payForm.payment_amount}
+                    onChange={e => setPayForm(p => ({ ...p, payment_amount: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment Date *</label>
+                  <input type="date" required value={payForm.payment_date}
+                    onChange={e => setPayForm(p => ({ ...p, payment_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment Type</label>
+                  <select value={payForm.payment_type} onChange={e => setPayForm(p => ({ ...p, payment_type: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B]">
+                    {PAYMENT_TYPES_LIST.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status</label>
+                  <select value={payForm.payment_status} onChange={e => setPayForm(p => ({ ...p, payment_status: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B]">
+                    {PAYMENT_STATUSES_LIST.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Transaction Reference</label>
+                <input type="text" placeholder="UTR / Cheque No. / Receipt No."
+                  value={payForm.transaction_reference} onChange={e => setPayForm(p => ({ ...p, transaction_reference: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Remarks</label>
+                <input type="text" placeholder="Optional note"
+                  value={payForm.remarks} onChange={e => setPayForm(p => ({ ...p, remarks: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20" />
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-[#C6AF4B]/20 px-4 py-3 text-xs flex items-center justify-between">
+                <span className="text-gray-500">Pending after this payment:</span>
+                <span className={`font-bold ${Math.max(0, parseFloat(String(payTarget.pendingAmount ?? 0)) - parseFloat(payForm.payment_amount || "0")) <= 0 ? "text-emerald-600" : "text-amber-700"}`}>
+                  {payTarget.currencyCode} {Math.max(0, parseFloat(String(payTarget.pendingAmount ?? 0)) - parseFloat(payForm.payment_amount || "0")).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setPayTarget(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={addPmt.isPending}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ backgroundColor: G }}>
+                  {addPmt.isPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  {addPmt.isPending ? "Saving…" : "Save Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Invoice Preview / Download Modal */}
       {previewInvId !== null && (
