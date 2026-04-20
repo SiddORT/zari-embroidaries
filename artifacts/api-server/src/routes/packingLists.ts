@@ -301,7 +301,7 @@ router.post("/packing-lists/:id/items", requireAuth, async (req, res) => {
     const pl = await pool.query(`SELECT * FROM packing_lists WHERE id = $1`, [req.params.id]);
     if (!pl.rows.length) return res.status(404).json({ error: "Packing list not found" });
 
-    const { item_type, item_id, order_code, description, qty, unit } = req.body;
+    const { item_type, item_id, order_code, description, qty, unit, weight_kg } = req.body;
     const { client_id, delivery_address_id } = pl.rows[0];
 
     // Duplicate check
@@ -336,12 +336,25 @@ router.post("/packing-lists/:id/items", requireAuth, async (req, res) => {
     }
 
     const r = await pool.query(
-      `INSERT INTO packing_list_items (packing_list_id, item_type, item_id, order_code, description, qty, unit)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [req.params.id, item_type, item_id, order_code || null, description || null, qty || null, unit || null]
+      `INSERT INTO packing_list_items (packing_list_id, item_type, item_id, order_code, description, qty, unit, weight_kg)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, item_type, item_id, order_code || null, description || null, qty || null, unit || null, weight_kg || null]
     );
     res.status(201).json({ data: r.rows[0] });
   } catch (e) { err(res, e, "Failed to add item"); }
+});
+
+// PATCH /api/packing-lists/:id/items/:itemId — update weight
+router.patch("/packing-lists/:id/items/:itemId", requireAuth, async (req, res) => {
+  try {
+    const { weight_kg } = req.body;
+    const r = await pool.query(
+      `UPDATE packing_list_items SET weight_kg = $1 WHERE id = $2 AND packing_list_id = $3 RETURNING *`,
+      [weight_kg ?? null, req.params.itemId, req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
+    res.json({ data: r.rows[0] });
+  } catch (e) { err(res, e, "Failed to update item"); }
 });
 
 // DELETE /api/packing-lists/:id/items/:itemId
@@ -445,6 +458,7 @@ router.get("/packing-lists/:id/pdf-html", requireAuth, async (req, res) => {
         <td>${item.description ?? ""}</td>
         <td>${item.qty ?? ""}</td>
         <td>${item.unit ?? ""}</td>
+        <td>${item.weight_kg != null ? Number(item.weight_kg).toFixed(3) + " kg" : "—"}</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html>
@@ -528,10 +542,11 @@ ${pl.remarks ? `<p style="margin-bottom:16px;font-size:12px;"><strong>Remarks:</
       <th>Description</th>
       <th>Qty</th>
       <th>Unit</th>
+      <th>Weight</th>
     </tr>
   </thead>
   <tbody>
-    ${rowsHtml || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No items added</td></tr>'}
+    ${rowsHtml || '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">No items added</td></tr>'}
   </tbody>
 </table>
 

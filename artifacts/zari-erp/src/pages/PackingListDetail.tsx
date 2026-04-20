@@ -37,7 +37,7 @@ interface PLDetail {
 interface PLItem {
   id: number; packing_list_id: number; item_type: string;
   item_id: number; order_code: string | null; description: string | null;
-  qty: string | null; unit: string | null;
+  qty: string | null; unit: string | null; weight_kg: string | null;
 }
 
 interface EligibleOrder {
@@ -75,6 +75,31 @@ export default function PackingListDetail() {
   const [orderTab, setOrderTab] = useState<"Swatch" | "Style">("Swatch");
   const [orderSearch, setOrderSearch] = useState("");
   const [addingItem, setAddingItem] = useState<number | null>(null);
+
+  // Weight editing state: itemId → draft value
+  const [itemWeights, setItemWeights] = useState<Record<number, string>>({});
+  const [savingWeightId, setSavingWeightId] = useState<number | null>(null);
+
+  async function handleSaveWeight(item: PLItem) {
+    const raw = itemWeights[item.id];
+    const val = raw !== undefined ? raw : (item.weight_kg ?? "");
+    setSavingWeightId(item.id);
+    try {
+      const parsed = val === "" ? null : parseFloat(val);
+      await customFetch(`/api/packing-lists/${pl?.id}/items/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ weight_kg: parsed }),
+      });
+      setPl(prev => prev ? {
+        ...prev,
+        items: prev.items.map(i => i.id === item.id ? { ...i, weight_kg: parsed === null ? null : String(parsed) } : i)
+      } : prev);
+      setItemWeights(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      toast({ title: "Weight saved" });
+    } catch {
+      toast({ title: "Failed to save weight", variant: "destructive" });
+    } finally { setSavingWeightId(null); }
+  }
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -293,7 +318,7 @@ export default function PackingListDetail() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-100 bg-gray-50">
-                          {["#", "Type", "Order Code", "Description", "Qty", "Unit", ""].map(h => (
+                          {["#", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", ""].map(h => (
                             <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                           ))}
                         </tr>
@@ -311,6 +336,29 @@ export default function PackingListDetail() {
                             <td className="px-4 py-3 text-gray-600">{item.description ?? "—"}</td>
                             <td className="px-4 py-3 text-gray-600">{item.qty ?? "—"}</td>
                             <td className="px-4 py-3 text-gray-500">{item.unit ?? "—"}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  min="0"
+                                  placeholder="—"
+                                  value={itemWeights[item.id] !== undefined ? itemWeights[item.id] : (item.weight_kg ?? "")}
+                                  onChange={e => setItemWeights(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === "Enter") handleSaveWeight(item); }}
+                                  className="w-20 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                />
+                                {(itemWeights[item.id] !== undefined) && (
+                                  <button
+                                    onClick={() => handleSaveWeight(item)}
+                                    disabled={savingWeightId === item.id}
+                                    className="text-xs text-amber-600 hover:text-amber-700 font-semibold disabled:opacity-50"
+                                  >
+                                    {savingWeightId === item.id ? "…" : "Save"}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-3">
                               <button
                                 onClick={() => handleDeleteItem(item.id)}
