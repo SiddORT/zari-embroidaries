@@ -160,7 +160,7 @@ export default function PackingLists() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Packing Lists</h1>
-              <p className="text-sm text-gray-500">Manage packing lists per client, delivery address and shipment</p>
+              <p className="text-sm text-gray-900">Manage packing lists per client, delivery address and shipment</p>
             </div>
           </div>
           <button
@@ -182,7 +182,7 @@ export default function PackingLists() {
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Search PL number, client, shipment..."
-                className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
               />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -236,32 +236,32 @@ export default function PackingLists() {
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
                       {["#", "PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Net Wt", "Gross Wt", "Status", ""].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-900 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {records.map((r, idx) => (
                       <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-400 text-xs font-medium whitespace-nowrap">{(page - 1) * LIMIT + idx + 1}</td>
+                        <td className="px-4 py-3 text-gray-900 text-xs font-medium whitespace-nowrap">{(page - 1) * LIMIT + idx + 1}</td>
                         <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{r.pl_number}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.client_name}</td>
+                        <td className="px-4 py-3 text-gray-900">{r.client_name}</td>
                         <td className="px-4 py-3">
                           {r.delivery_address_label ? (
                             <div className="flex items-start gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
+                              <MapPin className="h-3.5 w-3.5 text-gray-500 mt-0.5 shrink-0" />
                               <div>
-                                <div className="font-medium text-gray-700">{r.delivery_address_label}</div>
-                                <div className="text-xs text-gray-400">{[r.city, r.addr_country].filter(Boolean).join(", ")}</div>
+                                <div className="font-medium text-gray-900">{r.delivery_address_label}</div>
+                                <div className="text-xs text-gray-900">{[r.city, r.addr_country].filter(Boolean).join(", ")}</div>
                               </div>
                             </div>
-                          ) : <span className="text-gray-400">—</span>}
+                          ) : <span className="text-gray-900">—</span>}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">{r.shipment_tracking ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{r.destination_country ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-700 font-semibold">{r.total_packages ?? "0"}</td>
-                        <td className="px-4 py-3 text-gray-600 text-xs">{r.total_net_weight ? `${Number(r.total_net_weight).toFixed(2)} kg` : "—"}</td>
-                        <td className="px-4 py-3 text-gray-600 text-xs">{r.total_gross_weight ? `${Number(r.total_gross_weight).toFixed(2)} kg` : "—"}</td>
+                        <td className="px-4 py-3 text-gray-900 font-mono text-xs">{r.shipment_tracking ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-900">{r.destination_country ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-900 font-semibold">{r.total_packages ?? "0"}</td>
+                        <td className="px-4 py-3 text-gray-900 text-xs">{r.total_net_weight ? `${Number(r.total_net_weight).toFixed(2)} kg` : "—"}</td>
+                        <td className="px-4 py-3 text-gray-900 text-xs">{r.total_gross_weight ? `${Number(r.total_gross_weight).toFixed(2)} kg` : "—"}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_COLORS[r.status] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
                             {r.status}
@@ -302,14 +302,14 @@ export default function PackingLists() {
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-gray-900">
                     {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} of {total}
                   </span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-40"
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-900 disabled:opacity-40"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -318,7 +318,7 @@ export default function PackingLists() {
                         key={p}
                         onClick={() => setPage(p)}
                         className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                          p === page ? "text-white" : "text-gray-600 hover:bg-gray-100"
+                          p === page ? "text-white" : "text-gray-900 hover:bg-gray-100"
                         }`}
                         style={p === page ? { backgroundColor: G } : {}}
                       >
@@ -328,7 +328,7 @@ export default function PackingLists() {
                     <button
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-40"
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-900 disabled:opacity-40"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
