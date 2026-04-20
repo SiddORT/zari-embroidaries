@@ -34,6 +34,7 @@ const OPERATIONS_SECTIONS = [
     title: "Inventory",
     items: [
       { label: "Item Stock List",   href: "/inventory/items" },
+      { label: "Low Stock Alerts",  href: "/inventory/low-stock-alerts" },
       { label: "Stock Ledger",      href: "/inventory/ledger" },
       { label: "Reservations",      href: "/inventory/reservations" },
       { label: "Stock Adjustments", href: "/inventory/adjustments" },
