@@ -309,4 +309,82 @@ router.get("/reports/purchase-vs-sales", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/reports/gst-summary", requireAuth, async (req, res) => {
+  try {
+    const { year, month, client, vendor } = req.query as Record<string, string>;
+    const gstYear   = parseInt(year  || String(new Date().getFullYear()), 10);
+    const gstMonth  = month  && month  !== "all" ? parseInt(month,  10) : null;
+    const gstClient = client && client !== "all" ? client : null;
+    const gstVendor = vendor && vendor !== "all" ? vendor : null;
+
+    const params: (number | string | null)[] = [gstYear, gstMonth, gstClient, gstVendor];
+
+    const rows = await pool.query(`
+      SELECT
+        invoice_no                                                                        AS ref_no,
+        client_name                                                                       AS party_name,
+        'Sales Invoice'                                                                   AS transaction_type,
+        ROUND(COALESCE(subtotal_amount, 0), 2)                                           AS taxable_amount,
+        ROUND(COALESCE(subtotal_amount,0) * COALESCE(NULLIF(cgst_rate,'')::numeric,0) / 100, 2) AS cgst,
+        ROUND(COALESCE(subtotal_amount,0) * COALESCE(NULLIF(sgst_rate,'')::numeric,0) / 100, 2) AS sgst,
+        0::numeric                                                                        AS igst,
+        ROUND(COALESCE(subtotal_amount,0) * (COALESCE(NULLIF(cgst_rate,'')::numeric,0) + COALESCE(NULLIF(sgst_rate,'')::numeric,0)) / 100, 2) AS total_gst,
+        COALESCE(invoice_date, TO_CHAR(created_at, 'YYYY-MM-DD'))                       AS transaction_date
+      FROM invoices
+      WHERE LEFT(COALESCE(invoice_date, TO_CHAR(created_at,'YYYY-MM-DD')), 4) = $1::text
+        AND ($2::int IS NULL OR SUBSTRING(COALESCE(invoice_date, TO_CHAR(created_at,'YYYY-MM-DD')), 6, 2)::int = $2::int)
+        AND ($3::text IS NULL OR client_name ILIKE '%' || $3::text || '%')
+        AND subtotal_amount IS NOT NULL
+        AND COALESCE(NULLIF(cgst_rate,''),'0') != '0'
+
+      UNION ALL
+
+      SELECT
+        COALESCE(vendor_invoice_number, pr_number, '—')                                 AS ref_no,
+        vendor_name                                                                       AS party_name,
+        'Vendor Bill'                                                                     AS transaction_type,
+        ROUND(vendor_invoice_amount * 100.0 / 118, 2)                                   AS taxable_amount,
+        ROUND(vendor_invoice_amount * 9.0 / 118, 2)                                     AS cgst,
+        ROUND(vendor_invoice_amount * 9.0 / 118, 2)                                     AS sgst,
+        0::numeric                                                                        AS igst,
+        ROUND(vendor_invoice_amount * 18.0 / 118, 2)                                    AS total_gst,
+        vendor_invoice_date::text                                                         AS transaction_date
+      FROM vendor_invoice_ledger
+      WHERE EXTRACT(YEAR FROM vendor_invoice_date) = $1::int
+        AND ($2::int IS NULL OR EXTRACT(MONTH FROM vendor_invoice_date) = $2::int)
+        AND ($4::text IS NULL OR vendor_name ILIKE '%' || $4::text || '%')
+
+      ORDER BY transaction_date DESC
+    `, params);
+
+    const collected = rows.rows.filter(r => r.transaction_type === 'Sales Invoice');
+    const paid      = rows.rows.filter(r => r.transaction_type === 'Vendor Bill');
+
+    const sumF = (arr: Record<string, unknown>[], key: string) =>
+      arr.reduce((s, r) => s + parseFloat(String(r[key] ?? "0")), 0);
+
+    const summary = {
+      collected: {
+        cgst:  parseFloat(sumF(collected, 'cgst').toFixed(2)),
+        sgst:  parseFloat(sumF(collected, 'sgst').toFixed(2)),
+        igst:  parseFloat(sumF(collected, 'igst').toFixed(2)),
+        total: parseFloat(sumF(collected, 'total_gst').toFixed(2)),
+      },
+      paid: {
+        cgst:  parseFloat(sumF(paid, 'cgst').toFixed(2)),
+        sgst:  parseFloat(sumF(paid, 'sgst').toFixed(2)),
+        igst:  parseFloat(sumF(paid, 'igst').toFixed(2)),
+        total: parseFloat(sumF(paid, 'total_gst').toFixed(2)),
+      },
+    };
+    const netLiability = parseFloat((summary.collected.total - summary.paid.total).toFixed(2));
+
+    res.json({ data: rows.rows, summary, netLiability });
+  } catch (err) {
+    console.error("[reports/gst-summary]", err);
+    res.status(500).json({ error: "Failed to load GST summary" });
+  }
+});
+
 export default router;
+

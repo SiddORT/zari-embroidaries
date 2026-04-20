@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Package, BarChart2, ShoppingCart, FileText,
-  Users, User, TrendingUp, Scale,
+  Users, User, TrendingUp, Scale, Receipt,
   Download, RefreshCw, ChevronRight, CheckCircle2,
-  Search, ChevronLeft,
+  Search, ChevronLeft, AlertCircle, CheckCircle,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,14 @@ const fmtCurr = (n: number | string) => "₹" + parseFloat(String(n ?? 0)).toLoc
 const fmtNum  = (n: number | string) => parseFloat(String(n ?? 0)).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 const PAGE_SIZE = 25;
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
+const MONTH_OPTIONS = [
+  { v: "1", l: "January" }, { v: "2", l: "February" }, { v: "3", l: "March" },
+  { v: "4", l: "April" },   { v: "5", l: "May" },       { v: "6", l: "June" },
+  { v: "7", l: "July" },    { v: "8", l: "August" },    { v: "9", l: "September" },
+  { v: "10", l: "October" }, { v: "11", l: "November" }, { v: "12", l: "December" },
+];
 
 type ReportId =
   | "stock-summary"
@@ -37,7 +45,8 @@ type ReportId =
   | "vendor-ledger"
   | "client-ledger"
   | "order-profitability"
-  | "purchase-vs-sales";
+  | "purchase-vs-sales"
+  | "gst-summary";
 
 interface ReportCard {
   id: ReportId;
@@ -57,6 +66,7 @@ const REPORT_CARDS: ReportCard[] = [
   { id: "client-ledger",       name: "Client Ledger",       desc: "Client payment entries against issued invoices",              icon: User,        color: "#059669", bg: "rgba(5,150,105,0.1)" },
   { id: "order-profitability", name: "Order Profitability", desc: "Invoice vs shipping cost per swatch & style order",           icon: TrendingUp,  color: "#DC2626", bg: "rgba(220,38,38,0.1)" },
   { id: "purchase-vs-sales",   name: "Purchase vs Sales",   desc: "Aggregate comparison — sales, purchases & other expenses",    icon: Scale,       color: G_DIM,     bg: `${G_DIM}18`          },
+  { id: "gst-summary",         name: "GST Summary",         desc: "GST Collected vs GST Paid and Net GST Liability",             icon: Receipt,     color: "#0D9488", bg: "rgba(13,148,136,0.1)"},
 ];
 
 const REPORT_COLS: Record<ReportId, string[]> = {
@@ -68,10 +78,20 @@ const REPORT_COLS: Record<ReportId, string[]> = {
   "client-ledger":       ["Client", "Entry Type", "Reference", "Amount", "Date", "Status"],
   "order-profitability": ["Order ID", "Client", "Type", "Invoice Amount", "Shipping Cost", "Net Profit"],
   "purchase-vs-sales":   ["Period", "Total Sales", "Total Purchases", "Other Expenses", "Net Revenue"],
+  "gst-summary":         ["Ref No", "Party Name", "Transaction Type", "Taxable Amount", "CGST", "SGST", "IGST", "Total GST", "Date"],
 };
 
+interface GstSummary {
+  collected: { cgst: number; sgst: number; igst: number; total: number };
+  paid:      { cgst: number; sgst: number; igst: number; total: number };
+}
+
 function rowVal(id: ReportId, row: Record<string, unknown>, col: string): string {
-  const currCols = new Set(["PO Amount","PR Value","Vendor Bills","Pending Payables","Invoice Amount","Received Amount","Pending Amount","Amount","Paid","Balance","Net Profit","Total Sales","Total Purchases","Other Expenses","Net Revenue"]);
+  const currCols = new Set([
+    "PO Amount","PR Value","Vendor Bills","Pending Payables","Invoice Amount","Received Amount",
+    "Pending Amount","Amount","Paid","Balance","Net Profit","Total Sales","Total Purchases",
+    "Other Expenses","Net Revenue","Taxable Amount","CGST","SGST","IGST","Total GST",
+  ]);
   const key = col.toLowerCase().replace(/ /g, "_").replace(/\./g, "");
   const aliases: Record<string, string> = {
     "item":            "item_name",
@@ -109,6 +129,13 @@ function rowVal(id: ReportId, row: Record<string, unknown>, col: string): string
     "other_expenses":  "other_expenses",
     "net_revenue":     "net_revenue",
     "client_name":     "client_name",
+    "ref_no":          "ref_no",
+    "party_name":      "party_name",
+    "taxable_amount":  "taxable_amount",
+    "cgst":            "cgst",
+    "sgst":            "sgst",
+    "igst":            "igst",
+    "total_gst":       "total_gst",
   };
   const fieldKey = aliases[key] ?? key;
   const val = row[fieldKey] ?? row[key] ?? "—";
@@ -131,6 +158,9 @@ function statusBadge(val: string) {
     "completed":     "bg-emerald-50 text-emerald-700 border-emerald-200",
     "processing":    "bg-blue-50 text-blue-700 border-blue-200",
     "final invoice": "bg-blue-50 text-blue-700 border-blue-200",
+    "sales invoice": "bg-teal-50 text-teal-700 border-teal-200",
+    "vendor bill":   "bg-violet-50 text-violet-700 border-violet-200",
+    "expense gst":   "bg-orange-50 text-orange-700 border-orange-200",
   };
   return map[v] ?? "bg-gray-50 text-gray-600 border-gray-200";
 }
@@ -156,6 +186,8 @@ export default function Reports() {
 
   const [selected,   setSelected]   = useState<ReportId | null>(null);
   const [rows,       setRows]       = useState<Record<string, unknown>[]>([]);
+  const [gstSummary, setGstSummary] = useState<GstSummary | null>(null);
+  const [gstNet,     setGstNet]     = useState<number | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [loaded,     setLoaded]     = useState(false);
   const [opts,       setOpts]       = useState<FilterOptions>({ clients: [], vendors: [], items: [] });
@@ -167,6 +199,9 @@ export default function Reports() {
   const [filterClient, setFilterClient] = useState("all");
   const [filterVendor, setFilterVendor] = useState("all");
   const [filterItem,   setFilterItem]   = useState("all");
+
+  const [gstYear,  setGstYear]  = useState(String(CURRENT_YEAR));
+  const [gstMonth, setGstMonth] = useState("all");
 
   const [search, setSearch] = useState("");
   const [page,   setPage]   = useState(1);
@@ -190,19 +225,36 @@ export default function Reports() {
     setLoaded(false);
     setSearch("");
     setPage(1);
-    const p = new URLSearchParams({ from: dateFrom, to: dateTo });
-    if (filterClient !== "all") p.set("client", filterClient);
-    if (filterVendor !== "all") p.set("vendor", filterVendor);
-    if (filterItem   !== "all") p.set("item",   filterItem);
-    customFetch<{ data: Record<string, unknown>[] }>(`/api/reports/${id}?${p}`)
+    setGstSummary(null);
+    setGstNet(null);
+
+    let url: string;
+    if (id === "gst-summary") {
+      const p = new URLSearchParams({ year: gstYear });
+      if (gstMonth !== "all") p.set("month", gstMonth);
+      if (filterClient !== "all") p.set("client", filterClient);
+      if (filterVendor !== "all") p.set("vendor", filterVendor);
+      url = `/api/reports/gst-summary?${p}`;
+    } else {
+      const p = new URLSearchParams({ from: dateFrom, to: dateTo });
+      if (filterClient !== "all") p.set("client", filterClient);
+      if (filterVendor !== "all") p.set("vendor", filterVendor);
+      if (filterItem   !== "all") p.set("item",   filterItem);
+      url = `/api/reports/${id}?${p}`;
+    }
+
+    customFetch<{ data: Record<string, unknown>[]; summary?: GstSummary; netLiability?: number }>(url)
       .then(d => {
         setRows(d.data ?? []);
+        if (d.summary)     setGstSummary(d.summary);
+        if (d.netLiability !== undefined) setGstNet(d.netLiability);
         setLoaded(true);
-        toast({ title: "Report loaded", description: `${d.data?.length ?? 0} records`, duration: 2000 });
+        const title = id === "gst-summary" ? "GST summary report loaded successfully" : "Report loaded";
+        toast({ title, description: `${d.data?.length ?? 0} records`, duration: 2000 });
       })
       .catch(() => toast({ title: "Failed to load report", variant: "destructive" }))
       .finally(() => setLoading(false));
-  }, [token, dateFrom, dateTo, filterClient, filterVendor, filterItem, toast]);
+  }, [token, dateFrom, dateTo, filterClient, filterVendor, filterItem, gstYear, gstMonth, toast]);
 
   const selectReport = (id: ReportId) => {
     setSelected(id);
@@ -236,19 +288,26 @@ export default function Reports() {
         return `"${v}"`;
       })].join(",")
     ).join("\n");
+    let filename = `${selected}_${today.replace(/-/g, "")}.csv`;
+    if (selected === "gst-summary") {
+      filename = gstMonth !== "all"
+        ? `gst_summary_${gstYear}${gstMonth.padStart(2, "0")}.csv`
+        : `gst_summary_${gstYear}.csv`;
+    }
     const blob = new Blob([header + "\n" + body], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href     = url;
-    a.download = `${selected}_${today.replace(/-/g, "")}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  const showDate    = !!selected && selected !== "stock-summary";
-  const showClient  = !!selected && ["invoice-summary", "client-ledger"].includes(selected);
-  const showVendor  = !!selected && ["purchase-summary", "vendor-ledger"].includes(selected);
-  const showItem    = !!selected && ["stock-summary", "stock-movement"].includes(selected);
+  const isGst      = selected === "gst-summary";
+  const showDate   = !!selected && selected !== "stock-summary" && !isGst;
+  const showClient = !!selected && (["invoice-summary", "client-ledger"].includes(selected) || isGst);
+  const showVendor = !!selected && (["purchase-summary", "vendor-ledger"].includes(selected) || isGst);
+  const showItem   = !!selected && ["stock-summary", "stock-movement"].includes(selected);
 
   const selectedCard = REPORT_CARDS.find(r => r.id === selected);
 
@@ -298,9 +357,9 @@ export default function Reports() {
         ) : (
           <>
             {/* Report Cards Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {REPORT_CARDS.map(rc => {
-                const Icon    = rc.icon;
+                const Icon     = rc.icon;
                 const isActive = selected === rc.id;
                 return (
                   <button
@@ -359,6 +418,27 @@ export default function Reports() {
 
                 {/* Filter Row */}
                 <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50/60 flex flex-wrap gap-4 items-end">
+
+                  {/* GST-specific filters */}
+                  {isGst && (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Year <span className="text-red-400">*</span></label>
+                        <select value={gstYear} onChange={e => setGstYear(e.target.value)} className={inp}>
+                          {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Month</label>
+                        <select value={gstMonth} onChange={e => setGstMonth(e.target.value)} className={inp}>
+                          <option value="all">All Months</option>
+                          {MONTH_OPTIONS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Standard date range filters */}
                   {showDate && (
                     <>
                       <div className="flex flex-col gap-1">
@@ -405,7 +485,79 @@ export default function Reports() {
                   </button>
                 </div>
 
-                {/* Search + Export row — shown only when data is loaded */}
+                {/* GST Summary Panel */}
+                {isGst && loaded && gstSummary && (
+                  <div className="px-5 py-4 border-b border-gray-100 bg-teal-50/30">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-3" style={{ color: "#0D9488" }}>GST SUMMARY</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                      {/* GST Collected */}
+                      <div className="rounded-xl border border-teal-200/60 bg-white p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="h-7 w-7 rounded-lg bg-teal-50 flex items-center justify-center">
+                            <CheckCircle className="h-3.5 w-3.5 text-teal-600" />
+                          </div>
+                          <p className="text-xs font-bold text-gray-700">GST Collected</p>
+                        </div>
+                        <p className="text-xl font-black text-teal-700 mb-2">{fmtCurr(gstSummary.collected.total)}</p>
+                        <div className="space-y-1 text-xs text-gray-500">
+                          <div className="flex justify-between"><span>CGST</span><span className="font-semibold">{fmtCurr(gstSummary.collected.cgst)}</span></div>
+                          <div className="flex justify-between"><span>SGST</span><span className="font-semibold">{fmtCurr(gstSummary.collected.sgst)}</span></div>
+                          <div className="flex justify-between"><span>IGST</span><span className="font-semibold">{fmtCurr(gstSummary.collected.igst)}</span></div>
+                        </div>
+                      </div>
+
+                      {/* GST Paid */}
+                      <div className="rounded-xl border border-violet-200/60 bg-white p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="h-7 w-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                            <Receipt className="h-3.5 w-3.5 text-violet-600" />
+                          </div>
+                          <p className="text-xs font-bold text-gray-700">GST Paid</p>
+                        </div>
+                        <p className="text-xl font-black text-violet-700 mb-2">{fmtCurr(gstSummary.paid.total)}</p>
+                        <div className="space-y-1 text-xs text-gray-500">
+                          <div className="flex justify-between"><span>CGST</span><span className="font-semibold">{fmtCurr(gstSummary.paid.cgst)}</span></div>
+                          <div className="flex justify-between"><span>SGST</span><span className="font-semibold">{fmtCurr(gstSummary.paid.sgst)}</span></div>
+                          <div className="flex justify-between"><span>IGST</span><span className="font-semibold">{fmtCurr(gstSummary.paid.igst)}</span></div>
+                        </div>
+                      </div>
+
+                      {/* Net GST Liability */}
+                      <div className={`rounded-xl border p-4 ${
+                        gstNet !== null && gstNet >= 0
+                          ? "border-amber-300/60 bg-amber-50"
+                          : "border-emerald-200/60 bg-emerald-50"
+                      }`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${
+                            gstNet !== null && gstNet >= 0 ? "bg-amber-100" : "bg-emerald-100"
+                          }`}>
+                            <AlertCircle className={`h-3.5 w-3.5 ${
+                              gstNet !== null && gstNet >= 0 ? "text-amber-700" : "text-emerald-700"
+                            }`} />
+                          </div>
+                          <p className="text-xs font-bold text-gray-700">Net GST Liability</p>
+                        </div>
+                        <p className={`text-xl font-black mb-1 ${
+                          gstNet !== null && gstNet >= 0 ? "text-amber-700" : "text-emerald-700"
+                        }`}>{fmtCurr(Math.abs(gstNet ?? 0))}</p>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                          gstNet !== null && gstNet >= 0
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                        }`}>
+                          {gstNet !== null && gstNet >= 0 ? "PAYABLE" : "REFUNDABLE"}
+                        </span>
+                        <p className="text-[11px] text-gray-500 mt-2">
+                          Collected − Paid = {fmtCurr(gstNet ?? 0)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Search + Export row */}
                 {loaded && rows.length > 0 && (
                   <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 bg-white">
                     <div className="relative flex-1 max-w-sm">
@@ -454,7 +606,7 @@ export default function Reports() {
                         <tr className="border-b border-gray-100 bg-gray-50/50">
                           <th className="text-left text-[10px] font-black uppercase tracking-[0.12em] px-4 py-3 whitespace-nowrap w-12"
                             style={{ color: G }}>Sr No</th>
-                          {REPORT_COLS[selected].map(col => (
+                          {REPORT_COLS[selected!].map(col => (
                             <th key={col}
                               className="text-left text-[10px] font-black uppercase tracking-[0.12em] px-4 py-3 whitespace-nowrap"
                               style={{ color: G }}>
@@ -471,10 +623,10 @@ export default function Reports() {
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <span className="text-xs font-semibold text-gray-400">{globalIdx + 1}</span>
                               </td>
-                              {REPORT_COLS[selected].map((col, ci) => {
-                                const val = rowVal(selected, row, col);
-                                const isStatus = col === "Status" || col === "stock_status";
-                                const isNeg = val.startsWith("₹-") || (col === "Net Revenue" && parseFloat(String((row as Record<string, unknown>)["net_revenue"] ?? 0)) < 0);
+                              {REPORT_COLS[selected!].map((col, ci) => {
+                                const val     = rowVal(selected!, row, col);
+                                const isStatus = col === "Status" || col === "stock_status" || col === "Transaction Type";
+                                const isNeg   = val.startsWith("₹-") || (col === "Net Revenue" && parseFloat(String((row as Record<string, unknown>)["net_revenue"] ?? 0)) < 0);
                                 return (
                                   <td key={ci} className="px-4 py-3 whitespace-nowrap">
                                     {isStatus ? (

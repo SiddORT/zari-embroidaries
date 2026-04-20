@@ -1,0 +1,263 @@
+Add a GST Report inside:
+
+Settings → Reports
+
+Display it as a report card named:
+
+GST Summary Report
+
+This report must show GST Collected vs GST Paid and Net GST Liability.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+GST Summary Report
+
+---
+
+SECTION 1 — REPORT CARD
+
+Add report card:
+
+GST Summary Report
+
+Display:
+
+Icon
+
+Title
+
+Short description:
+
+GST Collected vs GST Paid summary
+
+Click action:
+
+Load report inside Report Viewer Panel
+
+---
+
+SECTION 2 — FILTER BAR
+
+Display filters:
+
+Year selector (required)
+
+Month selector (optional)
+
+Vendor selector (optional)
+
+Client selector (optional)
+
+Behavior:
+
+If only Year selected:
+
+show yearly GST summary
+
+If Month + Year selected:
+
+show monthly GST summary
+
+---
+
+SECTION 3 — GST COLLECTED DATA SOURCE
+
+Fetch from:
+
+client invoices
+
+Fields used:
+
+cgst_amount
+
+sgst_amount
+
+igst_amount
+
+total_gst_amount
+
+Display totals:
+
+Total CGST Collected
+
+Total SGST Collected
+
+Total IGST Collected
+
+Total GST Collected
+
+---
+
+SECTION 4 — GST PAID DATA SOURCE
+
+Fetch from:
+
+vendor bills
+
+purchase receipts with vendor invoice GST
+
+other expenses with GST (if available)
+
+Fields used:
+
+cgst_amount
+
+sgst_amount
+
+igst_amount
+
+Display totals:
+
+Total CGST Paid
+
+Total SGST Paid
+
+Total IGST Paid
+
+Total GST Paid
+
+---
+
+SECTION 5 — NET GST LIABILITY PANEL
+
+Display summary card:
+
+Net GST Liability
+
+Formula:
+
+Net GST Liability =
+
+Total GST Collected − Total GST Paid
+
+Display result as:
+
+Payable (if positive)
+
+Refundable (if negative)
+
+---
+
+SECTION 6 — REPORT TABLE STRUCTURE
+
+Display grouped table:
+
+Invoice / Vendor Bill Number
+
+Party Name
+
+Transaction Type
+
+Taxable Amount
+
+CGST
+
+SGST
+
+IGST
+
+Total GST
+
+Transaction Date
+
+Transaction Type values:
+
+Sales Invoice
+
+Vendor Bill
+
+Expense GST
+
+---
+
+SECTION 7 — SUMMARY PANEL (TOP)
+
+Display cards:
+
+GST Collected
+
+GST Paid
+
+Net GST Liability
+
+Highlight Net GST Liability card visually.
+
+---
+
+SECTION 8 — EXPORT SUPPORT
+
+Add button:
+
+Export CSV
+
+File name format:
+
+gst_summary_YYYY.csv
+
+or
+
+gst_summary_YYYYMM.csv
+
+depending on filter selection
+
+---
+
+SECTION 9 — LIVE DATA REQUIREMENT
+
+Report must:
+
+fetch latest GST values
+
+respect filters instantly
+
+refresh after filter change
+
+not cache totals
+
+---
+
+SECTION 10 — UI INTEGRATION
+
+Load report inside:
+
+existing Report Viewer Panel
+
+Use existing:
+
+filter row
+
+table styling
+
+CSV export button
+
+Maintain same styling as other reports
+
+---
+
+SECTION 11 — PERMISSIONS CONTROL
+
+Allow access:
+
+Admin users
+
+Accounts users
+
+Restrict:
+
+general users
+
+---
+
+SECTION 12 — SUCCESS MESSAGE
+
+After report loads:
+
+Display:
+
+GST summary report loaded successfully
+
+END OF MODULE
