@@ -283,7 +283,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
-                    { label: "Other Expenses",       href: "/accounts/purchases?tab=expenses" },
                     { label: "Shipments",            href: "/shipping" },
                   ].map(({ label, href }) => (
                     <Link
@@ -291,7 +290,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                       href={href}
                       onClick={() => setAccountsOpen(false)}
                       className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        location === href || location.startsWith(href.split("?")[0] + "/")
+                        location === href || location.startsWith(href + "/")
                           ? "text-gray-900 bg-gray-50 font-semibold"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       }`}
@@ -516,7 +515,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
-                    { label: "Other Expenses",       href: "/accounts/purchases?tab=expenses" },
                     { label: "Shipments",            href: "/shipping" },
                   ].map(({ label, href }) => (
                     <Link
@@ -524,7 +522,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                       href={href}
                       onClick={() => setMobileOpen(false)}
                       className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location === href || location.startsWith(href.split("?")[0] + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                        location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
                       }`}
                     >
                       {label}
