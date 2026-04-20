@@ -1815,6 +1815,39 @@ router.post("/costing-payments", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /costing/costing-payments/:id — update payment fields
+router.patch("/costing-payments/:id", requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE costing_payments SET
+         payment_type = COALESCE($1, payment_type),
+         payment_mode = COALESCE($2, payment_mode),
+         payment_amount = COALESCE($3, payment_amount),
+         payment_status = COALESCE($4, payment_status),
+         transaction_id = COALESCE($5, transaction_id),
+         payment_date = COALESCE($6, payment_date),
+         remarks = COALESCE($7, remarks)
+       WHERE id = $8
+       RETURNING *`,
+      [
+        paymentType ?? null, paymentMode ?? null,
+        paymentAmount != null ? parseFloat(paymentAmount) : null,
+        paymentStatus ?? null,
+        transactionId ?? null,
+        paymentDate ? new Date(paymentDate) : null,
+        remarks ?? null,
+        id,
+      ]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Not found" });
+    res.json({ data: rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /costing/costing-payments/:id — admin only
 router.delete("/costing-payments/:id", requireAuth, async (req, res) => {
   try {
