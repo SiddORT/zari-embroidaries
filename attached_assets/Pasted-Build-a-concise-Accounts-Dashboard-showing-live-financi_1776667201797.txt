@@ -1,0 +1,247 @@
+Build a concise Accounts Dashboard showing live financial summary using existing modules only.
+
+Do NOT create new tables.
+
+Fetch data from:
+
+invoices
+
+invoice_payments
+
+vendor_ledger
+
+other_expenses
+
+purchase_orders
+
+purchase_receipts
+
+credit_debit_notes
+
+shipments
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Accounts Dashboard
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Add menu:
+
+Accounts → Dashboard
+
+Make this default Accounts landing page.
+
+---
+
+SECTION 2 — FILTER ROW (TOP)
+
+Single row filters:
+
+Date Range
+
+Vendor
+
+Client
+
+Filters apply to entire dashboard.
+
+Dashboard refreshes instantly after filter change.
+
+---
+
+SECTION 3 — SALES SUMMARY CARDS
+
+Display 3 cards:
+
+Total Invoiced
+
+Total Received
+
+Pending Receivables
+
+Fetch from:
+
+invoices
+
+invoice_payments
+
+---
+
+SECTION 4 — PURCHASE SUMMARY CARDS
+
+Display 3 cards:
+
+Total Vendor Bills
+
+Total Paid to Vendors
+
+Pending Vendor Payables
+
+Fetch from:
+
+vendor_ledger
+
+purchase_receipts
+
+---
+
+SECTION 5 — PROCUREMENT PIPELINE SNAPSHOT
+
+Display 2 cards:
+
+Total Purchase Orders
+
+Total Purchase Receipts
+
+Fetch from:
+
+purchase_orders
+
+purchase_receipts
+
+---
+
+SECTION 6 — OTHER EXPENSE SUMMARY
+
+Display card:
+
+Total Other Expenses
+
+Fetch from:
+
+other_expenses
+
+---
+
+SECTION 7 — SHIPPING RECOVERY SUMMARY
+
+Display card:
+
+Shipping Cost vs Recovered Amount
+
+Show difference value:
+
+Profit or Loss
+
+Fetch from:
+
+shipments
+
+---
+
+SECTION 8 — NET REVENUE CARD (HIGHLIGHTED)
+
+Display:
+
+Net Revenue
+
+Formula:
+
+Total Sales − Total Purchases
+
+Purchases include:
+
+Vendor Bills
+
+Other Expenses
+
+Outsource Payments
+
+Highlight card visually.
+
+---
+
+SECTION 9 — SALES VS PURCHASE TREND CHART
+
+Add chart:
+
+Sales vs Purchases
+
+Grouped by:
+
+Monthly
+
+Weekly
+
+Based on Date Range filter.
+
+---
+
+SECTION 10 — OUTSTANDING SNAPSHOT
+
+Display:
+
+Top 5 Clients Pending Payment
+
+Top 5 Vendors Pending Payment
+
+Fetch from:
+
+invoices
+
+vendor_ledger
+
+---
+
+SECTION 11 — UI LAYOUT ORDER
+
+Layout:
+
+Filter Row
+
+Sales Cards
+
+Purchase Cards
+
+Procurement Snapshot
+
+Expense Card
+
+Shipping Card
+
+Net Revenue Card
+
+Trend Chart
+
+Outstanding Snapshot
+
+Use existing counter-card styling.
+
+---
+
+SECTION 12 — LIVE DATA REQUIREMENT
+
+Dashboard must:
+
+always show real-time values
+
+refresh after filter change
+
+not cache totals
+
+---
+
+SECTION 13 — PERMISSIONS
+
+Allow access:
+
+Accounts users
+
+Admin users
+
+---
+
+SECTION 14 — SUCCESS MESSAGE
+
+Display:
+
+Accounts dashboard loaded successfully
+
+END OF MODULE

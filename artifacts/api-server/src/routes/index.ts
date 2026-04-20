@@ -34,6 +34,7 @@ import invoicePaymentsRouter from "./invoicePayments";
 import creditDebitNotesRouter from "./creditDebitNotes";
 import accountPurchasesRouter from "./accountPurchases";
 import otherExpensesRouter from "./otherExpenses";
+import accountsDashboardRouter from "./accountsDashboard";
 
 const router: IRouter = Router();
 
@@ -72,5 +73,6 @@ router.use(invoicePaymentsRouter);
 router.use("/credit-debit-notes", creditDebitNotesRouter);
 router.use("/account-purchases", accountPurchasesRouter);
 router.use(otherExpensesRouter);
+router.use(accountsDashboardRouter);
 
 export default router;

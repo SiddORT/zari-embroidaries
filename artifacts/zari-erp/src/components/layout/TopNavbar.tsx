@@ -279,6 +279,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {accountsOpen && (
                 <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
                   {[
+                    { label: "Dashboard",            href: "/accounts/dashboard" },
                     { label: "Ledgers",              href: "/accounts/ledgers" },
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
@@ -512,6 +513,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileAccountsOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {[
+                    { label: "Dashboard",            href: "/accounts/dashboard" },
                     { label: "Ledgers",              href: "/accounts/ledgers" },
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },

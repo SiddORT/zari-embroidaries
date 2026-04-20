@@ -55,6 +55,7 @@ import Accounts from "@/pages/Accounts";
 import CreditDebitNotes from "@/pages/CreditDebitNotes";
 import AccountPurchases from "@/pages/AccountPurchases";
 import OtherExpenses from "@/pages/OtherExpenses";
+import AccountsDashboard from "@/pages/AccountsDashboard";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,8 @@ function Router() {
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/client/:token" component={ClientPortal} />
+      <Route path="/accounts/dashboard" component={AccountsDashboard} />
+      <Route path="/accounts" component={AccountsDashboard} />
       <Route path="/accounts/ledgers" component={VendorLedgers} />
       <Route path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} />
       <Route path="/accounts/invoices/new" component={InvoiceForm} />
