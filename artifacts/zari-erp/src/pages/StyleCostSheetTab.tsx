@@ -149,16 +149,6 @@ export default function StyleCostSheetTab({
       .catch(() => {});
   }, [styleOrderId]);
 
-  const filteredArtworks = isFiltered
-    ? artworks.filter(a => String(a.styleOrderProductId ?? "") === selectedProductId)
-    : artworks;
-
-  const artworkToileTotal = filteredArtworks.reduce((s, a) => s + (parseFloat(a.toileCost ?? "") || 0), 0);
-  const artworkPatternTotal = filteredArtworks
-    .filter(a => a.patternType === "Outhouse")
-    .reduce((s, a) => s + (parseFloat(a.patternPaymentAmount ?? "") || 0), 0);
-  const artworkTotal = artworkToileTotal + artworkPatternTotal;
-
   function getBomHsnGst(r: BomRecord): { hsnCode: string; gstPct: number } {
     const master = r.materialType === "fabric"
       ? fabricsMaster.find(f => f.fabricCode === r.materialCode)
@@ -194,6 +184,10 @@ export default function StyleCostSheetTab({
   const filteredCustom = isFiltered
     ? customCharges.filter(r => String((r as any).styleOrderProductId ?? "") === selectedProductId)
     : customCharges;
+
+  const filteredArtworks = isFiltered
+    ? artworks.filter(a => String(a.styleOrderProductId ?? "") === selectedProductId)
+    : artworks;
 
   // For consumption: filter log entries by product, then recalculate consumed qty per BOM row
   const filteredConsumptionLog = isFiltered
@@ -236,6 +230,12 @@ export default function StyleCostSheetTab({
     return s + base * gstPct / 100;
   }, 0);
   const customTotal = customBaseTotal + (includeGst ? customGstTotal : 0);
+
+  const artworkToileTotal = filteredArtworks.reduce((s, a) => s + (parseFloat(a.toileCost ?? "") || 0), 0);
+  const artworkPatternTotal = filteredArtworks
+    .filter(a => a.patternType === "Outhouse")
+    .reduce((s, a) => s + (parseFloat(a.patternPaymentAmount ?? "") || 0), 0);
+  const artworkTotal = artworkToileTotal + artworkPatternTotal;
 
   const grandTotal = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal + artworkTotal;
 
