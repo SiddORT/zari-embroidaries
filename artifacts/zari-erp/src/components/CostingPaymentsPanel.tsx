@@ -160,7 +160,7 @@ export default function CostingPaymentsPanel({
   }
 
   const inpCls = "mt-0.5 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-amber-400";
-  const lblCls = "text-[10px] text-gray-500 font-medium";
+  const lblCls = "text-[10px] text-gray-900 font-medium";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/60 overflow-hidden">
