@@ -191,10 +191,10 @@ function ExpenseModal({
                 onChange={e => {
                   const v = vendors.find((x: any) => String(x.id) === e.target.value);
                   set("vendor_id", e.target.value);
-                  set("vendor_name", v?.brand_name ?? "");
+                  set("vendor_name", v?.brandName ?? "");
                 }}>
                 <option value="">— None —</option>
-                {vendors.map((v: any) => <option key={v.id} value={String(v.id)}>{v.brand_name}</option>)}
+                {vendors.map((v: any) => <option key={v.id} value={String(v.id)}>{v.brandName}</option>)}
               </select>
             </div>
 
@@ -458,7 +458,7 @@ export default function OtherExpenses() {
               <label className={LBL}>Vendor</label>
               <select className={INP} value={vendorF} onChange={e => setVendorF(e.target.value)}>
                 <option value="">All Vendors</option>
-                {vendors.map((v: any) => <option key={v.id} value={String(v.id)}>{v.brand_name}</option>)}
+                {vendors.map((v: any) => <option key={v.id} value={String(v.id)}>{v.brandName}</option>)}
               </select>
             </div>
             <div className="w-44">
