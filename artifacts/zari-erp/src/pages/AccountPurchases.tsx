@@ -1,595 +1,228 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useCallback } from "react";
 import {
-  Search, Plus, ShoppingCart, FileText, MoreHorizontal,
-  CreditCard, Eye, X, CheckCircle2, Clock, AlertTriangle,
-  Package, DollarSign, Filter,
-  Wallet, RefreshCw, ArrowRight,
+  Search, CreditCard, X, CheckCircle2, Clock, AlertTriangle,
+  Package, Wallet, RefreshCw, ArrowRight, Filter,
+  ShoppingCart, Truck, Wrench, Receipt, ChevronLeft, ChevronRight, Building2,
 } from "lucide-react";
 import { useGetMe } from "@workspace/api-client-react";
 import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 
-/* ── styles ─────────────────────────────────────────── */
-const CARD  = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
-const TH    = "px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap";
-const TD    = "px-3 py-3 text-sm text-gray-800";
-const INP   = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
-const LBL   = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
-const G     = "#C6AF4B";
+/* ── theme ───────────────────────────────────────────── */
+const G  = "#C6AF4B";
+const SL = "#3B3F5C";
+const CARD = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.10),0_1px_3px_rgba(0,0,0,0.05)]";
+const TH   = "px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap";
+const TD   = "px-3 py-3 text-sm text-gray-800";
+const INP  = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white";
+const LBL  = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
+const BTN_G = "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-sm hover:opacity-90 active:scale-95";
 
 const PAYMENT_TYPES = ["Bank Transfer", "UPI", "NEFT", "RTGS", "Cash", "Cheque", "Other"];
+
+const REF_TYPES = [
+  { value: "", label: "All Types" },
+  { value: "Purchase Receipt", label: "Purchase Receipt" },
+  { value: "Costing Outsource", label: "Costing Outsource" },
+  { value: "Artisan", label: "Artisan" },
+  { value: "Shipping", label: "Shipping" },
+  { value: "Other Expense", label: "Other Expense" },
+];
+
+const DEPARTMENTS = [
+  { value: "", label: "All Departments" },
+  { value: "Purchase Receipt Vendor Bills", label: "Purchase Receipt Vendor Bills" },
+  { value: "Costing Outsource", label: "Costing Outsource" },
+  { value: "Artisan Labor", label: "Artisan Labor" },
+  { value: "Shipping Vendor", label: "Shipping Vendor" },
+];
+
+const STATUS_TABS = ["All", "Unpaid", "Partially Paid", "Paid", "Pending"];
 
 /* ── helpers ─────────────────────────────────────────── */
 function fmtDate(s: string | null) {
   if (!s) return "—";
-  return new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  try { return new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+  catch { return s; }
 }
-function fmtAmt(n: number | string | null, sym = "₹") {
+function fmtAmt(n: number | string | null) {
   const v = parseFloat(String(n ?? 0));
-  return isNaN(v) ? "—" : `${sym}${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return isNaN(v) ? "₹0.00" : `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-function badge(label: string, cls: string) {
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{label}</span>;
-}
-
-const PO_STATUS: Record<string, string> = {
-  Draft: "bg-gray-100 text-gray-700", Approved: "bg-blue-100 text-blue-700",
-  "Partially Received": "bg-amber-100 text-amber-700", Closed: "bg-green-100 text-green-700",
-  Cancelled: "bg-red-100 text-red-700",
-};
-const BILL_STATUS: Record<string, string> = {
-  Unpaid: "bg-red-100 text-red-700", "Partially Paid": "bg-amber-100 text-amber-700",
-  Paid: "bg-green-100 text-green-700", Adjusted: "bg-purple-100 text-purple-700",
-};
-
-/* ── Dropdown portal ─────────────────────────────────── */
-function DropdownMenu({ items }: { items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[] }) {
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    Paid: "bg-emerald-100 text-emerald-700",
+    Completed: "bg-emerald-100 text-emerald-700",
+    "Partially Paid": "bg-amber-100 text-amber-700",
+    Unpaid: "bg-red-100 text-red-700",
+    Pending: "bg-blue-100 text-blue-700",
+  };
   return (
-    <div className="py-1 min-w-[150px]">
-      {items.map(it => (
-        <button key={it.label} onClick={it.onClick}
-          className={`flex items-center gap-2 w-full px-3 py-2 text-sm font-medium transition-colors ${it.danger ? "text-red-600 hover:bg-red-50" : "text-gray-700 hover:bg-gray-50"}`}>
-          {it.icon}{it.label}
-        </button>
-      ))}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${map[status] ?? "bg-gray-100 text-gray-700"}`}>
+      {status}
+    </span>
+  );
+}
+function refTypeBadge(rt: string) {
+  const map: Record<string, string> = {
+    "Purchase Receipt": "bg-blue-50 text-blue-700",
+    "Costing Outsource": "bg-purple-50 text-purple-700",
+    "Artisan": "bg-orange-50 text-orange-700",
+    "Shipping": "bg-teal-50 text-teal-700",
+    "Other Expense": "bg-gray-100 text-gray-700",
+  };
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${map[rt] ?? "bg-gray-100 text-gray-600"}`}>
+      {rt}
+    </span>
+  );
+}
+
+/* ── SummaryCard ────────────────────────────────────── */
+function SummaryCard({ icon, label, value, sub, color = G, loading }: {
+  icon: React.ReactNode; label: string; value: string; sub?: string; color?: string; loading?: boolean;
+}) {
+  return (
+    <div className={`${CARD} p-4 flex flex-col gap-3 hover:shadow-md transition-shadow`}>
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${color}18` }}>
+        <span style={{ color }}>{icon}</span>
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{label}</p>
+        {loading
+          ? <div className="h-6 w-24 bg-gray-100 rounded animate-pulse mt-1.5" />
+          : <p className="text-xl font-bold mt-0.5" style={{ color: SL }}>{value}</p>
+        }
+        {sub && !loading && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      </div>
     </div>
   );
 }
 
-/* ── Payment Modal ───────────────────────────────────── */
-function PaymentModal({
-  title, totalAmount, onClose, onSave,
-}: {
-  title: string; totalAmount: number; onClose: () => void; onSave: (data: any) => Promise<void>;
+/* ── PaymentModal ───────────────────────────────────── */
+function PaymentModal({ row, onClose, onSuccess }: {
+  row: any; onClose: () => void; onSuccess: () => void;
 }) {
+  const { toast } = useToast();
   const [form, setForm] = useState({
-    payment_amount: String(totalAmount.toFixed(2)),
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_amount: "",
     payment_type: "Bank Transfer",
     transaction_reference: "",
+    payment_date: new Date().toISOString().slice(0, 10),
     remarks: "",
   });
   const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
 
-  async function submit() {
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const amt = parseFloat(form.payment_amount);
+    if (!amt || amt <= 0) {
+      toast({ title: "Enter a valid payment amount", variant: "destructive" }); return;
+    }
     setSaving(true);
     try {
-      await onSave(form);
+      const res = await customFetch("/api/account-purchases/record-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref_type: row.ref_type, source_id: row.source_id,
+          vendor_name: row.vendor_name, vendor_id: row.vendor_id_text,
+          ...form,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Payment failed");
+      toast({
+        title: "Vendor payment recorded successfully",
+        description: `${fmtAmt(amt)} paid to ${row.vendor_name}`,
+      });
+      onSuccess();
       onClose();
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setSaving(false); }
   }
 
+  const pendingAmt = parseFloat(row.pending_amount ?? row.amount ?? 0);
+
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
-      <div className={`${CARD} w-[480px] p-6`}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#C6AF4B]/20 overflow-hidden">
+        <div
+          className="flex items-center justify-between px-5 py-4 border-b border-gray-100"
+          style={{ background: `linear-gradient(135deg, ${SL}06, ${G}08)` }}>
+          <div>
+            <h2 className="text-base font-bold" style={{ color: SL }}>Vendor Payment Entry</h2>
+            <p className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{row.vendor_name} · {row.ref_type}</p>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
+            <X size={16} className="text-gray-500" />
+          </button>
         </div>
-        <div className="space-y-3">
+
+        {pendingAmt > 0 && (
+          <div className="mx-5 mt-4 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-700">
+              Pending: <strong>{fmtAmt(pendingAmt)}</strong> of {fmtAmt(row.amount)}
+            </p>
+          </div>
+        )}
+
+        <form onSubmit={submit} className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={LBL}>Payment Amount *</label>
-              <input type="number" value={form.payment_amount} onChange={e => setForm(f => ({ ...f, payment_amount: e.target.value }))} className={INP} min="0.01" step="0.01" />
+              <input
+                type="number" min="0.01" step="0.01" required className={INP}
+                placeholder={`Max ${fmtAmt(pendingAmt)}`} value={form.payment_amount}
+                onChange={e => setForm(p => ({ ...p, payment_amount: e.target.value }))} />
             </div>
             <div>
               <label className={LBL}>Payment Date *</label>
-              <input type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} className={INP} />
+              <input type="date" required className={INP} value={form.payment_date}
+                onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} />
             </div>
           </div>
+
           <div>
             <label className={LBL}>Payment Type</label>
-            <select value={form.payment_type} onChange={e => setForm(f => ({ ...f, payment_type: e.target.value }))} className={INP}>
-              {PAYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
+            <select className={INP} value={form.payment_type}
+              onChange={e => setForm(p => ({ ...p, payment_type: e.target.value }))}>
+              {PAYMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
+
           <div>
-            <label className={LBL}>Transaction Reference</label>
-            <input value={form.transaction_reference} onChange={e => setForm(f => ({ ...f, transaction_reference: e.target.value }))} className={INP} placeholder="UTR / Cheque No." />
+            <label className={LBL}>Transaction ID / Reference</label>
+            <input className={INP} placeholder="UTR / Cheque No. / Reference"
+              value={form.transaction_reference}
+              onChange={e => setForm(p => ({ ...p, transaction_reference: e.target.value }))} />
           </div>
+
           <div>
             <label className={LBL}>Remarks</label>
-            <input value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} className={INP} />
+            <textarea rows={2} className={INP} placeholder="Optional notes"
+              value={form.remarks}
+              onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))} />
           </div>
-        </div>
-        <div className="flex gap-3 mt-5 justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600">Cancel</button>
-          <button onClick={submit} disabled={saving}
-            className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition"
-            style={{ background: G }}>
-            {saving ? "Saving…" : "Record Payment"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/* ══════════════════════════════════════════════════════
-   TAB 1 — PURCHASE ORDERS
-══════════════════════════════════════════════════════ */
-function PurchaseOrdersTab() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusF, setStatusF] = useState("");
-  const [refTypeF, setRefTypeF] = useState("");
-  const [total, setTotal] = useState(0);
-  const [dropPos, setDropPos] = useState<{ top: number; right: number } | null>(null);
-  const [dropId, setDropId] = useState<number | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (statusF) params.set("status", statusF);
-      if (refTypeF) params.set("ref_type", refTypeF);
-      const j = await customFetch<any>(`/api/account-purchases/purchase-orders?${params}`);
-      setRows(j.data ?? []); setTotal(j.total ?? 0);
-    } catch { /* silent */ } finally { setLoading(false); }
-  }, [search, statusF, refTypeF]);
-
-  useEffect(() => { load(); }, [load]);
-
-  function openDrop(e: React.MouseEvent, id: number) {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setDropPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
-    setDropId(id);
-  }
-
-  const totalPOAmount = rows.reduce((s, r) => s + parseFloat(r.po_amount ?? "0"), 0);
-
-  return (
-    <div className="space-y-4">
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Total POs", val: total, sub: "all time", icon: <ShoppingCart size={18} className="text-[#C6AF4B]" /> },
-          { label: "Total PO Value", val: fmtAmt(totalPOAmount), sub: "current page", icon: <DollarSign size={18} className="text-blue-500" /> },
-          { label: "Open POs", val: rows.filter(r => !["Closed","Cancelled"].includes(r.status)).length, sub: "pending closure", icon: <Clock size={18} className="text-amber-500" /> },
-        ].map(s => (
-          <div key={s.label} className={`${CARD} p-4 flex items-start gap-3`}>
-            <div className="p-2 rounded-xl bg-gray-50">{s.icon}</div>
-            <div><p className="text-xs text-gray-500 font-medium">{s.label}</p><p className="text-xl font-bold text-gray-900 mt-0.5">{s.val}</p><p className="text-xs text-gray-400">{s.sub}</p></div>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className={`${BTN_G} flex-1 justify-center`}
+              style={{ background: saving ? "#aaa" : G }}>
+              {saving ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+              {saving ? "Recording…" : "Record Payment"}
+            </button>
           </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className={`${CARD} p-4 flex items-center gap-3 flex-wrap`}>
-        <div className="flex-1 min-w-[200px] relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search PO number, vendor…" className={`${INP} pl-9`} />
-        </div>
-        <select value={statusF} onChange={e => setStatusF(e.target.value)} className={`${INP} w-40`}>
-          <option value="">All Status</option>
-          {["Draft","Approved","Partially Received","Closed","Cancelled"].map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select value={refTypeF} onChange={e => setRefTypeF(e.target.value)} className={`${INP} w-36`}>
-          <option value="">All References</option>
-          {["Swatch","Style","Manual","Inventory"].map(r => <option key={r}>{r}</option>)}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className={`${CARD} overflow-hidden`}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="border-b border-gray-100 bg-gray-50/60">
-              <tr>
-                {["PO Number","Vendor","Reference","PO Amount","Ordered Qty","Received Qty","Pending Qty","Status","PO Date",""].map(h => (
-                  <th key={h} className={TH}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No purchase orders found</td></tr>
-              ) : rows.map((r, i) => (
-                <tr key={r.id} className="hover:bg-gray-50/40 transition">
-                  <td className={TD}><span className="font-mono text-xs font-semibold text-[#C6AF4B]">{r.po_number}</span></td>
-                  <td className={TD}>{r.vendor_name}</td>
-                  <td className={TD}>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">{r.reference_type}</span>
-                      {(r.swatch_order_code || r.style_order_code) && (
-                        <span className="text-xs text-gray-500">{r.swatch_order_code || r.style_order_code}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className={`${TD} font-semibold`}>{fmtAmt(r.po_amount)}</td>
-                  <td className={TD}>{parseFloat(r.total_ordered_qty).toFixed(2)}</td>
-                  <td className={TD}><span className="text-green-700">{parseFloat(r.total_received_qty).toFixed(2)}</span></td>
-                  <td className={TD}><span className="text-amber-600">{parseFloat(r.pending_qty).toFixed(2)}</span></td>
-                  <td className={TD}>{badge(r.status, PO_STATUS[r.status] ?? "bg-gray-100 text-gray-600")}</td>
-                  <td className={TD}>{fmtDate(r.po_date)}</td>
-                  <td className={TD}>
-                    <div className="relative">
-                      <button onClick={e => openDrop(e, r.id)} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-                        <MoreHorizontal size={14} className="text-gray-500" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Dropdown portal */}
-      {dropId !== null && dropPos && createPortal(
-        <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => { setDropId(null); setDropPos(null); }} />
-          <div className={`${CARD} fixed z-[9999]`} style={{ top: dropPos.top, right: dropPos.right }}>
-            <DropdownMenu items={[
-              { label: "View Details", icon: <Eye size={14} />, onClick: () => { window.location.href = `/procurement/purchase-orders`; setDropId(null); setDropPos(null); } },
-            ]} />
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════
-   TAB 2 — VENDOR BILLS
-══════════════════════════════════════════════════════ */
-function VendorBillsTab() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusF, setStatusF] = useState("");
-  const [total, setTotal] = useState(0);
-  const [payModal, setPayModal] = useState<any | null>(null);
-  const [dropPos, setDropPos] = useState<{ top: number; right: number } | null>(null);
-  const [dropId, setDropId] = useState<number | null>(null);
-  const { toast } = useToast();
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (statusF) params.set("status", statusF);
-      const j = await customFetch<any>(`/api/account-purchases/vendor-bills?${params}`);
-      setRows(j.data ?? []); setTotal(j.total ?? 0);
-    } catch { /* silent */ } finally { setLoading(false); }
-  }, [search, statusF]);
-
-  useEffect(() => { load(); }, [load]);
-
-  function openDrop(e: React.MouseEvent, id: number) {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setDropPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
-    setDropId(id);
-  }
-
-  const totalBillAmt  = rows.reduce((s, r) => s + parseFloat(r.vendor_invoice_amount ?? "0"), 0);
-  const totalPaid     = rows.reduce((s, r) => s + parseFloat(r.paid_amount ?? "0"), 0);
-  const totalPending  = rows.reduce((s, r) => s + parseFloat(r.pending_amount ?? "0"), 0);
-
-  return (
-    <div className="space-y-4">
-      {/* Summary */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "Total Bills", val: total, cls: "text-gray-900", icon: <FileText size={18} className="text-[#C6AF4B]" /> },
-          { label: "Total Billed", val: fmtAmt(totalBillAmt), cls: "text-gray-900", icon: <DollarSign size={18} className="text-blue-500" /> },
-          { label: "Total Paid", val: fmtAmt(totalPaid), cls: "text-green-700", icon: <CheckCircle2 size={18} className="text-green-500" /> },
-          { label: "Total Pending", val: fmtAmt(totalPending), cls: "text-red-600", icon: <AlertTriangle size={18} className="text-red-400" /> },
-        ].map(s => (
-          <div key={s.label} className={`${CARD} p-4 flex items-start gap-3`}>
-            <div className="p-2 rounded-xl bg-gray-50">{s.icon}</div>
-            <div><p className="text-xs text-gray-500 font-medium">{s.label}</p><p className={`text-xl font-bold mt-0.5 ${s.cls}`}>{s.val}</p></div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className={`${CARD} p-4 flex items-center gap-3`}>
-        <div className="flex-1 relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search bill number, vendor…" className={`${INP} pl-9`} />
-        </div>
-        <select value={statusF} onChange={e => setStatusF(e.target.value)} className={`${INP} w-44`}>
-          <option value="">All Status</option>
-          {["Unpaid","Partially Paid","Paid","Adjusted"].map(s => <option key={s}>{s}</option>)}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className={`${CARD} overflow-hidden`}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="border-b border-gray-100 bg-gray-50/60">
-              <tr>
-                {["Bill Number","Vendor","Linked PO","Bill Amount","Paid","Pending","Status","Bill Date",""].map(h => (
-                  <th key={h} className={TH}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr><td colSpan={9} className="py-12 text-center text-sm text-gray-400">Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={9} className="py-12 text-center">
-                  <FileText size={32} className="mx-auto text-gray-200 mb-2" />
-                  <p className="text-sm text-gray-400">No vendor bills found. Bills are created via Purchase Receipt → Upload Vendor Invoice.</p>
-                </td></tr>
-              ) : rows.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50/40 transition">
-                  <td className={TD}><span className="font-mono text-xs font-semibold text-[#C6AF4B]">{r.vendor_invoice_number}</span></td>
-                  <td className={TD}>{r.vendor_name}</td>
-                  <td className={TD}>{r.linked_po_number ? <span className="text-xs font-mono text-indigo-700">{r.linked_po_number}</span> : <span className="text-gray-300">—</span>}</td>
-                  <td className={`${TD} font-semibold`}>{fmtAmt(r.vendor_invoice_amount)}</td>
-                  <td className={TD}><span className="text-green-700 font-semibold">{fmtAmt(r.paid_amount)}</span></td>
-                  <td className={TD}><span className="text-red-600 font-semibold">{fmtAmt(r.pending_amount)}</span></td>
-                  <td className={TD}>{badge(r.status, BILL_STATUS[r.status] ?? "bg-gray-100 text-gray-600")}</td>
-                  <td className={TD}>{fmtDate(r.vendor_invoice_date)}</td>
-                  <td className={TD}>
-                    <button onClick={e => openDrop(e, r.id)} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-                      <MoreHorizontal size={14} className="text-gray-500" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Dropdown portal */}
-      {dropId !== null && dropPos && createPortal(
-        <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => { setDropId(null); setDropPos(null); }} />
-          <div className={`${CARD} fixed z-[9999]`} style={{ top: dropPos.top, right: dropPos.right }}>
-            <DropdownMenu items={[
-              {
-                label: "Record Payment", icon: <CreditCard size={14} />,
-                onClick: () => {
-                  const bill = rows.find(r => r.id === dropId);
-                  if (bill) setPayModal(bill);
-                  setDropId(null); setDropPos(null);
-                },
-              },
-              ...(rows.find(r => r.id === dropId)?.vendor_invoice_file ? [{
-                label: "View Attachment", icon: <Eye size={14} />,
-                onClick: () => {
-                  const bill = rows.find(r => r.id === dropId);
-                  if (bill?.vendor_invoice_file) window.open(`/api${bill.vendor_invoice_file}`, "_blank");
-                  setDropId(null); setDropPos(null);
-                },
-              }] : []),
-            ]} />
-          </div>
-        </>,
-        document.body
-      )}
-
-      {/* Payment modal */}
-      {payModal && (
-        <PaymentModal
-          title={`Record Payment — ${payModal.vendor_invoice_number}`}
-          totalAmount={parseFloat(payModal.pending_amount ?? payModal.vendor_invoice_amount ?? "0")}
-          onClose={() => setPayModal(null)}
-          onSave={async data => {
-            await customFetch(`/api/account-purchases/vendor-bills/${payModal.id}/payment`, {
-              method: "POST", body: JSON.stringify(data),
-            });
-            toast({ title: "Payment recorded successfully" });
-            load();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════
-   PURCHASE SUMMARY DASHBOARD
-══════════════════════════════════════════════════════ */
-interface SummaryData {
-  purchaseOrders:   { totalCount: number; totalAmount: number; pendingAmount: number; completedAmount: number };
-  purchaseReceipts: { totalCount: number; receivedValue: number; pendingValue: number; closedValue: number };
-  vendorBills:      { totalCount: number; totalAmount: number; paidAmount: number; pendingAmount: number };
-  paidToVendors:    { totalCount: number; totalPaid: number };
-  pendingPayables:  { totalPending: number; billPending: number };
-}
-
-function PurchaseSummaryDashboard({ onTabChange }: { onTabChange: (tab: string) => void }) {
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate]     = useState("");
-  const [vendorId, setVendorId] = useState("");
-  const [vendors, setVendors]   = useState<any[]>([]);
-  const { toast } = useToast();
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (fromDate)  params.set("from_date", fromDate);
-      if (toDate)    params.set("to_date",   toDate);
-      if (vendorId)  params.set("vendor_id", vendorId);
-      const j = await customFetch<any>(`/api/account-purchases/summary?${params}`);
-      setSummary(j.data ?? null);
-      toast({ title: "Enhanced purchase summary loaded successfully" });
-    } catch { /* silent */ } finally { setLoading(false); }
-  }, [fromDate, toDate, vendorId]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    customFetch<any>("/api/vendors?limit=500").then(j => setVendors(j.data ?? [])).catch(() => {});
-  }, []);
-
-  const s = summary;
-
-  function SummaryCard({
-    title, icon, iconBg, rows, badge, viewTab, viewLabel,
-  }: {
-    title: string;
-    icon: React.ReactNode;
-    iconBg: string;
-    rows: { label: string; value: string; color?: string }[];
-    badge?: string;
-    viewTab?: string;
-    viewLabel?: string;
-  }) {
-    return (
-      <div className={`${CARD} p-5 flex flex-col gap-3`}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${iconBg}`}>{icon}</div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
-              {badge && <span className="mt-0.5 inline-block text-[10px] px-2 py-0.5 rounded-full bg-[#C6AF4B]/10 text-[#8a7a2e] font-semibold">{badge}</span>}
-            </div>
-          </div>
-          {loading && <RefreshCw size={13} className="text-gray-300 animate-spin mt-1" />}
-        </div>
-        <div className="space-y-2">
-          {rows.map(r => (
-            <div key={r.label} className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">{r.label}</span>
-              <span className={`text-sm font-bold ${r.color ?? "text-gray-900"}`}>{r.value}</span>
-            </div>
-          ))}
-        </div>
-        {viewTab && (
-          <button
-            onClick={() => onTabChange(viewTab)}
-            className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[#C6AF4B] hover:text-[#a8922e] transition self-start"
-          >
-            {viewLabel ?? "View"} <ArrowRight size={12} />
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5 mb-8">
-      {/* Filters */}
-      <div className={`${CARD} p-4 flex items-center gap-3 flex-wrap`}>
-        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          <Filter size={13} /> Filters
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">From</span>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className={`${INP} w-36`} />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">To</span>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={`${INP} w-36`} />
-        </div>
-        <select value={vendorId} onChange={e => setVendorId(e.target.value)} className={`${INP} w-44`}>
-          <option value="">All Vendors</option>
-          {vendors.map(v => <option key={v.id} value={v.id}>{v.brand_name}</option>)}
-        </select>
-        <button
-          onClick={() => { setFromDate(""); setToDate(""); setVendorId(""); }}
-          className="text-xs text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl border border-gray-200 transition"
-        >
-          Clear
-        </button>
-      </div>
-
-      {/* Row 1 */}
-      <div className="grid grid-cols-3 gap-4">
-        <SummaryCard
-          title="Purchase Orders"
-          icon={<ShoppingCart size={18} className="text-[#C6AF4B]" />}
-          iconBg="bg-[#C6AF4B]/10"
-          badge={s ? `${s.purchaseOrders.totalCount} POs` : "—"}
-          rows={[
-            { label: "Total PO Amount",    value: fmtAmt(s?.purchaseOrders.totalAmount ?? 0) },
-            { label: "Pending PO Amount",  value: fmtAmt(s?.purchaseOrders.pendingAmount ?? 0),   color: "text-amber-600" },
-            { label: "Completed PO Amount",value: fmtAmt(s?.purchaseOrders.completedAmount ?? 0), color: "text-green-700" },
-          ]}
-          viewTab="po"
-          viewLabel="View Purchase Orders"
-        />
-        <SummaryCard
-          title="Purchase Receipts"
-          icon={<Package size={18} className="text-blue-500" />}
-          iconBg="bg-blue-50"
-          badge={s ? `${s.purchaseReceipts.totalCount} Receipts` : "—"}
-          rows={[
-            { label: "Received Value",      value: fmtAmt(s?.purchaseReceipts.receivedValue ?? 0) },
-            { label: "Pending Delivery",    value: fmtAmt(s?.purchaseReceipts.pendingValue ?? 0),  color: "text-amber-600" },
-            { label: "Closed Receipt Value",value: fmtAmt(s?.purchaseReceipts.closedValue ?? 0),   color: "text-green-700" },
-          ]}
-          viewTab="po"
-          viewLabel="View Purchase Receipts"
-        />
-        <SummaryCard
-          title="Vendor Bills"
-          icon={<FileText size={18} className="text-indigo-500" />}
-          iconBg="bg-indigo-50"
-          badge={s ? `${s.vendorBills.totalCount} Bills` : "—"}
-          rows={[
-            { label: "Total Bill Amount", value: fmtAmt(s?.vendorBills.totalAmount ?? 0) },
-            { label: "Paid Amount",       value: fmtAmt(s?.vendorBills.paidAmount ?? 0),   color: "text-green-700" },
-            { label: "Pending Amount",    value: fmtAmt(s?.vendorBills.pendingAmount ?? 0), color: "text-red-600" },
-          ]}
-          viewTab="bills"
-          viewLabel="View Vendor Bills"
-        />
-      </div>
-
-      {/* Row 2 */}
-      <div className="grid grid-cols-3 gap-4">
-        <SummaryCard
-          title="Total Paid to Vendors"
-          icon={<Wallet size={18} className="text-green-600" />}
-          iconBg="bg-green-50"
-          badge={s ? `${s.paidToVendors.totalCount} Payments` : "—"}
-          rows={[
-            { label: "Total Paid Amount", value: fmtAmt(s?.paidToVendors.totalPaid ?? 0), color: "text-green-700" },
-          ]}
-        />
-        <SummaryCard
-          title="Pending Vendor Payables"
-          icon={<AlertTriangle size={18} className="text-red-500" />}
-          iconBg="bg-red-50"
-          rows={[
-            { label: "Total Pending",       value: fmtAmt(s?.pendingPayables.totalPending ?? 0), color: "text-red-600" },
-            { label: "Unpaid Vendor Bills", value: fmtAmt(s?.pendingPayables.billPending ?? 0),  color: "text-red-500" },
-          ]}
-        />
+        </form>
       </div>
     </div>
   );
@@ -598,60 +231,402 @@ function PurchaseSummaryDashboard({ onTabChange }: { onTabChange: (tab: string) 
 /* ══════════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════════ */
-const TABS = [
-  { id: "po",    label: "Purchase Orders", icon: <ShoppingCart size={15} /> },
-  { id: "bills", label: "Vendor Bills",    icon: <FileText size={15} /> },
-];
-
 export default function AccountPurchases() {
-  const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "po";
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const { data: me, isError } = useGetMe();
+  const { data: me } = useGetMe();
+  const role = (me as any)?.role ?? "";
+  const hasAccess = role === "admin" || role === "accounts";
 
-  if (isError || !(me as any)?.id) {
-    return <div className="flex items-center justify-center h-screen text-gray-400">Please log in.</div>;
+  const [fromDate, setFromDate]     = useState("");
+  const [toDate, setToDate]         = useState("");
+  const [refType, setRefType]       = useState("");
+  const [department, setDepartment] = useState("");
+  const [statusTab, setStatusTab]   = useState("All");
+  const [search, setSearch]         = useState("");
+  const [page, setPage]             = useState(1);
+  const PAGE_SIZE = 20;
+
+  const [summary, setSummary]         = useState<any>(null);
+  const [liabilities, setLiabilities] = useState<any[]>([]);
+  const [totalRows, setTotalRows]     = useState(0);
+  const [topVendors, setTopVendors]   = useState<any[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+  const [loadingTable, setLoadingTable]     = useState(true);
+  const [paymentRow, setPaymentRow]         = useState<any>(null);
+
+  const fetchSummary = useCallback(async () => {
+    setLoadingSummary(true);
+    try {
+      const p = new URLSearchParams();
+      if (fromDate) p.set("from_date", fromDate);
+      if (toDate)   p.set("to_date", toDate);
+      const res = await customFetch(`/api/account-purchases/unified-summary?${p}`);
+      setSummary(await res.json());
+    } catch { /* ignore */ } finally { setLoadingSummary(false); }
+  }, [fromDate, toDate]);
+
+  const fetchLiabilities = useCallback(async (pg: number) => {
+    setLoadingTable(true);
+    try {
+      const p = new URLSearchParams();
+      if (fromDate)   p.set("from_date", fromDate);
+      if (toDate)     p.set("to_date", toDate);
+      if (refType)    p.set("ref_type", refType);
+      if (department) p.set("department", department);
+      if (statusTab !== "All") p.set("status", statusTab);
+      if (search)     p.set("search", search);
+      p.set("page", String(pg));
+      p.set("limit", String(PAGE_SIZE));
+      const res = await customFetch(`/api/account-purchases/unified-liabilities?${p}`);
+      const data = await res.json();
+      setLiabilities(data.data ?? []);
+      setTotalRows(data.total ?? 0);
+    } catch { setLiabilities([]); } finally { setLoadingTable(false); }
+  }, [fromDate, toDate, refType, department, statusTab, search]);
+
+  const fetchTopVendors = useCallback(async () => {
+    try {
+      const res = await customFetch("/api/account-purchases/top-vendors-pending");
+      const data = await res.json();
+      setTopVendors(Array.isArray(data) ? data : []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchSummary(); fetchTopVendors(); }, [fetchSummary, fetchTopVendors]);
+
+  useEffect(() => {
+    setPage(1);
+    fetchLiabilities(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, refType, department, statusTab, search]);
+
+  useEffect(() => { fetchLiabilities(page); }, [page, fetchLiabilities]);
+
+  function refresh() { fetchSummary(); fetchLiabilities(page); fetchTopVendors(); }
+
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+
+  if (me && !hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <TopNavbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className={`${CARD} p-10 text-center max-w-sm`}>
+            <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={32} className="text-red-400" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-800">Access Restricted</h2>
+            <p className="text-sm text-gray-500 mt-2">This page is available to Accounts and Admin users only.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  const cards = [
+    { icon: <ShoppingCart size={18}/>, label: "Total PO Amount",       value: fmtAmt(summary?.poAmount),          color: "#3B82F6" },
+    { icon: <Receipt size={18}/>,      label: "PR Vendor Bills",        value: fmtAmt(summary?.prBills),           sub: `Paid: ${fmtAmt(summary?.prBillsPaid)} · Pending: ${fmtAmt(summary?.prBillsPending)}`, color: "#8B5CF6" },
+    { icon: <Wrench size={18}/>,       label: "Costing Outsource",      value: fmtAmt(summary?.outsourceAmount),   sub: `Paid: ${fmtAmt(summary?.outsourcePaid)} · Pending: ${fmtAmt(summary?.outsourcePending)}`, color: "#EC4899" },
+    { icon: <Building2 size={18}/>,    label: "Artisan Costs",          value: fmtAmt(summary?.artisanCosts),      color: "#F59E0B" },
+    { icon: <Truck size={18}/>,        label: "Shipping Charges",       value: fmtAmt(summary?.shippingCosts),     color: "#14B8A6" },
+    { icon: <Package size={18}/>,      label: "Other Expenses",         value: fmtAmt(summary?.otherExpenses),     sub: `Paid: ${fmtAmt(summary?.otherPaid)}`, color: "#6B7280" },
+    { icon: <CheckCircle2 size={18}/>, label: "Total Paid to Vendors",  value: fmtAmt(summary?.totalPaidVendors),  color: "#10B981" },
+    { icon: <Clock size={18}/>,        label: "Pending Payables",       value: fmtAmt(summary?.pendingPayables),   color: "#EF4444" },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#F7F5F0]">
+    <div className="min-h-screen bg-gray-50/60 flex flex-col">
       <TopNavbar />
-      <div className="max-w-screen-xl mx-auto px-6 py-8">
-        {/* Page header */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="p-2.5 rounded-xl bg-[#C6AF4B]/10">
-            <Package size={22} className="text-[#C6AF4B]" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Purchases</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Purchase orders, vendor bills & expense management</p>
-          </div>
-        </div>
 
-        {/* Summary Dashboard */}
-        <PurchaseSummaryDashboard onTabChange={setActiveTab} />
+      <div className="flex flex-1 overflow-hidden">
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 bg-white border border-[#C6AF4B]/15 rounded-2xl p-1 shadow-sm w-fit">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === t.id
-                  ? "text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
-              style={activeTab === t.id ? { background: G } : {}}
-            >
-              {t.icon}{t.label}
+        {/* ── Main Column ──────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: SL }}>Accounts · Purchases</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Unified outgoing vendor payables across all departments</p>
+            </div>
+            <button onClick={refresh} className={`${BTN_G} shrink-0`} style={{ background: G }}>
+              <RefreshCw size={14}/> Refresh
             </button>
-          ))}
+          </div>
+
+          {/* ── Global Filters ──────────────────────────── */}
+          <div className={`${CARD} p-4`}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+              <div>
+                <label className={LBL}>From Date</label>
+                <input type="date" className={INP} value={fromDate}
+                  onChange={e => setFromDate(e.target.value)} />
+              </div>
+              <div>
+                <label className={LBL}>To Date</label>
+                <input type="date" className={INP} value={toDate}
+                  onChange={e => setToDate(e.target.value)} />
+              </div>
+              <div>
+                <label className={LBL}>Reference Type</label>
+                <select className={INP} value={refType} onChange={e => setRefType(e.target.value)}>
+                  {REF_TYPES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LBL}>Department</label>
+                <select className={INP} value={department} onChange={e => setDepartment(e.target.value)}>
+                  {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                </select>
+              </div>
+              <div className="lg:col-span-2">
+                <label className={LBL}>Search</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    className={`${INP} pl-8`}
+                    placeholder="Vendor name or reference number…"
+                    value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            {(fromDate || toDate || refType || department || search) && (
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                <span className="text-xs text-gray-400">Active:</span>
+                {fromDate    && <span className="text-xs bg-[#C6AF4B]/10 text-[#A8943E] px-2 py-0.5 rounded-full">From {fromDate}</span>}
+                {toDate      && <span className="text-xs bg-[#C6AF4B]/10 text-[#A8943E] px-2 py-0.5 rounded-full">To {toDate}</span>}
+                {refType     && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{refType}</span>}
+                {department  && <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{department}</span>}
+                {search      && <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">"{search}"</span>}
+                <button
+                  onClick={() => { setFromDate(""); setToDate(""); setRefType(""); setDepartment(""); setSearch(""); }}
+                  className="text-xs text-red-500 hover:text-red-700 ml-auto flex items-center gap-1 transition-colors">
+                  <X size={11}/> Clear All
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── KPI Summary Cards ────────────────────────── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {cards.map(c => (
+              <SummaryCard key={c.label} icon={c.icon} label={c.label} value={c.value}
+                sub={(c as any).sub} color={c.color} loading={loadingSummary} />
+            ))}
+          </div>
+
+          {/* ── Status Tabs + Table ──────────────────────── */}
+          <div className={`${CARD} overflow-hidden`}>
+            {/* Tabs */}
+            <div className="flex items-center gap-0.5 px-4 pt-3 border-b border-gray-100 overflow-x-auto">
+              {STATUS_TABS.map(tab => (
+                <button key={tab} onClick={() => setStatusTab(tab)}
+                  className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg whitespace-nowrap transition-colors border-b-2 ${
+                    statusTab === tab
+                      ? "border-[#C6AF4B] text-[#C6AF4B]"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}>
+                  {tab}
+                </button>
+              ))}
+              <div className="ml-auto pb-2 pr-1 shrink-0">
+                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                  {totalRows} records
+                </span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[960px]">
+                <thead className="sticky top-0 bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 z-10">
+                  <tr>
+                    <th className={TH}>Date</th>
+                    <th className={TH}>Reference Type</th>
+                    <th className={TH}>Reference No.</th>
+                    <th className={TH}>Vendor Name</th>
+                    <th className={TH}>Department</th>
+                    <th className={`${TH} text-right`}>Amount</th>
+                    <th className={`${TH} text-right`}>Paid</th>
+                    <th className={`${TH} text-right`}>Pending</th>
+                    <th className={TH}>Status</th>
+                    <th className={TH}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingTable ? (
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <tr key={i} className="border-b border-gray-50">
+                        {Array.from({ length: 10 }).map((_, j) => (
+                          <td key={j} className={TD}>
+                            <div className="h-4 bg-gray-100 rounded animate-pulse"
+                              style={{ width: `${50 + (j * 17) % 40}%` }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : liabilities.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Filter size={36} className="text-gray-200" />
+                          <p className="text-sm text-gray-400">No payables found for the selected filters</p>
+                          {(fromDate || toDate || refType || department || search || statusTab !== "All") && (
+                            <button
+                              onClick={() => { setFromDate(""); setToDate(""); setRefType(""); setDepartment(""); setSearch(""); setStatusTab("All"); }}
+                              className="text-xs text-[#C6AF4B] hover:underline">
+                              Clear all filters
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    liabilities.map((row, i) => {
+                      const settled = row.status === "Paid" || row.status === "Completed";
+                      return (
+                        <tr key={`${row.ref_type}-${row.source_id}-${i}`}
+                          className="border-b border-gray-50 hover:bg-[#C6AF4B]/[0.03] transition-colors group">
+                          <td className={`${TD} text-gray-500`}>{fmtDate(row.date)}</td>
+                          <td className={TD}>{refTypeBadge(row.ref_type)}</td>
+                          <td className={`${TD} font-mono text-xs text-gray-600`}>{row.ref_number || "—"}</td>
+                          <td className={TD}>
+                            <span className="font-medium text-gray-900 group-hover:text-[#3B3F5C] transition-colors">
+                              {row.vendor_name || "—"}
+                            </span>
+                          </td>
+                          <td className={TD}>
+                            <span className="text-xs text-gray-500">{row.department || "—"}</span>
+                          </td>
+                          <td className={`${TD} text-right font-semibold`} style={{ color: SL }}>
+                            {fmtAmt(row.amount)}
+                          </td>
+                          <td className={`${TD} text-right font-medium text-emerald-600`}>
+                            {fmtAmt(row.paid_amount)}
+                          </td>
+                          <td className={`${TD} text-right font-semibold ${
+                            parseFloat(row.pending_amount) > 0 ? "text-red-600" : "text-gray-400"
+                          }`}>
+                            {fmtAmt(row.pending_amount)}
+                          </td>
+                          <td className={TD}>{statusBadge(row.status)}</td>
+                          <td className={TD}>
+                            {settled ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                <CheckCircle2 size={12}/> Settled
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setPaymentRow(row)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+                                style={{ background: G }}>
+                                <CreditCard size={11}/> Pay
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-white">
+                <p className="text-xs text-gray-500">
+                  Page {page} of {totalPages} · {totalRows} total records
+                </p>
+                <div className="flex items-center gap-1">
+                  <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                    className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <ChevronLeft size={14}/>
+                  </button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pg = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+                    return pg <= totalPages ? (
+                      <button key={pg} onClick={() => setPage(pg)}
+                        className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
+                          pg === page
+                            ? "text-white shadow-sm"
+                            : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                        style={pg === page ? { background: G } : {}}>
+                        {pg}
+                      </button>
+                    ) : null;
+                  })}
+                  <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
+                    className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <ChevronRight size={14}/>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Tab content */}
-        {activeTab === "po"    && <PurchaseOrdersTab />}
-        {activeTab === "bills" && <VendorBillsTab />}
+        {/* ── Right Sidebar: Vendor Liability Panel ────── */}
+        <div className="w-72 shrink-0 border-l border-gray-100 bg-white px-4 py-5 hidden lg:flex flex-col gap-4 overflow-y-auto">
+          <div>
+            <h3 className="text-sm font-bold" style={{ color: SL }}>Top Vendors Pending</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Highest outstanding vendor bills</p>
+          </div>
+
+          {topVendors.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10">
+              <CheckCircle2 size={30} className="text-emerald-200" />
+              <p className="text-xs text-gray-400 text-center">All vendor bills are settled</p>
+            </div>
+          ) : (
+            <div className="space-y-2 flex-1">
+              {topVendors.map((v, i) => (
+                <button key={v.vendor_id ?? i}
+                  className="group w-full flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/[0.03] transition-all text-left"
+                  onClick={() => setSearch(v.vendor_name)}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                      style={{ background: (["#EF4444","#F59E0B","#3B82F6","#8B5CF6","#14B8A6"] as string[])[i] ?? G }}>
+                      {i + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{v.vendor_name}</p>
+                      <p className="text-xs text-gray-400">{v.bill_count} bill{v.bill_count !== 1 ? "s" : ""}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <p className="text-xs font-bold text-red-600">{fmtAmt(v.total_pending)}</p>
+                    <ArrowRight size={10} className="text-gray-300 group-hover:text-[#C6AF4B] transition-colors" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-auto">
+            <div className={`${CARD} p-4`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet size={14} style={{ color: G }} />
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Outstanding</p>
+              </div>
+              <p className="text-xl font-bold text-red-600">
+                {fmtAmt(topVendors.reduce((s, v) => s + parseFloat(v.total_pending ?? 0), 0))}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Across {topVendors.length} vendors</p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* ── Payment Modal ─────────────────────────────── */}
+      {paymentRow && (
+        <PaymentModal
+          row={paymentRow}
+          onClose={() => setPaymentRow(null)}
+          onSuccess={refresh}
+        />
+      )}
     </div>
   );
 }

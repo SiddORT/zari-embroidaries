@@ -1,0 +1,321 @@
+Update Accounts → Purchases page to include all outgoing vendor liabilities across the ERP system.
+
+This page must act as the centralized outgoing payments console for Accounts users.
+
+Include procurement, outsourcing, artisans, logistics, shipping, packing, and other expenses.
+
+Use existing tables only.
+
+Do NOT create duplicate payable tracking tables.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Accounts Unified Purchases Payables Console
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Inside:
+
+Accounts
+
+Add submenu:
+
+Purchases
+
+This page tracks all outgoing vendor liabilities.
+
+---
+
+SECTION 2 — GLOBAL FILTER ROW
+
+Add filters:
+
+Date Range
+
+Vendor selector
+
+Reference Type selector
+
+Payment Status selector
+
+Department selector
+
+Filters refresh data instantly.
+
+---
+
+SECTION 3 — DEPARTMENT FILTER VALUES
+
+Include:
+
+Material Purchase
+
+Purchase Receipt Vendor Bills
+
+Artwork Outsource
+
+Costing Outsource
+
+Toile Artisan
+
+Pattern Artisan
+
+Custom Artisan
+
+Shipping Vendor
+
+Packing Vendor
+
+Courier Charges
+
+Freight Forwarder
+
+CHA / Export Agent
+
+Packaging Material Vendor
+
+Other Expenses
+
+---
+
+SECTION 4 — SUMMARY CARDS (TOP SECTION)
+
+Display cards:
+
+Total PO Amount
+
+Total PR Vendor Bills
+
+Total Artwork Payments
+
+Total Costing Outsource Payments
+
+Total Toile Artisan Payments
+
+Total Pattern Artisan Payments
+
+Total Custom Artisan Payments
+
+Total Shipping Charges
+
+Total Packing Charges
+
+Total Courier Charges
+
+Total Other Expenses
+
+Total Paid to Vendors
+
+Pending Vendor Payables
+
+Fetch data from:
+
+purchase_orders
+
+purchase_receipts
+
+vendor_ledger
+
+artwork_outsource_payments
+
+costing_outsource_payments
+
+artisan_timesheets
+
+shipments
+
+packing_lists
+
+other_expenses
+
+---
+
+SECTION 5 — UNIFIED LIABILITY TABLE
+
+Display combined table:
+
+Columns:
+
+Date
+
+Reference Type
+
+Reference Number
+
+Vendor Name
+
+Department
+
+Amount
+
+Paid Amount
+
+Pending Amount
+
+Status
+
+Reference Type values:
+
+Purchase Order
+
+Purchase Receipt
+
+Artwork Outsource
+
+Costing Outsource
+
+Toile Artisan
+
+Pattern Artisan
+
+Custom Artisan
+
+Shipping Vendor
+
+Packing Vendor
+
+Courier Charges
+
+Freight Charges
+
+CHA Charges
+
+Packaging Material Vendor
+
+Other Expense
+
+---
+
+SECTION 6 — PAYMENT ACTION SUPPORT
+
+Add button per row:
+
+Record Payment
+
+Open modal:
+
+Vendor Payment Entry
+
+Fields:
+
+Payment Amount
+
+Payment Type
+
+Transaction ID
+
+Payment Date
+
+Remarks
+
+Save entry inside:
+
+vendor_ledger
+
+Update automatically:
+
+pending_amount
+
+status
+
+---
+
+SECTION 7 — STATUS FILTER TABS
+
+Add quick tabs above table:
+
+All
+
+Pending
+
+Partially Paid
+
+Completed
+
+Switch table instantly.
+
+---
+
+SECTION 8 — VENDOR LIABILITY PANEL
+
+Display right-side panel:
+
+Top Vendors Pending Payment
+
+Columns:
+
+Vendor Name
+
+Pending Amount
+
+Click action:
+
+Open Vendor Ledger
+
+---
+
+SECTION 9 — UI DESIGN REQUIREMENTS
+
+Apply system theme styling:
+
+counter summary cards
+
+searchable dropdown filters
+
+soft card shadows
+
+sticky table header
+
+consistent action icons
+
+modal styling matching ERP theme
+
+responsive layout
+
+minor hover animations
+
+---
+
+SECTION 10 — LIVE DATA REQUIREMENT
+
+Page must:
+
+fetch real-time balances
+
+respect filters instantly
+
+update values after payment entry
+
+not cache totals
+
+---
+
+SECTION 11 — PERMISSIONS CONTROL
+
+Allow access:
+
+Accounts users
+
+Admin users
+
+Restrict:
+
+non-accounts users
+
+---
+
+SECTION 12 — SUCCESS MESSAGE
+
+After payment recorded:
+
+Display:
+
+Vendor payment recorded successfully
+
+END OF MODULE
