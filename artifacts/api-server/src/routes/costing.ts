@@ -1540,7 +1540,7 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
   const isSwatch = type === "Swatch";
 
   // Fetch everything in parallel
-  const [bomRows, artisanRows, outsourceRows, customRows, allMaterials, allFabrics, allPRs, shippingR] = await Promise.all([
+  const [bomRows, artisanRows, outsourceRows, customRows, allMaterials, allFabrics, allPRs, shippingR, artworkRows] = await Promise.all([
     isSwatch
       ? db.select().from(swatchBomTable).where(eq(swatchBomTable.swatchOrderId, orderId)).orderBy(swatchBomTable.createdAt)
       : db.select().from(swatchBomTable).where(eq(swatchBomTable.styleOrderId, orderId)).orderBy(swatchBomTable.createdAt),
@@ -1570,6 +1570,17 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
       `SELECT final_shipping_amount FROM order_shipping_details WHERE reference_type = $1 AND reference_id = $2 ORDER BY created_at DESC LIMIT 1`,
       [type, orderId]
     ).catch(() => ({ rows: [] as any[] })),
+
+    // Artwork toile + pattern outhouse costs (Style orders only)
+    isSwatch
+      ? Promise.resolve([] as any[])
+      : pool.query(
+          `SELECT artwork_name, artwork_code, toile_making_cost, toile_vendor_name,
+                  pattern_type, pattern_making_cost, pattern_payment_amount, pattern_vendor_name
+           FROM style_order_artworks
+           WHERE style_order_id = $1 AND is_deleted = false`,
+          [orderId]
+        ).then(r => r.rows).catch(() => [] as any[]),
   ]);
 
   // Build lookup maps — include label fields so descriptions match the frontend dropdown format
@@ -1695,6 +1706,46 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
       unit: "",
       source: "custom",
     });
+  }
+
+  // Artwork toile + pattern outhouse costs (Style orders only)
+  for (const a of (artworkRows ?? [])) {
+    const toileCost = parseFloat(a.toile_making_cost ?? "0") || 0;
+    if (toileCost > 0) {
+      const label = a.toile_vendor_name
+        ? `Toile — ${a.artwork_name ?? a.artwork_code} (${a.toile_vendor_name})`
+        : `Toile — ${a.artwork_name ?? a.artwork_code}`;
+      items.push({
+        description: label,
+        category: "Artwork",
+        quantity: 1,
+        unitPrice: toileCost,
+        total: toileCost,
+        hsnCode: "",
+        hsnGstPct: "",
+        unit: "",
+        source: "artwork_toile",
+      });
+    }
+    const patternCost = a.pattern_type === "Outhouse"
+      ? parseFloat(a.pattern_payment_amount ?? a.pattern_making_cost ?? "0") || 0
+      : 0;
+    if (patternCost > 0) {
+      const label = a.pattern_vendor_name
+        ? `Pattern (Outhouse) — ${a.artwork_name ?? a.artwork_code} (${a.pattern_vendor_name})`
+        : `Pattern (Outhouse) — ${a.artwork_name ?? a.artwork_code}`;
+      items.push({
+        description: label,
+        category: "Artwork",
+        quantity: 1,
+        unitPrice: patternCost,
+        total: patternCost,
+        hsnCode: "",
+        hsnGstPct: "",
+        unit: "",
+        source: "artwork_pattern",
+      });
+    }
   }
 
   const shippingAmount = shippingR.rows.length > 0
