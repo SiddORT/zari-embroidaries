@@ -373,6 +373,43 @@ router.patch("/packing-lists/:id/items/:itemId", requireAuth, async (req, res) =
   } catch (e) { err(res, e, "Failed to update item"); }
 });
 
+// GET /api/packing-lists/order-artwork-image?type=Swatch|Style&item_id=123
+// Returns the first final image from the order's most-recent non-deleted artwork
+router.get("/packing-lists/order-artwork-image", requireAuth, async (req, res) => {
+  try {
+    const { type, item_id } = req.query as { type: string; item_id: string };
+    if (!type || !item_id) return res.status(400).json({ error: "type and item_id required" });
+
+    let rows: any[] = [];
+    if (type === "Swatch") {
+      const r = await pool.query(
+        `SELECT final_images FROM artworks
+         WHERE swatch_order_id = $1 AND is_deleted = false
+           AND final_images IS NOT NULL AND jsonb_array_length(final_images) > 0
+         ORDER BY id DESC LIMIT 1`,
+        [item_id]
+      );
+      rows = r.rows;
+    } else if (type === "Style") {
+      const r = await pool.query(
+        `SELECT final_images FROM style_order_artworks
+         WHERE style_order_id = $1 AND is_deleted = false
+           AND final_images IS NOT NULL AND jsonb_array_length(final_images) > 0
+         ORDER BY id DESC LIMIT 1`,
+        [item_id]
+      );
+      rows = r.rows;
+    } else {
+      return res.status(400).json({ error: "type must be Swatch or Style" });
+    }
+
+    if (!rows.length) return res.json({ data: null });
+    const images = rows[0].final_images;
+    const first = Array.isArray(images) && images.length > 0 ? images[0] : null;
+    res.json({ data: first ?? null });
+  } catch (e) { err(res, e, "Failed to fetch order artwork image"); }
+});
+
 // GET /api/packing-lists/item-images/:filename — serve uploaded item images
 router.get("/packing-lists/item-images/:filename", async (req, res) => {
   try {
@@ -403,7 +440,48 @@ router.post("/packing-lists/:id/items/:itemId/image", requireAuth, plItemUpload.
       [imageUrl, req.params.itemId, req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
-    res.json({ data: r.rows[0] });
+    const item = r.rows[0];
+
+    // Also push to the linked order's artwork final_images if addToOrder flag is set
+    const addToOrder = req.body?.addToOrder === "true" || req.query?.addToOrder === "true";
+    if (addToOrder && item.item_type && item.item_id) {
+      try {
+        const buf = fs.readFileSync(req.file.path);
+        const ext = path.extname(req.file.originalname).slice(1).toLowerCase() || "jpeg";
+        const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
+        const b64 = `data:${mime};base64,${buf.toString("base64")}`;
+        const newImg = { data: b64, name: req.file.originalname };
+
+        if (item.item_type === "Swatch") {
+          // Get most recent artwork for this swatch order
+          const artR = await pool.query(
+            `SELECT id, final_images FROM artworks WHERE swatch_order_id = $1 AND is_deleted = false ORDER BY id DESC LIMIT 1`,
+            [item.item_id]
+          );
+          if (artR.rows.length) {
+            const existing = Array.isArray(artR.rows[0].final_images) ? artR.rows[0].final_images : [];
+            await pool.query(
+              `UPDATE artworks SET final_images = $1::jsonb WHERE id = $2`,
+              [JSON.stringify([...existing, newImg]), artR.rows[0].id]
+            );
+          }
+        } else if (item.item_type === "Style") {
+          const artR = await pool.query(
+            `SELECT id, final_images FROM style_order_artworks WHERE style_order_id = $1 AND is_deleted = false ORDER BY id DESC LIMIT 1`,
+            [item.item_id]
+          );
+          if (artR.rows.length) {
+            const existing = Array.isArray(artR.rows[0].final_images) ? artR.rows[0].final_images : [];
+            await pool.query(
+              `UPDATE style_order_artworks SET final_images = $1::jsonb WHERE id = $2`,
+              [JSON.stringify([...existing, newImg]), artR.rows[0].id]
+            );
+          }
+        }
+      } catch {}
+    }
+
+    res.json({ data: item });
   } catch (e) { err(res, e, "Failed to upload image"); }
 });
 

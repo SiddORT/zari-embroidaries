@@ -80,24 +80,42 @@ export default function PackingListDetail() {
   // Image upload state
   const [uploadingImageId, setUploadingImageId] = useState<number | null>(null);
   const [removingImageId, setRemovingImageId] = useState<number | null>(null);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const imageTargetItemId = useRef<number | null>(null);
 
-  function triggerImageUpload(itemId: number) {
-    imageTargetItemId.current = itemId;
+  // Artwork images fetched from linked order (base64 data)
+  const [artworkImages, setArtworkImages] = useState<Record<number, { data: string; name: string } | null>>({});
+
+  // Fetch artwork final images for items that have no item_image_url
+  useEffect(() => {
+    if (!pl) return;
+    pl.items.forEach(item => {
+      if (item.item_image_url) return; // already has an uploaded image
+      if (artworkImages[item.id] !== undefined) return; // already fetched
+      const token = localStorage.getItem("zarierp_token");
+      fetch(`/api/packing-lists/order-artwork-image?type=${encodeURIComponent(item.item_type)}&item_id=${item.item_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(json => setArtworkImages(prev => ({ ...prev, [item.id]: json.data ?? null })))
+        .catch(() => setArtworkImages(prev => ({ ...prev, [item.id]: null })));
+    });
+  }, [pl?.items]);
+
+  function triggerImageUpload(item: PLItem, addToOrder = false) {
+    imageTargetItemId.current = item.id;
     const inp = document.createElement("input");
     inp.type = "file";
     inp.accept = "image/*";
     inp.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      setUploadingImageId(itemId);
+      setUploadingImageId(item.id);
       try {
         const formData = new FormData();
         formData.append("image", file);
+        if (addToOrder) formData.append("addToOrder", "true");
         const token = localStorage.getItem("zarierp_token");
-        const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-        const res = await fetch(`${base}/api/packing-lists/${pl?.id}/items/${itemId}/image`, {
+        const res = await fetch(`/api/packing-lists/${pl?.id}/items/${item.id}/image`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
@@ -106,9 +124,11 @@ export default function PackingListDetail() {
         const json = await res.json();
         setPl(prev => prev ? {
           ...prev,
-          items: prev.items.map(i => i.id === itemId ? { ...i, item_image_url: json.data?.item_image_url ?? null } : i)
+          items: prev.items.map(i => i.id === item.id ? { ...i, item_image_url: json.data?.item_image_url ?? null } : i)
         } : prev);
-        toast({ title: "Image uploaded" });
+        // Clear artwork image cache for this item since it now has an upload
+        setArtworkImages(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+        toast({ title: addToOrder ? "Image uploaded & added to order" : "Image uploaded" });
       } catch {
         toast({ title: "Failed to upload image", variant: "destructive" });
       } finally { setUploadingImageId(null); }
@@ -383,9 +403,10 @@ export default function PackingListDetail() {
                             <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                             <td className="px-4 py-3">
                               {item.item_image_url ? (
+                                /* Uploaded image — full control */
                                 <div className="relative group w-14 h-14">
                                   <img
-                                    src={item.item_image_url ?? ""}
+                                    src={item.item_image_url}
                                     alt="item"
                                     className="w-14 h-14 object-cover rounded-lg border border-gray-200"
                                   />
@@ -398,17 +419,48 @@ export default function PackingListDetail() {
                                     <XCircle className="h-4 w-4" />
                                   </button>
                                 </div>
+                              ) : artworkImages[item.id] !== undefined ? (
+                                artworkImages[item.id] !== null ? (
+                                  /* Image found from the linked order's artwork */
+                                  <div className="flex flex-col items-start gap-1">
+                                    <div className="relative group w-14 h-14">
+                                      <img
+                                        src={artworkImages[item.id]!.data}
+                                        alt="final"
+                                        className="w-14 h-14 object-cover rounded-lg border border-amber-200"
+                                      />
+                                      <button
+                                        onClick={() => triggerImageUpload(item, false)}
+                                        disabled={uploadingImageId === item.id}
+                                        className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Replace with new upload"
+                                      >
+                                        <Camera className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                    <span className="text-[9px] text-amber-600 font-semibold tracking-wide">FROM ORDER</span>
+                                  </div>
+                                ) : (
+                                  /* No image in order — offer upload with option to also add to order */
+                                  <div className="flex flex-col gap-1">
+                                    <button
+                                      onClick={() => triggerImageUpload(item, true)}
+                                      disabled={uploadingImageId === item.id}
+                                      className="flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 border-dashed border-gray-200 text-gray-300 hover:border-amber-400 hover:text-amber-400 transition-colors"
+                                      title="Upload & add to order final images"
+                                    >
+                                      {uploadingImageId === item.id
+                                        ? <span className="text-[10px] text-amber-500">…</span>
+                                        : <Camera className="h-5 w-5" />}
+                                    </button>
+                                    <span className="text-[9px] text-gray-400 leading-tight text-center w-14">+ order</span>
+                                  </div>
+                                )
                               ) : (
-                                <button
-                                  onClick={() => triggerImageUpload(item.id)}
-                                  disabled={uploadingImageId === item.id}
-                                  className="flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 border-dashed border-gray-200 text-gray-300 hover:border-amber-400 hover:text-amber-400 transition-colors"
-                                  title="Attach image"
-                                >
-                                  {uploadingImageId === item.id
-                                    ? <span className="text-[10px] text-amber-500">...</span>
-                                    : <Camera className="h-5 w-5" />}
-                                </button>
+                                /* Still loading from order */
+                                <div className="flex items-center justify-center w-14 h-14 rounded-lg border border-gray-100 text-gray-200">
+                                  <span className="text-[10px]">…</span>
+                                </div>
                               )}
                             </td>
                             <td className="px-4 py-3">
