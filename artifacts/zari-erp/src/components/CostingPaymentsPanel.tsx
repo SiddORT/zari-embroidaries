@@ -159,7 +159,7 @@ export default function CostingPaymentsPanel({
     } finally { setDeletingId(null); }
   }
 
-  const inpCls = "mt-0.5 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-amber-400";
+  const inpCls = "mt-0.5 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none focus:border-amber-400";
   const lblCls = "text-[10px] text-gray-900 font-medium";
 
   return (
