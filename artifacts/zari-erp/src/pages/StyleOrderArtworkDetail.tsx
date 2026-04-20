@@ -612,25 +612,14 @@ export default function StyleOrderArtworkDetail() {
                     placeholder="Select vendor…" disabled={isViewMode} />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Total Cost">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-                    <input type="number" min="0" step="0.01" placeholder="0.00"
-                      className={`${inputCls} pl-7 ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
-                      readOnly={isViewMode} value={form.toileCost}
-                      onChange={e => set("toileCost", e.target.value)} />
-                  </div>
-                </Field>
-                <Field label="Payment Type">
-                  <select className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
-                    disabled={isViewMode} value={form.toilePaymentType}
-                    onChange={e => set("toilePaymentType", e.target.value)}>
-                    <option value="">Select type…</option>
-                    {["Advance", "Partial", "Full"].map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </Field>
-              </div>
+              <Field label="Payment Type">
+                <select className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                  disabled={isViewMode} value={form.toilePaymentType}
+                  onChange={e => set("toilePaymentType", e.target.value)}>
+                  <option value="">Select type…</option>
+                  {["Advance", "Partial", "Full"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Payment Amount">
                   <div className="relative">
