@@ -58,10 +58,12 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const [mastersOpen, setMastersOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [operationsOpen, setOperationsOpen] = useState(false);
+  const [logisticsOpen, setLogisticsOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [mobileMastersOpen, setMobileMastersOpen] = useState(false);
   const [mobileOrdersOpen, setMobileOrdersOpen] = useState(false);
   const [mobileOperationsOpen, setMobileOperationsOpen] = useState(false);
+  const [mobileLogisticsOpen, setMobileLogisticsOpen] = useState(false);
   const [mobileAccountsOpen, setMobileAccountsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -93,13 +95,15 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
   const mastersRef    = useRef<HTMLDivElement>(null);
   const ordersRef     = useRef<HTMLDivElement>(null);
   const operationsRef = useRef<HTMLDivElement>(null);
+  const logisticsRef  = useRef<HTMLDivElement>(null);
   const accountsRef   = useRef<HTMLDivElement>(null);
   const profileRef    = useRef<HTMLDivElement>(null);
 
   const mastersActive    = location.startsWith("/masters");
   const ordersActive     = ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
   const operationsActive = ALL_OPERATIONS_HREFS.some(h => location === h || location.startsWith(h + "/"));
-  const accountsActive   = location.startsWith("/accounts") || location.startsWith("/shipping");
+  const logisticsActive  = location.startsWith("/shipping") || location.startsWith("/logistics");
+  const accountsActive   = location.startsWith("/accounts");
   const reportsActive    = location.startsWith("/settings/reports");
 
   const initials = (displayName || displayEmail || "")
@@ -127,6 +131,12 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
     const h = (e: MouseEvent) => { if (operationsRef.current && !operationsRef.current.contains(e.target as Node)) setOperationsOpen(false); };
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, [operationsOpen]);
+
+  useEffect(() => {
+    if (!logisticsOpen) return;
+    const h = (e: MouseEvent) => { if (logisticsRef.current && !logisticsRef.current.contains(e.target as Node)) setLogisticsOpen(false); };
+    document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
+  }, [logisticsOpen]);
 
   useEffect(() => {
     if (!accountsOpen) return;
@@ -270,6 +280,38 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               Quotation
             </Link>
 
+            {/* Logistics — dropdown */}
+            <div className="relative" ref={logisticsRef}>
+              <button
+                onClick={() => setLogisticsOpen(v => !v)}
+                className={`flex items-center gap-1 ${navLink(logisticsActive)}`}
+              >
+                Logistics
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${logisticsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {logisticsOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                  {[
+                    { label: "Shipments",     href: "/shipping" },
+                    { label: "Packing Lists", href: "/logistics/packing-lists" },
+                  ].map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setLogisticsOpen(false)}
+                      className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        location === href || location.startsWith(href + "/")
+                          ? "text-gray-900 bg-gray-50 font-semibold"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Accounts — dropdown */}
             <div className="relative" ref={accountsRef}>
               <button
@@ -288,7 +330,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
                     { label: "Other Expenses",       href: "/accounts/other-expenses" },
-                    { label: "Shipments",            href: "/shipping" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
@@ -508,6 +549,36 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 Quotation
               </Link>
 
+              {/* Mobile Logistics */}
+              <button
+                onClick={() => setMobileLogisticsOpen(v => !v)}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                  logisticsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <span>Logistics</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobileLogisticsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {mobileLogisticsOpen && (
+                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                  {[
+                    { label: "Shipments",     href: "/shipping" },
+                    { label: "Packing Lists", href: "/logistics/packing-lists" },
+                  ].map(({ label, href }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                        location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
               {/* Mobile Accounts */}
               <button
                 onClick={() => setMobileAccountsOpen(v => !v)}
@@ -527,7 +598,6 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
                     { label: "Other Expenses",       href: "/accounts/other-expenses" },
-                    { label: "Shipments",            href: "/shipping" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}

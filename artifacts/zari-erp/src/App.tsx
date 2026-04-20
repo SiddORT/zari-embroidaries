@@ -50,6 +50,7 @@ import QuotationForm from "@/pages/QuotationForm";
 import QuotationDetail from "@/pages/QuotationDetail";
 import ShippingList from "@/pages/ShippingList";
 import ShippingVendors from "@/pages/ShippingVendors";
+import PackingLists from "@/pages/PackingLists";
 import Settings from "@/pages/Settings";
 import InvoiceList from "@/pages/InvoiceList";
 import InvoiceForm from "@/pages/InvoiceForm";
@@ -146,6 +147,7 @@ function Router() {
       <Route path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} />
       <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
       <Route path="/shipping" component={ShippingList} />
+      <Route path="/logistics/packing-lists" component={PackingLists} />
       <Route path="/masters/shipping-vendors" component={ShippingVendors} />
       <Route path="/settings/reports" component={Reports} />
       <Route path="/settings" component={Settings} />
