@@ -134,9 +134,10 @@ export default function StyleCostSheetTab({
   // ── Artwork costs ─────────────────────────────────────────────────────────
   type ArtworkRow = {
     id: number; artworkCode: string; artworkName: string;
-    toileVendorName: string | null; toileCost: string | null;
+    toileMakingCost: string | null; toileVendorName: string | null;
     toilePaymentAmount: string | null; toilePaymentStatus: string | null;
-    patternType: string | null; patternVendorName: string | null;
+    patternType: string | null; patternMakingCost: string | null;
+    patternVendorName: string | null;
     patternPaymentAmount: string | null; patternPaymentStatus: string | null;
     styleOrderProductId: number | null; styleOrderProductName: string | null;
   };
@@ -231,7 +232,7 @@ export default function StyleCostSheetTab({
   }, 0);
   const customTotal = customBaseTotal + (includeGst ? customGstTotal : 0);
 
-  const artworkToileTotal = filteredArtworks.reduce((s, a) => s + (parseFloat(a.toileCost ?? "") || 0), 0);
+  const artworkToileTotal = filteredArtworks.reduce((s, a) => s + (parseFloat(a.toileMakingCost ?? "") || 0), 0);
   const artworkPatternTotal = filteredArtworks
     .filter(a => a.patternType === "Outhouse")
     .reduce((s, a) => s + (parseFloat(a.patternPaymentAmount ?? "") || 0), 0);
@@ -512,10 +513,10 @@ export default function StyleCostSheetTab({
               ]}
               rows={filteredArtworks.flatMap(a => {
                 const rows: (string | React.ReactNode)[][] = [];
-                if (a.toileCost && parseFloat(a.toileCost) > 0) {
+                if (a.toileMakingCost && parseFloat(a.toileMakingCost) > 0) {
                   const row: (string | React.ReactNode)[] = [
                     a.artworkCode, a.artworkName, "Toile",
-                    a.toileVendorName || "—", rupee(parseFloat(a.toileCost)),
+                    a.toileVendorName || "—", rupee(parseFloat(a.toileMakingCost)),
                     a.toilePaymentStatus || "—",
                   ];
                   if (!isFiltered && products.length > 0) row.unshift(a.styleOrderProductName ?? "—");
