@@ -8,7 +8,7 @@ import {
   Package, Palette, Users, Clock, ArrowUpRight, ArrowDownRight,
   Layers, ChevronRight, Star, Zap, Activity, TrendingUp,
   FileText, CheckCircle, AlertTriangle, Wallet, Receipt,
-  LogIn, UserCheck, ScrollText, ShoppingCart,
+  LogIn, UserCheck, ScrollText, ShoppingCart, RefreshCw,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -129,6 +129,7 @@ export default function Dashboard() {
 
   const [overview, setOverview] = useState<any>(null);
   const [ovLoading, setOvLoading] = useState(true);
+  const [ovError, setOvError]   = useState(false);
 
   useEffect(() => {
     if (!authToken || isError) {
@@ -137,12 +138,30 @@ export default function Dashboard() {
     }
   }, [authToken, isError, setLocation]);
 
+  const fetchOverview = () => {
+    const t = token();
+    if (!t) { setLocation("/login"); return; }
+    setOvLoading(true);
+    setOvError(false);
+    fetch("/api/dashboard/overview", { headers: { Authorization: `Bearer ${t}` } })
+      .then(async r => {
+        if (r.status === 401) {
+          localStorage.removeItem("zarierp_token");
+          setLocation("/login");
+          return;
+        }
+        if (!r.ok) { setOvError(true); setOvLoading(false); return; }
+        const d = await r.json();
+        setOverview(d);
+        setOvLoading(false);
+      })
+      .catch(() => { setOvError(true); setOvLoading(false); });
+  };
+
   useEffect(() => {
     if (!authToken) return;
-    fetch("/api/dashboard/overview", { headers: { Authorization: `Bearer ${token()}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { setOverview(d); setOvLoading(false); })
-      .catch(() => setOvLoading(false));
+    fetchOverview();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
   const handleLogout = () => {
@@ -175,27 +194,27 @@ export default function Dashboard() {
     {
       label: "STYLE ORDERS",
       value: kpi ? String(kpi.styleOrders.active) : "—",
-      sub:   kpi ? `${kpi.styleOrders.thisMonth} issued this month` : "Loading…",
-      change: kpi?.styleOrders.pctChange ? `${kpi.styleOrders.pctChange > 0 ? "+" : ""}${kpi.styleOrders.pctChange}% vs last month` : "No prior data",
+      sub:   ovLoading ? "Fetching data…" : kpi ? `${kpi.styleOrders.thisMonth} issued this month` : "—",
+      change: ovLoading ? null : kpi?.styleOrders.pctChange ? `${parseFloat(kpi.styleOrders.pctChange) > 0 ? "+" : ""}${kpi.styleOrders.pctChange}% vs last month` : null,
       up: styleUp, icon: Layers, delay: "0ms", path: "/style-orders",
     },
     {
       label: "SWATCH ORDERS",
       value: kpi ? String(kpi.swatchOrders.active) : "—",
-      sub:   kpi ? `${kpi.swatchOrders.thisMonth} issued this month` : "Loading…",
-      change: kpi?.swatchOrders.pctChange ? `${kpi.swatchOrders.pctChange > 0 ? "+" : ""}${kpi.swatchOrders.pctChange}% vs last month` : "No prior data",
+      sub:   ovLoading ? "Fetching data…" : kpi ? `${kpi.swatchOrders.thisMonth} issued this month` : "—",
+      change: ovLoading ? null : kpi?.swatchOrders.pctChange ? `${parseFloat(kpi.swatchOrders.pctChange) > 0 ? "+" : ""}${kpi.swatchOrders.pctChange}% vs last month` : null,
       up: swatchUp, icon: Package, delay: "80ms", path: "/swatch-orders",
     },
     {
       label: "ARTWORKS",
       value: kpi ? String(kpi.artworks.total) : "—",
-      sub:   "Across all orders",
+      sub:   ovLoading ? "Fetching data…" : "Across all orders",
       change: null, up: true, icon: Palette, delay: "160ms", path: "/swatch-orders",
     },
     {
       label: "ACTIVE CLIENTS",
       value: kpi ? String(kpi.activeClients.total) : "—",
-      sub:   "In current pipeline",
+      sub:   ovLoading ? "Fetching data…" : "In current pipeline",
       change: null, up: true, icon: Users, delay: "240ms", path: "/masters/clients",
     },
   ];
@@ -281,9 +300,17 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
               Welcome back, <span style={{ color: G_DIM }}>{user.username}</span>.
             </h1>
-            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-              <Clock className="h-3 w-3" style={{ color: G }} /> {today}
-            </p>
+            <div className="flex items-center gap-3 mt-0.5">
+              <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                <Clock className="h-3 w-3" style={{ color: G }} /> {today}
+              </p>
+              <button onClick={fetchOverview} disabled={ovLoading}
+                className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all disabled:opacity-40"
+                style={{ color: G_DIM, background: `${G}15`, border: `1px solid ${G}25` }}>
+                <RefreshCw className={`h-2.5 w-2.5 ${ovLoading ? "animate-spin" : ""}`} />
+                {ovLoading ? "Loading…" : ovError ? "Retry" : "Refresh"}
+              </button>
+            </div>
           </div>
           {/* Last Login Card */}
           <div className={`${card} fade-up px-4 py-3 flex items-center gap-3`} style={{ animationDelay: "100ms" }}>
