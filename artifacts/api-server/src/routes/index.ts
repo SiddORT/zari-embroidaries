@@ -36,6 +36,7 @@ import accountPurchasesRouter from "./accountPurchases";
 import otherExpensesRouter from "./otherExpenses";
 import accountsDashboardRouter from "./accountsDashboard";
 import dashboardOverviewRouter from "./dashboardOverview";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -76,5 +77,6 @@ router.use("/account-purchases", accountPurchasesRouter);
 router.use(otherExpensesRouter);
 router.use(accountsDashboardRouter);
 router.use(dashboardOverviewRouter);
+router.use(reportsRouter);
 
 export default router;

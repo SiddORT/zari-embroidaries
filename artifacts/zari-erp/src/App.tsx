@@ -58,6 +58,7 @@ import CreditDebitNotes from "@/pages/CreditDebitNotes";
 import AccountPurchases from "@/pages/AccountPurchases";
 import OtherExpenses from "@/pages/OtherExpenses";
 import AccountsDashboard from "@/pages/AccountsDashboard";
+import Reports from "@/pages/Reports";
 
 const queryClient = new QueryClient();
 
@@ -146,6 +147,7 @@ function Router() {
       <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
       <Route path="/shipping" component={ShippingList} />
       <Route path="/masters/shipping-vendors" component={ShippingVendors} />
+      <Route path="/settings/reports" component={Reports} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

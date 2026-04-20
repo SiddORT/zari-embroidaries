@@ -1,0 +1,154 @@
+Build a Reports module accessible from Settings → Reports.
+This module must display report selection using clickable report cards instead of dropdown selection.
+Reports must open inside the same page with filters and CSV export support.
+Follow structure below.
+
+MODULE NAME
+Reports Module
+
+SECTION 1 — SIDEBAR NAVIGATION
+Add menu:
+Settings → Reports
+Place below:
+Invoice Templates
+
+SECTION 2 — REPORT SELECTION SCREEN (CARD LAYOUT)
+Inside:
+Settings → Reports
+Display report selection cards:
+Stock Summary
+Stock Movement
+Purchase Summary
+Invoice Summary
+Vendor Ledger
+Client Ledger
+Order Profitability
+Purchase vs Sales
+Each card must include:
+Report Name
+Icon
+Short description
+Click action:
+Load selected report below cards on same screen
+
+SECTION 3 — REPORT LOAD AREA
+
+Create section:
+Report Viewer Panel
+When user clicks report card:
+Load selected report table dynamically
+Display report title above table
+
+SECTION 4 — DYNAMIC FILTER BAR
+Display filter row above report table
+Filters adjust based on report selected
+Available filters:
+Date Range
+Client selector
+Vendor selector
+Item selector
+Example behavior:
+Stock reports → show Item filter
+Invoice reports → show Client filter
+Vendor reports → show Vendor filter
+
+SECTION 5 — REPORT TABLE STRUCTURE
+Display table layout:
+Columns change based on report selected
+Reports supported:
+Stock Summary
+Columns:
+Item
+Current Stock
+Reserved
+Available
+Reorder Level
+Stock Status
+Stock Movement
+Columns:
+Date
+Item
+Transaction Type
+Reference
+Quantity Change
+Balance
+Purchase Summary
+Columns:
+PO Amount
+PR Value
+Vendor Bills
+Pending Payables
+Invoice Summary
+Columns:
+Invoice Number
+Client
+Invoice Amount
+Received Amount
+Pending Amount
+Status
+Vendor Ledger
+Columns:
+Vendor
+Entry Type
+Reference
+Amount
+Balance
+Date
+Client Ledger
+Columns:
+Client
+Entry Type
+Reference
+Amount
+Balance
+Date
+Order Profitability
+Columns:
+Order ID
+Total Cost
+Invoice Amount
+Shipping Cost
+Net Profit
+Purchase vs Sales
+Columns:
+Total Sales
+Total Purchases
+Other Expenses
+Net Revenue
+
+SECTION 6 — CSV EXPORT SUPPORT
+Add button:
+Export CSV
+Export only currently visible report data
+File name format:
+report_name_YYYYMMDD.csv
+
+SECTION 7 — LIVE DATA REQUIREMENT
+Reports must:
+fetch latest database values
+respect filters
+refresh instantly after filter change
+not cache totals
+
+SECTION 8 — UI STRUCTURE
+Layout order:
+Report Cards Grid
+Report Viewer Panel
+Filter Row
+Report Table
+Export CSV Button
+Use existing counter-card styling for report cards
+
+SECTION 9 — PERMISSIONS CONTROL
+Allow access:
+Admin users
+Accounts users
+Inventory users
+Restrict:
+general users
+
+SECTION 10 — SUCCESS MESSAGE
+After report loads:
+Display:
+Report loaded successfully
+END OF MODULE

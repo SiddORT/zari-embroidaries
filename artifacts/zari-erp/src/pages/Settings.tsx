@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, Camera, CheckCircle2, AlertCircle, Edit2, X,
   Building2, Activity, Trash2, Star, Plus, Filter, Search,
   CreditCard, Landmark, Download, Warehouse, MapPin, Phone, FileText, Receipt, ToggleLeft, ToggleRight, Info,
-  Layers, Check, ChevronRight
+  Layers, Check, ChevronRight, BarChart2
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,7 +15,7 @@ import AppLayout from "@/components/layout/AppLayout";
 
 const G = "#C6AF4B";
 
-type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses" | "templates";
+type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses" | "templates" | "reports";
 
 const STATUS_COLORS: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -50,6 +50,7 @@ export default function Settings() {
     const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     return p && valid.includes(p) ? p : "profile";
   });
+  const goReports = () => setLocation("/settings/reports");
   const isAdmin = user?.role === "admin";
 
   function handleLogout() {
@@ -96,6 +97,7 @@ export default function Settings() {
                   <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => setTab("templates")} />
                 </>
               )}
+              <NavItem icon={<BarChart2 size={16} />} label="Reports" active={false} onClick={goReports} />
             </div>
           </aside>
 
