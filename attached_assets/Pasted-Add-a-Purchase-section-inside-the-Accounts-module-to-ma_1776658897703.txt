@@ -1,0 +1,243 @@
+Add a Purchase section inside the Accounts module to manage Purchase Orders, Vendor Bills, and Other Expenses.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Accounts Purchase Module
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Add menu:
+
+Accounts → Purchases
+
+Sub-sections:
+
+Purchase Orders
+
+Vendor Bills
+
+Other Expenses
+
+---
+
+SECTION 2 — PURCHASE ORDERS VIEW (FINANCIAL SUMMARY ONLY)
+
+Display list from:
+
+purchase_orders table
+
+Columns:
+
+PO Number
+
+Vendor Name
+
+Reference (Swatch / Style / Manual)
+
+PO Amount
+
+Received Quantity
+
+Pending Quantity
+
+PO Status
+
+PO Date
+
+Allow:
+
+View PO Details
+
+Download PO PDF
+
+Navigate to linked PR records
+
+---
+
+SECTION 3 — VENDOR BILLS VIEW
+
+Display vendor bills created from:
+
+Purchase Receipt vendor invoice upload
+
+Manual vendor bills
+
+Columns:
+
+Bill Number
+
+Vendor Name
+
+Linked PO
+
+Bill Amount
+
+Paid Amount
+
+Pending Amount
+
+Bill Status
+
+Bill Date
+
+Allow:
+
+Open bill details
+
+Record payment
+
+View attachment
+
+---
+
+SECTION 4 — OTHER EXPENSES ENTRY
+
+Create table:
+
+other_expenses
+
+Fields:
+
+expense_id
+
+expense_number (auto generated)
+
+expense_category
+
+vendor_id (optional)
+
+reference_type (optional)
+
+reference_id (optional)
+
+amount
+
+currency_code
+
+payment_status
+
+payment_type
+
+expense_date
+
+remarks
+
+attachment
+
+created_by
+
+created_at
+
+---
+
+SECTION 5 — EXPENSE CATEGORY VALUES
+
+expense_category examples:
+
+Courier Charges
+
+Office Expenses
+
+Sampling Misc Expenses
+
+Transport Charges
+
+Packaging Expenses
+
+Utility Expenses
+
+Other
+
+Allow adding custom categories.
+
+---
+
+SECTION 6 — VENDOR LEDGER INTEGRATION
+
+When:
+
+Vendor Bill created
+
+OR
+
+Other Expense linked to vendor created
+
+Create entry inside:
+
+vendor_ledger
+
+Fields mapped:
+
+vendor_id
+
+reference_type
+
+reference_id
+
+entry_type = Expense
+
+amount
+
+expense_date
+
+status = payment_status
+
+---
+
+SECTION 7 — PAYMENT RECORD SUPPORT
+
+Allow recording payment against:
+
+Vendor Bills
+
+Other Expenses
+
+Fields:
+
+payment_type
+
+payment_amount
+
+payment_date
+
+transaction_reference
+
+status
+
+Update:
+
+vendor outstanding summary automatically
+
+---
+
+SECTION 8 — FILTERS
+
+Allow filters on:
+
+Vendor
+
+Date Range
+
+Expense Category
+
+Status
+
+Reference Type
+
+---
+
+SECTION 9 — SUCCESS MESSAGE
+
+After saving expense:
+
+Display:
+
+Expense recorded successfully and added to vendor ledger
+
+END OF MODULE

@@ -284,6 +284,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
+                    { label: "Purchases",            href: "/accounts/purchases" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
@@ -515,6 +516,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
+                    { label: "Purchases",            href: "/accounts/purchases" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
