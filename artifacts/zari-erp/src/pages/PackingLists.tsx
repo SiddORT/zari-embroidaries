@@ -57,7 +57,7 @@ export default function PackingLists() {
   const [filterStatus, setFilterStatus] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const LIMIT = 25;
+  const LIMIT = 10;
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -219,14 +219,15 @@ export default function PackingLists() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {["PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Net Wt", "Gross Wt", "Status", ""].map(h => (
+                      {["#", "PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Net Wt", "Gross Wt", "Status", ""].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {records.map(r => (
+                    {records.map((r, idx) => (
                       <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-400 text-xs font-medium whitespace-nowrap">{(page - 1) * LIMIT + idx + 1}</td>
                         <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{r.pl_number}</td>
                         <td className="px-4 py-3 text-gray-700">{r.client_name}</td>
                         <td className="px-4 py-3">
