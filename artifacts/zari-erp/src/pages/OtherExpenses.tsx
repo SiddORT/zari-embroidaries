@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 const CARD = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
 const TH   = "px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap";
 const TD   = "px-3 py-3 text-sm text-gray-800";
-const INP  = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
+const INP  = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
 const LBL  = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
 const G    = "#C6AF4B";
 
