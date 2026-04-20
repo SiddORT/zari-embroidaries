@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Wallet, TrendingDown, TrendingUp, Scale,
   Plus, CreditCard, Building2, Calendar, Filter,
   Trash2, X, CheckCircle, AlertCircle, FileText,
-  IndianRupee, ChevronDown,
+  IndianRupee, ChevronDown, CheckSquare,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -59,9 +59,15 @@ const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> 
   ledger_charge:  { label: "Manual Charge",   color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
   artwork_swatch: { label: "Artwork (Swatch)",color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
   artwork_style:  { label: "Artwork (Style)", color: "#6366F1", bg: "rgba(99,102,241,0.1)" },
+  artwork_toile:  { label: "Toile Work",      color: "#EC4899", bg: "rgba(236,72,153,0.1)" },
+  artwork_pattern:{ label: "Pattern (Out)",   color: "#D946EF", bg: "rgba(217,70,239,0.1)" },
   toile:          { label: "Toile Work",      color: "#EC4899", bg: "rgba(236,72,153,0.1)" },
   payment:        { label: "Payment",         color: "#10B981", bg: "rgba(16,185,129,0.1)" },
 };
+
+function rowKey(e: LedgerEntry) {
+  return `${e.entry_type}::${e.entry_id}`;
+}
 
 export default function VendorLedgerDetail() {
   const [, setLocation] = useLocation();
@@ -92,6 +98,10 @@ export default function VendorLedgerDetail() {
   const [chargeForm, setChargeForm] = useState({ description: "", amount: "", notes: "", orderType: "general", chargeDate: "" });
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Selection state ──────────────────────────────────────────────────
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [payFromSelection, setPayFromSelection] = useState(false);
+
   useEffect(() => {
     if (!token || isError) { localStorage.removeItem("zarierp_token"); setLocation("/login"); }
   }, [token, isError, setLocation]);
@@ -99,16 +109,16 @@ export default function VendorLedgerDetail() {
   const loadData = useCallback(() => {
     if (!token || !vendorId) return;
     setLoading(true);
-    const params: Record<string, string> = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    if (orderTypeFilter !== "all") params.orderType = orderTypeFilter;
+    const p: Record<string, string> = {};
+    if (startDate) p.startDate = startDate;
+    if (endDate) p.endDate = endDate;
+    if (orderTypeFilter !== "all") p.orderType = orderTypeFilter;
 
-    const qs = new URLSearchParams(params).toString();
+    const qs = new URLSearchParams(p).toString();
     Promise.all([
       customFetch(`/api/vendor-ledger/${vendorId}/info`) as Promise<Vendor>,
       customFetch(`/api/vendor-ledger/${vendorId}/entries${qs ? "?" + qs : ""}`) as Promise<LedgerEntry[]>,
-    ]).then(([v, e]) => { setVendor(v); setEntries(e); })
+    ]).then(([v, e]) => { setVendor(v); setEntries(e); setSelectedKeys(new Set()); })
       .catch(() => toast({ title: "Failed to load ledger", variant: "destructive" }))
       .finally(() => setLoading(false));
   }, [token, vendorId, startDate, endDate, orderTypeFilter]);
@@ -132,6 +142,69 @@ export default function VendorLedgerDetail() {
   const totalCredit = entries.reduce((s, e) => s + parseFloat(e.credit || "0"), 0);
   const balance     = totalDebit - totalCredit;
 
+  // Only debit entries (non-payment) can be selected
+  const selectableEntries = useMemo(
+    () => filteredEntries.filter(e => parseFloat(e.debit) > 0 && e.entry_type !== "payment"),
+    [filteredEntries]
+  );
+
+  const allSelected = selectableEntries.length > 0 && selectableEntries.every(e => selectedKeys.has(rowKey(e)));
+  const someSelected = selectableEntries.some(e => selectedKeys.has(rowKey(e)));
+
+  const selectedTotal = useMemo(() => {
+    return Array.from(selectedKeys).reduce((sum, key) => {
+      const entry = entries.find(e => rowKey(e) === key);
+      return sum + (entry ? parseFloat(entry.debit || "0") : 0);
+    }, 0);
+  }, [selectedKeys, entries]);
+
+  const selectedEntries = useMemo(
+    () => entries.filter(e => selectedKeys.has(rowKey(e))),
+    [selectedKeys, entries]
+  );
+
+  function toggleRow(entry: LedgerEntry) {
+    const k = rowKey(entry);
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      next.has(k) ? next.delete(k) : next.add(k);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedKeys(prev => {
+        const next = new Set(prev);
+        selectableEntries.forEach(e => next.delete(rowKey(e)));
+        return next;
+      });
+    } else {
+      setSelectedKeys(prev => {
+        const next = new Set(prev);
+        selectableEntries.forEach(e => next.add(rowKey(e)));
+        return next;
+      });
+    }
+  }
+
+  function openPayFromSelection() {
+    setPayFromSelection(true);
+    setPayForm(f => ({
+      ...f,
+      amount: selectedTotal.toFixed(2),
+      notes: `Payment against ${selectedEntries.length} item(s): ` +
+        selectedEntries.map(e => e.description).join(", "),
+    }));
+    setPayModal(true);
+  }
+
+  function openPayGeneral() {
+    setPayFromSelection(false);
+    setPayForm({ amount: "", paymentMode: "Bank Transfer", referenceNo: "", notes: "", paymentDate: "", orderType: "general" });
+    setPayModal(true);
+  }
+
   const handlePay = async () => {
     if (!payForm.amount || !payForm.paymentMode) {
       toast({ title: "Amount and payment mode are required", variant: "destructive" }); return;
@@ -144,6 +217,8 @@ export default function VendorLedgerDetail() {
       });
       toast({ title: "Payment recorded successfully" });
       setPayModal(false);
+      setPayFromSelection(false);
+      setSelectedKeys(new Set());
       setPayForm({ amount: "", paymentMode: "Bank Transfer", referenceNo: "", notes: "", paymentDate: "", orderType: "general" });
       loadData();
     } catch {
@@ -200,6 +275,8 @@ export default function VendorLedgerDetail() {
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         .fade-up { animation: fadeUp 0.4s ease both; }
         .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px; }
+        @keyframes selBar { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .sel-bar { animation: selBar 0.2s ease both; }
       `}</style>
 
       <div className="space-y-5 pb-10">
@@ -235,7 +312,7 @@ export default function VendorLedgerDetail() {
               style={{ background: `${G}15`, color: G_DIM, border: `1px solid ${G}30` }}>
               <Plus className="h-4 w-4" /> Add Charge
             </button>
-            <button onClick={() => setPayModal(true)}
+            <button onClick={openPayGeneral}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-80"
               style={{ background: G_DIM }}>
               <CreditCard className="h-4 w-4" /> Record Payment
@@ -303,6 +380,38 @@ export default function VendorLedgerDetail() {
           )}
         </div>
 
+        {/* ── Selection Action Bar ── */}
+        {selectedKeys.size > 0 && (
+          <div className="sel-bar sticky top-16 z-10 flex items-center justify-between px-5 py-3 rounded-2xl border"
+            style={{ background: "#1a1a1a", borderColor: G + "40" }}>
+            <div className="flex items-center gap-3">
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: G + "20" }}>
+                <CheckSquare className="h-4 w-4" style={{ color: G }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">
+                  {selectedKeys.size} item{selectedKeys.size !== 1 ? "s" : ""} selected
+                </p>
+                <p className="text-xs" style={{ color: G }}>
+                  Total: {fmt(selectedTotal)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelectedKeys(new Set())}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition-colors">
+                Clear
+              </button>
+              <button onClick={openPayFromSelection}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:opacity-80"
+                style={{ background: G_DIM, color: "#fff" }}>
+                <CreditCard className="h-3.5 w-3.5" />
+                Pay {fmt(selectedTotal)}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Ledger Table */}
         <div className={`${card} fade-up overflow-visible`} style={{ animationDelay: "140ms" }}>
           <div className="h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${G}, transparent)` }} />
@@ -322,7 +431,26 @@ export default function VendorLedgerDetail() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-5 py-3.5">
+                    {/* Select-all checkbox */}
+                    <th className="px-4 py-3.5 w-9">
+                      {selectableEntries.length > 0 && (
+                        <button onClick={toggleAll}
+                          className="h-4 w-4 rounded border-2 flex items-center justify-center transition-all"
+                          style={{
+                            borderColor: allSelected ? G_DIM : someSelected ? G_DIM : "#d1d5db",
+                            background: allSelected ? G_DIM : someSelected ? G + "30" : "white",
+                          }}>
+                          {(allSelected || someSelected) && (
+                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                              {allSelected
+                                ? <path d="M1 4l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                : <rect x="1.5" y="3.5" width="5" height="1" fill={G_DIM} rx="0.5"/>}
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                    </th>
+                    <th className="text-left px-3 py-3.5">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Date</span>
                     </th>
                     <th className="text-left px-3 py-3.5">
@@ -347,16 +475,42 @@ export default function VendorLedgerDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredEntries.map((entry, idx) => {
-                    const isDebit    = parseFloat(entry.debit) > 0;
-                    const isCredit   = parseFloat(entry.credit) > 0;
-                    const typeInfo   = TYPE_LABELS[entry.entry_type] ?? { label: entry.entry_type, color: G, bg: `${G}10` };
-                    const isDeletable = ["payment", "ledger_charge"].includes(entry.entry_type);
+                  {filteredEntries.map((entry) => {
+                    const isDebit      = parseFloat(entry.debit) > 0;
+                    const isCredit     = parseFloat(entry.credit) > 0;
+                    const typeInfo     = TYPE_LABELS[entry.entry_type] ?? { label: entry.entry_type, color: G, bg: `${G}10` };
+                    const isDeletable  = ["payment", "ledger_charge"].includes(entry.entry_type);
+                    const isSelectable = isDebit && entry.entry_type !== "payment";
+                    const key          = rowKey(entry);
+                    const isChecked    = selectedKeys.has(key);
 
                     return (
-                      <tr key={`${entry.entry_type}-${entry.entry_id}`}
-                        className="border-b border-gray-50 hover:bg-amber-50/40 transition-colors">
-                        <td className="px-5 py-3 whitespace-nowrap text-gray-500">{fmtDate(entry.entry_date)}</td>
+                      <tr key={key}
+                        className={`border-b border-gray-50 transition-colors ${
+                          isChecked
+                            ? "bg-amber-50/70"
+                            : "hover:bg-amber-50/30"
+                        }`}>
+
+                        {/* Checkbox cell */}
+                        <td className="px-4 py-3">
+                          {isSelectable && (
+                            <button onClick={() => toggleRow(entry)}
+                              className="h-4 w-4 rounded border-2 flex items-center justify-center transition-all shrink-0"
+                              style={{
+                                borderColor: isChecked ? G_DIM : "#d1d5db",
+                                background: isChecked ? G_DIM : "white",
+                              }}>
+                              {isChecked && (
+                                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                  <path d="M1 4l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </button>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-500">{fmtDate(entry.entry_date)}</td>
                         <td className="px-3 py-3">
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider"
                             style={{ color: typeInfo.color, background: typeInfo.bg }}>
@@ -396,9 +550,13 @@ export default function VendorLedgerDetail() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-100 bg-gray-50/50">
-                    <td colSpan={4} className="px-5 py-3">
+                    <td />
+                    <td colSpan={4} className="px-3 py-3">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
                         {filteredEntries.length} entries
+                        {selectedKeys.size > 0 && (
+                          <span className="ml-2" style={{ color: G_DIM }}>· {selectedKeys.size} selected</span>
+                        )}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right font-black" style={{ color: G_DIM }}>{fmt(totalDebit)}</td>
@@ -438,10 +596,32 @@ export default function VendorLedgerDetail() {
                   <h2 className="text-base font-bold text-gray-900">Record Payment</h2>
                   <p className="text-xs text-gray-400 mt-0.5">to {vendor?.brandName}</p>
                 </div>
-                <button onClick={() => setPayModal(false)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+                <button onClick={() => { setPayModal(false); setPayFromSelection(false); }}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
                   <X className="h-4 w-4 text-gray-400" />
                 </button>
               </div>
+
+              {/* Selected items summary */}
+              {payFromSelection && selectedEntries.length > 0 && (
+                <div className="mb-4 p-3 rounded-xl border" style={{ background: G + "08", borderColor: G + "30" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: G_DIM }}>
+                    Paying against {selectedEntries.length} item{selectedEntries.length !== 1 ? "s" : ""}
+                  </p>
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                    {selectedEntries.map(e => (
+                      <div key={rowKey(e)} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600 truncate mr-2">{e.description}</span>
+                        <span className="font-bold shrink-0" style={{ color: G_DIM }}>{fmt(e.debit)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 pt-2 border-t flex justify-between text-xs font-black" style={{ borderColor: G + "20" }}>
+                    <span className="text-gray-500">Total</span>
+                    <span style={{ color: G_DIM }}>{fmt(selectedTotal)}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -500,7 +680,7 @@ export default function VendorLedgerDetail() {
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button onClick={() => setPayModal(false)}
+                <button onClick={() => { setPayModal(false); setPayFromSelection(false); }}
                   className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                   Cancel
                 </button>
