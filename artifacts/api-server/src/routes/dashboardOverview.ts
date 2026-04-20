@@ -33,8 +33,16 @@ router.get("/dashboard/overview", requireAuth, async (_req, res) => {
           (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW()))::int AS swatch_this_month,
           (SELECT COUNT(*) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS swatch_last_month,
           (SELECT COUNT(*) FROM style_order_artworks)::int + (SELECT COUNT(*) FROM artworks)::int   AS artwork_total,
+          (SELECT COUNT(*) FROM style_order_artworks WHERE date_trunc('month', created_at) = date_trunc('month', NOW()))::int
+          + (SELECT COUNT(*) FROM artworks WHERE date_trunc('month', created_at) = date_trunc('month', NOW()))::int AS artwork_this_month,
+          (SELECT COUNT(*) FROM style_order_artworks WHERE date_trunc('month', created_at) = date_trunc('month', NOW() - INTERVAL '1 month'))::int
+          + (SELECT COUNT(*) FROM artworks WHERE date_trunc('month', created_at) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS artwork_last_month,
           (SELECT COUNT(DISTINCT client_id) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled') AND client_id IS NOT NULL)::int
-          + (SELECT COUNT(DISTINCT client_id) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled') AND client_id IS NOT NULL)::int AS active_clients
+          + (SELECT COUNT(DISTINCT client_id) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND order_status NOT IN ('Completed','Cancelled') AND client_id IS NOT NULL)::int AS active_clients,
+          (SELECT COUNT(DISTINCT client_id) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND client_id IS NOT NULL AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW()))::int
+          + (SELECT COUNT(DISTINCT client_id) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND client_id IS NOT NULL AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW()))::int AS clients_this_month,
+          (SELECT COUNT(DISTINCT client_id) FROM style_orders  WHERE (is_deleted = false OR is_deleted IS NULL) AND client_id IS NOT NULL AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int
+          + (SELECT COUNT(DISTINCT client_id) FROM swatch_orders WHERE (is_deleted = false OR is_deleted IS NULL) AND client_id IS NOT NULL AND date_trunc('month', NULLIF(order_issue_date,'')::date) = date_trunc('month', NOW() - INTERVAL '1 month'))::int AS clients_last_month
       `),
 
       /* ── Trend: style orders (last 6 months) ────────────────── */
@@ -199,8 +207,10 @@ router.get("/dashboard/overview", requireAuth, async (_req, res) => {
 
     /* ── kpi ────────────────────────────────────────────────── */
     const k = kpiRes.rows[0];
-    const stylePct  = k.style_last_month  > 0 ? (((k.style_this_month  - k.style_last_month)  / k.style_last_month)  * 100).toFixed(1) : null;
-    const swatchPct = k.swatch_last_month > 0 ? (((k.swatch_this_month - k.swatch_last_month) / k.swatch_last_month) * 100).toFixed(1) : null;
+    const stylePct   = k.style_last_month    > 0 ? (((k.style_this_month    - k.style_last_month)    / k.style_last_month)    * 100).toFixed(1) : null;
+    const swatchPct  = k.swatch_last_month   > 0 ? (((k.swatch_this_month   - k.swatch_last_month)   / k.swatch_last_month)   * 100).toFixed(1) : null;
+    const artworkPct = k.artwork_last_month  > 0 ? (((k.artwork_this_month  - k.artwork_last_month)  / k.artwork_last_month)  * 100).toFixed(1) : null;
+    const clientPct  = k.clients_last_month  > 0 ? (((k.clients_this_month  - k.clients_last_month)  / k.clients_last_month)  * 100).toFixed(1) : null;
 
     /* ── invoice stats ──────────────────────────────────────── */
     const iv = invoiceStatsRes.rows[0];
@@ -215,10 +225,10 @@ router.get("/dashboard/overview", requireAuth, async (_req, res) => {
 
     res.json({
       kpi: {
-        styleOrders:   { total: k.style_total,  active: k.style_active,  thisMonth: k.style_this_month,  pctChange: stylePct  },
-        swatchOrders:  { total: k.swatch_total, active: k.swatch_active, thisMonth: k.swatch_this_month, pctChange: swatchPct },
-        artworks:      { total: k.artwork_total },
-        activeClients: { total: k.active_clients },
+        styleOrders:   { total: k.style_total,  active: k.style_active,  thisMonth: k.style_this_month,  pctChange: stylePct   },
+        swatchOrders:  { total: k.swatch_total, active: k.swatch_active, thisMonth: k.swatch_this_month, pctChange: swatchPct  },
+        artworks:      { total: k.artwork_total, thisMonth: k.artwork_this_month, pctChange: artworkPct },
+        activeClients: { total: k.active_clients, thisMonth: k.clients_this_month, pctChange: clientPct },
       },
       trend,
       styleStatuses:  styleStatusRes.rows,

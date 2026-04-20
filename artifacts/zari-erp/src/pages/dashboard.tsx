@@ -190,32 +190,43 @@ export default function Dashboard() {
   const styleUp  = kpi ? (kpi.styleOrders.pctChange  !== null ? parseFloat(kpi.styleOrders.pctChange)  >= 0 : true) : true;
   const swatchUp = kpi ? (kpi.swatchOrders.pctChange !== null ? parseFloat(kpi.swatchOrders.pctChange) >= 0 : true) : true;
 
+  const artworkUp = kpi ? (kpi.artworks.pctChange !== null ? parseFloat(kpi.artworks.pctChange) >= 0 : true) : true;
+  const clientUp  = kpi ? (kpi.activeClients.pctChange !== null ? parseFloat(kpi.activeClients.pctChange) >= 0 : true) : true;
+
+  function fmtPct(p: string | null | undefined): string | null {
+    if (!p) return null;
+    const n = parseFloat(p);
+    return `${n > 0 ? "+" : ""}${p}% vs last month`;
+  }
+
   const kpiCards = [
     {
       label: "STYLE ORDERS",
       value: kpi ? String(kpi.styleOrders.active) : "—",
       sub:   ovLoading ? "Fetching data…" : kpi ? `${kpi.styleOrders.thisMonth} issued this month` : "—",
-      change: ovLoading ? null : kpi?.styleOrders.pctChange ? `${parseFloat(kpi.styleOrders.pctChange) > 0 ? "+" : ""}${kpi.styleOrders.pctChange}% vs last month` : null,
+      change: ovLoading ? null : fmtPct(kpi?.styleOrders.pctChange),
       up: styleUp, icon: Layers, delay: "0ms", path: "/style-orders",
     },
     {
       label: "SWATCH ORDERS",
       value: kpi ? String(kpi.swatchOrders.active) : "—",
       sub:   ovLoading ? "Fetching data…" : kpi ? `${kpi.swatchOrders.thisMonth} issued this month` : "—",
-      change: ovLoading ? null : kpi?.swatchOrders.pctChange ? `${parseFloat(kpi.swatchOrders.pctChange) > 0 ? "+" : ""}${kpi.swatchOrders.pctChange}% vs last month` : null,
+      change: ovLoading ? null : fmtPct(kpi?.swatchOrders.pctChange),
       up: swatchUp, icon: Package, delay: "80ms", path: "/swatch-orders",
     },
     {
       label: "ARTWORKS",
       value: kpi ? String(kpi.artworks.total) : "—",
-      sub:   ovLoading ? "Fetching data…" : "Across all orders",
-      change: null, up: true, icon: Palette, delay: "160ms", path: "/swatch-orders",
+      sub:   ovLoading ? "Fetching data…" : kpi ? `${kpi.artworks.thisMonth} added this month` : "—",
+      change: ovLoading ? null : fmtPct(kpi?.artworks.pctChange),
+      up: artworkUp, icon: Palette, delay: "160ms", path: "/swatch-orders",
     },
     {
       label: "ACTIVE CLIENTS",
       value: kpi ? String(kpi.activeClients.total) : "—",
-      sub:   ovLoading ? "Fetching data…" : "In current pipeline",
-      change: null, up: true, icon: Users, delay: "240ms", path: "/masters/clients",
+      sub:   ovLoading ? "Fetching data…" : kpi ? `${kpi.activeClients.thisMonth} active this month` : "—",
+      change: ovLoading ? null : fmtPct(kpi?.activeClients.pctChange),
+      up: clientUp, icon: Users, delay: "240ms", path: "/masters/clients",
     },
   ];
 
@@ -363,11 +374,8 @@ export default function Dashboard() {
                       {c.up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
                       {c.change}
                     </div>
-                  ) : (
-                    <div className="h-1 rounded-full overflow-hidden" style={{ background: `${G}18` }}>
-                      <div className="h-full rounded-full w-full"
-                        style={{ background: `linear-gradient(90deg, ${G}60, ${G_LIGHT}, ${G}40)` }} />
-                    </div>
+                  ) : !ovLoading && (
+                    <p className="text-[11px] font-bold text-gray-300">No prior data</p>
                   )
                 }
               </div>
