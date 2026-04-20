@@ -249,8 +249,8 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">#</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Date</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Type</th>
-                  <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount</th>
-                  <th className="py-2 text-right font-semibold uppercase tracking-wide">INR Base</th>
+                  <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
+                  {currencyCode !== "INR" && <th className="py-2 text-right font-semibold uppercase tracking-wide">INR Base</th>}
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Reference</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
@@ -258,13 +258,23 @@ function InvoicePaymentsPanel({
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p, i) => (
+                {payments.map((p, i) => {
+                  const pmtInInvCcy = parseFloat(String(p.base_currency_amount ?? 0)) / fx;
+                  const showOriginal = p.currency_code !== currencyCode;
+                  return (
                   <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
                     <td className="py-2 text-gray-400">{i + 1}</td>
                     <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
                     <td className="py-2 text-gray-700">{p.payment_type}</td>
-                    <td className="py-2 text-right font-medium text-gray-900 tabular-nums">{p.currency_code} {fmtN(p.payment_amount)}</td>
-                    <td className="py-2 text-right text-gray-500 tabular-nums">₹{fmtN(p.base_currency_amount)}</td>
+                    <td className="py-2 text-right tabular-nums">
+                      <span className="font-medium text-gray-900">{currencyCode} {fmtN(pmtInInvCcy)}</span>
+                      {showOriginal && (
+                        <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
+                      )}
+                    </td>
+                    {currencyCode !== "INR" && (
+                      <td className="py-2 text-right text-gray-500 tabular-nums">₹{fmtN(p.base_currency_amount)}</td>
+                    )}
                     <td className="py-2 text-gray-500 max-w-[120px] truncate" title={p.transaction_reference}>{p.transaction_reference || "—"}</td>
                     <td className="py-2">
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
@@ -279,7 +289,8 @@ function InvoicePaymentsPanel({
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
