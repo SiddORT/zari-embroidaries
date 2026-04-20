@@ -1194,7 +1194,10 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
             AND current_stock::numeric <= reorder_level::numeric)                                AS low_stock,
           COUNT(*) FILTER (WHERE current_stock::numeric > 0
             AND (reorder_level::numeric = 0 OR current_stock::numeric > reorder_level::numeric)) AS in_stock,
-          COALESCE(SUM(available_stock::numeric * average_price::numeric), 0)                    AS total_stock_value
+          COALESCE(SUM(available_stock::numeric * average_price::numeric), 0)                    AS total_stock_value,
+          COUNT(*) FILTER (WHERE source_type = 'fabric')                                         AS fabric_count,
+          COUNT(*) FILTER (WHERE source_type = 'material')                                       AS material_count,
+          COUNT(*) FILTER (WHERE source_type = 'packaging')                                      AS packaging_count
         FROM inventory_items WHERE ${itemWhere}
       `, itemParams),
       pool.query(`
