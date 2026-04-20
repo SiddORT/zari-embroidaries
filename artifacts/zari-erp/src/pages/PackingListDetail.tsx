@@ -140,9 +140,28 @@ export default function PackingListDetail() {
     } finally { setDeleting(null); }
   }
 
-  function printPdf() {
-    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-    window.open(`${base}/api/packing-lists/${params.id}/pdf-html`, "_blank");
+  async function printPdf() {
+    try {
+      const token = localStorage.getItem("zarierp_token");
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const response = await fetch(`${base}/api/packing-lists/${params.id}/pdf-html`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const html = await response.text();
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast({ title: "Popup blocked", description: "Please allow popups and try again", variant: "destructive" });
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 600);
+    } catch (err: any) {
+      toast({ title: "Failed to load PDF", description: err?.message ?? "Unknown error", variant: "destructive" });
+    }
   }
 
   if (!user && !isError) return null;

@@ -96,6 +96,30 @@ export default function PackingLists() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function handlePrintPdf(id: number) {
+    try {
+      const token = localStorage.getItem("zarierp_token");
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const response = await fetch(`${base}/api/packing-lists/${id}/pdf-html`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const html = await response.text();
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast({ title: "Popup blocked", description: "Please allow popups and try again", variant: "destructive" });
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 600);
+    } catch (err: any) {
+      toast({ title: "Failed to load PDF", description: err?.message ?? "Unknown error", variant: "destructive" });
+    }
+  }
+
   async function handleDelete(id: number, pl_number: string) {
     if (!confirm(`Delete packing list ${pl_number}? This cannot be undone.`)) return;
     setDeletingId(id);
@@ -235,7 +259,7 @@ export default function PackingLists() {
                               <Eye className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => window.open(`/api/packing-lists/${r.id}/pdf-html`, "_blank")}
+                              onClick={() => handlePrintPdf(r.id)}
                               className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"
                               title="Print PDF"
                             >
