@@ -967,7 +967,8 @@ const TABS = [
 ];
 
 export default function AccountPurchases() {
-  const [activeTab, setActiveTab] = useState("po");
+  const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "po";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const { data: me, isError } = useGetMe();
 
   if (isError || !(me as any)?.id) {
