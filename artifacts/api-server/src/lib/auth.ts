@@ -12,18 +12,23 @@ export function verifyPassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
 }
 
-export interface JwtPayload {
+export interface AuthTokenPayload {
   userId: number;
   email: string;
   role: string;
+  username?: string;
+  name?: string;
 }
 
-export function signToken(payload: JwtPayload): string {
+/** @deprecated Use AuthTokenPayload */
+export type JwtPayload = AuthTokenPayload;
+
+export function signToken(payload: AuthTokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
-export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+export function verifyToken(token: string): AuthTokenPayload {
+  return jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
 }
 
 export function generateResetToken(): string {

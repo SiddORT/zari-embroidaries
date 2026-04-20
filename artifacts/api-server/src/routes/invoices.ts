@@ -2,10 +2,6 @@ import { Router } from "express";
 import { db, invoicesTable, pool } from "@workspace/db";
 import { eq, like, desc, ilike, and, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
-import type { Request } from "express";
-
-interface AuthRequest extends Request { user?: { email: string; role: string } }
-
 const router = Router();
 
 const INVOICE_DIRECTIONS = ["Client", "Vendor"] as const;
@@ -121,7 +117,7 @@ router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
 });
 
 // POST /invoices — create
-router.post("/invoices", requireAuth, async (req: AuthRequest, res) => {
+router.post("/invoices", requireAuth, async (req, res) => {
   try {
     const b = req.body;
     const invoiceNo = b.invoiceNo ?? (await getNextInvoiceNo());
@@ -192,7 +188,7 @@ router.post("/invoices", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PUT /invoices/:id — update
-router.put("/invoices/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/invoices/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {

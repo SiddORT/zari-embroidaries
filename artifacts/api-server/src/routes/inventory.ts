@@ -363,9 +363,7 @@ router.post("/inventory/ledger/wastage", requireAuth, async (req: AuthRequest, r
 
     const newStock = Math.max(0, parseFloat(item.current_stock ?? "0") - qty);
     const newAvail = Math.max(0, newStock - parseFloat(item.style_reserved_qty ?? "0") - parseFloat(item.swatch_reserved_qty ?? "0"));
-    const userName = (req.user as { name?: string; email?: string } | undefined)?.name
-      || (req.user as { name?: string; email?: string } | undefined)?.email
-      || "Admin";
+    const userName = req.user?.name || req.user?.email || "Admin";
 
     await pool.query(
       `UPDATE inventory_items SET current_stock = $1, available_stock = $2, last_updated_at = NOW() WHERE id = $3`,
@@ -464,9 +462,7 @@ router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, r
 
     const delta = stock - prevStock;
     const actionType = prevStock === 0 ? "opening" : delta >= 0 ? "adjustment_in" : "adjustment_out";
-    const userName = (req.user as { name?: string; email?: string } | undefined)?.name
-      || (req.user as { name?: string; email?: string } | undefined)?.email
-      || "Admin";
+    const userName = req.user?.name || req.user?.email || "Admin";
 
     await pool.query(
       `INSERT INTO inventory_stock_logs

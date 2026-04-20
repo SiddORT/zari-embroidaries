@@ -482,7 +482,7 @@ router.post("/settings/activity-logs/action", requireAuth, async (req: AuthReque
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [
         req.user?.email ?? "anonymous",
-        (req.user as any)?.username ?? req.user?.email ?? "",
+        req.user?.username ?? req.user?.email ?? "",
         method,
         url,
         description.trim(),
