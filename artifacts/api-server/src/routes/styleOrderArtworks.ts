@@ -133,6 +133,33 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
     outsourcePaymentMode: (body.outsourcePaymentMode as string) ?? null,
     outsourceTransactionId: (body.outsourceTransactionId as string) ?? null,
     outsourcePaymentStatus: (body.outsourcePaymentStatus as string) ?? null,
+    // Toile
+    toileMakingCost: (body.toileMakingCost as string) ?? null,
+    toileVendorId: (body.toileVendorId as string) ?? null,
+    toileVendorName: (body.toileVendorName as string) ?? null,
+    toileCost: (body.toileCost as string) ?? null,
+    toilePaymentType: (body.toilePaymentType as string) ?? null,
+    toilePaymentDate: (body.toilePaymentDate as string) ?? null,
+    toilePaymentMode: (body.toilePaymentMode as string) ?? null,
+    toilePaymentStatus: (body.toilePaymentStatus as string) ?? null,
+    toilePaymentAmount: (body.toilePaymentAmount as string) ?? null,
+    toileTransactionId: (body.toileTransactionId as string) ?? null,
+    toileRemarks: (body.toileRemarks as string) ?? null,
+    toileImages: (body.toileImages as object[]) ?? undefined,
+    // Pattern
+    patternType: (body.patternType as string) ?? null,
+    patternMakingCost: (body.patternMakingCost as string) ?? null,
+    patternDoc: (body.patternDoc as object[]) ?? undefined,
+    patternOuthouseDoc: (body.patternOuthouseDoc as object[]) ?? undefined,
+    patternVendorId: (body.patternVendorId as string) ?? null,
+    patternVendorName: (body.patternVendorName as string) ?? null,
+    patternPaymentType: (body.patternPaymentType as string) ?? null,
+    patternPaymentMode: (body.patternPaymentMode as string) ?? null,
+    patternPaymentStatus: (body.patternPaymentStatus as string) ?? null,
+    patternPaymentAmount: (body.patternPaymentAmount as string) ?? null,
+    patternTransactionId: (body.patternTransactionId as string) ?? null,
+    patternPaymentDate: (body.patternPaymentDate as string) ?? null,
+    patternRemarks: (body.patternRemarks as string) ?? null,
     feedbackStatus: (body.feedbackStatus as string) || undefined,
     files: (body.files as object[]) ?? undefined,
     refImages: (body.refImages as object[]) ?? undefined,
@@ -142,43 +169,83 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
     updatedAt: new Date(),
   }).where(eq(styleOrderArtworksTable.id, id)).returning();
 
-  // Sync costing_payments credit for style artwork outsource payment
-  const vendorId = body.outsourceVendorId ?? row.outsourceVendorId;
-  const payAmount = body.outsourcePaymentAmount ?? row.outsourcePaymentAmount;
-  const txnId = (body.outsourceTransactionId ?? row.outsourceTransactionId) as string | null;
-  if (vendorId && payAmount && parseFloat(String(payAmount)) > 0) {
+  const styleOrderId = row.styleOrderId;
+
+  // Helper: upsert a single costing_payment row
+  async function syncCostingPayment(
+    refType: string, vendorIdStr: string | null | undefined, vendorNameStr: string | null | undefined,
+    payAmt: string | null | undefined, payMode: string | null | undefined,
+    payStatus: string | null | undefined, txnIdStr: string | null | undefined,
+    payDate: string | null | undefined, payType: string | null | undefined, remarks: string | null | undefined,
+  ) {
+    if (!vendorIdStr || !payAmt || parseFloat(String(payAmt)) <= 0) return;
     try {
-      const styleOrderId = row.styleOrderId;
-      const existingRows = txnId
+      const existingRows = txnIdStr
         ? (await pool.query(
-            `SELECT id FROM costing_payments WHERE reference_type='artwork_style' AND reference_id=$1 AND transaction_id=$2 LIMIT 1`,
-            [id, txnId]
+            `SELECT id FROM costing_payments WHERE reference_type=$1 AND reference_id=$2 AND transaction_id=$3 LIMIT 1`,
+            [refType, id, txnIdStr]
           )).rows
         : [];
       if (existingRows.length > 0) {
         await pool.query(
-          `UPDATE costing_payments SET vendor_id=$1,vendor_name=$2,payment_mode=$3,payment_amount=$4,payment_status=$5,payment_date=$6 WHERE id=$7`,
-          [parseInt(String(vendorId)), body.outsourceVendorName ?? row.outsourceVendorName,
-           body.outsourcePaymentMode ?? row.outsourcePaymentMode,
-           parseFloat(String(payAmount)), body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? "Pending",
-           body.outsourcePaymentDate ? new Date(String(body.outsourcePaymentDate)) : null,
-           existingRows[0].id]
+          `UPDATE costing_payments SET vendor_id=$1,vendor_name=$2,payment_type=$3,payment_mode=$4,payment_amount=$5,payment_status=$6,payment_date=$7,remarks=$8 WHERE id=$9`,
+          [parseInt(String(vendorIdStr)), vendorNameStr, payType ?? null, payMode ?? null,
+           parseFloat(String(payAmt)), payStatus ?? "Pending",
+           payDate ? new Date(String(payDate)) : null, remarks ?? null, existingRows[0].id]
         );
       } else {
         await pool.query(
-          `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,style_order_id,payment_mode,payment_amount,payment_status,transaction_id,payment_date,created_by)
-           VALUES ($1,$2,'artwork_style',$3,$4,$5,$6,$7,$8,$9,$10)
+          `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,style_order_id,payment_type,payment_mode,payment_amount,payment_status,transaction_id,payment_date,remarks,created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
            ON CONFLICT DO NOTHING`,
-          [parseInt(String(vendorId)), body.outsourceVendorName ?? row.outsourceVendorName,
-           id, styleOrderId,
-           body.outsourcePaymentMode ?? row.outsourcePaymentMode,
-           parseFloat(String(payAmount)), body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? "Pending",
-           txnId, body.outsourcePaymentDate ? new Date(String(body.outsourcePaymentDate)) : null,
-           user?.email ?? "system"]
+          [parseInt(String(vendorIdStr)), vendorNameStr, refType, id, styleOrderId,
+           payType ?? null, payMode ?? null, parseFloat(String(payAmt)), payStatus ?? "Pending",
+           txnIdStr ?? null, payDate ? new Date(String(payDate)) : null, remarks ?? null, user?.email ?? "system"]
         );
       }
-    } catch (e) { logger.error(e, "Failed to sync artwork style costing_payment"); }
+    } catch (e) { logger.error(e, `Failed to sync costing_payment [${refType}]`); }
   }
+
+  // Sync outsource artwork payment
+  await syncCostingPayment(
+    'artwork_style',
+    String(body.outsourceVendorId ?? row.outsourceVendorId ?? ""),
+    String(body.outsourceVendorName ?? row.outsourceVendorName ?? ""),
+    String(body.outsourcePaymentAmount ?? row.outsourcePaymentAmount ?? ""),
+    String(body.outsourcePaymentMode ?? row.outsourcePaymentMode ?? ""),
+    String(body.outsourcePaymentStatus ?? row.outsourcePaymentStatus ?? ""),
+    String(body.outsourceTransactionId ?? row.outsourceTransactionId ?? ""),
+    String(body.outsourcePaymentDate ?? row.outsourcePaymentDate ?? ""),
+    null, null,
+  );
+
+  // Sync toile payment
+  await syncCostingPayment(
+    'artwork_toile',
+    String(body.toileVendorId ?? row.toileVendorId ?? ""),
+    String(body.toileVendorName ?? row.toileVendorName ?? ""),
+    String(body.toilePaymentAmount ?? row.toilePaymentAmount ?? ""),
+    String(body.toilePaymentMode ?? row.toilePaymentMode ?? ""),
+    String(body.toilePaymentStatus ?? row.toilePaymentStatus ?? ""),
+    String(body.toileTransactionId ?? row.toileTransactionId ?? ""),
+    String(body.toilePaymentDate ?? row.toilePaymentDate ?? ""),
+    String(body.toilePaymentType ?? row.toilePaymentType ?? ""),
+    String(body.toileRemarks ?? row.toileRemarks ?? ""),
+  );
+
+  // Sync pattern outhouse payment
+  await syncCostingPayment(
+    'artwork_pattern',
+    String(body.patternVendorId ?? row.patternVendorId ?? ""),
+    String(body.patternVendorName ?? row.patternVendorName ?? ""),
+    String(body.patternPaymentAmount ?? row.patternPaymentAmount ?? ""),
+    String(body.patternPaymentMode ?? row.patternPaymentMode ?? ""),
+    String(body.patternPaymentStatus ?? row.patternPaymentStatus ?? ""),
+    String(body.patternTransactionId ?? row.patternTransactionId ?? ""),
+    String(body.patternPaymentDate ?? row.patternPaymentDate ?? ""),
+    String(body.patternPaymentType ?? row.patternPaymentType ?? ""),
+    String(body.patternRemarks ?? row.patternRemarks ?? ""),
+  );
 
   res.json({ data: row });
 });

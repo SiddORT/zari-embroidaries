@@ -24,6 +24,7 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           + COALESCE(art_sum.total, 0)
           + COALESCE(soa_sum.total, 0)
           + COALESCE(toi_sum.total, 0)
+          + COALESCE(pat_sum.total, 0)
           + COALESCE(vil_sum.total, 0)  AS total_debits,
         COALESCE(vp_sum.total, 0)
           + COALESCE(cp_sum.total, 0)   AS total_credits,
@@ -33,6 +34,7 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           + COALESCE(art_sum.cnt, 0)
           + COALESCE(soa_sum.cnt, 0)
           + COALESCE(toi_sum.cnt, 0)
+          + COALESCE(pat_sum.cnt, 0)
           + COALESCE(vil_sum.cnt, 0)
           + COALESCE(vp_sum.cnt,  0)    AS total_entries
       FROM vendors v
@@ -93,6 +95,19 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
           AND toile_cost <> ''
         GROUP BY toile_vendor_id::integer
       ) toi_sum ON toi_sum.vendor_id = v.id
+
+      /* style-order artworks — pattern outhouse vendor */
+      LEFT JOIN (
+        SELECT pattern_vendor_id::integer AS vendor_id,
+               SUM(pattern_payment_amount::numeric) AS total,
+               COUNT(*) AS cnt
+        FROM style_order_artworks
+        WHERE pattern_vendor_id IS NOT NULL
+          AND pattern_vendor_id <> ''
+          AND pattern_payment_amount IS NOT NULL
+          AND pattern_payment_amount <> ''
+        GROUP BY pattern_vendor_id::integer
+      ) pat_sum ON pat_sum.vendor_id = v.id
 
       /* vendor invoice ledger entries (debits) */
       LEFT JOIN (
@@ -255,6 +270,27 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
           AND soa.toile_cost IS NOT NULL
           AND soa.toile_cost <> ''
           AND soa.toile_vendor_id::integer = $1
+
+        UNION ALL
+
+        /* ── Style-order artworks — Pattern Outhouse vendor ────────── */
+        SELECT
+          'pattern_outhouse'               AS entry_type,
+          soa.id::text                     AS entry_id,
+          soa.created_at                   AS entry_date,
+          CONCAT('Pattern (Outhouse): ', soa.artwork_name,
+            COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
+          'style'                          AS order_type,
+          so.order_code                    AS order_code,
+          soa.pattern_payment_amount::numeric AS debit,
+          0::numeric                       AS credit
+        FROM style_order_artworks soa
+        LEFT JOIN style_orders so ON soa.style_order_id = so.id
+        WHERE soa.pattern_vendor_id IS NOT NULL
+          AND soa.pattern_vendor_id <> ''
+          AND soa.pattern_payment_amount IS NOT NULL
+          AND soa.pattern_payment_amount <> ''
+          AND soa.pattern_vendor_id::integer = $1
 
         UNION ALL
 

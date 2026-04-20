@@ -131,6 +131,34 @@ export default function StyleCostSheetTab({
     }).catch(() => {});
   }, []);
 
+  // ── Artwork costs ─────────────────────────────────────────────────────────
+  type ArtworkRow = {
+    id: number; artworkCode: string; artworkName: string;
+    toileVendorName: string | null; toileCost: string | null;
+    toilePaymentAmount: string | null; toilePaymentStatus: string | null;
+    patternType: string | null; patternVendorName: string | null;
+    patternPaymentAmount: string | null; patternPaymentStatus: string | null;
+    styleOrderProductId: number | null; styleOrderProductName: string | null;
+  };
+  const [artworks, setArtworks] = useState<ArtworkRow[]>([]);
+  useEffect(() => {
+    const token = localStorage.getItem("zarierp_token");
+    const hdrs: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(`/api/style-order-artworks?styleOrderId=${styleOrderId}`, { headers: hdrs })
+      .then(r => r.json()).then((d: { data?: ArtworkRow[] }) => setArtworks(d.data ?? []))
+      .catch(() => {});
+  }, [styleOrderId]);
+
+  const filteredArtworks = isFiltered
+    ? artworks.filter(a => String(a.styleOrderProductId ?? "") === selectedProductId)
+    : artworks;
+
+  const artworkToileTotal = filteredArtworks.reduce((s, a) => s + (parseFloat(a.toileCost ?? "") || 0), 0);
+  const artworkPatternTotal = filteredArtworks
+    .filter(a => a.patternType === "Outhouse")
+    .reduce((s, a) => s + (parseFloat(a.patternPaymentAmount ?? "") || 0), 0);
+  const artworkTotal = artworkToileTotal + artworkPatternTotal;
+
   function getBomHsnGst(r: BomRecord): { hsnCode: string; gstPct: number } {
     const master = r.materialType === "fabric"
       ? fabricsMaster.find(f => f.fabricCode === r.materialCode)
@@ -209,7 +237,7 @@ export default function StyleCostSheetTab({
   }, 0);
   const customTotal = customBaseTotal + (includeGst ? customGstTotal : 0);
 
-  const grandTotal = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal;
+  const grandTotal = bomConsumedTotal + (includeGst ? bomGstTotal : 0) + artisanTotal + outsourceTotal + customTotal + artworkTotal;
 
   const SHIFT_LABELS: Record<string, string> = { regular: "Regular", night: "Night", sunday: "Sunday", overtime: "Overtime" };
 
@@ -474,6 +502,44 @@ export default function StyleCostSheetTab({
           />
         </SheetSection>
 
+        {/* ── 5. Artwork Costs ─────────────────────────────────────────────── */}
+        {filteredArtworks.length > 0 && (
+          <SheetSection title="Artwork Costs (Toile & Pattern Outhouse)">
+            <SheetTable
+              headers={[
+                ...((!isFiltered && products.length > 0) ? ["Product"] : []),
+                "Artwork Code", "Artwork Name", "Type", "Vendor", "Amount ₹", "Status",
+              ]}
+              rows={filteredArtworks.flatMap(a => {
+                const rows: (string | React.ReactNode)[][] = [];
+                if (a.toileCost && parseFloat(a.toileCost) > 0) {
+                  const row: (string | React.ReactNode)[] = [
+                    a.artworkCode, a.artworkName, "Toile",
+                    a.toileVendorName || "—", rupee(parseFloat(a.toileCost)),
+                    a.toilePaymentStatus || "—",
+                  ];
+                  if (!isFiltered && products.length > 0) row.unshift(a.styleOrderProductName ?? "—");
+                  rows.push(row);
+                }
+                if (a.patternType === "Outhouse" && a.patternPaymentAmount && parseFloat(a.patternPaymentAmount) > 0) {
+                  const row: (string | React.ReactNode)[] = [
+                    a.artworkCode, a.artworkName, "Pattern (Outhouse)",
+                    a.patternVendorName || "—", rupee(parseFloat(a.patternPaymentAmount)),
+                    a.patternPaymentStatus || "—",
+                  ];
+                  if (!isFiltered && products.length > 0) row.unshift(a.styleOrderProductName ?? "—");
+                  rows.push(row);
+                }
+                return rows;
+              })}
+              footer={artworkTotal > 0 ? [
+                ...(!isFiltered && products.length > 0 ? [""] : []),
+                "", "", "", "Total", rupee(artworkTotal), "",
+              ] : undefined}
+            />
+          </SheetSection>
+        )}
+
         {/* ── Grand Total ─────────────────────────────────────────────────── */}
         <div className="mt-6 border-t-2 border-gray-900 pt-4">
           <div className="flex justify-end">
@@ -487,6 +553,8 @@ export default function StyleCostSheetTab({
                   ...(includeGst && outsourceGstTotal > 0 ? [{ label: "Outsource GST", value: outsourceGstTotal }] : []),
                   { label: includeGst ? "Custom Charges (excl. GST)" : "Custom Charges", value: customBaseTotal },
                   ...(includeGst && customGstTotal > 0 ? [{ label: "Custom Charges GST", value: customGstTotal }] : []),
+                  ...(artworkToileTotal > 0 ? [{ label: "Toile Cost", value: artworkToileTotal }] : []),
+                  ...(artworkPatternTotal > 0 ? [{ label: "Pattern (Outhouse)", value: artworkPatternTotal }] : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-xs text-gray-600 px-3 py-0.5">
                     <span>{label}</span>
