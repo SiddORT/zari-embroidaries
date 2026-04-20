@@ -528,29 +528,36 @@ export default function FabricMaster() {
             )}
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 pt-1">
-              <div className="h-px flex-1 bg-gray-100" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Stock Control Settings</span>
-              <div className="h-px flex-1 bg-gray-100" />
+          <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-3" style={{ color: "#B8A240" }}>
+              Stock Control Settings
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Minimum Level</label>
+                <input type="number" min="0" placeholder="0" value={form.minimumLevel ?? ""}
+                  onChange={(e) => setForm(f => ({ ...f, minimumLevel: e.target.value }))}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Reorder Level</label>
+                <input type="number" min="0" placeholder="0" value={form.reorderLevel ?? ""}
+                  onChange={(e) => setForm(f => ({ ...f, reorderLevel: e.target.value }))}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Maximum Level</label>
+                <input type="number" min="0" placeholder="0" value={form.maximumLevel ?? ""}
+                  onChange={(e) => setForm(f => ({ ...f, maximumLevel: e.target.value }))}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <InputField label="Minimum Level" placeholder="e.g. 10" type="number" min={0}
-                  value={form.minimumLevel ?? ""} onChange={v => setForm(f => ({ ...f, minimumLevel: v }))}
-                  error={errors.minimumLevel} />
-              </div>
-              <div>
-                <InputField label="Reorder Level" placeholder="e.g. 25" type="number" min={0}
-                  value={form.reorderLevel ?? ""} onChange={v => setForm(f => ({ ...f, reorderLevel: v }))}
-                  error={errors.reorderLevel} />
-              </div>
-              <div>
-                <InputField label="Maximum Level" placeholder="e.g. 100" type="number" min={0}
-                  value={form.maximumLevel ?? ""} onChange={v => setForm(f => ({ ...f, maximumLevel: v }))}
-                  error={errors.maximumLevel} />
-              </div>
-            </div>
+            <p className="text-[10px] text-gray-400 mt-2">
+              When stock falls at or below the reorder level, a Low Stock alert will be triggered.
+            </p>
           </div>
 
           <div className="flex items-center gap-3 pt-3">

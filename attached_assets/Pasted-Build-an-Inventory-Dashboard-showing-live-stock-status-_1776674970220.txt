@@ -1,0 +1,261 @@
+Build an Inventory Dashboard showing live stock status using existing inventory modules.
+
+Do NOT create new tables.
+
+Fetch data from:
+
+inventory_items
+
+stock_ledger
+
+material_reservations
+
+material_consumption
+
+purchase_orders
+
+purchase_receipts
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Inventory Dashboard
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Add menu:
+
+Inventory → Dashboard
+
+Make this the default landing page inside Inventory section.
+
+---
+
+SECTION 2 — FILTER ROW (TOP)
+
+Add single-row filters:
+
+Item selector
+
+Department selector
+
+Stock Status selector
+
+Date Range
+
+Filters apply to entire dashboard.
+
+Dashboard refreshes instantly after filter change.
+
+---
+
+SECTION 3 — SUMMARY CARDS (TOP ROW)
+
+Display cards:
+
+Total Items
+
+Low Stock Items
+
+Out of Stock Items
+
+Total Available Stock Value
+
+Fetch from:
+
+inventory_items
+
+Use:
+
+reorder_level logic
+
+---
+
+SECTION 4 — RESERVATION SUMMARY
+
+Display cards:
+
+Total Reserved for Swatch
+
+Total Reserved for Style
+
+Available After Reservation
+
+Fetch from:
+
+material_reservations
+
+inventory_items.available_stock
+
+---
+
+SECTION 5 — PROCUREMENT PIPELINE SNAPSHOT
+
+Display cards:
+
+Items in Purchase Orders
+
+Items in Purchase Receipts
+
+Pending Receipt Quantity
+
+Fetch from:
+
+purchase_orders
+
+purchase_receipts
+
+---
+
+SECTION 6 — CONSUMPTION SUMMARY
+
+Display cards:
+
+Total Consumed (Date Range)
+
+Top Consumed Items (Top 5)
+
+Fetch from:
+
+material_consumption
+
+---
+
+SECTION 7 — LOW STOCK ALERT PANEL
+
+Display list:
+
+Items below reorder level
+
+Columns:
+
+Item Name
+
+Current Stock
+
+Reorder Level
+
+Suggested PO Quantity
+
+Add button:
+
+Create PO
+
+Redirect to:
+
+Create Purchase Order page
+
+---
+
+SECTION 8 — STOCK TREND CHART
+
+Add chart:
+
+Stock Movement Trend
+
+Show:
+
+Stock Added
+
+Stock Consumed
+
+Stock Adjusted
+
+Grouped by:
+
+Weekly
+
+Monthly
+
+Based on Date Range filter
+
+Fetch from:
+
+stock_ledger
+
+---
+
+SECTION 9 — TOP MOVING ITEMS PANEL
+
+Display:
+
+Top 5 Most Consumed Items
+
+Columns:
+
+Item Name
+
+Consumed Quantity
+
+Department
+
+Fetch from:
+
+material_consumption
+
+---
+
+SECTION 10 — UI LAYOUT ORDER
+
+Layout:
+
+Filter Row
+
+Summary Cards
+
+Reservation Cards
+
+Procurement Pipeline Cards
+
+Consumption Cards
+
+Low Stock Alert Panel
+
+Stock Movement Trend Chart
+
+Top Moving Items Panel
+
+Use existing counter-card styling.
+
+---
+
+SECTION 11 — LIVE DATA REQUIREMENT
+
+Dashboard must:
+
+always show real-time values
+
+refresh after filter change
+
+not cache totals
+
+---
+
+SECTION 12 — PERMISSIONS CONTROL
+
+Allow access:
+
+Inventory users
+
+Admin users
+
+Restrict:
+
+non-inventory users
+
+---
+
+SECTION 13 — SUCCESS MESSAGE
+
+After dashboard loads:
+
+Display:
+
+Inventory dashboard loaded successfully
+
+END OF MODULE
