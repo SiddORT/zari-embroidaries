@@ -3,6 +3,7 @@ import {
   Search, CreditCard, X, CheckCircle2, Clock, AlertTriangle,
   Package, Wallet, RefreshCw, ArrowRight, Filter,
   ShoppingCart, Truck, Wrench, Receipt, ChevronLeft, ChevronRight, Building2,
+  PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { useGetMe } from "@workspace/api-client-react";
 import { customFetch } from "@workspace/api-client-react";
@@ -128,7 +129,7 @@ function PaymentModal({ row, onClose, onSuccess }: {
     }
     setSaving(true);
     try {
-      const res = await customFetch("/api/account-purchases/record-payment", {
+      await customFetch<any>("/api/account-purchases/record-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,8 +138,6 @@ function PaymentModal({ row, onClose, onSuccess }: {
           ...form,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Payment failed");
       toast({
         title: "Payment recorded successfully",
         description: `${fmtAmt(amt)} paid to ${row.vendor_name}`,
@@ -146,7 +145,8 @@ function PaymentModal({ row, onClose, onSuccess }: {
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      const msg = err?.data?.error ?? err?.message ?? "Payment failed";
+      toast({ title: "Payment Error", description: msg, variant: "destructive" });
     } finally { setSaving(false); }
   }
 
@@ -251,6 +251,8 @@ export default function AccountPurchases() {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingTable, setLoadingTable]     = useState(true);
   const [paymentRow, setPaymentRow]         = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen]       = useState(true);
+  const [refreshKey, setRefreshKey]         = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -271,23 +273,25 @@ export default function AccountPurchases() {
     p.set("page", String(page));
     p.set("limit", String(PAGE_SIZE));
 
-    customFetch(`/api/account-purchases/unified-liabilities?${p}`, { signal: ctrl.signal })
-      .then(r => r.json())
+    customFetch<{ data: any[]; total: number }>(
+      `/api/account-purchases/unified-liabilities?${p}`,
+      { signal: ctrl.signal }
+    )
       .then(data => {
         if (ctrl.signal.aborted) return;
         setLiabilities(data.data ?? []);
         setTotalRows(data.total ?? 0);
         setLoadingTable(false);
       })
-      .catch(() => {
-        if (ctrl.signal.aborted) return;
+      .catch((err: any) => {
+        if (ctrl.signal.aborted || err?.name === "AbortError") return;
         setLiabilities([]);
         setLoadingTable(false);
       });
 
     return () => ctrl.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, fromDate, toDate, refType, department, statusTab, search]);
+  }, [page, fromDate, toDate, refType, department, statusTab, search, refreshKey]);
 
   /* ── summary + top vendors ─────────────────────── */
   useEffect(() => {
@@ -295,13 +299,12 @@ export default function AccountPurchases() {
     if (fromDate) p.set("from_date", fromDate);
     if (toDate)   p.set("to_date", toDate);
     setLoadingSummary(true);
-    customFetch(`/api/account-purchases/unified-summary?${p}`)
-      .then(r => r.json())
+
+    customFetch<any>(`/api/account-purchases/unified-summary?${p}`)
       .then(d => { setSummary(d); setLoadingSummary(false); })
       .catch(() => setLoadingSummary(false));
 
-    customFetch("/api/account-purchases/top-vendors-pending")
-      .then(r => r.json())
+    customFetch<any[]>("/api/account-purchases/top-vendors-pending")
       .then(d => setTopVendors(Array.isArray(d) ? d : []))
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,35 +323,17 @@ export default function AccountPurchases() {
     if (fromDate) p.set("from_date", fromDate);
     if (toDate)   p.set("to_date", toDate);
     setLoadingSummary(true);
-    customFetch(`/api/account-purchases/unified-summary?${p}`)
-      .then(r => r.json()).then(d => { setSummary(d); setLoadingSummary(false); }).catch(() => setLoadingSummary(false));
-    customFetch("/api/account-purchases/top-vendors-pending")
-      .then(r => r.json()).then(d => setTopVendors(Array.isArray(d) ? d : [])).catch(() => {});
-    setPage(p2 => p2); // trigger table refetch by same dep values (no-op causes no re-run)
-    // force table refetch via a dedicated counter
-    setRefreshTick(t => t + 1);
+
+    customFetch<any>(`/api/account-purchases/unified-summary?${p}`)
+      .then(d => { setSummary(d); setLoadingSummary(false); })
+      .catch(() => setLoadingSummary(false));
+
+    customFetch<any[]>("/api/account-purchases/top-vendors-pending")
+      .then(d => setTopVendors(Array.isArray(d) ? d : []))
+      .catch(() => {});
+
+    setRefreshKey(k => k + 1);
   }
-
-  const [refreshTick, setRefreshTick] = useState(0);
-
-  useEffect(() => {
-    if (refreshTick === 0) return;
-    const p2 = new URLSearchParams();
-    if (fromDate)            p2.set("from_date", fromDate);
-    if (toDate)              p2.set("to_date", toDate);
-    if (refType)             p2.set("ref_type", refType);
-    if (department)          p2.set("department", department);
-    if (statusTab !== "All") p2.set("status", statusTab);
-    if (search)              p2.set("search", search);
-    p2.set("page", String(page));
-    p2.set("limit", String(PAGE_SIZE));
-    setLoadingTable(true);
-    customFetch(`/api/account-purchases/unified-liabilities?${p2}`)
-      .then(r => r.json())
-      .then(data => { setLiabilities(data.data ?? []); setTotalRows(data.total ?? 0); setLoadingTable(false); })
-      .catch(() => { setLiabilities([]); setLoadingTable(false); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshTick]);
 
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const hasFilters = !!(fromDate || toDate || refType || department || search);
@@ -412,11 +397,19 @@ export default function AccountPurchases() {
                 }}>Purchases & Payables</h1>
                 <p className="text-sm text-gray-400 mt-0.5">Unified outgoing vendor payables across all departments</p>
               </div>
-              <button onClick={refresh}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
-                style={{ background: G }}>
-                <RefreshCw size={13}/> Refresh
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setSidebarOpen(o => !o)}
+                  title={sidebarOpen ? "Hide vendors panel" : "Show vendors panel"}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 transition-all">
+                  {sidebarOpen ? <PanelRightClose size={15}/> : <PanelRightOpen size={15}/>}
+                  <span className="hidden sm:inline">{sidebarOpen ? "Hide" : "Vendors"}</span>
+                </button>
+                <button onClick={refresh}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+                  style={{ background: G }}>
+                  <RefreshCw size={13}/> Refresh
+                </button>
+              </div>
             </div>
 
             {/* ── Filters ─────────────────────────────────── */}
@@ -635,7 +628,9 @@ export default function AccountPurchases() {
         </div>
 
         {/* ── Right Sidebar ─────────────────────────────── */}
-        <div className="w-72 shrink-0 border-l border-[#C6AF4B]/15 bg-white px-4 py-5 hidden lg:flex flex-col gap-4 overflow-y-auto">
+        <div className={`shrink-0 border-l border-[#C6AF4B]/15 bg-white px-4 py-5 flex-col gap-4 overflow-y-auto transition-all duration-300 ${
+          sidebarOpen ? "w-72 flex" : "hidden"
+        }`}>
           <div className="h-0.5 -mx-4 -mt-5 mb-1" style={{ background: `linear-gradient(90deg, ${G}, transparent)` }} />
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: G }}>Top Vendors Pending</p>
