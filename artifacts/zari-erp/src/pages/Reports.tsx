@@ -375,7 +375,7 @@ export default function Reports() {
                         <CheckCircle2 className="h-4 w-4" style={{ color: G }} />
                       </div>
                     )}
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 pr-5">
                       <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105"
                         style={{ background: rc.bg }}>
                         <Icon className="h-4.5 w-4.5" style={{ color: rc.color }} />
