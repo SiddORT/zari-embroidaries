@@ -584,7 +584,7 @@ export default function PackingListDetail() {
                                         type="number" step="0.01" min="0"
                                         value={dims[key]}
                                         onChange={e => setPkgDims(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], [key]: e.target.value } }))}
-                                        className="w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                        className="w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
                                         placeholder="0"
                                       />
                                     </div>
@@ -744,7 +744,7 @@ export default function PackingListDetail() {
                                               value={itemWeights[item.id] !== undefined ? itemWeights[item.id] : (item.item_weight ?? "")}
                                               onChange={e => setItemWeights(prev => ({ ...prev, [item.id]: e.target.value }))}
                                               onBlur={() => { if (itemWeights[item.id] !== undefined) handleSaveWeight(item, pkg.id); }}
-                                              className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                              className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-200"
                                             />
                                             {savingWeightId === item.id && (
                                               <div className="h-3 w-3 rounded-full border border-gray-300 border-t-transparent animate-spin" />
