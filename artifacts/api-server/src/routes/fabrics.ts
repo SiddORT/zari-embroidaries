@@ -4,7 +4,7 @@ import { db, fabricsTable } from "@workspace/db";
 import { insertFabricSchema, updateFabricSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
-import { ensureInventoryRecord, updateInventoryImages } from "../services/inventoryService";
+import { ensureInventoryRecord, updateInventoryImages, updateInventoryStockLevels } from "../services/inventoryService";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -100,6 +100,9 @@ router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   logger.info({ id: record.id }, "Fabric updated");
   if (parsed.data.images !== undefined) {
     updateInventoryImages("fabric", record.id, (record.images as { id: string; name: string; data: string; size: number }[]) ?? []);
+  }
+  if (parsed.data.reorderLevel !== undefined || parsed.data.minimumLevel !== undefined || parsed.data.maximumLevel !== undefined) {
+    updateInventoryStockLevels("fabric", record.id, parsed.data.reorderLevel, parsed.data.minimumLevel, parsed.data.maximumLevel);
   }
   res.json(record);
 });

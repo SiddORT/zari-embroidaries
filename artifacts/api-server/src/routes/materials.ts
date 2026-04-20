@@ -4,7 +4,7 @@ import { db, materialsTable } from "@workspace/db";
 import { insertMaterialSchema, updateMaterialSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
-import { ensureInventoryRecord, updateInventoryImages } from "../services/inventoryService";
+import { ensureInventoryRecord, updateInventoryImages, updateInventoryStockLevels } from "../services/inventoryService";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -105,6 +105,9 @@ router.put("/materials/:id", requireAuth, async (req: AuthRequest, res): Promise
   logger.info({ id: record.id }, "Material updated");
   if (parsed.data.images !== undefined) {
     updateInventoryImages("material", record.id, (record.images as { id: string; name: string; data: string; size: number }[]) ?? []);
+  }
+  if (parsed.data.reorderLevel !== undefined || parsed.data.minimumLevel !== undefined || parsed.data.maximumLevel !== undefined) {
+    updateInventoryStockLevels("material", record.id, parsed.data.reorderLevel, parsed.data.minimumLevel, parsed.data.maximumLevel);
   }
   res.json(record);
 });

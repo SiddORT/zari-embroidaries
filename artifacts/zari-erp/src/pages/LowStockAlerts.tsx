@@ -30,6 +30,8 @@ interface AlertItem {
   maximum_level: string;
   unit_type: string | null;
   source_type: string;
+  average_price: string | null;
+  images: { id: string; name: string; data: string; size: number }[] | null;
 }
 
 export default function LowStockAlerts() {
@@ -144,7 +146,7 @@ export default function LowStockAlerts() {
             subtitle="These items have zero or negative stock and need immediate attention"
             accentColor="#EF4444"
             items={outOfStock}
-            onCreatePO={(item) => navigate(`/procurement/purchase-orders/new?itemId=${item.id}&itemName=${encodeURIComponent(item.item_name)}`)}
+            onCreatePO={(item) => navigate(`/procurement/purchase-orders/new?itemId=${item.id}&itemName=${encodeURIComponent(item.item_name)}&itemCategory=${item.source_type}&targetPrice=${encodeURIComponent(item.average_price ?? "")}`)}
           />
         )}
 
@@ -155,7 +157,7 @@ export default function LowStockAlerts() {
             subtitle="These items are at or below their reorder level and should be replenished"
             accentColor="#F59E0B"
             items={lowStock}
-            onCreatePO={(item) => navigate(`/procurement/purchase-orders/new?itemId=${item.id}&itemName=${encodeURIComponent(item.item_name)}`)}
+            onCreatePO={(item) => navigate(`/procurement/purchase-orders/new?itemId=${item.id}&itemName=${encodeURIComponent(item.item_name)}&itemCategory=${item.source_type}&targetPrice=${encodeURIComponent(item.average_price ?? "")}`)}
           />
         )}
 

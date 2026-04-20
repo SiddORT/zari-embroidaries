@@ -1170,7 +1170,8 @@ router.get("/inventory/low-stock-alerts", requireAuth, async (_req, res) => {
   try {
     const r = await pool.query(`
       SELECT id, item_name, item_code, current_stock, available_stock,
-             reorder_level, minimum_level, maximum_level, unit_type, source_type
+             reorder_level, minimum_level, maximum_level, unit_type, source_type,
+             average_price, images
       FROM inventory_items
       WHERE is_active = true
         AND (

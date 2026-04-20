@@ -65,6 +65,34 @@ export async function updateInventoryImages(
   }
 }
 
+export async function updateInventoryStockLevels(
+  sourceType: InventorySourceType,
+  sourceId: number,
+  reorderLevel?: string | null,
+  minimumLevel?: string | null,
+  maximumLevel?: string | null
+): Promise<void> {
+  try {
+    await pool.query(
+      `UPDATE inventory_items
+       SET reorder_level  = COALESCE(NULLIF($3,'')::numeric, reorder_level),
+           minimum_level  = COALESCE(NULLIF($4,'')::numeric, minimum_level),
+           maximum_level  = COALESCE(NULLIF($5,'')::numeric, maximum_level),
+           last_updated_at = NOW()
+       WHERE source_type = $1 AND source_id = $2`,
+      [
+        sourceType,
+        sourceId,
+        reorderLevel ?? "",
+        minimumLevel ?? "",
+        maximumLevel ?? "",
+      ]
+    );
+  } catch (err) {
+    console.error("[InventoryService] Failed to update stock levels:", err);
+  }
+}
+
 export async function syncAllFromMasters(): Promise<{ synced: number; updated: number }> {
   try {
     const [fNew, mNew, pNew] = await Promise.all([

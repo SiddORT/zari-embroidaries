@@ -26,6 +26,9 @@ export interface MaterialRecord {
   vendor: string | null;
   location: string | null;
   images: MasterImage[];
+  reorderLevel: string | null;
+  minimumLevel: string | null;
+  maximumLevel: string | null;
   isActive: boolean;
   isDeleted: boolean;
   createdBy: string;
@@ -58,6 +61,9 @@ export interface MaterialFormData {
   location?: string;
   isActive: boolean;
   images: MasterImage[];
+  reorderLevel?: string;
+  minimumLevel?: string;
+  maximumLevel?: string;
 }
 
 export type StatusFilter = "all" | "active" | "inactive";

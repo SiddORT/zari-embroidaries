@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const fabricsTable = pgTable("fabrics", {
@@ -19,6 +19,9 @@ export const fabricsTable = pgTable("fabrics", {
   vendor: text("vendor"),
   location: text("location"),
   images: jsonb("images").$type<{ id: string; name: string; data: string; size: number }[]>().notNull().default([]),
+  reorderLevel: numeric("reorder_level", { precision: 14, scale: 3 }),
+  minimumLevel: numeric("minimum_level", { precision: 14, scale: 3 }),
+  maximumLevel: numeric("maximum_level", { precision: 14, scale: 3 }),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -53,6 +56,9 @@ export const insertFabricSchema = z.object({
   location: z.string().optional(),
   isActive: z.boolean().default(true),
   images: z.array(fabricImageSchema).optional().default([]),
+  reorderLevel: z.string().optional(),
+  minimumLevel: z.string().optional(),
+  maximumLevel: z.string().optional(),
 });
 
 export const updateFabricSchema = insertFabricSchema.partial().extend({

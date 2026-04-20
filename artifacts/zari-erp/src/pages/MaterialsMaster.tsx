@@ -36,6 +36,7 @@ const EMPTY_FORM: MaterialFormData = {
   itemType: "", quality: "", type: "", color: "#c9b45c", hexCode: "#c9b45c",
   colorName: "", size: "", unitPrice: "", unitType: "", currentStock: "",
   hsnCode: "", gstPercent: "", vendor: "", location: "", isActive: true, images: [],
+  reorderLevel: "", minimumLevel: "", maximumLevel: "",
 };
 
 type FormErrors = Partial<Record<keyof MaterialFormData, string>>;
@@ -130,7 +131,8 @@ export default function MaterialsMaster() {
     setForm({ itemType: r.itemType, quality: r.quality, type: r.type ?? "", color: r.color ?? "#c9b45c",
       hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, size: r.size, unitPrice: r.unitPrice,
       unitType: r.unitType, currentStock: r.currentStock, hsnCode: r.hsnCode, gstPercent: r.gstPercent,
-      vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive, images: r.images ?? [] });
+      vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive, images: r.images ?? [],
+      reorderLevel: r.reorderLevel ?? "", minimumLevel: r.minimumLevel ?? "", maximumLevel: r.maximumLevel ?? "" });
     setErrors({});
     setModalOpen(true);
   };
@@ -168,6 +170,17 @@ export default function MaterialsMaster() {
     if (!form.unitType) e.unitType = "Unit Type is required";
     if (!form.currentStock.trim()) e.currentStock = "Current Stock is required";
     if (!form.hsnCode) e.hsnCode = "HSN Code is required";
+    const rl = form.reorderLevel ? parseFloat(form.reorderLevel) : null;
+    const mn = form.minimumLevel ? parseFloat(form.minimumLevel) : null;
+    const mx = form.maximumLevel ? parseFloat(form.maximumLevel) : null;
+    if (form.reorderLevel && isNaN(rl!)) e.reorderLevel = "Must be a number";
+    else if (rl !== null && rl < 0) e.reorderLevel = "Cannot be negative";
+    if (form.minimumLevel && isNaN(mn!)) e.minimumLevel = "Must be a number";
+    else if (mn !== null && mn < 0) e.minimumLevel = "Cannot be negative";
+    if (form.maximumLevel && isNaN(mx!)) e.maximumLevel = "Must be a number";
+    else if (mx !== null && mx < 0) e.maximumLevel = "Cannot be negative";
+    if (mn !== null && mx !== null && mn > mx) e.minimumLevel = "Min cannot exceed Max";
+    if (rl !== null && mx !== null && rl > mx) e.reorderLevel = "Reorder Level cannot exceed Max";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -518,6 +531,31 @@ export default function MaterialsMaster() {
                 )}
               </div>
             )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 pt-1">
+              <div className="h-px flex-1 bg-gray-100" />
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Stock Control Settings</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <InputField label="Minimum Level" placeholder="e.g. 10" type="number" min={0}
+                  value={form.minimumLevel ?? ""} onChange={v => setForm(f => ({ ...f, minimumLevel: v }))}
+                  error={errors.minimumLevel} />
+              </div>
+              <div>
+                <InputField label="Reorder Level" placeholder="e.g. 25" type="number" min={0}
+                  value={form.reorderLevel ?? ""} onChange={v => setForm(f => ({ ...f, reorderLevel: v }))}
+                  error={errors.reorderLevel} />
+              </div>
+              <div>
+                <InputField label="Maximum Level" placeholder="e.g. 100" type="number" min={0}
+                  value={form.maximumLevel ?? ""} onChange={v => setForm(f => ({ ...f, maximumLevel: v }))}
+                  error={errors.maximumLevel} />
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 pt-3">

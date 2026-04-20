@@ -195,6 +195,33 @@ export default function PurchaseOrderForm() {
 
   useEffect(() => { if (!isNew) loadPo(); }, [isNew, loadPo]);
 
+  const [prefillApplied, setPrefillApplied] = useState(false);
+  useEffect(() => {
+    if (!isNew || prefillApplied || inventoryItems.length === 0) return;
+    const sp = new URLSearchParams(window.location.search);
+    const itemId = sp.get("itemId");
+    if (!itemId) return;
+    const found = inventoryItems.find(i => String(i.id) === itemId);
+    if (!found) return;
+    const cat = (found.source_type as ItemCategory) ?? "all";
+    setLineItems([{
+      key: mkKey(),
+      itemCategory: cat,
+      inventoryItemId: found.id,
+      itemName: found.item_name,
+      itemCode: found.item_code ?? "",
+      unitType: found.unit_type ?? "",
+      availableStock: found.available_stock ?? "0",
+      hsnCode: found.hsn_code ?? "",
+      gstPercent: found.gst_percent ?? "0",
+      orderedQuantity: "",
+      targetPrice: found.average_price ? parseFloat(found.average_price).toFixed(2) : "",
+      remarks: "",
+      itemImage: (found.images && found.images.length > 0) ? found.images[0].data : "",
+    }]);
+    setPrefillApplied(true);
+  }, [isNew, inventoryItems, prefillApplied]);
+
   const addLine = () => setLineItems(ls => [
     ...ls,
     { key: mkKey(), itemCategory: "all", inventoryItemId: null, itemName: "", itemCode: "", unitType: "", availableStock: "0", hsnCode: "", gstPercent: "0", orderedQuantity: "", targetPrice: "", remarks: "", itemImage: "" },
