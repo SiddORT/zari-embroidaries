@@ -20,6 +20,7 @@ interface DeliveryAddress {
   country: string | null; pincode: string | null; is_default: boolean;
 }
 interface Shipment { id: number; reference_type: string; tracking_number: string | null; shipment_status: string; }
+interface ShippingVendor { id: number; vendor_name: string; }
 interface EligibleOrder {
   id: number; order_code: string; name: string;
   delivery_address_id: number | null; order_status: string; quantity: string | null;
@@ -94,6 +95,17 @@ export default function PackingListForm() {
   const [newAddr, setNewAddr] = useState({ label: "", address_line1: "", address_line2: "", city: "", state: "", country: "", pincode: "", is_default: false });
   const [savingAddr, setSavingAddr] = useState(false);
 
+  // Shipment creation modal
+  const [showShipModal, setShowShipModal] = useState(false);
+  const [vendors, setVendors] = useState<ShippingVendor[]>([]);
+  const [savingShip, setSavingShip] = useState(false);
+  const [newShip, setNewShip] = useState({
+    shipping_vendor_id: "" as number | "",
+    tracking_number: "", tracking_url: "",
+    shipment_weight: "", shipment_status: "Pending",
+    shipment_date: "", expected_delivery_date: "", remarks: "",
+  });
+
   function handleLogout() {
     logoutMutation.mutate(undefined, {
       onSettled: () => { localStorage.removeItem("zarierp_token"); qc.clear(); setLocation("/login"); },
@@ -108,6 +120,7 @@ export default function PackingListForm() {
   useEffect(() => {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
     customFetch<any>("/api/shipping/details?limit=500").then(j => setShipments(j.data ?? [])).catch(() => {});
+    customFetch<any>("/api/shipping/vendors").then(j => setVendors(j.data ?? [])).catch(() => {});
   }, []);
 
   // Load addresses when client changes
@@ -188,6 +201,31 @@ export default function PackingListForm() {
     } catch {
       toast({ title: "Error", description: "Failed to save address", variant: "destructive" });
     } finally { setSavingAddr(false); }
+  }
+
+  async function handleCreateShipment() {
+    if (!newShip.shipping_vendor_id || !newShip.shipment_weight) return;
+    setSavingShip(true);
+    try {
+      const res = await customFetch<any>("/api/shipping/details", {
+        method: "POST",
+        body: JSON.stringify({ ...newShip }),
+      });
+      const created = res.data;
+      const newEntry: Shipment = {
+        id: created.id,
+        reference_type: created.reference_type,
+        tracking_number: created.tracking_number,
+        shipment_status: created.shipment_status,
+      };
+      setShipments(prev => [newEntry, ...prev]);
+      setShipmentId(created.id);
+      setShowShipModal(false);
+      setNewShip({ shipping_vendor_id: "", tracking_number: "", tracking_url: "", shipment_weight: "", shipment_status: "Pending", shipment_date: "", expected_delivery_date: "", remarks: "" });
+      toast({ title: "Shipment created", description: "Shipment has been linked to this packing list" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.data?.error ?? e?.message ?? "Failed to create shipment", variant: "destructive" });
+    } finally { setSavingShip(false); }
   }
 
   function createPackage() {
@@ -432,7 +470,17 @@ export default function PackingListForm() {
               <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Shipment &amp; Details</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Linked Shipment</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Linked Shipment</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowShipModal(true)}
+                      className="flex items-center gap-1 text-xs font-medium hover:underline"
+                      style={{ color: G }}
+                    >
+                      <Plus className="h-3 w-3" /> Create New
+                    </button>
+                  </div>
                   <select
                     value={shipmentId}
                     onChange={e => setShipmentId(e.target.value ? parseInt(e.target.value) : "")}
@@ -743,6 +791,130 @@ export default function PackingListForm() {
           </div>
         </div>
       </div>
+
+      {/* Create Shipment Modal */}
+      {showShipModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5" style={{ color: G }} />
+                <h3 className="font-bold text-gray-900">Create New Shipment</h3>
+              </div>
+              <button onClick={() => setShowShipModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              {/* Vendor */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Shipping Vendor *</label>
+                <select
+                  value={newShip.shipping_vendor_id}
+                  onChange={e => setNewShip(p => ({ ...p, shipping_vendor_id: e.target.value ? parseInt(e.target.value) : "" }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                >
+                  <option value="">Select vendor…</option>
+                  {vendors.map(v => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
+                </select>
+              </div>
+              {/* Tracking */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tracking Number</label>
+                  <input
+                    value={newShip.tracking_number}
+                    onChange={e => setNewShip(p => ({ ...p, tracking_number: e.target.value }))}
+                    placeholder="AWB / LR number"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Shipment Weight (kg) *</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    value={newShip.shipment_weight}
+                    onChange={e => setNewShip(p => ({ ...p, shipment_weight: e.target.value }))}
+                    placeholder="0.000"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                  />
+                </div>
+              </div>
+              {/* Status + Shipment Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
+                  <select
+                    value={newShip.shipment_status}
+                    onChange={e => setNewShip(p => ({ ...p, shipment_status: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                  >
+                    {["Pending", "In Transit", "Delivered", "Returned", "Cancelled"].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Shipment Date</label>
+                  <input
+                    type="date"
+                    value={newShip.shipment_date}
+                    onChange={e => setNewShip(p => ({ ...p, shipment_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                  />
+                </div>
+              </div>
+              {/* Expected Delivery */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Expected Delivery Date</label>
+                <input
+                  type="date"
+                  value={newShip.expected_delivery_date}
+                  onChange={e => setNewShip(p => ({ ...p, expected_delivery_date: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                />
+              </div>
+              {/* Tracking URL */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tracking URL</label>
+                <input
+                  value={newShip.tracking_url}
+                  onChange={e => setNewShip(p => ({ ...p, tracking_url: e.target.value }))}
+                  placeholder="https://…"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200"
+                />
+              </div>
+              {/* Remarks */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Remarks</label>
+                <textarea
+                  value={newShip.remarks}
+                  onChange={e => setNewShip(p => ({ ...p, remarks: e.target.value }))}
+                  rows={2}
+                  placeholder="Any notes about this shipment…"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-200 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowShipModal(false)} className="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
+              <button
+                onClick={handleCreateShipment}
+                disabled={savingShip || !newShip.shipping_vendor_id || !newShip.shipment_weight}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: G }}
+              >
+                {savingShip
+                  ? <div className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                  : <Save className="h-4 w-4" />}
+                {savingShip ? "Saving…" : "Create Shipment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Address Modal */}
       {showAddrModal && (

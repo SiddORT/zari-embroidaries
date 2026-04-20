@@ -248,7 +248,6 @@ router.post("/shipping/details", requireAuth, async (req: AuthRequest, res) => {
       shipment_status, shipment_date, expected_delivery_date, actual_delivery_date, remarks
     } = req.body;
 
-    if (!reference_type || !reference_id) return res.status(400).json({ error: "reference_type and reference_id are required" });
     if (!shipping_vendor_id) return res.status(400).json({ error: "Shipping vendor is required" });
     const weight = parseFloat(shipment_weight) || 0;
     if (weight <= 0) return res.status(400).json({ error: "Shipment weight must be greater than 0" });
@@ -275,7 +274,7 @@ router.post("/shipping/details", requireAuth, async (req: AuthRequest, res) => {
           final_shipping_amount, shipment_status, shipment_date, expected_delivery_date, actual_delivery_date,
           remarks, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-      [reference_type, reference_id, client_name || null, shipping_vendor_id,
+      [reference_type || "PackingList", reference_id || 0, client_name || null, shipping_vendor_id,
        tracking_number?.trim() || null, tracking_url?.trim() || null,
        weight, parseFloat(weight_rate_per_kg), calculated, override,
        final, shipment_status || "Pending",
