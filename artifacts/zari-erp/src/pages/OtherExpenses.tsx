@@ -361,7 +361,7 @@ export default function OtherExpenses() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    customFetch("/api/vendors").then((d: any) => setVendors(d.vendors ?? d ?? [])).catch(() => {});
+    customFetch("/api/vendors/all").then((d: any) => setVendors(Array.isArray(d) ? d : [])).catch(() => {});
     customFetch("/api/other-expenses/categories").then((d: any) => setCategories(d ?? [])).catch(() => {});
   }, []);
 
