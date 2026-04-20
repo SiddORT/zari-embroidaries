@@ -20,13 +20,12 @@ import AddableSelect from "@/components/ui/AddableSelect";
 import {
   usePackagingMaterialList, useCreatePackagingMaterial, useUpdatePackagingMaterial,
   useTogglePackagingMaterialStatus, useDeletePackagingMaterial,
-  useDepartments, useAddDepartment,
+  useDepartments, useAddDepartment, useItemTypes, useAddItemType,
   type PackagingMaterialRecord, type PackagingMaterialFormData, type StatusFilter,
 } from "@/hooks/usePackagingMaterials";
 import { useUnitTypes } from "@/hooks/useLookups";
 import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 
-const ITEM_TYPE_OPTIONS = ["Packaging Material", "Asset Inventory", "Stationary"];
 const LOCATION_OPTIONS = ["In-house", "Outsource"];
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -88,6 +87,46 @@ function AddDeptModal({ open, onClose, onAdd, adding }: AddDeptModalProps) {
   );
 }
 
+interface AddItemTypeModalProps { open: boolean; onClose: () => void; onAdd: (name: string) => Promise<void>; adding: boolean; }
+
+function AddItemTypeModal({ open, onClose, onAdd, adding }: AddItemTypeModalProps) {
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (open) { setName(""); setErr(""); setTimeout(() => inputRef.current?.focus(), 50); } }, [open]);
+  if (!open) return null;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) { setErr("Item type name is required"); return; }
+    try { await onAdd(name.trim()); setName(""); onClose(); }
+    catch { setErr("Item type already exists or failed to add"); }
+  }
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-gray-900">Add Item Type</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <form onSubmit={(e) => { void handleSubmit(e); }}>
+          <input ref={inputRef} value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="Item type name"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 mb-1" />
+          {err && <p className="text-xs text-red-500 mb-2">{err}</p>}
+          <div className="flex justify-end gap-2 mt-4">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={adding}
+              className="px-4 py-2 text-sm rounded-lg text-white disabled:opacity-50"
+              style={{ backgroundColor: "#C9B45C" }}>
+              {adding ? "Adding…" : "Add"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function PackagingMaterialsMaster() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
@@ -120,11 +159,13 @@ export default function PackagingMaterialsMaster() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [addDeptOpen, setAddDeptOpen] = useState(false);
+  const [addItemTypeOpen, setAddItemTypeOpen] = useState(false);
 
   const { data, isLoading } = usePackagingMaterialList({
     search, status, itemType: filterItemType, department: filterDept, vendor: filterVendor, location: filterLocation, page, limit,
   });
   const { data: deptData } = useDepartments();
+  const { data: itemTypesData } = useItemTypes();
   const { data: unitTypesData } = useUnitTypes();
   const { data: vendorsData } = useAllVendors();
 
@@ -133,6 +174,7 @@ export default function PackagingMaterialsMaster() {
   const toggleStatus = useTogglePackagingMaterialStatus();
   const deleteMutation = useDeletePackagingMaterial();
   const addDeptMutation = useAddDepartment();
+  const addItemTypeMutation = useAddItemType();
 
   function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
   function openEdit(r: PackagingMaterialRecord) {
@@ -165,6 +207,10 @@ export default function PackagingMaterialsMaster() {
   async function handleAddDept(name: string) {
     await addDeptMutation.mutateAsync(name);
     setForm(f => ({ ...f, department: name }));
+  }
+  async function handleAddItemType(name: string) {
+    await addItemTypeMutation.mutateAsync(name);
+    setForm(f => ({ ...f, itemType: name }));
   }
 
   const rows: TableRow[] = ((data?.data ?? []) as PackagingMaterialRecord[]).map((r, i) => ({
@@ -221,6 +267,7 @@ export default function PackagingMaterialsMaster() {
   ];
 
   const deptOptions = (deptData ?? []).map(d => ({ value: d.name, label: d.name }));
+  const itemTypeOptions = (itemTypesData ?? []).map(t => ({ value: t.name, label: t.name }));
   const unitTypeOptions = (unitTypesData ?? []).map(u => u.name);
   const vendorOptions = ((vendorsData ?? []) as VendorRecord[]).map(v => v.brandName);
 
@@ -241,7 +288,7 @@ export default function PackagingMaterialsMaster() {
         <div className="flex items-center gap-3 flex-wrap">
           <select value={filterItemType} onChange={(e) => { setFilterItemType(e.target.value); setPage(1); }} className={SELECT_CLS}>
             <option value="">All Item Types</option>
-            {ITEM_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            {itemTypeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
           <select value={filterDept} onChange={(e) => { setFilterDept(e.target.value); setPage(1); }} className={SELECT_CLS}>
             <option value="">All Departments</option>
@@ -275,13 +322,11 @@ export default function PackagingMaterialsMaster() {
                 {editRecord ? editRecord.itemCode : "Auto-generated"}
               </div>
             </div>
-            <div className="flex flex-col gap-1 py-2">
-              <label className="text-sm font-medium text-gray-700">Item Type</label>
-              <select value={form.itemType} onChange={(e) => setForm(f => ({ ...f, itemType: e.target.value }))}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
-                <option value="">Select item type</option>
-                {ITEM_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+            <div className="py-2">
+              <AddableSelect label="Item Type" value={form.itemType}
+                onChange={(v) => setForm(f => ({ ...f, itemType: v }))}
+                options={itemTypeOptions} placeholder="Select item type"
+                onAdd={() => setAddItemTypeOpen(true)} />
             </div>
             <InputField label="Item Name" value={form.itemName} onChange={(e) => setForm(f => ({ ...f, itemName: e.target.value }))}
               error={errors.itemName} required placeholder="e.g. Box 10x10" />
@@ -325,6 +370,9 @@ export default function PackagingMaterialsMaster() {
 
         <AddDeptModal open={addDeptOpen} onClose={() => setAddDeptOpen(false)}
           onAdd={handleAddDept} adding={addDeptMutation.isPending} />
+
+        <AddItemTypeModal open={addItemTypeOpen} onClose={() => setAddItemTypeOpen(false)}
+          onAdd={handleAddItemType} adding={addItemTypeMutation.isPending} />
       </div>
     </AppLayout>
   );

@@ -98,3 +98,18 @@ export function useAddDepartment() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lookups", "departments"] }),
   });
 }
+
+export function useItemTypes() {
+  return useQuery({
+    queryKey: ["lookups", "item-types"],
+    queryFn: () => customFetch<{ id: number; name: string }[]>("/api/lookups/item-types"),
+  });
+}
+
+export function useAddItemType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => customFetch<{ id: number; name: string }>("/api/lookups/item-types", { method: "POST", body: JSON.stringify({ name }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lookups", "item-types"] }),
+  });
+}
