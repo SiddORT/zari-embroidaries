@@ -37,6 +37,7 @@ import otherExpensesRouter from "./otherExpenses";
 import accountsDashboardRouter from "./accountsDashboard";
 import dashboardOverviewRouter from "./dashboardOverview";
 import reportsRouter from "./reports";
+import packingListsRouter from "./packingLists";
 
 const router: IRouter = Router();
 
@@ -78,5 +79,6 @@ router.use(otherExpensesRouter);
 router.use(accountsDashboardRouter);
 router.use(dashboardOverviewRouter);
 router.use(reportsRouter);
+router.use(packingListsRouter);
 
 export default router;

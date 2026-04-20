@@ -51,6 +51,8 @@ import QuotationDetail from "@/pages/QuotationDetail";
 import ShippingList from "@/pages/ShippingList";
 import ShippingVendors from "@/pages/ShippingVendors";
 import PackingLists from "@/pages/PackingLists";
+import PackingListForm from "@/pages/PackingListForm";
+import PackingListDetail from "@/pages/PackingListDetail";
 import Settings from "@/pages/Settings";
 import InvoiceList from "@/pages/InvoiceList";
 import InvoiceForm from "@/pages/InvoiceForm";
@@ -148,6 +150,9 @@ function Router() {
       <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
       <Route path="/shipping" component={ShippingList} />
       <Route path="/logistics/packing-lists" component={PackingLists} />
+      <Route path="/logistics/packing-lists/new" component={PackingListForm} />
+      <Route path="/logistics/packing-lists/:id/edit" component={PackingListForm} />
+      <Route path="/logistics/packing-lists/:id" component={PackingListDetail} />
       <Route path="/masters/shipping-vendors" component={ShippingVendors} />
       <Route path="/settings/reports" component={Reports} />
       <Route path="/settings" component={Settings} />
