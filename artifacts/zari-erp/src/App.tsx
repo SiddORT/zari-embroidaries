@@ -54,6 +54,7 @@ import InvoiceForm from "@/pages/InvoiceForm";
 import Accounts from "@/pages/Accounts";
 import CreditDebitNotes from "@/pages/CreditDebitNotes";
 import AccountPurchases from "@/pages/AccountPurchases";
+import OtherExpenses from "@/pages/OtherExpenses";
 
 const queryClient = new QueryClient();
 
@@ -121,6 +122,7 @@ function Router() {
       <Route path="/accounts/payments" component={Accounts} />
       <Route path="/accounts/credit-debit-notes" component={CreditDebitNotes} />
       <Route path="/accounts/purchases" component={AccountPurchases} />
+      <Route path="/accounts/other-expenses" component={OtherExpenses} />
       <Route path="/inventory/items" component={InventoryStockList} />
       <Route path="/inventory/ledger" component={InventoryLedger} />
       <Route path="/inventory/reservations" component={Reservations} />

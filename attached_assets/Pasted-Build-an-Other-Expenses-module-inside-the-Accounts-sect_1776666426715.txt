@@ -1,0 +1,305 @@
+Build an Other Expenses module inside the Accounts section of the ERP system.
+
+This module must allow tracking non-inventory expenses and optionally link them to vendor ledger entries.
+
+Reuse existing vendor_ledger table.
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Other Expenses Module
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Add menu:
+
+Accounts → Other Expenses
+
+---
+
+SECTION 2 — DATABASE TABLE STRUCTURE
+
+Create table:
+
+other_expenses
+
+Fields:
+
+expense_id (primary key)
+
+expense_number (auto generated)
+
+expense_category
+
+vendor_id (optional)
+
+reference_type (optional)
+
+reference_id (optional)
+
+amount
+
+currency_code
+
+payment_status
+
+payment_type
+
+expense_date
+
+remarks
+
+attachment
+
+created_by
+
+created_at
+
+updated_at
+
+---
+
+SECTION 3 — EXPENSE NUMBER FORMAT
+
+Format:
+
+EXP-YYYY-00001
+
+Example:
+
+EXP-2026-00012
+
+Must be:
+
+auto-generated
+
+unique
+
+non-editable
+
+---
+
+SECTION 4 — EXPENSE CATEGORY VALUES
+
+Provide default categories:
+
+Courier Charges
+
+Packaging Expenses
+
+Transport Charges
+
+Office Expenses
+
+Sampling Misc Expenses
+
+Utility Expenses
+
+Other
+
+Allow users to create additional categories.
+
+---
+
+SECTION 5 — ADD EXPENSE FORM
+
+Create page:
+
+Accounts → Other Expenses → Add Expense
+
+Form fields:
+
+Expense Category (dropdown)
+
+Vendor (optional searchable dropdown)
+
+Reference Type (optional dropdown)
+
+Reference ID (optional searchable selector)
+
+Amount
+
+Currency
+
+Payment Status
+
+Payment Type
+
+Expense Date
+
+Remarks
+
+Attachment Upload (PDF / JPG / PNG)
+
+---
+
+SECTION 6 — PAYMENT STATUS VALUES
+
+payment_status values:
+
+Pending
+
+Partial
+
+Completed
+
+---
+
+SECTION 7 — PAYMENT TYPE VALUES
+
+payment_type values:
+
+Cash
+
+Bank Transfer
+
+UPI
+
+Cheque
+
+Online
+
+Other
+
+---
+
+SECTION 8 — VENDOR LEDGER INTEGRATION
+
+If vendor_id is selected:
+
+Create entry inside:
+
+vendor_ledger
+
+Fields mapped:
+
+vendor_id
+
+reference_type = Other Expense
+
+reference_id = expense_id
+
+entry_type = Expense
+
+amount
+
+entry_date = expense_date
+
+status = payment_status
+
+If payment_status = Completed
+
+mark ledger entry as:
+
+Paid
+
+If payment_status = Pending
+
+mark ledger entry as:
+
+Payable
+
+---
+
+SECTION 9 — OTHER EXPENSE LIST PAGE
+
+Create page:
+
+Accounts → Other Expenses
+
+Display columns:
+
+Expense Number
+
+Expense Category
+
+Vendor
+
+Amount
+
+Currency
+
+Payment Status
+
+Expense Date
+
+Attachment
+
+Created By
+
+---
+
+SECTION 10 — FILTERS (SINGLE ROW)
+
+Add filters in one row:
+
+Date Range
+
+Vendor
+
+Expense Category
+
+Payment Status
+
+Search by Expense Number
+
+---
+
+SECTION 11 — ACTION BUTTONS
+
+Allow:
+
+Add Expense
+
+Edit Expense
+
+View Expense
+
+Delete Expense (admin only)
+
+Download Attachment
+
+---
+
+SECTION 12 — VALIDATION RULES
+
+Prevent:
+
+amount ≤ 0
+
+missing expense_category
+
+missing expense_date
+
+invalid currency selection
+
+---
+
+SECTION 13 — PERMISSIONS CONTROL
+
+Allow:
+
+Create expense → authorized users
+
+Edit expense → authorized users
+
+Delete expense → admin users only
+
+View expense → authorized users
+
+---
+
+SECTION 14 — SUCCESS MESSAGE
+
+After saving expense:
+
+Display:
+
+Expense recorded successfully and linked to vendor ledger (if vendor selected)
+
+END OF MODULE
