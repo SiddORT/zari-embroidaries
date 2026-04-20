@@ -357,12 +357,19 @@ export default function Dashboard() {
                   ? <Skeleton className="h-10 w-16 mb-2" />
                   : <p className="text-[2.6rem] font-black leading-none tracking-tight text-gray-900">{c.value}</p>}
                 <p className="text-[11px] mt-1 mb-3 text-gray-400">{c.sub}</p>
-                {c.change !== null && (
-                  <div className={`flex items-center gap-1 text-[11px] font-bold ${c.up ? "text-emerald-600" : "text-red-500"}`}>
-                    {c.up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                    {c.change}
-                  </div>
-                )}
+                {c.change !== null
+                  ? (
+                    <div className={`flex items-center gap-1 text-[11px] font-bold ${c.up ? "text-emerald-600" : "text-red-500"}`}>
+                      {c.up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                      {c.change}
+                    </div>
+                  ) : (
+                    <div className="h-1 rounded-full overflow-hidden" style={{ background: `${G}18` }}>
+                      <div className="h-full rounded-full w-full"
+                        style={{ background: `linear-gradient(90deg, ${G}60, ${G_LIGHT}, ${G}40)` }} />
+                    </div>
+                  )
+                }
               </div>
             </button>
           ))}
