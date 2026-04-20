@@ -981,13 +981,13 @@ export default function InvoiceForm() {
                         </td>
                         {/* Qty */}
                         <td className="px-3 py-2">
-                          <input type="number" min="0" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
+                          <input type="number" min="0" step="0.01" value={it.quantity} onChange={e => updateItem(it.id, "quantity", parseFloat(e.target.value) || 0)} className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right" />
                         </td>
                         {/* Rate */}
                         <td className="px-3 py-2">
                           <input
-                            type="number" min="0" step="0.0001"
-                            value={parseFloat(toInvCcy(it.unitPrice).toFixed(4))}
+                            type="number" min="0" step="0.01"
+                            value={parseFloat(toInvCcy(it.unitPrice).toFixed(2))}
                             onChange={e => updateItem(it.id, "unitPrice", (parseFloat(e.target.value) || 0) * rate)}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />

@@ -414,12 +414,12 @@ export default function Reservations() {
                     </td>
                     <td className={tdCls}>
                       <span className="text-sm font-mono font-semibold" style={{ color: G }}>
-                        {parseFloat(r.reserved_quantity).toFixed(3)} {r.unit_type || ""}
+                        {parseFloat(r.reserved_quantity).toFixed(2)} {r.unit_type || ""}
                       </span>
                     </td>
                     <td className={tdCls}>
                       <span className={`text-sm font-mono ${parseFloat(r.available_stock) <= 0 ? "text-red-600 font-bold" : "text-gray-700"}`}>
-                        {parseFloat(r.available_stock).toFixed(3)}
+                        {parseFloat(r.available_stock).toFixed(2)}
                       </span>
                     </td>
                     <td className={tdCls}><span className="text-xs">{fmtDate(r.reservation_date)}</span></td>
@@ -438,7 +438,7 @@ export default function Reservations() {
 
                             {r.status === "Active" && (
                               <button
-                                onClick={() => { setOpenActionId(null); setConvertModal({ resv: r, consumed: parseFloat(r.reserved_quantity).toFixed(3), released: "0", wastage: "0", submitting: false }); }}
+                                onClick={() => { setOpenActionId(null); setConvertModal({ resv: r, consumed: parseFloat(r.reserved_quantity).toFixed(2), released: "0", wastage: "0", submitting: false }); }}
                                 className="w-full text-left px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2.5">
                                 <ArrowRightLeft className="h-3.5 w-3.5" /> Convert
                               </button>
@@ -541,13 +541,13 @@ export default function Reservations() {
                   <option value="">{loadingItems ? "Loading items…" : "Select item…"}</option>
                   {invItems.map(i => (
                     <option key={i.id} value={i.id}>
-                      {i.item_name} ({i.item_code}) — {parseFloat(i.available_stock).toFixed(3)} avail.
+                      {i.item_name} ({i.item_code}) — {parseFloat(i.available_stock).toFixed(2)} avail.
                     </option>
                   ))}
                 </select>
                 {selectedItem && (
                   <p className="text-xs mt-1 text-amber-600 font-medium">
-                    Available stock: {parseFloat(selectedItem.available_stock).toFixed(3)} {selectedItem.unit_type || ""}
+                    Available stock: {parseFloat(selectedItem.available_stock).toFixed(2)} {selectedItem.unit_type || ""}
                   </p>
                 )}
               </div>
@@ -644,7 +644,7 @@ export default function Reservations() {
                    confirmAction.action === "release" ? "Release Reservation?" : "Cancel Reservation?"}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                  {confirmAction.resv.item_name} — {parseFloat(confirmAction.resv.reserved_quantity).toFixed(3)} {confirmAction.resv.unit_type || "units"} for {confirmAction.resv.reservation_type} {confirmAction.resv.reference_code ?? `#${confirmAction.resv.reference_id}`}.
+                  {confirmAction.resv.item_name} — {parseFloat(confirmAction.resv.reserved_quantity).toFixed(2)} {confirmAction.resv.unit_type || "units"} for {confirmAction.resv.reservation_type} {confirmAction.resv.reference_code ?? `#${confirmAction.resv.reference_id}`}.
                   {confirmAction.action === "release" && " Reserved qty will be returned to available stock."}
                   {confirmAction.action === "cancel" && " Reserved qty will be returned to available stock."}
                   {confirmAction.action === "delete" && " This will permanently remove this record."}
@@ -680,7 +680,7 @@ export default function Reservations() {
         const r = parseFloat(convertModal.released) || 0;
         const w = parseFloat(convertModal.wastage) || 0;
         const allocated = c + r + w;
-        const remaining = +(reserved - allocated).toFixed(3);
+        const remaining = +(reserved - allocated).toFixed(2);
         const cOver = c > reserved;
         const rOver = r > reserved;
         const wOver = w > reserved;
@@ -707,7 +707,7 @@ export default function Reservations() {
                   <p className="text-sm font-semibold text-gray-900">{convertModal.resv.item_name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {convertModal.resv.reservation_type} {convertModal.resv.reference_code ?? `#${convertModal.resv.reference_id}`} &middot; Reserved:{" "}
-                    <span className="font-bold" style={{ color: G }}>{reserved.toFixed(3)}</span>{" "}
+                    <span className="font-bold" style={{ color: G }}>{reserved.toFixed(2)}</span>{" "}
                     {convertModal.resv.unit_type || ""}
                   </p>
                 </div>
@@ -761,9 +761,9 @@ export default function Reservations() {
                 <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border ${valid ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
                   <span className="text-xs font-medium text-gray-600">Total allocated</span>
                   <span className={`text-sm font-bold ${valid ? "text-green-700" : "text-red-600"}`}>
-                    {allocated.toFixed(3)} / {reserved.toFixed(3)} {convertModal.resv.unit_type || ""}
+                    {allocated.toFixed(2)} / {reserved.toFixed(2)} {convertModal.resv.unit_type || ""}
                     {!valid && remaining !== 0 && (
-                      <span className="ml-1 text-[11px] font-normal">({remaining > 0 ? `${remaining.toFixed(3)} unallocated` : `${Math.abs(remaining).toFixed(3)} over`})</span>
+                      <span className="ml-1 text-[11px] font-normal">({remaining > 0 ? `${remaining.toFixed(2)} unallocated` : `${Math.abs(remaining).toFixed(2)} over`})</span>
                     )}
                   </span>
                 </div>

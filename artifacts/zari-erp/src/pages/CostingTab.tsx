@@ -317,7 +317,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                 <p className="text-[10px] text-gray-400">Current Stock</p>
                 {selectedInv ? (
                   <p className="font-semibold text-gray-800">
-                    {parseFloat(selectedInv.current_stock).toFixed(3)}
+                    {parseFloat(selectedInv.current_stock).toFixed(2)}
                     <span className="text-gray-400 ml-1 text-[10px]">{form.unitType}</span>
                   </p>
                 ) : (
@@ -328,7 +328,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                 <p className="text-[10px] text-gray-400">Available Stock</p>
                 {selectedInv ? (
                   <p className={`font-semibold ${parseFloat(selectedInv.available_stock) <= 0 ? "text-red-600" : "text-green-700"}`}>
-                    {parseFloat(selectedInv.available_stock).toFixed(3)}
+                    {parseFloat(selectedInv.available_stock).toFixed(2)}
                     <span className="text-gray-400 ml-1 text-[10px]">{form.unitType}</span>
                   </p>
                 ) : (
@@ -425,12 +425,12 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                     {(r as any).liveCurrentStock != null ? (
                       <div>
                         <div>
-                          <span className="font-semibold text-gray-800 text-[11px]">{parseFloat((r as any).liveCurrentStock).toFixed(3)}</span>
+                          <span className="font-semibold text-gray-800 text-[11px]">{parseFloat((r as any).liveCurrentStock).toFixed(2)}</span>
                           <span className="text-gray-400 ml-0.5 text-[10px]">{r.unitType}</span>
                         </div>
                         <div>
                           <span className={`font-semibold text-[11px] ${parseFloat((r as any).liveAvailableStock ?? "0") <= 0 ? "text-red-600" : "text-green-700"}`}>
-                            {parseFloat((r as any).liveAvailableStock ?? "0").toFixed(3)}
+                            {parseFloat((r as any).liveAvailableStock ?? "0").toFixed(2)}
                           </span>
                           <span className="text-gray-400 ml-0.5 text-[10px]">avail</span>
                         </div>
@@ -444,7 +444,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                     {m.poTargetPrice > 0 ? `₹${m.poTargetPrice.toFixed(2)}` : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="font-semibold text-violet-700">{parseFloat(r.requiredQty).toFixed(3)}</span>
+                    <span className="font-semibold text-violet-700">{parseFloat(r.requiredQty).toFixed(2)}</span>
                     <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
                   </td>
                   <td className="px-3 py-2.5 font-semibold text-amber-700">
@@ -530,8 +530,8 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 mb-1" />
             {editQty && parseFloat(editQty) > 0 && (
               <p className="text-xs text-violet-700 mb-3">
-                New total: <span className="font-bold">{(parseFloat(editRow.requiredQty) + parseFloat(editQty)).toFixed(4)} {editRow.unitType}</span>
-                <span className="text-gray-400 ml-1">(current {editRow.requiredQty} + {parseFloat(editQty).toFixed(4)})</span>
+                New total: <span className="font-bold">{(parseFloat(editRow.requiredQty) + parseFloat(editQty)).toFixed(2)} {editRow.unitType}</span>
+                <span className="text-gray-400 ml-1">(current {editRow.requiredQty} + {parseFloat(editQty).toFixed(2)})</span>
               </p>
             )}
             {(!editQty || parseFloat(editQty) <= 0) && <div className="mb-3" />}
@@ -581,11 +581,11 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
                   return (
                     <div key={entry.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-gray-800">{parseFloat(entry.old_qty).toFixed(4)} → {parseFloat(entry.new_qty).toFixed(4)} {entry.material_name}</span>
-                        <span className={`font-bold ${delta > 0 ? "text-emerald-600" : "text-red-600"}`}>{delta > 0 ? "+" : ""}{delta.toFixed(4)}</span>
+                        <span className="font-semibold text-gray-800">{parseFloat(entry.old_qty).toFixed(2)} → {parseFloat(entry.new_qty).toFixed(2)} {entry.material_name}</span>
+                        <span className={`font-bold ${delta > 0 ? "text-emerald-600" : "text-red-600"}`}>{delta > 0 ? "+" : ""}{delta.toFixed(2)}</span>
                       </div>
                       {entry.reservation_delta && parseFloat(entry.reservation_delta) !== 0 && (
-                        <div className="text-violet-700 mb-1">Reservation: {parseFloat(entry.reservation_delta) > 0 ? "+" : ""}{parseFloat(entry.reservation_delta).toFixed(4)}</div>
+                        <div className="text-violet-700 mb-1">Reservation: {parseFloat(entry.reservation_delta) > 0 ? "+" : ""}{parseFloat(entry.reservation_delta).toFixed(2)}</div>
                       )}
                       {entry.notes && <div className="text-gray-600 mb-1 italic">"{entry.notes}"</div>}
                       <div className="text-gray-400">{entry.changed_by} · {new Date(entry.changed_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
@@ -1184,7 +1184,7 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
                 <tr key={i} className="border-b border-gray-50">
                   <td className="px-2 py-2 font-mono text-[10px] text-gray-500">{item.materialCode}</td>
                   <td className="px-2 py-2 text-gray-800">{item.materialName}</td>
-                  <td className="px-2 py-2 text-gray-600">{item.quantity} {item.unitType}</td>
+                  <td className="px-2 py-2 text-gray-600">{parseFloat(item.quantity).toFixed(2)} {item.unitType}</td>
                   <td className="px-2 py-2 text-gray-600">₹{parseFloat(item.targetPrice).toFixed(2)}</td>
                   <td className="px-2 py-2 font-semibold text-gray-900">
                     ₹{((parseFloat(item.targetPrice) || 0) * (parseFloat(item.quantity) || 0)).toFixed(2)}
@@ -1248,7 +1248,7 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
     if (!prForm.actualPrice || parseFloat(prForm.actualPrice) <= 0) { toast({ title: "Enter actual price", variant: "destructive" }); return; }
     if (prItemStats && prItemStats.remaining <= 0) { toast({ title: "This item is already fully received. No further PR allowed.", variant: "destructive" }); return; }
     if (prItemStats && parseFloat(prForm.receivedQty) > prItemStats.remaining) {
-      toast({ title: `Received qty exceeds remaining. Max allowed: ${prItemStats.remaining.toFixed(4)} ${prItemStats.unitType}`, variant: "destructive" }); return;
+      toast({ title: `Received qty exceeds remaining. Max allowed: ${prItemStats.remaining.toFixed(2)} ${prItemStats.unitType}`, variant: "destructive" }); return;
     }
     const bomRowId = prForm.bomRowId ? Number(prForm.bomRowId) : (prModal.bomItems.length === 1 ? prModal.bomItems[0].bomRowId : null);
     createPR.mutate({ poId: prModal.poId, swatchOrderId, bomRowId, receivedQty: prForm.receivedQty, actualPrice: prForm.actualPrice, warehouseLocation: prForm.warehouseLocation }, {
@@ -1331,11 +1331,11 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <div className={`rounded-xl px-3 py-2 text-xs flex items-center gap-3 ${prItemStats.remaining <= 0 ? "bg-red-50 border border-red-200" : "bg-amber-50 border border-amber-200"}`}>
                   <div className="flex-1">
                     <span className="text-gray-500">Already received: </span>
-                    <span className="font-semibold text-gray-800">{prItemStats.alreadyReceived.toFixed(4)} {prItemStats.unitType}</span>
+                    <span className="font-semibold text-gray-800">{prItemStats.alreadyReceived.toFixed(2)} {prItemStats.unitType}</span>
                     <span className="mx-2 text-gray-300">|</span>
                     <span className="text-gray-500">Remaining: </span>
                     <span className={`font-bold ${prItemStats.remaining <= 0 ? "text-red-600" : "text-green-700"}`}>
-                      {prItemStats.remaining.toFixed(4)} {prItemStats.unitType}
+                      {prItemStats.remaining.toFixed(2)} {prItemStats.unitType}
                     </span>
                   </div>
                   {prItemStats.remaining <= 0 && <span className="text-[10px] font-semibold text-red-600">FULLY RECEIVED</span>}
@@ -1349,7 +1349,7 @@ function PoSection({ swatchOrderId }: { swatchOrderId: number }) {
                   placeholder="0"
                   max={prItemStats ? prItemStats.remaining : undefined} />
                 {prItemStats && prItemStats.remaining > 0 && (
-                  <p className="text-[10px] text-gray-400 mt-1">Max: {prItemStats.remaining.toFixed(4)} {prItemStats.unitType}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Max: {prItemStats.remaining.toFixed(2)} {prItemStats.unitType}</p>
                 )}
               </div>
               <div>
@@ -1533,7 +1533,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     const row = bomRows.find(r => String(r.id) === addForm.bomRowId);
     if (!row) return;
     if (availableStock !== null && parseFloat(addForm.consumedQty) > availableStock) {
-      toast({ title: `Cannot consume more than the required/reserved quantity (${availableStock.toFixed(4)} ${row.unitType})`, variant: "destructive" }); return;
+      toast({ title: `Cannot consume more than the required/reserved quantity (${availableStock.toFixed(2)} ${row.unitType})`, variant: "destructive" }); return;
     }
     addEntry.mutate({
       swatchOrderId, bomRowId: Number(addForm.bomRowId),
@@ -1627,7 +1627,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                       )}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="font-semibold text-violet-700">{parseFloat(r.requiredQty).toFixed(4)}</span>
+                      <span className="font-semibold text-violet-700">{parseFloat(r.requiredQty).toFixed(2)}</span>
                       <span className="text-gray-400 ml-1 text-[10px]">{r.unitType}</span>
                     </td>
                     <td className="px-3 py-2.5 text-gray-700">₹{m.weightedAvg.toFixed(2)}</td>
@@ -1704,16 +1704,16 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">REQ / RESERVED</span>
                     <span className="text-gray-500">For this order:</span>
-                    <span className="font-bold text-violet-700">{reservedQty !== null ? reservedQty.toFixed(4) : "—"} {selectedRow.unitType}</span>
+                    <span className="font-bold text-violet-700">{reservedQty !== null ? reservedQty.toFixed(2) : "—"} {selectedRow.unitType}</span>
                     {availableStock !== null && availableStock <= 0 && <span className="text-[10px] font-semibold text-red-600">FULLY CONSUMED</span>}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-gray-500">Consumed:</span>
-                    <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(4)}</span>
+                    <span className="font-semibold text-amber-700">{selectedRowMetrics.consumedQtyNum.toFixed(2)}</span>
                     <span className="mx-1 text-gray-300">|</span>
                     <span className="text-gray-500">Remaining cap:</span>
                     <span className={`font-bold ${availableStock !== null && availableStock <= 0 ? "text-red-600" : "text-violet-700"}`}>
-                      {availableStock !== null ? availableStock.toFixed(4) : "—"} {selectedRow.unitType}
+                      {availableStock !== null ? availableStock.toFixed(2) : "—"} {selectedRow.unitType}
                     </span>
                   </div>
                 </div>
@@ -1727,7 +1727,7 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                   max={availableStock !== null ? availableStock : undefined} />
                 {selectedRow && availableStock !== null && availableStock > 0 && (
                   <p className="text-[10px] mt-1 text-violet-600">
-                    Remaining cap: {availableStock.toFixed(4)} {selectedRow.unitType}
+                    Remaining cap: {availableStock.toFixed(2)} {selectedRow.unitType}
                   </p>
                 )}
               </div>

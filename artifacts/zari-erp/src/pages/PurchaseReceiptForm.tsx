@@ -216,7 +216,7 @@ export default function PurchaseReceiptForm() {
     if (!validLines.length) { toast({ title: "Enter at least one received quantity", variant: "destructive" }); return; }
     for (const l of validLines) {
       if (parseFloat(l.quantity) > parseFloat(l.pendingQty) + 0.001) {
-        toast({ title: `Quantity for "${l.itemName}" exceeds pending (${parseFloat(l.pendingQty).toFixed(3)})`, variant: "destructive" }); return;
+        toast({ title: `Quantity for "${l.itemName}" exceeds pending (${parseFloat(l.pendingQty).toFixed(2)})`, variant: "destructive" }); return;
       }
     }
     setSubmitting(true);
@@ -312,7 +312,7 @@ export default function PurchaseReceiptForm() {
       pendingQty: item.po_ordered_qty,
       orderedQty: item.po_ordered_qty,
       receivedSoFar: item.po_received_qty,
-      quantity: parseFloat(item.quantity).toFixed(3),
+      quantity: parseFloat(item.quantity).toFixed(2),
       unitPrice: parseFloat(item.unit_price).toFixed(2),
       warehouseLocation: item.warehouse_location ?? "",
       remarks: "",
@@ -620,7 +620,7 @@ export default function PurchaseReceiptForm() {
                           <td className="px-3 py-3 text-sm font-medium text-gray-900">{item.item_name}</td>
                           <td className="px-3 py-3 text-xs font-mono text-gray-500">{item.item_code}</td>
                           <td className="px-3 py-3 text-xs text-gray-500">{item.unit_type ?? "—"}</td>
-                          <td className="px-3 py-3 text-sm font-mono font-semibold text-green-700">{parseFloat(item.quantity).toFixed(3)}</td>
+                          <td className="px-3 py-3 text-sm font-mono font-semibold text-green-700">{parseFloat(item.quantity).toFixed(2)}</td>
                           <td className="px-3 py-3 text-xs font-mono text-gray-500">₹{parseFloat(item.unit_price).toFixed(2)}</td>
                           <td className="px-3 py-3 text-xs text-gray-500">{item.warehouse_location ?? "—"}</td>
                         </tr>
@@ -924,9 +924,9 @@ export default function PurchaseReceiptForm() {
                             <div className="text-xs text-gray-400">{line.itemCode}</div>
                           </td>
                           <td className="px-3 py-3 text-xs text-gray-500">{line.unitType || "—"}</td>
-                          <td className="px-3 py-3 text-xs font-mono text-gray-600">{parseFloat(line.orderedQty).toFixed(3)}</td>
-                          <td className="px-3 py-3 text-xs font-mono text-green-700">{parseFloat(line.receivedSoFar).toFixed(3)}</td>
-                          <td className="px-3 py-3 text-xs font-mono font-semibold text-amber-600">{pendingNum.toFixed(3)}</td>
+                          <td className="px-3 py-3 text-xs font-mono text-gray-600">{parseFloat(line.orderedQty).toFixed(2)}</td>
+                          <td className="px-3 py-3 text-xs font-mono text-green-700">{parseFloat(line.receivedSoFar).toFixed(2)}</td>
+                          <td className="px-3 py-3 text-xs font-mono font-semibold text-amber-600">{pendingNum.toFixed(2)}</td>
                           <td className="px-3 py-3">
                             <input type="number" min="0" step="0.001" max={pendingNum}
                               value={line.quantity}

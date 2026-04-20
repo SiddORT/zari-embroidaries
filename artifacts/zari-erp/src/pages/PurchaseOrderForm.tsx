@@ -400,9 +400,9 @@ export default function PurchaseOrderForm() {
 
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: "Total Ordered", value: totalOrdered.toFixed(3), color: "text-gray-900" },
-              { label: "Total Received", value: totalReceived.toFixed(3), color: "text-green-700" },
-              { label: "Total Pending", value: totalPending.toFixed(3), color: totalPending > 0 ? "text-amber-600" : "text-gray-400" },
+              { label: "Total Ordered", value: totalOrdered.toFixed(2), color: "text-gray-900" },
+              { label: "Total Received", value: totalReceived.toFixed(2), color: "text-green-700" },
+              { label: "Total Pending", value: totalPending.toFixed(2), color: totalPending > 0 ? "text-amber-600" : "text-gray-400" },
             ].map(({ label, value, color }) => (
               <div key={label} className={`${card} p-4`}>
                 <p className="text-xs text-gray-500">{label}</p>
@@ -470,10 +470,10 @@ export default function PurchaseOrderForm() {
                         <td className="px-3 py-3 text-sm font-medium text-gray-900">{item.item_name}</td>
                         <td className="px-3 py-3 text-xs font-mono text-gray-500">{item.item_code}</td>
                         <td className="px-3 py-3 text-xs text-gray-500">{item.unit_type ?? "—"}</td>
-                        <td className="px-3 py-3 text-sm font-mono text-gray-900">{parseFloat(item.ordered_quantity).toFixed(3)}</td>
+                        <td className="px-3 py-3 text-sm font-mono text-gray-900">{parseFloat(item.ordered_quantity).toFixed(2)}</td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-mono text-green-700">{parseFloat(item.received_quantity).toFixed(3)}</span>
+                            <span className="text-sm font-mono text-green-700">{parseFloat(item.received_quantity).toFixed(2)}</span>
                             <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: G }} />
                             </div>
@@ -481,7 +481,7 @@ export default function PurchaseOrderForm() {
                         </td>
                         <td className="px-3 py-3">
                           <span className={`text-sm font-mono font-semibold ${parseFloat(item.pending_quantity) > 0 ? "text-amber-600" : "text-gray-400"}`}>
-                            {Math.max(0, parseFloat(item.pending_quantity)).toFixed(3)}
+                            {Math.max(0, parseFloat(item.pending_quantity)).toFixed(2)}
                           </span>
                         </td>
                         <td className="px-3 py-3 text-xs font-mono text-gray-500">₹{parseFloat(item.unit_price).toFixed(2)}</td>

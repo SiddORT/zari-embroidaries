@@ -298,7 +298,7 @@ export default function InventoryStockList() {
     try {
       const base   = parseFloat(stockForm.currentStock) || 0;
       const delta  = parseFloat(stockForm.stockChange)  || 0;
-      const newQty = (base + delta).toFixed(3);
+      const newQty = (base + delta).toFixed(2);
       await customFetch(`/api/inventory/items/${stockModal.item.id}/stock`, {
         method: "PUT",
         body: JSON.stringify({ ...stockForm, currentStock: newQty }),
@@ -689,7 +689,7 @@ export default function InventoryStockList() {
                       <div>
                         <label className="block text-xs font-medium text-gray-900 mb-1">Current Stock</label>
                         <div className="w-full px-3 py-2 text-sm font-semibold text-gray-900 rounded-xl border border-gray-200 bg-gray-50 select-none">
-                          {parseFloat(stockForm.currentStock).toFixed(3)}
+                          {parseFloat(stockForm.currentStock).toFixed(2)}
                         </div>
                       </div>
                       <div>
@@ -706,11 +706,11 @@ export default function InventoryStockList() {
                     {/* Live preview strip */}
                     {hasChange && (
                       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${isPos ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isNeg ? "bg-red-50 text-red-700 border border-red-200" : "bg-gray-50 text-gray-600 border border-gray-200"}`}>
-                        <span className="text-gray-500 font-normal">{base.toFixed(3)}</span>
+                        <span className="text-gray-500 font-normal">{base.toFixed(2)}</span>
                         <span className="text-gray-400">→</span>
-                        <span className="font-bold text-base">{newQty.toFixed(3)}</span>
+                        <span className="font-bold text-base">{newQty.toFixed(2)}</span>
                         <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-semibold ${isPos ? "bg-emerald-100 text-emerald-800" : isNeg ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700"}`}>
-                          {isPos ? `▲ +${delta.toFixed(3)}` : isNeg ? `▼ ${delta.toFixed(3)}` : "No change"}
+                          {isPos ? `▲ +${delta.toFixed(2)}` : isNeg ? `▼ ${delta.toFixed(2)}` : "No change"}
                         </span>
                       </div>
                     )}

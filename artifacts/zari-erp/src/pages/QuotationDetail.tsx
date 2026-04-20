@@ -460,7 +460,7 @@ export default function QuotationDetail() {
                         <tr key={c.id} className="border-b border-gray-50">
                           <td className="py-2 font-medium text-gray-900">{c.charge_name}<br/><span className="text-xs text-gray-600">{c.unit}</span></td>
                           <td className="py-2 text-gray-900">{c.hsn_code || "—"}</td>
-                          <td className="py-2 text-right text-gray-900">{parseFloat(c.quantity).toLocaleString("en-IN")}</td>
+                          <td className="py-2 text-right text-gray-900">{parseFloat(c.quantity).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="py-2 text-right text-gray-900">{fmt(c.price)}</td>
                           <td className="py-2 text-right font-semibold text-gray-900">{fmt(c.amount)}</td>
                         </tr>

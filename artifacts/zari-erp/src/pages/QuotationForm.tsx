@@ -359,7 +359,7 @@ export default function QuotationForm() {
             </div>
             <div>
               <label className={labelCls}>Estimated Weight (kg)</label>
-              <input type="number" min="0" step="0.001" className={inputCls}
+              <input type="number" min="0" step="0.01" className={inputCls}
                 value={estimatedWeight} onChange={(e) => setEstimatedWeight(e.target.value)} />
             </div>
           </div>
@@ -497,7 +497,7 @@ export default function QuotationForm() {
                         </select>
                       </td>
                       <td className="pr-2 py-1.5">
-                        <input type="number" min="0" step="0.001" className={inputCls} value={c.quantity}
+                        <input type="number" min="0" step="0.01" className={inputCls} value={c.quantity}
                           onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
                       </td>
                       <td className="pr-2 py-1.5">
@@ -524,7 +524,7 @@ export default function QuotationForm() {
             <div className="flex items-end gap-3">
               <div className="w-36">
                 <label className={labelCls}>Weight (kg)</label>
-                <input type="number" min="0" step="0.001" className={inputCls}
+                <input type="number" min="0" step="0.01" className={inputCls}
                   value={estimatedWeight} onChange={(e) => setEstimatedWeight(e.target.value)} />
               </div>
               <div className="w-36">

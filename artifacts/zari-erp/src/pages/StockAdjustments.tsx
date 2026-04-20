@@ -101,7 +101,7 @@ const defaultForm = (): FormState => ({
 });
 
 function fmt2(n: string | number) { return parseFloat(String(n)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function fmt3(n: string | number) { return parseFloat(String(n)).toFixed(3); }
+function fmt3(n: string | number) { return parseFloat(String(n)).toFixed(2); }
 function fmtDate(s: string) { return new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
 
 export default function StockAdjustments() {

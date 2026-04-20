@@ -390,12 +390,12 @@ export default function PurchaseOrderList() {
                                       </div>
                                       <div className="text-right flex-shrink-0">
                                         <div className="text-xs font-mono font-semibold text-gray-900">
-                                          {parseFloat(item.ordered_quantity).toFixed(3)}
+                                          {parseFloat(item.ordered_quantity).toFixed(2)}
                                           {item.unit_type && <span className="text-gray-400 font-normal ml-0.5">{item.unit_type}</span>}
                                         </div>
                                         {parseFloat(item.received_quantity) > 0 && (
                                           <div className="text-[10px] text-green-600 font-mono">
-                                            Rcvd: {parseFloat(item.received_quantity).toFixed(3)}
+                                            Rcvd: {parseFloat(item.received_quantity).toFixed(2)}
                                           </div>
                                         )}
                                       </div>
@@ -408,11 +408,11 @@ export default function PurchaseOrderList() {
                         </div>
                       </td>
 
-                      <td className={tdCls}><span className="text-xs font-mono font-semibold text-gray-900">{ordered.toFixed(3)}</span></td>
-                      <td className={tdCls}><span className="text-xs font-mono text-green-700">{received.toFixed(3)}</span></td>
+                      <td className={tdCls}><span className="text-xs font-mono font-semibold text-gray-900">{ordered.toFixed(2)}</span></td>
+                      <td className={tdCls}><span className="text-xs font-mono text-green-700">{received.toFixed(2)}</span></td>
                       <td className={tdCls}>
                         <span className={`text-xs font-mono font-semibold ${pending > 0 ? "text-amber-600" : "text-gray-400"}`}>
-                          {pending.toFixed(3)}
+                          {pending.toFixed(2)}
                         </span>
                       </td>
                       <td className={tdCls}><StatusBadge s={po.status} /></td>

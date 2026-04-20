@@ -61,7 +61,7 @@ function buildItemsFromStyleCosting(
     const stockNum = pf(r.currentStock);
     const weightedAvg = (stockNum + prQty) > 0 ? (stockNum * avgPrice + prTotal) / (stockNum + prQty) : avgPrice;
     const total = parseFloat((consumedQty * weightedAvg).toFixed(2));
-    items.push({ id: uid(), description: `${r.materialName} (${r.materialCode})`, category: "Material", quantity: parseFloat(consumedQty.toFixed(3)), unitPrice: parseFloat(weightedAvg.toFixed(2)), total });
+    items.push({ id: uid(), description: `${r.materialName} (${r.materialCode})`, category: "Material", quantity: parseFloat(consumedQty.toFixed(2)), unitPrice: parseFloat(weightedAvg.toFixed(2)), total });
   });
 
   (artisanTimesheets ?? []).forEach(r => {
