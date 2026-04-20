@@ -92,7 +92,7 @@ export default function AccountsDashboard() {
   const [vendorId,  setVendorId]  = useState("");
   const [clientId,  setClientId]  = useState("");
   const [vendors,   setVendors]   = useState<{ vendorId: number; brandName: string }[]>([]);
-  const [clients,   setClients]   = useState<{ id: number; brand_name: string }[]>([]);
+  const [clients,   setClients]   = useState<{ id: number; brandName: string }[]>([]);
   const [data,      setData]      = useState<any>(null);
   const [loading,   setLoading]   = useState(true);
   const [trendMode, setTrendMode] = useState<"monthly" | "weekly">("monthly");
@@ -202,7 +202,7 @@ export default function AccountsDashboard() {
               <select value={clientId} onChange={e => setClientId(e.target.value)} className={`${INP} w-full`}>
                 <option value="">All Clients</option>
                 {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.brand_name}</option>
+                  <option key={c.id} value={c.id}>{c.brandName}</option>
                 ))}
               </select>
             </div>

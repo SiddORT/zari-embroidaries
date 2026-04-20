@@ -164,30 +164,31 @@ router.get("/accounts/dashboard", requireAuth, async (req, res) => {
       /* ── TOP 5 CLIENTS pending ───────────────────────── */
       pool.query(`
         SELECT
-          COALESCE(client_name, 'Unknown') AS client_name,
-          client_id,
-          COUNT(*)::int AS invoice_count,
-          COALESCE(SUM(base_currency_amount), 0)::numeric(18,2) AS total_invoiced,
-          COALESCE(
-            SUM(base_currency_amount) -
-            COALESCE((
-              SELECT SUM(ip.base_currency_amount)
-              FROM invoice_payments ip
-              WHERE ip.invoice_id = i.id
-            ), 0),
-          0)::numeric(18,2) AS pending_amount
-        FROM invoices i
-        WHERE invoice_status NOT IN ('Draft','Cancelled')
-          ${dateRange("invoice_date")}
-          ${clientCond}
-        GROUP BY client_name, client_id
-        HAVING COALESCE(SUM(base_currency_amount), 0) -
-               COALESCE((
-                 SELECT SUM(ip2.base_currency_amount)
-                 FROM invoice_payments ip2
-                 JOIN invoices i2 ON i2.id = ip2.invoice_id
-                 WHERE i2.client_id = i.client_id
-               ), 0) > 0
+          COALESCE(sub.client_name, 'Unknown') AS client_name,
+          sub.client_id,
+          COUNT(*)::int                                                  AS invoice_count,
+          COALESCE(SUM(sub.base_currency_amount), 0)::numeric(18,2)     AS total_invoiced,
+          GREATEST(
+            COALESCE(SUM(sub.base_currency_amount), 0) - COALESCE(SUM(sub.paid), 0),
+            0
+          )::numeric(18,2) AS pending_amount
+        FROM (
+          SELECT
+            i.id,
+            i.client_name,
+            i.client_id,
+            i.base_currency_amount,
+            COALESCE(
+              (SELECT SUM(ip.base_currency_amount) FROM invoice_payments ip WHERE ip.invoice_id = i.id),
+              0
+            ) AS paid
+          FROM invoices i
+          WHERE i.invoice_status NOT IN ('Draft','Cancelled')
+            ${dateRange("i.invoice_date")}
+            ${clientCond.replace("client_id", "i.client_id")}
+        ) sub
+        GROUP BY sub.client_name, sub.client_id
+        HAVING GREATEST(COALESCE(SUM(sub.base_currency_amount),0) - COALESCE(SUM(sub.paid),0), 0) > 0
         ORDER BY pending_amount DESC
         LIMIT 5
       `),
