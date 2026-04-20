@@ -31,14 +31,14 @@ const fmtC = (n: number | string) => "₹" + parseFloat(String(n ?? 0)).toLocale
 
 interface DashboardData {
   summary: {
-    total_items:    string;
-    out_of_stock:   string;
-    low_stock:      string;
-    in_stock:       string;
+    total_items:     string;
+    out_of_stock:    string;
+    low_stock:       string;
+    in_stock:        string;
     total_stock_value: string;
-    fabric_count:   string;
-    material_count: string;
-    packaging_count:string;
+    fabric_count:    string;
+    material_count:  string;
+    packaging_count: string;
   };
   reservations: {
     total_swatch_reserved: string;
@@ -65,6 +65,75 @@ interface LowStockItem {
   unit_type:     string | null;
   source_type:   string;
   average_price: string | null;
+}
+
+function PieTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0];
+  return (
+    <div className="rounded-xl px-3 py-2 text-xs bg-white"
+      style={{ border: `1px solid ${G}40`, boxShadow: `0 4px 20px rgba(198,175,75,0.18)` }}>
+      <span className="font-bold" style={{ color: d.payload.color }}>{d.name}: </span>
+      <span className="font-black text-gray-800">{d.value}</span>
+    </div>
+  );
+}
+
+function InventoryDonut({ title, subtitle, data, loading }: {
+  title: string; subtitle: string;
+  data: { name: string; value: number; color: string }[];
+  loading: boolean;
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return (
+    <div className={`${card} p-5`}>
+      <p className="text-[9px] font-black uppercase tracking-[0.18em] mb-0.5" style={{ color: G }}>{title}</p>
+      <p className="text-sm font-bold text-gray-800 mb-4">{subtitle}</p>
+
+      {loading ? (
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-[120px] w-[120px] rounded-full bg-gray-100 animate-pulse" />
+          <div className="w-full space-y-2">
+            {Array(3).fill(0).map((_, i) => <div key={i} className="h-4 rounded bg-gray-100 animate-pulse" />)}
+          </div>
+        </div>
+      ) : total === 0 ? (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">No data</div>
+      ) : (
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex justify-center">
+            <div className="relative">
+              <PieChart width={120} height={120}>
+                <Pie data={data} cx={55} cy={55} innerRadius={36} outerRadius={54}
+                  dataKey="value" strokeWidth={2} stroke="#ffffff"
+                  animationBegin={200} animationDuration={800}>
+                  {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <ReTooltip content={<PieTooltip />} />
+              </PieChart>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-xl font-black text-gray-900">{total}</span>
+                <span className="text-[8px] uppercase tracking-widest font-bold" style={{ color: G }}>Total</span>
+              </div>
+            </div>
+          </div>
+          <div className="w-full space-y-2">
+            {data.map((seg) => (
+              <div key={seg.name} className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: seg.color }} />
+                <span className="text-[11px] text-gray-600 flex-1 truncate">{seg.name}</span>
+                <div className="w-12 h-1.5 rounded-full overflow-hidden bg-gray-100">
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${total > 0 ? (seg.value / total) * 100 : 0}%`, background: seg.color }} />
+                </div>
+                <span className="text-[11px] font-bold text-gray-800 w-5 text-right">{seg.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function InventoryDashboard() {
@@ -129,15 +198,15 @@ export default function InventoryDashboard() {
   const r = data?.reservations;
   const p = data?.procurement;
 
-  const outOfStockCount = parseInt(s?.out_of_stock ?? "0");
-  const lowStockCount   = parseInt(s?.low_stock    ?? "0");
+  const outOfStockCount = parseInt(String(s?.out_of_stock ?? "0"), 10);
+  const lowStockCount   = parseInt(String(s?.low_stock    ?? "0"), 10);
 
   const summaryCards = [
-    { label: "Total Items",       value: s ? fmt(s.total_items)        : "…", icon: Boxes,        color: G,         bg: `${G}18`                  },
-    { label: "In Stock",          value: s ? fmt(s.in_stock)           : "…", icon: CheckCircle2, color: "#22C55E", bg: "rgba(34,197,94,0.1)"     },
-    { label: "Low Stock",         value: s ? fmt(s.low_stock)          : "…", icon: AlertTriangle,color: "#F59E0B", bg: "rgba(245,158,11,0.1)"    },
-    { label: "Out of Stock",      value: s ? fmt(s.out_of_stock)       : "…", icon: XCircle,      color: "#EF4444", bg: "rgba(239,68,68,0.1)"     },
-    { label: "Total Stock Value", value: s ? fmtC(s.total_stock_value) : "…", icon: TrendingUp,   color: SLATE,     bg: "rgba(59,63,92,0.08)"     },
+    { label: "Total Items",       value: s ? fmt(s.total_items)        : "…", icon: Boxes,        color: G,         bg: `${G}18`               },
+    { label: "In Stock",          value: s ? fmt(s.in_stock)           : "…", icon: CheckCircle2, color: "#22C55E", bg: "rgba(34,197,94,0.1)"  },
+    { label: "Low Stock",         value: s ? fmt(s.low_stock)          : "…", icon: AlertTriangle,color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
+    { label: "Out of Stock",      value: s ? fmt(s.out_of_stock)       : "…", icon: XCircle,      color: "#EF4444", bg: "rgba(239,68,68,0.1)"  },
+    { label: "Total Stock Value", value: s ? fmtC(s.total_stock_value) : "…", icon: TrendingUp,   color: SLATE,     bg: "rgba(59,63,92,0.08)"  },
   ];
 
   const procurementCards = [
@@ -154,33 +223,25 @@ export default function InventoryDashboard() {
     "Wasted":  parseFloat(t.wasted),
   }));
 
-  const inStock   = parseInt(s?.in_stock    ?? "0");
-  const lowStk    = parseInt(s?.low_stock   ?? "0");
-  const outOfStk  = parseInt(s?.out_of_stock ?? "0");
-  const fabCount  = parseInt(s?.fabric_count    ?? "0");
-  const matCount  = parseInt(s?.material_count  ?? "0");
-  const pakCount  = parseInt(s?.packaging_count ?? "0");
-
   const statusDonut = [
-    { name: "In Stock",     value: inStock,  color: "#22C55E" },
-    { name: "Low Stock",    value: lowStk,   color: "#F59E0B" },
-    { name: "Out of Stock", value: outOfStk, color: "#EF4444" },
+    { name: "In Stock",     value: parseInt(String(s?.in_stock    ?? "0"), 10), color: "#22C55E" },
+    { name: "Low Stock",    value: parseInt(String(s?.low_stock   ?? "0"), 10), color: "#F59E0B" },
+    { name: "Out of Stock", value: parseInt(String(s?.out_of_stock ?? "0"), 10), color: "#EF4444" },
   ].filter(d => d.value > 0);
 
   const categoryDonut = [
-    { name: "Fabric",    value: fabCount, color: G       },
-    { name: "Material",  value: matCount, color: SLATE   },
-    { name: "Packaging", value: pakCount, color: "#8B5CF6" },
+    { name: "Fabric",    value: parseInt(String(s?.fabric_count    ?? "0"), 10), color: G           },
+    { name: "Material",  value: parseInt(String(s?.material_count  ?? "0"), 10), color: SLATE        },
+    { name: "Packaging", value: parseInt(String(s?.packaging_count ?? "0"), 10), color: "#8B5CF6"   },
   ].filter(d => d.value > 0);
 
-  const swatchReserved  = parseFloat(r?.total_swatch_reserved ?? "0");
-  const styleReserved   = parseFloat(r?.total_style_reserved  ?? "0");
-  const availableStock  = parseFloat(r?.total_available       ?? "0");
-  const totalReserved   = swatchReserved + styleReserved;
-  const totalBase       = totalReserved + availableStock;
-  const swatchPct       = totalBase > 0 ? (swatchReserved / totalBase) * 100 : 0;
-  const stylePct        = totalBase > 0 ? (styleReserved  / totalBase) * 100 : 0;
-  const availPct        = totalBase > 0 ? (availableStock / totalBase) * 100 : 0;
+  const swatchReserved = parseFloat(String(r?.total_swatch_reserved ?? "0"));
+  const styleReserved  = parseFloat(String(r?.total_style_reserved  ?? "0"));
+  const availableStock = parseFloat(String(r?.total_available       ?? "0"));
+  const totalBase      = swatchReserved + styleReserved + availableStock;
+  const swatchPct      = totalBase > 0 ? (swatchReserved / totalBase) * 100 : 0;
+  const stylePct       = totalBase > 0 ? (styleReserved  / totalBase) * 100 : 0;
+  const availPct       = totalBase > 0 ? (availableStock / totalBase) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
@@ -193,7 +254,7 @@ export default function InventoryDashboard() {
 
       <div className="py-6 px-6 max-w-screen-2xl mx-auto space-y-6">
 
-        {/* Header */}
+        {/* ── Header ─────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -216,12 +277,12 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
-        {/* Filter Row */}
-        <div className={`${card} p-4 flex flex-wrap gap-3 items-end`}>
+        {/* ── Filter Row ─────────────────────────────────────── */}
+        <div className={`${card} p-4 flex flex-wrap gap-4 items-end`}>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Category</label>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Category</label>
             <select value={category} onChange={e => setCategory(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40 min-w-[140px]">
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40 min-w-[140px]">
               <option value="all">All Categories</option>
               <option value="fabric">Fabric</option>
               <option value="material">Material</option>
@@ -229,18 +290,18 @@ export default function InventoryDashboard() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">From</label>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">From</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40" />
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">To</label>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">To</label>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40" />
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/40" />
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* ── Summary Cards ──────────────────────────────────── */}
         <div>
           <SectionHeader eyebrow="STOCK STATUS" title="Summary" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -250,89 +311,28 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
-        {/* Doughnut Charts + Reservation Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* ── Doughnut Charts + Reservation Card ─────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <InventoryDonut
+            title="STOCK STATUS SPLIT"
+            subtitle="In Stock vs Low vs Out"
+            data={statusDonut}
+            loading={loading}
+          />
+          <InventoryDonut
+            title="CATEGORY SPLIT"
+            subtitle="Fabric · Material · Packaging"
+            data={categoryDonut}
+            loading={loading}
+          />
 
-          {/* Stock Status Doughnut */}
-          <div className={`${card} p-5`}>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-4" style={{ color: G }}>STOCK STATUS SPLIT</p>
-            {loading ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-40 w-40 rounded-full bg-gray-100 animate-pulse" />
-              </div>
-            ) : statusDonut.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-gray-400 text-sm">No data</div>
-            ) : (
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <PieChart width={160} height={160}>
-                    <Pie data={statusDonut} cx={75} cy={75} innerRadius={48} outerRadius={72}
-                      dataKey="value" paddingAngle={3} startAngle={90} endAngle={-270}>
-                      {statusDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                  </PieChart>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-2xl font-bold text-gray-900">{fmt(s?.total_items ?? 0)}</p>
-                    <p className="text-[10px] text-gray-400 font-medium">Total</p>
-                  </div>
-                </div>
-                <div className="w-full space-y-2">
-                  {statusDonut.map(d => (
-                    <div key={d.name} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                        <span className="text-gray-600">{d.name}</span>
-                      </div>
-                      <span className="font-semibold text-gray-900">{d.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Category Split Doughnut */}
-          <div className={`${card} p-5`}>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-4" style={{ color: G }}>CATEGORY SPLIT</p>
-            {loading ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-40 w-40 rounded-full bg-gray-100 animate-pulse" />
-              </div>
-            ) : categoryDonut.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-gray-400 text-sm">No data</div>
-            ) : (
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <PieChart width={160} height={160}>
-                    <Pie data={categoryDonut} cx={75} cy={75} innerRadius={48} outerRadius={72}
-                      dataKey="value" paddingAngle={3} startAngle={90} endAngle={-270}>
-                      {categoryDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                  </PieChart>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-2xl font-bold text-gray-900">{fmt(s?.total_items ?? 0)}</p>
-                    <p className="text-[10px] text-gray-400 font-medium">Items</p>
-                  </div>
-                </div>
-                <div className="w-full space-y-2">
-                  {categoryDonut.map(d => (
-                    <div key={d.name} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                        <span className="text-gray-600">{d.name}</span>
-                      </div>
-                      <span className="font-semibold text-gray-900">{d.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Reservation Card — proper format */}
+          {/* Reservation Card */}
           <div className={`${card} p-5 flex flex-col`}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: G }}>RESERVATIONS</p>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: G }}>RESERVATIONS</p>
+                <p className="text-sm font-bold text-gray-800 mt-0.5">Stock Reserved</p>
+              </div>
               <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${G}18` }}>
                 <BookOpen className="h-4 w-4" style={{ color: G }} />
               </div>
@@ -340,101 +340,130 @@ export default function InventoryDashboard() {
 
             {loading ? (
               <div className="space-y-3 flex-1">
-                {Array(3).fill(0).map((_, i) => <div key={i} className="h-12 rounded-xl bg-gray-100 animate-pulse" />)}
+                {Array(3).fill(0).map((_, i) => <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />)}
               </div>
             ) : (
-              <div className="flex flex-col gap-3 flex-1">
-                {/* Swatch Reserved */}
-                <div className="rounded-xl p-3.5" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)" }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Swatch Reserved</span>
-                    <span className="text-lg font-bold text-gray-900">{fmt(swatchReserved)}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-purple-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-purple-500 transition-all duration-700"
-                      style={{ width: `${Math.min(swatchPct, 100)}%` }} />
-                  </div>
-                  <p className="text-[10px] text-purple-400 mt-1">{swatchPct.toFixed(1)}% of total</p>
-                </div>
-
-                {/* Style Reserved */}
-                <div className="rounded-xl p-3.5" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Style Reserved</span>
-                    <span className="text-lg font-bold text-gray-900">{fmt(styleReserved)}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-blue-500 transition-all duration-700"
-                      style={{ width: `${Math.min(stylePct, 100)}%` }} />
-                  </div>
-                  <p className="text-[10px] text-blue-400 mt-1">{stylePct.toFixed(1)}% of total</p>
-                </div>
-
-                {/* Available */}
-                <div className="rounded-xl p-3.5" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Available</span>
-                    <span className="text-lg font-bold text-gray-900">{fmt(availableStock)}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-green-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-green-500 transition-all duration-700"
-                      style={{ width: `${Math.min(availPct, 100)}%` }} />
-                  </div>
-                  <p className="text-[10px] text-green-400 mt-1">{availPct.toFixed(1)}% of total</p>
-                </div>
+              <div className="flex flex-col gap-2.5 flex-1">
+                <ReservationRow label="Swatch Reserved" value={fmt(swatchReserved)} pct={swatchPct} barColor="#8B5CF6" bgColor="rgba(139,92,246,0.07)" borderColor="rgba(139,92,246,0.18)" textColor="#7C3AED" />
+                <ReservationRow label="Style Reserved"  value={fmt(styleReserved)}  pct={stylePct}  barColor="#3B82F6" bgColor="rgba(59,130,246,0.07)"  borderColor="rgba(59,130,246,0.18)"  textColor="#2563EB" />
+                <ReservationRow label="Available"       value={fmt(availableStock)}  pct={availPct}  barColor="#22C55E" bgColor="rgba(34,197,94,0.07)"   borderColor="rgba(34,197,94,0.18)"   textColor="#16A34A" />
               </div>
             )}
           </div>
         </div>
 
-        {/* Quick Actions (Low Stock Alerts) */}
-        {(outOfStockCount > 0 || lowStockCount > 0) && (
-          <div>
-            <SectionHeader eyebrow="QUICK ACTIONS" title="Stock Alerts" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {outOfStockCount > 0 && (
-                <div className={`${card} p-4 flex items-center justify-between gap-4`}
-                  style={{ borderColor: "rgba(239,68,68,0.25)" }}>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-50">
-                      <XCircle className="h-5 w-5 text-red-500" />
+        {/* ── Quick Actions + Consumption (side by side) ──────── */}
+        {(outOfStockCount > 0 || lowStockCount > 0 || !loading) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {/* Quick Actions */}
+            <div>
+              <SectionHeader eyebrow="QUICK ACTIONS" title="Stock Alerts" />
+              <div className="flex flex-col gap-3">
+                {outOfStockCount > 0 && (
+                  <div className={`${card} p-4 flex items-center justify-between gap-4`}
+                    style={{ borderColor: "rgba(239,68,68,0.3)" }}>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-50">
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold text-gray-900">{outOfStockCount} <span className="text-sm font-semibold text-red-500">items out of stock</span></p>
+                        <p className="text-xs text-gray-500">Needs immediate attention</p>
+                      </div>
+                    </div>
+                    <button onClick={() => navigate("/inventory/low-stock-alerts")}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white flex-shrink-0 transition-all"
+                      style={{ background: "linear-gradient(135deg,#EF4444,#DC2626)" }}>
+                      View <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+                {lowStockCount > 0 && (
+                  <div className={`${card} p-4 flex items-center justify-between gap-4`}
+                    style={{ borderColor: "rgba(245,158,11,0.3)" }}>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-amber-50">
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold text-gray-900">{lowStockCount} <span className="text-sm font-semibold text-amber-500">items below reorder</span></p>
+                        <p className="text-xs text-gray-500">Replenishment advised</p>
+                      </div>
+                    </div>
+                    <button onClick={() => navigate("/procurement/purchase-orders/new")}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white flex-shrink-0 transition-all"
+                      style={{ background: `linear-gradient(135deg,${G},${G_DIM})` }}>
+                      Create PO <ShoppingCart className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+                {outOfStockCount === 0 && lowStockCount === 0 && !loading && (
+                  <div className={`${card} p-5 flex items-center gap-3`}>
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-green-50">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
                     </div>
                     <div>
-                      <p className="text-xl font-bold text-gray-900">{outOfStockCount} <span className="text-base font-semibold text-red-500">items</span></p>
-                      <p className="text-xs text-gray-500">Out of stock — needs immediate attention</p>
+                      <p className="text-sm font-bold text-gray-800">All stock levels healthy</p>
+                      <p className="text-xs text-gray-400 mt-0.5">No items below reorder level</p>
                     </div>
                   </div>
-                  <button onClick={() => navigate("/inventory/low-stock-alerts")}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white flex-shrink-0 transition-all"
-                    style={{ background: "linear-gradient(135deg,#EF4444,#DC2626)" }}>
-                    View Alerts <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-              {lowStockCount > 0 && (
-                <div className={`${card} p-4 flex items-center justify-between gap-4`}
-                  style={{ borderColor: "rgba(245,158,11,0.25)" }}>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-amber-50">
-                      <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold text-gray-900">{lowStockCount} <span className="text-base font-semibold text-amber-500">items</span></p>
-                      <p className="text-xs text-gray-500">Below reorder level — replenishment advised</p>
-                    </div>
-                  </div>
-                  <button onClick={() => navigate("/procurement/purchase-orders/new")}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white flex-shrink-0 transition-all"
-                    style={{ background: `linear-gradient(135deg,${G},${G_DIM})` }}>
-                    Create PO <ShoppingCart className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
+
+            {/* Consumption Summary */}
+            <div>
+              <SectionHeader eyebrow="CONSUMPTION" title="Period Summary" />
+              <div className="flex flex-col gap-3">
+                <div className={`${card} p-4 flex items-center gap-4`}>
+                  <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-50">
+                    <Flame className="h-5 w-5 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{loading ? "…" : fmt(data?.totalConsumed ?? 0)}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Total units consumed · {dateFrom} → {dateTo}</p>
+                  </div>
+                </div>
+
+                <div className={`${card} p-4`}>
+                  <p className="text-[9px] font-black uppercase tracking-[0.15em] mb-3" style={{ color: G }}>Top 5 Consumed Items</p>
+                  {loading ? (
+                    <div className="space-y-2">{Array(5).fill(0).map((_, i) => <div key={i} className="h-6 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+                  ) : (data?.topConsumed ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400 py-2 text-center">No consumption data for this period</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {(data?.topConsumed ?? []).map((item, i) => {
+                        const max = parseFloat((data?.topConsumed ?? [])[0]?.total_consumed ?? "1");
+                        const pct = max > 0 ? (parseFloat(item.total_consumed) / max) * 100 : 0;
+                        return (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                              style={{ background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }}>{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="text-[11px] font-medium text-gray-800 truncate">{item.item_name}</span>
+                                <span className="text-[11px] font-semibold text-gray-600 flex-shrink-0">{fmt(item.total_consumed)} {item.unit_type ?? ""}</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-700"
+                                  style={{ width: `${pct}%`, background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
 
-        {/* Procurement Pipeline */}
+        {/* ── Procurement Pipeline ────────────────────────────── */}
         <div>
           <SectionHeader eyebrow="PROCUREMENT" title="Pipeline Snapshot" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -444,56 +473,7 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
-        {/* Consumption Summary */}
-        <div>
-          <SectionHeader eyebrow="CONSUMPTION" title="Period Summary" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-            <div className={`${card} p-5 flex items-center gap-4`}>
-              <div className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-50">
-                <Flame className="h-6 w-6 text-red-500" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-gray-900">{loading ? "…" : fmt(data?.totalConsumed ?? 0)}</p>
-                <p className="text-sm text-gray-500 mt-0.5">Total units consumed — {dateFrom} to {dateTo}</p>
-              </div>
-            </div>
-
-            <div className={`${card} p-5`}>
-              <p className="text-xs font-black uppercase tracking-[0.15em] mb-3" style={{ color: G }}>Top 5 Consumed Items</p>
-              {loading ? (
-                <div className="space-y-2">{Array(5).fill(0).map((_, i) => <div key={i} className="h-7 rounded-lg bg-gray-100 animate-pulse" />)}</div>
-              ) : (data?.topConsumed ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400 py-4 text-center">No consumption data for this period</p>
-              ) : (
-                <div className="space-y-2">
-                  {(data?.topConsumed ?? []).map((item, i) => {
-                    const max = parseFloat((data?.topConsumed ?? [])[0]?.total_consumed ?? "1");
-                    const pct = max > 0 ? (parseFloat(item.total_consumed) / max) * 100 : 0;
-                    return (
-                      <div key={i} className="flex items-center gap-2.5">
-                        <span className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                          style={{ background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }}>{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-xs font-medium text-gray-800 truncate">{item.item_name}</span>
-                            <span className="text-xs font-semibold text-gray-600 flex-shrink-0">{fmt(item.total_consumed)} {item.unit_type ?? ""}</span>
-                          </div>
-                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all duration-700"
-                              style={{ width: `${pct}%`, background: i === 0 ? G : i === 1 ? G_DIM : "#9CA3AF" }} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Stock Movement Trend Chart */}
+        {/* ── Stock Movement Trend Chart ──────────────────────── */}
         <div>
           <SectionHeader eyebrow="TREND" title="Stock Movement Trend (Weekly)" />
           <div className={`${card} p-5`}>
@@ -528,6 +508,25 @@ export default function InventoryDashboard() {
   );
 }
 
+function ReservationRow({ label, value, pct, barColor, bgColor, borderColor, textColor }: {
+  label: string; value: string; pct: number;
+  barColor: string; bgColor: string; borderColor: string; textColor: string;
+}) {
+  return (
+    <div className="rounded-xl p-3" style={{ background: bgColor, border: `1px solid ${borderColor}` }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: textColor }}>{label}</span>
+        <span className="text-base font-bold text-gray-900">{value}</span>
+      </div>
+      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: `${barColor}20` }}>
+        <div className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${Math.min(pct, 100)}%`, background: barColor }} />
+      </div>
+      <p className="text-[10px] mt-1" style={{ color: barColor }}>{pct.toFixed(1)}% of total</p>
+    </div>
+  );
+}
+
 function SectionHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <div className="flex items-center gap-2 mb-3">
@@ -543,12 +542,7 @@ function StatCard({ label, value, Icon, color, bg, loading }: {
   label: string; value: string; Icon: React.ElementType; color: string; bg: string; loading: boolean;
 }) {
   return (
-    <div className={[
-      "rounded-2xl bg-white",
-      "border border-[#C6AF4B]/15",
-      "shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]",
-      "p-4 flex items-start gap-3",
-    ].join(" ")}>
+    <div className={`${card} p-4 flex items-start gap-3`}>
       <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: bg }}>
         <Icon className="h-5 w-5" style={{ color }} />
       </div>
