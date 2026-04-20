@@ -1,0 +1,405 @@
+Update Packing List module to support package-level packing instead of header-level packaging.
+
+Packing List must support:
+
+multiple packages per client
+
+multiple orders per package
+
+multiple products per package
+
+package-level dimensions and weight
+
+shipment linking
+
+order shipping mapping
+
+duplicate shipment prevention after dispatch
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Package-Level Packing List Module
+
+---
+
+SECTION 1 — REMOVE HEADER PACKAGE FIELDS
+
+Remove from:
+
+packing_lists table
+
+fields:
+
+package_type
+
+package_count
+
+Packaging must now be stored at package level.
+
+---
+
+SECTION 2 — PACKING LIST HEADER STRUCTURE
+
+Table:
+
+packing_lists
+
+Fields:
+
+packing_list_id
+
+packing_list_number (auto generated)
+
+client_id
+
+delivery_address_id
+
+shipment_id
+
+destination_country
+
+remarks
+
+created_by
+
+created_at
+
+---
+
+SECTION 3 — CREATE PACKAGES TABLE
+
+Create table:
+
+packing_packages
+
+Fields:
+
+package_id
+
+packing_list_id
+
+package_number (auto generated per packing list)
+
+length
+
+width
+
+height
+
+net_weight
+
+gross_weight
+
+shipment_id
+
+created_at
+
+Each record represents:
+
+one physical package / box
+
+---
+
+SECTION 4 — PACKAGE ITEMS TABLE
+
+Create table:
+
+packing_package_items
+
+Fields:
+
+package_item_id
+
+package_id
+
+order_type
+
+order_id
+
+product_id
+
+quantity
+
+unit
+
+item_weight
+
+Each record represents:
+
+one order item packed inside a package
+
+---
+
+SECTION 5 — PACKING LIST CREATION FLOW
+
+Inside:
+
+Logistics → Packing Lists → Create Packing List
+
+User selects:
+
+client
+
+delivery_address
+
+shipment
+
+System loads automatically:
+
+ready-to-ship items
+
+from:
+
+completed orders
+
+not yet shipped orders
+
+---
+
+SECTION 6 — PACKAGE CREATION UI
+
+Add checkbox button:
+
+Create Package
+
+When clicked:
+
+create new package section
+
+Example:
+
+Package 1
+
+Inside package:
+
+user selects items
+
+assign quantities
+
+enter:
+
+length
+
+width
+
+height
+
+net_weight
+
+gross_weight
+
+Allow:
+
+multiple packages per packing list
+
+---
+
+SECTION 7 — AUTO ITEM COUNT DISPLAY
+
+After selecting client:
+
+display:
+
+Total Ready-to-Ship Items
+
+This updates dynamically.
+
+---
+
+SECTION 8 — PACKAGE TO SHIPMENT LINKING
+
+Each package must link with:
+
+shipment_id
+
+Packing list must link with:
+
+shipment_id
+
+Shipment page must display:
+
+Linked Packing Lists
+
+Linked Packages
+
+---
+
+SECTION 9 — ORDER SHIPPING TAB UPDATE
+
+Inside:
+
+Swatch Order
+
+Style Order
+
+Shipping Tab must display:
+
+Packing List Number
+
+Package Number
+
+Shipment Number
+
+Dispatch Status
+
+Example:
+
+PL-00021
+
+Package 2
+
+SHP-003
+
+Dispatched
+
+---
+
+SECTION 10 — PREVENT DUPLICATE PACKING OR SHIPPING
+
+If order status:
+
+Shipped
+
+Block:
+
+Create Packing List
+
+Create Shipment
+
+Allow only:
+
+View Packing Details
+
+View Shipment Details
+
+---
+
+SECTION 11 — PACKING LIST LISTING PAGE STRUCTURE
+
+Inside:
+
+Logistics → Packing Lists
+
+Display columns:
+
+Packing List Number
+
+Client
+
+Delivery Address
+
+Shipment Number
+
+Total Packages
+
+Total Net Weight
+
+Total Gross Weight
+
+Status
+
+---
+
+SECTION 12 — PACKAGES DETAIL VIEW
+
+Inside packing list detail screen:
+
+Display table:
+
+Package Number
+
+Length
+
+Width
+
+Height
+
+Net Weight
+
+Gross Weight
+
+Items Count
+
+Click package:
+
+open package item list
+
+---
+
+SECTION 13 — PDF GENERATION STRUCTURE
+
+Generate Packing List PDF
+
+Include:
+
+Packing List Number
+
+Client Name
+
+Delivery Address
+
+Shipment Number
+
+Date
+
+Then display:
+
+PACKAGE 1
+
+Dimensions
+
+Net Weight
+
+Gross Weight
+
+Items Table
+
+PACKAGE 2
+
+Dimensions
+
+Net Weight
+
+Gross Weight
+
+Items Table
+
+Footer must display:
+
+Total Packages
+
+Total Net Weight
+
+Total Gross Weight
+
+Signature Block
+
+Use system theme styling
+
+---
+
+SECTION 14 — VALIDATION RULES
+
+Prevent:
+
+mixing multiple delivery addresses in one packing list
+
+adding shipped orders to packing list
+
+creating duplicate packing list for same order
+
+---
+
+SECTION 15 — SUCCESS MESSAGE
+
+After packing list saved:
+
+Display:
+
+Packing list created successfully with package details
+
+END OF MODULE

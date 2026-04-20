@@ -22,11 +22,11 @@ interface PL {
   addr_country: string | null;
   shipment_tracking: string | null;
   destination_country: string | null;
-  package_count: number | null;
-  net_weight: string | null;
-  gross_weight: string | null;
+  total_packages: string | null;
+  total_net_weight: string | null;
+  total_gross_weight: string | null;
+  total_items: string | null;
   status: string;
-  item_count: string;
   created_at: string;
 }
 
@@ -219,7 +219,7 @@ export default function PackingLists() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {["PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Status", "Items", ""].map(h => (
+                      {["PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Net Wt", "Gross Wt", "Status", ""].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -242,13 +242,14 @@ export default function PackingLists() {
                         </td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs">{r.shipment_tracking ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600">{r.destination_country ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{r.package_count ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-700 font-semibold">{r.total_packages ?? "0"}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{r.total_net_weight ? `${Number(r.total_net_weight).toFixed(2)} kg` : "—"}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{r.total_gross_weight ? `${Number(r.total_gross_weight).toFixed(2)} kg` : "—"}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_COLORS[r.status] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
                             {r.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{r.item_count}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
                             <button

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   Package, ArrowLeft, Edit2, Printer, MapPin, Truck,
-  Trash2, Plus, CheckCircle, AlertCircle, Search, X, Camera, XCircle
+  Trash2, Plus, AlertCircle, Search, X, Camera, XCircle,
+  Box, ChevronDown, ChevronUp, Save
 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,22 +24,32 @@ const STATUS_COLORS: Record<string, string> = {
 interface PLDetail {
   id: number; pl_number: string; client_id: number; client_name: string;
   delivery_address_id: number | null; delivery_address_label: string | null;
-  address_line1: string | null; address_line2: string | null;
-  city: string | null; state: string | null; addr_country: string | null; addr_pincode: string | null;
-  shipment_id: number | null; shipment_tracking: string | null; shipment_date: string | null;
-  shipment_status_val: string | null; shipping_vendor_name: string | null;
-  destination_country: string | null; package_count: number | null;
-  package_type: string | null; dimensions: string | null;
-  net_weight: string | null; gross_weight: string | null;
+  address_line1: string | null; city: string | null; state: string | null;
+  addr_country: string | null; addr_pincode: string | null;
+  shipment_id: number | null; shipment_tracking: string | null;
+  shipment_date: string | null; shipment_status_val: string | null;
+  destination_country: string | null;
   status: string; remarks: string | null; created_at: string;
-  items: PLItem[];
+  packages: PLPackage[];
 }
 
-interface PLItem {
-  id: number; packing_list_id: number; item_type: string;
-  item_id: number; order_code: string | null; description: string | null;
-  qty: string | null; unit: string | null; weight_kg: string | null;
-  item_image_url: string | null;
+interface PLPackage {
+  id: number;
+  packing_list_id: number;
+  package_number: number;
+  length: string | null; width: string | null; height: string | null;
+  net_weight: string | null; gross_weight: string | null;
+  item_count: string;
+  items: PLPackageItem[];
+  expanded?: boolean;
+}
+
+interface PLPackageItem {
+  id: number; package_id: number;
+  order_type: string; order_id: number;
+  order_code: string | null; description: string | null;
+  quantity: string | null; unit: string | null;
+  item_weight: string | null; item_image_url: string | null;
 }
 
 interface EligibleOrder {
@@ -67,113 +78,37 @@ export default function PackingListDetail() {
 
   const [pl, setPl] = useState<PLDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<number | null>(null);
 
-  // Add item panel
-  const [showAddPanel, setShowAddPanel] = useState(false);
+  // Expanded state for packages
+  const [expandedPkgs, setExpandedPkgs] = useState<Set<number>>(new Set());
+
+  // Add order to package panel
+  const [addingToPkg, setAddingToPkg] = useState<number | null>(null);
   const [eligible, setEligible] = useState<{ swatches: EligibleOrder[]; styles: EligibleOrder[] }>({ swatches: [], styles: [] });
   const [loadingEligible, setLoadingEligible] = useState(false);
   const [orderTab, setOrderTab] = useState<"Swatch" | "Style">("Swatch");
   const [orderSearch, setOrderSearch] = useState("");
-  const [addingItem, setAddingItem] = useState<number | null>(null);
+  const [addingItemId, setAddingItemId] = useState<number | null>(null);
 
-  // Image upload state
-  const [uploadingImageId, setUploadingImageId] = useState<number | null>(null);
-  const [removingImageId, setRemovingImageId] = useState<number | null>(null);
-  const imageTargetItemId = useRef<number | null>(null);
-
-  // Artwork images fetched from linked order (base64 data)
-  const [artworkImages, setArtworkImages] = useState<Record<number, { data: string; name: string } | null>>({});
-
-  // Fetch artwork final images for items that have no item_image_url
-  useEffect(() => {
-    if (!pl) return;
-    pl.items.forEach(item => {
-      if (item.item_image_url) return; // already has an uploaded image
-      if (artworkImages[item.id] !== undefined) return; // already fetched
-      const token = localStorage.getItem("zarierp_token");
-      fetch(`/api/packing-lists/order-artwork-image?type=${encodeURIComponent(item.item_type)}&item_id=${item.item_id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.json())
-        .then(json => setArtworkImages(prev => ({ ...prev, [item.id]: json.data ?? null })))
-        .catch(() => setArtworkImages(prev => ({ ...prev, [item.id]: null })));
-    });
-  }, [pl?.items]);
-
-  function triggerImageUpload(item: PLItem, addToOrder = false) {
-    imageTargetItemId.current = item.id;
-    const inp = document.createElement("input");
-    inp.type = "file";
-    inp.accept = "image/*";
-    inp.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      setUploadingImageId(item.id);
-      try {
-        const formData = new FormData();
-        formData.append("image", file);
-        if (addToOrder) formData.append("addToOrder", "true");
-        const token = localStorage.getItem("zarierp_token");
-        const res = await fetch(`/api/packing-lists/${pl?.id}/items/${item.id}/image`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setPl(prev => prev ? {
-          ...prev,
-          items: prev.items.map(i => i.id === item.id ? { ...i, item_image_url: json.data?.item_image_url ?? null } : i)
-        } : prev);
-        // Clear artwork image cache for this item since it now has an upload
-        setArtworkImages(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-        toast({ title: addToOrder ? "Image uploaded & added to order" : "Image uploaded" });
-      } catch {
-        toast({ title: "Failed to upload image", variant: "destructive" });
-      } finally { setUploadingImageId(null); }
-    };
-    inp.click();
-  }
-
-  async function handleRemoveImage(item: PLItem) {
-    setRemovingImageId(item.id);
-    try {
-      await customFetch(`/api/packing-lists/${pl?.id}/items/${item.id}/image`, { method: "DELETE" });
-      setPl(prev => prev ? {
-        ...prev,
-        items: prev.items.map(i => i.id === item.id ? { ...i, item_image_url: null } : i)
-      } : prev);
-      toast({ title: "Image removed" });
-    } catch {
-      toast({ title: "Failed to remove image", variant: "destructive" });
-    } finally { setRemovingImageId(null); }
-  }
-
-  // Weight editing state: itemId → draft value
+  // Weight editing: itemId → draft
   const [itemWeights, setItemWeights] = useState<Record<number, string>>({});
   const [savingWeightId, setSavingWeightId] = useState<number | null>(null);
 
-  async function handleSaveWeight(item: PLItem) {
-    const raw = itemWeights[item.id];
-    const val = raw !== undefined ? raw : (item.weight_kg ?? "");
-    setSavingWeightId(item.id);
-    try {
-      const parsed = val === "" ? null : parseFloat(val);
-      await customFetch(`/api/packing-lists/${pl?.id}/items/${item.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ weight_kg: parsed }),
-      });
-      setPl(prev => prev ? {
-        ...prev,
-        items: prev.items.map(i => i.id === item.id ? { ...i, weight_kg: parsed === null ? null : String(parsed) } : i)
-      } : prev);
-      setItemWeights(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-      toast({ title: "Weight saved" });
-    } catch {
-      toast({ title: "Failed to save weight", variant: "destructive" });
-    } finally { setSavingWeightId(null); }
-  }
+  // Package dimension editing
+  const [editingPkg, setEditingPkg] = useState<number | null>(null);
+  const [pkgDims, setPkgDims] = useState<Record<number, { length: string; width: string; height: string; net_weight: string; gross_weight: string }>>({});
+  const [savingPkgId, setSavingPkgId] = useState<number | null>(null);
+
+  // Image upload
+  const [uploadingImageId, setUploadingImageId] = useState<number | null>(null);
+  const [removingImageId, setRemovingImageId] = useState<number | null>(null);
+  const [artworkImages, setArtworkImages] = useState<Record<number, { data: string; name: string } | null>>({});
+  const imageTargetRef = useRef<{ pkgId: number; itemId: number } | null>(null);
+
+  // Deleting
+  const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
+  const [deletingPkgId, setDeletingPkgId] = useState<number | null>(null);
+  const [addingPkg, setAddingPkg] = useState(false);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -189,13 +124,34 @@ export default function PackingListDetail() {
     setLoading(true);
     try {
       const res = await customFetch<any>(`/api/packing-lists/${params.id}`);
-      setPl(res.data);
+      const data = res.data;
+      // Expand all packages by default
+      const ids = new Set<number>((data.packages ?? []).map((p: PLPackage) => p.id));
+      setExpandedPkgs(ids);
+      setPl(data);
     } catch {
       toast({ title: "Error", description: "Failed to load packing list", variant: "destructive" });
     } finally { setLoading(false); }
   }
 
   useEffect(() => { loadPl(); }, [params.id]);
+
+  // Fetch artwork images for items without uploaded images
+  useEffect(() => {
+    if (!pl) return;
+    for (const pkg of pl.packages) {
+      for (const item of pkg.items) {
+        if (item.item_image_url) continue;
+        if (artworkImages[item.id] !== undefined) continue;
+        fetch(`/api/packing-lists/order-artwork-image?type=${encodeURIComponent(item.order_type)}&item_id=${item.order_id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then(r => r.json())
+          .then(json => setArtworkImages(prev => ({ ...prev, [item.id]: json.data ?? null })))
+          .catch(() => setArtworkImages(prev => ({ ...prev, [item.id]: null })));
+      }
+    }
+  }, [pl?.packages]);
 
   async function loadEligible() {
     setLoadingEligible(true);
@@ -205,43 +161,196 @@ export default function PackingListDetail() {
     } catch {} finally { setLoadingEligible(false); }
   }
 
-  function toggleAddPanel() {
-    if (!showAddPanel) { setShowAddPanel(true); loadEligible(); }
-    else setShowAddPanel(false);
+  function openAddPanel(pkgId: number) {
+    if (addingToPkg === pkgId) { setAddingToPkg(null); return; }
+    setAddingToPkg(pkgId);
+    setOrderSearch("");
+    loadEligible();
   }
 
   async function handleAddItem(order: EligibleOrder, type: "Swatch" | "Style") {
-    setAddingItem(order.id);
+    if (!addingToPkg) return;
+    setAddingItemId(order.id);
     try {
-      await customFetch(`/api/packing-lists/${params.id}/items`, {
+      await customFetch(`/api/packing-lists/${params.id}/packages/${addingToPkg}/items`, {
         method: "POST",
         body: JSON.stringify({
-          item_type: type, item_id: order.id,
+          order_type: type, order_id: order.id,
           order_code: order.order_code, description: order.name,
-          qty: order.quantity, unit: "pcs",
+          quantity: order.quantity, unit: "pcs",
         }),
       });
       await loadPl();
       await loadEligible();
+      toast({ title: "Added", description: `${order.order_code} added to package` });
     } catch (e: any) {
-      toast({ title: "Cannot add", description: e?.message ?? "Item blocked due to delivery address mismatch", variant: "destructive" });
-    } finally { setAddingItem(null); }
+      toast({ title: "Cannot add", description: e?.data?.error ?? e?.message ?? "Item blocked", variant: "destructive" });
+    } finally { setAddingItemId(null); }
   }
 
-  async function handleDeleteItem(itemId: number) {
-    setDeleting(itemId);
+  async function handleDeleteItem(pkgId: number, itemId: number) {
+    setDeletingItemId(itemId);
     try {
-      await customFetch(`/api/packing-lists/${params.id}/items/${itemId}`, { method: "DELETE" });
-      setPl(prev => prev ? { ...prev, items: prev.items.filter(i => i.id !== itemId) } : prev);
+      await customFetch(`/api/packing-lists/${params.id}/packages/${pkgId}/items/${itemId}`, { method: "DELETE" });
+      setPl(prev => prev ? {
+        ...prev,
+        packages: prev.packages.map(p => p.id === pkgId
+          ? { ...p, items: p.items.filter(i => i.id !== itemId) }
+          : p
+        )
+      } : prev);
       toast({ title: "Removed" });
     } catch {
       toast({ title: "Error", description: "Failed to remove item", variant: "destructive" });
-    } finally { setDeleting(null); }
+    } finally { setDeletingItemId(null); }
+  }
+
+  async function handleAddPackage() {
+    setAddingPkg(true);
+    try {
+      const res = await customFetch<any>(`/api/packing-lists/${params.id}/packages`, {
+        method: "POST", body: JSON.stringify({}),
+      });
+      const newPkg = { ...res.data, items: [] };
+      setPl(prev => prev ? { ...prev, packages: [...prev.packages, newPkg] } : prev);
+      setExpandedPkgs(prev => new Set([...prev, newPkg.id]));
+      toast({ title: "Package added", description: `Package ${newPkg.package_number} created` });
+    } catch {
+      toast({ title: "Error", description: "Failed to add package", variant: "destructive" });
+    } finally { setAddingPkg(false); }
+  }
+
+  async function handleDeletePackage(pkgId: number) {
+    if (!confirm("Delete this package and all its items?")) return;
+    setDeletingPkgId(pkgId);
+    try {
+      await customFetch(`/api/packing-lists/${params.id}/packages/${pkgId}`, { method: "DELETE" });
+      setPl(prev => prev ? { ...prev, packages: prev.packages.filter(p => p.id !== pkgId) } : prev);
+      if (addingToPkg === pkgId) setAddingToPkg(null);
+      toast({ title: "Package deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete package", variant: "destructive" });
+    } finally { setDeletingPkgId(null); }
+  }
+
+  function startEditPkg(pkg: PLPackage) {
+    setEditingPkg(pkg.id);
+    setPkgDims(prev => ({
+      ...prev,
+      [pkg.id]: {
+        length: pkg.length ?? "",
+        width: pkg.width ?? "",
+        height: pkg.height ?? "",
+        net_weight: pkg.net_weight ?? "",
+        gross_weight: pkg.gross_weight ?? "",
+      }
+    }));
+  }
+
+  async function handleSavePkg(pkgId: number) {
+    const dims = pkgDims[pkgId];
+    if (!dims) return;
+    setSavingPkgId(pkgId);
+    try {
+      const res = await customFetch<any>(`/api/packing-lists/${params.id}/packages/${pkgId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          length: dims.length ? parseFloat(dims.length) : null,
+          width:  dims.width  ? parseFloat(dims.width)  : null,
+          height: dims.height ? parseFloat(dims.height) : null,
+          net_weight:   dims.net_weight   ? parseFloat(dims.net_weight)   : null,
+          gross_weight: dims.gross_weight ? parseFloat(dims.gross_weight) : null,
+        }),
+      });
+      setPl(prev => prev ? {
+        ...prev,
+        packages: prev.packages.map(p => p.id === pkgId ? { ...p, ...res.data } : p)
+      } : prev);
+      setEditingPkg(null);
+      toast({ title: "Package updated" });
+    } catch {
+      toast({ title: "Error", description: "Failed to update package", variant: "destructive" });
+    } finally { setSavingPkgId(null); }
+  }
+
+  async function handleSaveWeight(item: PLPackageItem, pkgId: number) {
+    const raw = itemWeights[item.id];
+    const val = raw !== undefined ? raw : (item.item_weight ?? "");
+    setSavingWeightId(item.id);
+    try {
+      const parsed = val === "" ? null : parseFloat(val);
+      await customFetch(`/api/packing-lists/${params.id}/packages/${pkgId}/items/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ item_weight: parsed }),
+      });
+      setPl(prev => prev ? {
+        ...prev,
+        packages: prev.packages.map(p => p.id === pkgId
+          ? { ...p, items: p.items.map(i => i.id === item.id ? { ...i, item_weight: parsed === null ? null : String(parsed) } : i) }
+          : p
+        )
+      } : prev);
+      setItemWeights(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      toast({ title: "Weight saved" });
+    } catch {
+      toast({ title: "Failed to save weight", variant: "destructive" });
+    } finally { setSavingWeightId(null); }
+  }
+
+  function triggerImageUpload(pkgId: number, item: PLPackageItem) {
+    imageTargetRef.current = { pkgId, itemId: item.id };
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/*";
+    inp.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setUploadingImageId(item.id);
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const res = await fetch(`/api/packing-lists/${params.id}/packages/${pkgId}/items/${item.id}/image`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setPl(prev => prev ? {
+          ...prev,
+          packages: prev.packages.map(p => p.id === pkgId
+            ? { ...p, items: p.items.map(i => i.id === item.id ? { ...i, item_image_url: json.data?.item_image_url ?? null } : i) }
+            : p
+          )
+        } : prev);
+        setArtworkImages(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+        toast({ title: "Image uploaded" });
+      } catch {
+        toast({ title: "Failed to upload image", variant: "destructive" });
+      } finally { setUploadingImageId(null); }
+    };
+    inp.click();
+  }
+
+  async function handleRemoveImage(pkgId: number, item: PLPackageItem) {
+    setRemovingImageId(item.id);
+    try {
+      await customFetch(`/api/packing-lists/${params.id}/packages/${pkgId}/items/${item.id}/image`, { method: "DELETE" });
+      setPl(prev => prev ? {
+        ...prev,
+        packages: prev.packages.map(p => p.id === pkgId
+          ? { ...p, items: p.items.map(i => i.id === item.id ? { ...i, item_image_url: null } : i) }
+          : p
+        )
+      } : prev);
+      toast({ title: "Image removed" });
+    } catch {
+      toast({ title: "Failed to remove image", variant: "destructive" });
+    } finally { setRemovingImageId(null); }
   }
 
   async function printPdf() {
     try {
-      const token = localStorage.getItem("zarierp_token");
       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
       const response = await fetch(`${base}/api/packing-lists/${params.id}/pdf-html`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -249,25 +358,24 @@ export default function PackingListDetail() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const html = await response.text();
       const win = window.open("", "_blank");
-      if (!win) {
-        toast({ title: "Popup blocked", description: "Please allow popups and try again", variant: "destructive" });
-        return;
-      }
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 600);
-    } catch (err: any) {
-      toast({ title: "Failed to load PDF", description: err?.message ?? "Unknown error", variant: "destructive" });
+      if (!win) { toast({ title: "Popup blocked", variant: "destructive" }); return; }
+      win.document.open(); win.document.write(html); win.document.close();
+      win.focus(); setTimeout(() => win.print(), 600);
+    } catch (e: any) {
+      toast({ title: "Failed to load PDF", description: e?.message, variant: "destructive" });
     }
   }
 
   if (!user && !isError) return null;
 
-  const addrParts = pl ? [pl.address_line1, pl.address_line2, pl.city, pl.state, pl.addr_country, pl.addr_pincode].filter(Boolean) : [];
+  const addrParts = pl ? [pl.address_line1, pl.city, pl.state, pl.addr_country, pl.addr_pincode].filter(Boolean) : [];
+
+  const totalNetWeight = pl?.packages.reduce((s, p) => s + parseFloat(p.net_weight ?? "0"), 0) ?? 0;
+  const totalGrossWeight = pl?.packages.reduce((s, p) => s + parseFloat(p.gross_weight ?? "0"), 0) ?? 0;
+  const totalItems = pl?.packages.reduce((s, p) => s + p.items.length, 0) ?? 0;
 
   const filteredOrders = (orderTab === "Swatch" ? eligible.swatches : eligible.styles)
+    .filter(o => !o.already_added)
     .filter(o => !orderSearch || o.order_code.toLowerCase().includes(orderSearch.toLowerCase()) || (o.name ?? "").toLowerCase().includes(orderSearch.toLowerCase()));
 
   return (
@@ -280,10 +388,7 @@ export default function PackingListDetail() {
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <button
-            onClick={() => setLocation("/logistics/packing-lists")}
-            className="p-2 rounded-xl hover:bg-gray-100 text-gray-500"
-          >
+          <button onClick={() => setLocation("/logistics/packing-lists")} className="p-2 rounded-xl hover:bg-gray-100 text-gray-500">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-3 flex-1">
@@ -292,20 +397,21 @@ export default function PackingListDetail() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">{pl?.pl_number ?? "Loading…"}</h1>
-              {pl && <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[pl.status] ?? "bg-gray-100 text-gray-600"}`}>{pl.status}</span>}
+              {pl && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[pl.status] ?? "bg-gray-100 text-gray-600"}`}>
+                  {pl.status}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-2 ml-auto">
-            <button
-              onClick={printPdf}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors"
-            >
+            <button onClick={printPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 text-gray-700">
               <Printer className="h-4 w-4" />
               Print PDF
             </button>
             <button
               onClick={() => setLocation(`/logistics/packing-lists/${params.id}/edit`)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90"
               style={{ backgroundColor: G }}
             >
               <Edit2 className="h-4 w-4" />
@@ -321,312 +427,350 @@ export default function PackingListDetail() {
         ) : !pl ? (
           <div className="text-center py-20 text-gray-500">Packing list not found</div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LEFT — detail cards */}
-            <div className="lg:col-span-2 space-y-5">
+          <div className="space-y-5">
 
-              {/* Client + Address + Shipment */}
-              <div className={`${card} p-6`}>
-                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Grouping</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                  <Field label="Client" value={pl.client_name} />
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Delivery Address</div>
-                    {pl.delivery_address_label ? (
-                      <div className="flex items-start gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-800">{pl.delivery_address_label}</div>
-                          <div className="text-xs text-gray-400">{addrParts.join(", ")}</div>
-                        </div>
+            {/* Info Cards Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: "Total Packages", value: pl.packages.length, color: "text-gray-900" },
+                { label: "Total Items", value: totalItems, color: "text-gray-900" },
+                { label: "Total Net Weight", value: totalNetWeight > 0 ? `${totalNetWeight.toFixed(3)} kg` : "—", color: "text-gray-900" },
+                { label: "Total Gross Weight", value: totalGrossWeight > 0 ? `${totalGrossWeight.toFixed(3)} kg` : "—", color: "text-gray-900" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className={`${card} p-4`}>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{label}</div>
+                  <div className={`text-2xl font-bold ${color}`}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Grouping + Shipment */}
+            <div className={`${card} p-6`}>
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Grouping &amp; Shipment</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
+                <Field label="Client" value={pl.client_name} />
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Delivery Address</div>
+                  {pl.delivery_address_label ? (
+                    <div className="flex items-start gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-800">{pl.delivery_address_label}</div>
+                        <div className="text-xs text-gray-400">{addrParts.join(", ")}</div>
                       </div>
-                    ) : <div className="text-sm text-gray-400">—</div>}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Shipment</div>
-                    {pl.shipment_tracking ? (
-                      <div className="flex items-start gap-1.5">
-                        <Truck className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-800 font-mono">{pl.shipment_tracking}</div>
-                          {pl.shipment_date && <div className="text-xs text-gray-400">{new Date(pl.shipment_date).toLocaleDateString("en-IN")}</div>}
-                        </div>
+                    </div>
+                  ) : <div className="text-sm text-gray-400">—</div>}
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Shipment</div>
+                  {pl.shipment_tracking ? (
+                    <div className="flex items-start gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-800 font-mono">{pl.shipment_tracking}</div>
+                        {pl.shipment_date && <div className="text-xs text-gray-400">{new Date(pl.shipment_date).toLocaleDateString("en-IN")}</div>}
                       </div>
-                    ) : <div className="text-sm text-gray-400">—</div>}
-                  </div>
+                    </div>
+                  ) : <div className="text-sm text-gray-400">—</div>}
                 </div>
-              </div>
-
-              {/* Package info */}
-              <div className={`${card} p-6`}>
-                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Package Details</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
-                  <Field label="Destination" value={pl.destination_country} />
-                  <Field label="Packages" value={pl.package_count} />
-                  <Field label="Package Type" value={pl.package_type} />
-                  <Field label="Dimensions" value={pl.dimensions} />
-                  <Field label="Net Weight" value={pl.net_weight ? `${pl.net_weight} kg` : null} />
-                  <Field label="Gross Weight" value={pl.gross_weight ? `${pl.gross_weight} kg` : null} />
-                  {pl.remarks && <div className="col-span-2 sm:col-span-4"><Field label="Remarks" value={pl.remarks} /></div>}
-                </div>
-              </div>
-
-              {/* Items */}
-              <div className={card}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-sm font-bold text-gray-900">Packed Items ({pl.items.length})</h2>
-                  <button
-                    onClick={toggleAddPanel}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:opacity-90"
-                    style={{ backgroundColor: G }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Orders
-                  </button>
-                </div>
-
-                {pl.items.length === 0 ? (
-                  <div className="py-12 text-center text-gray-400 text-sm">No items yet. Click "Add Orders" to add.</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-100 bg-gray-50">
-                          {["#", "Image", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", ""].map(h => (
-                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {pl.items.map((item, idx) => (
-                          <tr key={item.id}>
-                            <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                            <td className="px-4 py-3">
-                              {item.item_image_url ? (
-                                /* Uploaded image — full control */
-                                <div className="relative group w-14 h-14">
-                                  <img
-                                    src={item.item_image_url}
-                                    alt="item"
-                                    className="w-14 h-14 object-cover rounded-lg border border-gray-200"
-                                  />
-                                  <button
-                                    onClick={() => handleRemoveImage(item)}
-                                    disabled={removingImageId === item.id}
-                                    className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Remove image"
-                                  >
-                                    <XCircle className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              ) : artworkImages[item.id] !== undefined ? (
-                                artworkImages[item.id] !== null ? (
-                                  /* Image found from the linked order's artwork */
-                                  <div className="flex flex-col items-start gap-1">
-                                    <div className="relative group w-14 h-14">
-                                      <img
-                                        src={artworkImages[item.id]!.data}
-                                        alt="final"
-                                        className="w-14 h-14 object-cover rounded-lg border border-amber-200"
-                                      />
-                                      <button
-                                        onClick={() => triggerImageUpload(item, false)}
-                                        disabled={uploadingImageId === item.id}
-                                        className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="Replace with new upload"
-                                      >
-                                        <Camera className="h-3.5 w-3.5" />
-                                      </button>
-                                    </div>
-                                    <span className="text-[9px] text-amber-600 font-semibold tracking-wide">FROM ORDER</span>
-                                  </div>
-                                ) : (
-                                  /* No image in order — offer upload with option to also add to order */
-                                  <div className="flex flex-col gap-1">
-                                    <button
-                                      onClick={() => triggerImageUpload(item, true)}
-                                      disabled={uploadingImageId === item.id}
-                                      className="flex flex-col items-center justify-center w-14 h-14 rounded-lg border-2 border-dashed border-gray-200 text-gray-300 hover:border-amber-400 hover:text-amber-400 transition-colors"
-                                      title="Upload & add to order final images"
-                                    >
-                                      {uploadingImageId === item.id
-                                        ? <span className="text-[10px] text-amber-500">…</span>
-                                        : <Camera className="h-5 w-5" />}
-                                    </button>
-                                    <span className="text-[9px] text-gray-400 leading-tight text-center w-14">+ order</span>
-                                  </div>
-                                )
-                              ) : (
-                                /* Still loading from order */
-                                <div className="flex items-center justify-center w-14 h-14 rounded-lg border border-gray-100 text-gray-200">
-                                  <span className="text-[10px]">…</span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${item.item_type === "Swatch" ? "bg-purple-50 text-purple-700" : "bg-teal-50 text-teal-700"}`}>
-                                {item.item_type}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-700">{item.order_code ?? "—"}</td>
-                            <td className="px-4 py-3 text-gray-600">{item.description ?? "—"}</td>
-                            <td className="px-4 py-3 text-gray-600">{item.qty ?? "—"}</td>
-                            <td className="px-4 py-3 text-gray-500">{item.unit ?? "—"}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  step="0.001"
-                                  min="0"
-                                  placeholder="—"
-                                  value={itemWeights[item.id] !== undefined ? itemWeights[item.id] : (item.weight_kg ?? "")}
-                                  onChange={e => setItemWeights(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                  onKeyDown={e => { if (e.key === "Enter") handleSaveWeight(item); }}
-                                  className="w-20 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                                />
-                                {(itemWeights[item.id] !== undefined) && (
-                                  <button
-                                    onClick={() => handleSaveWeight(item)}
-                                    disabled={savingWeightId === item.id}
-                                    className="text-xs text-amber-600 hover:text-amber-700 font-semibold disabled:opacity-50"
-                                  >
-                                    {savingWeightId === item.id ? "…" : "Save"}
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => handleDeleteItem(item.id)}
-                                disabled={deleting === item.id}
-                                className="text-gray-400 hover:text-red-500 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <Field label="Destination" value={pl.destination_country} />
+                {pl.remarks && <div className="sm:col-span-4"><Field label="Remarks" value={pl.remarks} /></div>}
               </div>
             </div>
 
-            {/* RIGHT — Add orders panel */}
-            <div>
-              {showAddPanel && (
-                <div className={`${card} p-5`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Add Orders</h2>
-                    <button onClick={() => setShowAddPanel(false)} className="text-gray-400 hover:text-gray-600">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+            {/* Packages */}
+            <div className={card}>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Box className="h-4 w-4" style={{ color: G }} />
+                  <h2 className="text-sm font-bold text-gray-900">Packages ({pl.packages.length})</h2>
+                </div>
+                <button
+                  onClick={handleAddPackage}
+                  disabled={addingPkg}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60"
+                  style={{ backgroundColor: G }}
+                >
+                  {addingPkg
+                    ? <div className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                    : <Plus className="h-3.5 w-3.5" />}
+                  Add Package
+                </button>
+              </div>
 
-                  {!pl.delivery_address_id && (
-                    <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 mb-3">
-                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                      <p className="text-xs text-amber-700">No delivery address set. Edit the packing list to assign one before adding orders.</p>
-                    </div>
-                  )}
+              {pl.packages.length === 0 ? (
+                <div className="py-16 text-center text-gray-400 text-sm">
+                  No packages yet. Click "Add Package" to create the first package.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {pl.packages.map((pkg) => {
+                    const isExpanded = expandedPkgs.has(pkg.id);
+                    const isEditingDims = editingPkg === pkg.id;
+                    const dims = pkgDims[pkg.id];
+                    const dimStr = [pkg.length, pkg.width, pkg.height].filter(Boolean).map(v => v + " cm").join(" × ");
 
-                  {loadingEligible ? (
-                    <div className="flex justify-center py-8">
-                      <div className="h-5 w-5 rounded-full border-2 border-gray-200 animate-spin" style={{ borderTopColor: G }} />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-lg">
-                        {(["Swatch", "Style"] as const).map(tab => (
-                          <button
-                            key={tab}
-                            onClick={() => setOrderTab(tab)}
-                            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                              orderTab === tab ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            {tab} ({tab === "Swatch" ? eligible.swatches.length : eligible.styles.length})
-                          </button>
-                        ))}
-                      </div>
-                      <div className="relative mb-2">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                        <input
-                          value={orderSearch}
-                          onChange={e => setOrderSearch(e.target.value)}
-                          placeholder="Filter orders…"
-                          className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-yellow-200"
-                        />
-                      </div>
-                      <div className="max-h-72 overflow-y-auto space-y-1">
-                        {filteredOrders.length === 0 ? (
-                          <p className="text-xs text-gray-400 text-center py-6">
-                            {pl.delivery_address_id ? "No eligible orders for this client + delivery address" : "Set a delivery address to see eligible orders"}
-                          </p>
-                        ) : filteredOrders.map(order => {
-                          const inList = pl.items.some(i => i.item_type === orderTab && i.item_id === order.id);
-                          return (
+                    return (
+                      <div key={pkg.id}>
+                        {/* Package header */}
+                        <div
+                          className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => setExpandedPkgs(prev => {
+                            const n = new Set(prev);
+                            n.has(pkg.id) ? n.delete(pkg.id) : n.add(pkg.id);
+                            return n;
+                          })}
+                        >
+                          <div className="flex items-center justify-center w-8 h-8 rounded-xl text-white text-sm font-bold shrink-0" style={{ backgroundColor: G }}>
+                            {pkg.package_number}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-gray-800 text-sm">Package {pkg.package_number}</span>
+                            <div className="flex flex-wrap gap-3 mt-0.5">
+                              {dimStr && <span className="text-xs text-gray-400">📦 {dimStr}</span>}
+                              {pkg.net_weight && <span className="text-xs text-gray-400">Net: {Number(pkg.net_weight).toFixed(3)} kg</span>}
+                              {pkg.gross_weight && <span className="text-xs text-gray-400">Gross: {Number(pkg.gross_weight).toFixed(3)} kg</span>}
+                              <span className="text-xs text-gray-400">{pkg.items.length} item{pkg.items.length !== 1 ? "s" : ""}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                             <button
-                              key={order.id}
-                              onClick={() => !inList && handleAddItem(order, orderTab)}
-                              disabled={inList || addingItem === order.id}
-                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs border transition-all text-left ${
-                                inList
-                                  ? "bg-green-50 border-green-200 text-green-700 cursor-default"
-                                  : "bg-white border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-700"
+                              onClick={() => openAddPanel(pkg.id)}
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                addingToPkg === pkg.id
+                                  ? "border-amber-300 bg-amber-100 text-amber-800"
+                                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
                               }`}
                             >
-                              <div>
-                                <div className="font-semibold">{order.order_code}</div>
-                                <div className="text-gray-500 truncate max-w-[180px]">{order.name}</div>
-                              </div>
-                              {inList ? (
-                                <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                              ) : addingItem === order.id ? (
-                                <div className="h-3.5 w-3.5 rounded-full border border-gray-300 animate-spin border-t-transparent" />
-                              ) : (
-                                <Plus className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                              )}
+                              <Plus className="h-3 w-3" />
+                              {addingToPkg === pkg.id ? "Selecting…" : "Add Orders"}
                             </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                            <button
+                              onClick={() => isEditingDims ? setEditingPkg(null) : startEditPkg(pkg)}
+                              className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600"
+                              title="Edit dimensions"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePackage(pkg.id)}
+                              disabled={deletingPkgId === pkg.id}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
 
-              {!showAddPanel && (
-                <div className={`${card} p-5`}>
-                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Quick Info</h2>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Created</span>
-                      <span className="font-medium text-gray-800">{pl.created_at ? new Date(pl.created_at).toLocaleDateString("en-IN") : "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Total Items</span>
-                      <span className="font-bold text-gray-900">{pl.items.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Swatch Orders</span>
-                      <span className="font-medium text-purple-700">{pl.items.filter(i => i.item_type === "Swatch").length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Style Orders</span>
-                      <span className="font-medium text-teal-700">{pl.items.filter(i => i.item_type === "Style").length}</span>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <button
-                      onClick={printPdf}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors"
-                    >
-                      <Printer className="h-4 w-4" />
-                      Print Packing List PDF
-                    </button>
-                  </div>
+                        {isExpanded && (
+                          <div className="px-6 pb-5 border-t border-gray-50">
+                            {/* Dimension edit form */}
+                            {isEditingDims && dims && (
+                              <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
+                                  {[
+                                    { label: "L (cm)", key: "length" as const },
+                                    { label: "W (cm)", key: "width" as const },
+                                    { label: "H (cm)", key: "height" as const },
+                                    { label: "Net Wt", key: "net_weight" as const },
+                                    { label: "Gross Wt", key: "gross_weight" as const },
+                                  ].map(({ label, key }) => (
+                                    <div key={key}>
+                                      <label className="block text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">{label}</label>
+                                      <input
+                                        type="number" step="0.01" min="0"
+                                        value={dims[key]}
+                                        onChange={e => setPkgDims(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], [key]: e.target.value } }))}
+                                        className="w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                        placeholder="0"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleSavePkg(pkg.id)}
+                                    disabled={savingPkgId === pkg.id}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                                    style={{ backgroundColor: G }}
+                                  >
+                                    {savingPkgId === pkg.id
+                                      ? <div className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                                      : <Save className="h-3 w-3" />}
+                                    Save
+                                  </button>
+                                  <button onClick={() => setEditingPkg(null)} className="px-3 py-1.5 rounded-lg text-xs text-gray-600 hover:bg-white border border-blue-200">Cancel</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Order add panel */}
+                            {addingToPkg === pkg.id && (
+                              <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Add Orders to Package {pkg.package_number}</span>
+                                  <button onClick={() => setAddingToPkg(null)} className="text-amber-400 hover:text-amber-600">
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                                {loadingEligible ? (
+                                  <div className="flex justify-center py-4">
+                                    <div className="h-5 w-5 rounded-full border-2 border-amber-200 animate-spin" style={{ borderTopColor: G }} />
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex gap-1 mb-3 bg-amber-100 p-1 rounded-lg">
+                                      {(["Swatch", "Style"] as const).map(tab => (
+                                        <button
+                                          key={tab}
+                                          onClick={() => setOrderTab(tab)}
+                                          className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                            orderTab === tab ? "bg-white shadow text-gray-900" : "text-amber-700 hover:text-amber-900"
+                                          }`}
+                                        >
+                                          {tab} ({tab === "Swatch" ? eligible.swatches.filter(o => !o.already_added).length : eligible.styles.filter(o => !o.already_added).length})
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <div className="relative mb-2">
+                                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                      <input
+                                        value={orderSearch}
+                                        onChange={e => setOrderSearch(e.target.value)}
+                                        placeholder="Search orders…"
+                                        className="w-full pl-7 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300"
+                                      />
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto space-y-1">
+                                      {filteredOrders.length === 0 ? (
+                                        <div className="text-xs text-gray-400 text-center py-4">No available orders</div>
+                                      ) : filteredOrders.map(order => (
+                                        <button
+                                          key={order.id}
+                                          onClick={() => handleAddItem(order, orderTab)}
+                                          disabled={addingItemId === order.id}
+                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white text-left border border-transparent hover:border-amber-200 transition-all group"
+                                        >
+                                          <Plus className="h-3.5 w-3.5 shrink-0 text-amber-400 group-hover:text-amber-600" />
+                                          <div className="min-w-0">
+                                            <div className="text-xs font-semibold text-gray-800 font-mono">{order.order_code}</div>
+                                            <div className="text-[11px] text-gray-500 truncate">{order.name}</div>
+                                          </div>
+                                          {addingItemId === order.id && (
+                                            <div className="ml-auto h-3 w-3 rounded-full border border-amber-400 border-t-transparent animate-spin" />
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Items table */}
+                            {pkg.items.length === 0 ? (
+                              <div className="mt-4 text-center py-8 text-xs text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                                No items in this package. Click "Add Orders" to add.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto mt-4 rounded-xl border border-gray-100">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-100">
+                                      {["#", "Image", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", ""].map(h => (
+                                        <th key={h} className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-50">
+                                    {pkg.items.map((item, idx) => (
+                                      <tr key={item.id}>
+                                        <td className="px-3 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                                        <td className="px-3 py-3">
+                                          {item.item_image_url ? (
+                                            <div className="relative group w-12 h-12">
+                                              <img src={item.item_image_url} alt="item" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
+                                              <button
+                                                onClick={() => handleRemoveImage(pkg.id, item)}
+                                                disabled={removingImageId === item.id}
+                                                className="absolute -top-1 -right-1 bg-white rounded-full shadow text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              >
+                                                <XCircle className="h-3.5 w-3.5" />
+                                              </button>
+                                            </div>
+                                          ) : artworkImages[item.id] !== undefined ? (
+                                            artworkImages[item.id] !== null ? (
+                                              <div className="relative group w-12 h-12">
+                                                <img src={artworkImages[item.id]!.data} alt="artwork" className="w-12 h-12 object-cover rounded-lg border border-amber-200" />
+                                                <button
+                                                  onClick={() => triggerImageUpload(pkg.id, item)}
+                                                  className="absolute -top-1 -right-1 bg-white rounded-full shadow text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                  <Camera className="h-3 w-3" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                onClick={() => triggerImageUpload(pkg.id, item)}
+                                                disabled={uploadingImageId === item.id}
+                                                className="flex items-center justify-center w-12 h-12 rounded-lg border-2 border-dashed border-gray-200 text-gray-300 hover:border-amber-400 hover:text-amber-400 transition-colors"
+                                              >
+                                                {uploadingImageId === item.id ? <span className="text-[10px]">…</span> : <Camera className="h-4 w-4" />}
+                                              </button>
+                                            )
+                                          ) : (
+                                            <div className="flex items-center justify-center w-12 h-12 rounded-lg border border-gray-100 text-gray-200">
+                                              <span className="text-[10px]">…</span>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-3">
+                                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${item.order_type === "Swatch" ? "bg-purple-50 text-purple-700" : "bg-teal-50 text-teal-700"}`}>
+                                            {item.order_type}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-3 font-mono text-xs text-gray-700">{item.order_code ?? "—"}</td>
+                                        <td className="px-3 py-3 text-gray-600 text-xs max-w-[140px] truncate">{item.description ?? "—"}</td>
+                                        <td className="px-3 py-3 text-gray-600 text-xs">{item.quantity ?? "—"}</td>
+                                        <td className="px-3 py-3 text-gray-500 text-xs">{item.unit ?? "—"}</td>
+                                        <td className="px-3 py-3">
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="number" step="0.001" min="0"
+                                              placeholder="—"
+                                              value={itemWeights[item.id] !== undefined ? itemWeights[item.id] : (item.item_weight ?? "")}
+                                              onChange={e => setItemWeights(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                              onBlur={() => { if (itemWeights[item.id] !== undefined) handleSaveWeight(item, pkg.id); }}
+                                              className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-200"
+                                            />
+                                            {savingWeightId === item.id && (
+                                              <div className="h-3 w-3 rounded-full border border-gray-300 border-t-transparent animate-spin" />
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-3">
+                                          <button
+                                            onClick={() => handleDeleteItem(pkg.id, item.id)}
+                                            disabled={deletingItemId === item.id}
+                                            className="p-1 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
