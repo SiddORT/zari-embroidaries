@@ -2081,6 +2081,8 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
   const uniqueVendors = [...new Set(rows.map(r => r.vendorName))];
   const filtered = filterVendor === "all" ? rows : rows.filter(r => r.vendorName === filterVendor);
   const grandTotal = filtered.reduce((s, r) => s + (parseFloat(r.totalCost) || 0), 0);
+  const grandPaid = filtered.reduce((s, r) => s + (outsourcePaidTotals.get(r.id) ?? 0), 0);
+  const grandBalance = Math.max(0, grandTotal - grandPaid);
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
@@ -2112,6 +2114,8 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Target Date</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Delivery Date</th>
                 <th className="text-right text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Total Cost (₹)</th>
+                <th className="text-right text-[10px] font-semibold text-emerald-600 px-3 py-2 whitespace-nowrap">Paid (₹)</th>
+                <th className="text-right text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Balance (₹)</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Notes</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -2131,6 +2135,10 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <td className="px-3 py-2.5 text-gray-400">{r.targetDate ?? "—"}</td>
                     <td className="px-3 py-2.5 text-gray-400">{r.deliveryDate ?? "—"}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalCost).toFixed(2)}</td>
+                    {(() => { const cost = parseFloat(r.totalCost); const paid = outsourcePaidTotals.get(r.id) ?? 0; const balance = Math.max(0, cost - paid); return (<>
+                      <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">₹{paid.toFixed(2)}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${balance <= 0 ? "text-emerald-600" : "text-red-500"}`}>₹{balance.toFixed(2)}</td>
+                    </>); })()}
                     <td className="px-3 py-2.5 text-gray-400 max-w-[120px] truncate" title={r.notes ?? ""}>{r.notes ?? "—"}</td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center gap-1 justify-end">
@@ -2155,7 +2163,7 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
                   </tr>
                   {expandedPayRow === r.id && (
                     <tr className="bg-amber-50/30 border-b border-amber-100">
-                      <td colSpan={9} className="px-5 py-3">
+                      <td colSpan={11} className="px-5 py-3">
                         <CostingPaymentsPanel
                           referenceType="outsource_job"
                           referenceId={r.id}
@@ -2174,6 +2182,8 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <tr className="bg-gray-50 border-t border-gray-200">
                   <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
                   <td className="px-3 py-2 text-right font-bold text-amber-700">₹{grandTotal.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right font-bold text-emerald-700">₹{grandPaid.toFixed(2)}</td>
+                  <td className={`px-3 py-2 text-right font-bold ${grandBalance <= 0 ? "text-emerald-600" : "text-red-500"}`}>₹{grandBalance.toFixed(2)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
@@ -2361,6 +2371,8 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
   const uniqueVendors = [...new Set(rows.map(r => r.vendorName))];
   const filtered = filterVendor === "all" ? rows : rows.filter(r => r.vendorName === filterVendor);
   const grandTotal = filtered.reduce((s, r) => s + (parseFloat(r.totalAmount) || 0), 0);
+  const grandPaid = filtered.reduce((s, r) => s + (customChargePaidTotals.get(r.id) ?? 0), 0);
+  const grandBalance = Math.max(0, grandTotal - grandPaid);
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
@@ -2392,6 +2404,8 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Unit Price (₹)</th>
                 <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Qty</th>
                 <th className="text-right text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Total (₹)</th>
+                <th className="text-right text-[10px] font-semibold text-emerald-600 px-3 py-2 whitespace-nowrap">Paid (₹)</th>
+                <th className="text-right text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Balance (₹)</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -2410,6 +2424,10 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
                     <td className="px-3 py-2.5 text-right text-gray-800">₹{parseFloat(r.unitPrice).toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-right text-gray-800">{parseFloat(r.quantity).toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-amber-700">₹{parseFloat(r.totalAmount).toFixed(2)}</td>
+                    {(() => { const amt = parseFloat(r.totalAmount); const paid = customChargePaidTotals.get(r.id) ?? 0; const balance = Math.max(0, amt - paid); return (<>
+                      <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">₹{paid.toFixed(2)}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${balance <= 0 ? "text-emerald-600" : "text-red-500"}`}>₹{balance.toFixed(2)}</td>
+                    </>); })()}
                     <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center gap-1 justify-end">
                         {(() => { const amt = parseFloat(r.totalAmount); const paid = customChargePaidTotals.get(r.id) ?? 0; const fullyPaid = amt > 0 && paid >= amt; return fullyPaid ? (
@@ -2433,7 +2451,7 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
                   </tr>
                   {expandedPayRow === r.id && (
                     <tr className="bg-amber-50/30 border-b border-amber-100">
-                      <td colSpan={8} className="px-5 py-3">
+                      <td colSpan={10} className="px-5 py-3">
                         <CostingPaymentsPanel
                           referenceType="custom_charge"
                           referenceId={r.id}
@@ -2452,6 +2470,8 @@ function CustomChargesSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <tr className="bg-gray-50 border-t border-gray-200">
                   <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">Total</td>
                   <td className="px-3 py-2 text-right font-bold text-amber-700">₹{grandTotal.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right font-bold text-emerald-700">₹{grandPaid.toFixed(2)}</td>
+                  <td className={`px-3 py-2 text-right font-bold ${grandBalance <= 0 ? "text-emerald-600" : "text-red-500"}`}>₹{grandBalance.toFixed(2)}</td>
                   <td />
                 </tr>
               </tfoot>

@@ -104,7 +104,6 @@ router.get("/vendor-bills", requireAuth, async (req, res) => {
          vil.paid_amount,
          vil.pending_amount,
          vil.status, vil.notes, vil.created_at,
-         vil.vendor_invoice_file,
          po.po_number AS linked_po_number
        FROM vendor_invoice_ledger vil
        LEFT JOIN purchase_receipts pr ON pr.id = vil.purchase_receipt_id

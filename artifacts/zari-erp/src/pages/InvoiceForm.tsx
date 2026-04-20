@@ -214,12 +214,17 @@ function InvoicePaymentsPanel({
             </div>
             <span className="text-[10px] text-gray-400 tabular-nums">{Math.round(pct)}%</span>
           </div>
-          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && (
+          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && pendingAmt > 0 && (
             <button onClick={openModal}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shrink-0"
               style={{ backgroundColor: G }}>
               <Plus size={13} /> Record Payment
             </button>
+          )}
+          {pendingAmt <= 0 && payments.length > 0 && (
+            <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              <CheckCircle2 size={13} /> Fully Paid
+            </span>
           )}
         </div>
       </div>
@@ -233,7 +238,7 @@ function InvoicePaymentsPanel({
             </div>
           ) : payments.length === 0 ? (
             <div className="py-6 text-center text-sm text-gray-400">
-              No payments recorded yet. Click <strong>Record Payment</strong> to add the first one.
+              No payments recorded yet.{currentStatus !== "Draft" && currentStatus !== "Cancelled" && pendingAmt > 0 && <> Click <strong>Record Payment</strong> to add the first one.</>}
             </div>
           ) : (
             <table className="w-full text-xs">
@@ -1089,6 +1094,7 @@ export default function InvoiceForm() {
                     }
                   </select>
                 </div>
+                {form.currencyCode !== "INR" && (
                 <div>
                   <label className={lbl}>Exchange Rate (1 {form.currencyCode} = ? INR)</label>
                   <input
@@ -1101,6 +1107,7 @@ export default function InvoiceForm() {
                   />
                   <p className="text-xs text-gray-400 mt-1">Rate is locked at save and cannot change later.</p>
                 </div>
+                )}
                 {form.currencyCode !== "INR" && (
                   <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5">
                     <p className="text-xs text-amber-700 font-semibold">INR Equivalent</p>
