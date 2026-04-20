@@ -345,7 +345,6 @@ export function downloadBomPdf(data: BomPdfData) {
   const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   const fields: [string, string][] = [
     [data.referenceType === "swatch" ? "Swatch Order" : "Style Order", data.orderCode ?? String(data.referenceId)],
-    ["Client",   data.clientName ?? "—"],
     [data.referenceType === "swatch" ? "Swatch Name" : "Style Name", data.entityName ?? "—"],
     ["Date",     today],
     ["Total Items", String(data.rows.length)],
