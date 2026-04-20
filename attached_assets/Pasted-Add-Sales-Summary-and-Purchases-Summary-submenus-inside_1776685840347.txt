@@ -1,0 +1,193 @@
+Add Sales Summary and Purchases Summary submenus inside the Accounts module.
+
+These pages must show financial overview only using existing tables.
+
+Do NOT create duplicate transaction tables.
+
+Follow structure below.
+
+---
+
+MODULE NAME
+
+Accounts Sales and Purchases Summary Pages
+
+---
+
+SECTION 1 — SIDEBAR NAVIGATION
+
+Inside:
+
+Accounts
+
+Add submenus:
+
+Sales Summary
+
+Purchases Summary
+
+---
+
+SECTION 2 — GLOBAL FILTER ROW
+
+Add filters at top of both pages:
+
+Date Range
+
+Client selector (Sales Summary only)
+
+Vendor selector (Purchases Summary only)
+
+Filters must refresh data instantly.
+
+---
+
+SECTION 3 — SALES SUMMARY PAGE
+
+Create page:
+
+Accounts → Sales Summary
+
+Display summary cards:
+
+Total Invoiced Amount
+
+Total Received Amount
+
+Pending Receivables
+
+Overdue Receivables
+
+Fetch data from:
+
+invoices
+
+invoice_payments
+
+---
+
+SECTION 4 — SALES BREAKDOWN PANEL
+
+Display additional cards:
+
+Total Credit Notes Issued
+
+Shipping Amount Recovered
+
+Net Sales Value
+
+Formula:
+
+Net Sales Value =
+
+Total Invoiced − Credit Notes
+
+---
+
+SECTION 5 — PURCHASE SUMMARY PAGE
+
+Create page:
+
+Accounts → Purchases Summary
+
+Display summary cards:
+
+Total Purchase Orders
+
+Total Vendor Bills
+
+Total Paid to Vendors
+
+Pending Vendor Payables
+
+Fetch data from:
+
+purchase_orders
+
+purchase_receipts
+
+vendor_ledger
+
+---
+
+SECTION 6 — PURCHASE EXPENSE PANEL
+
+Display additional card:
+
+Other Expenses Total
+
+Fetch from:
+
+other_expenses table
+
+---
+
+SECTION 7 — REVENUE SNAPSHOT CARD
+
+Display card on both pages:
+
+Net Revenue
+
+Formula:
+
+Net Revenue =
+
+Total Sales − Total Purchases
+
+Highlight visually.
+
+---
+
+SECTION 8 — LIVE DATA REQUIREMENT
+
+Both pages must:
+
+fetch real-time values
+
+respect filters
+
+refresh after filter change
+
+not cache totals
+
+---
+
+SECTION 9 — UI STRUCTURE
+
+Layout order:
+
+Filter Row
+
+Summary Cards
+
+Breakdown Cards
+
+Revenue Snapshot Card
+
+Use existing dashboard counter-card styling.
+
+---
+
+SECTION 10 — PERMISSIONS CONTROL
+
+Allow access:
+
+Accounts users
+
+Admin users
+
+Restrict:
+
+non-accounts users
+
+---
+
+SECTION 11 — SUCCESS MESSAGE
+
+After page loads:
+
+Display:
+
+Financial summary loaded successfully
+
+END OF MODULE
