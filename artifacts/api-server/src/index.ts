@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminUser, seedDummyData } from "./lib/seed";
+import { seedIfEmpty } from "./seed";
 import { ensureShippingTables } from "./routes/shipping";
 import { ensureSettingsTables } from "./routes/settings";
 
@@ -36,6 +37,12 @@ app.listen(port, async (err) => {
     await ensureSettingsTables();
   } catch (seedErr) {
     logger.error({ err: seedErr }, "Failed to create settings tables");
+  }
+
+  try {
+    await seedIfEmpty();
+  } catch (seedErr) {
+    logger.error({ err: seedErr }, "Failed to apply full database seed");
   }
 
   try {
