@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { Plus, Search, FileText, Eye, Trash2, Edit2, Printer, Wallet, X, Loader2, CheckCircle2, MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -95,11 +96,20 @@ export default function InvoiceList() {
   const [previewInvId, setPreviewInvId] = useState<number | null>(null);
 
   const [openActionId, setOpenActionId] = useState<number | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
+
+  function toggleDropdown(e: React.MouseEvent<HTMLButtonElement>, id: number) {
+    if (openActionId === id) { setOpenActionId(null); setDropdownPos(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDropdownPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    setOpenActionId(id);
+  }
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
-        setOpenActionId(null);
+        setOpenActionId(null); setDropdownPos(null);
       }
     }
     if (openActionId !== null) document.addEventListener("mousedown", handleClick);
@@ -380,52 +390,12 @@ export default function InvoiceList() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="relative" ref={openActionId === inv.id ? actionMenuRef : undefined}>
-                        <button
-                          onClick={() => setOpenActionId(openActionId === inv.id ? null : inv.id)}
-                          className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-
-                        {openActionId === inv.id && (
-                          <div className="absolute right-0 z-30 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[170px] py-1">
-                            <button
-                              onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}`); }}
-                              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
-                            >
-                              <Eye className="h-3.5 w-3.5" /> View Invoice
-                            </button>
-                            <button
-                              onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}/edit`); }}
-                              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" /> Edit Invoice
-                            </button>
-                            {PAY_ELIGIBLE.includes(inv.invoiceStatus) && (
-                              <button
-                                onClick={() => { setOpenActionId(null); openPayModal(inv); }}
-                                className="w-full text-left px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2.5"
-                              >
-                                <Wallet className="h-3.5 w-3.5" /> Record Payment
-                              </button>
-                            )}
-                            <button
-                              onClick={() => { setOpenActionId(null); setPreviewInvId(inv.id); }}
-                              className="w-full text-left px-3 py-2 text-xs text-amber-700 hover:bg-amber-50 flex items-center gap-2.5"
-                            >
-                              <Printer className="h-3.5 w-3.5" /> Preview / PDF
-                            </button>
-                            <div className="mx-2 my-1 border-t border-gray-100" />
-                            <button
-                              onClick={() => { setOpenActionId(null); setDeleteTarget(inv); }}
-                              className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" /> Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        onClick={e => toggleDropdown(e, inv.id)}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
