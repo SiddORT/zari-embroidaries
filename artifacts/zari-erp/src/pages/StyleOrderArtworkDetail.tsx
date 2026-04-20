@@ -592,6 +592,7 @@ export default function StyleOrderArtworkDetail() {
           <SectionCard icon={<Scissors className="h-4 w-4 text-[#C9B45C]" />}
             title="Toile" subtitle="Toile making cost and payment details">
             <div className="space-y-4">
+              {/* Row 1: Making Cost + Vendor */}
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Toile Making Cost">
                   <div className="relative">
@@ -612,15 +613,16 @@ export default function StyleOrderArtworkDetail() {
                     placeholder="Select vendor…" disabled={isViewMode} />
                 </Field>
               </div>
-              <Field label="Payment Type">
-                <select className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
-                  disabled={isViewMode} value={form.toilePaymentType}
-                  onChange={e => set("toilePaymentType", e.target.value)}>
-                  <option value="">Select type…</option>
-                  {["Advance", "Partial", "Full"].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </Field>
+              {/* Row 2: Payment Type + Payment Amount */}
               <div className="grid grid-cols-2 gap-4">
+                <Field label="Payment Type">
+                  <select className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                    disabled={isViewMode} value={form.toilePaymentType}
+                    onChange={e => set("toilePaymentType", e.target.value)}>
+                    <option value="">Select type…</option>
+                    {["Advance", "Partial", "Full"].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </Field>
                 <Field label="Payment Amount">
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
@@ -630,13 +632,14 @@ export default function StyleOrderArtworkDetail() {
                       onChange={e => set("toilePaymentAmount", e.target.value)} />
                   </div>
                 </Field>
+              </div>
+              {/* Row 3: Payment Date + Payment Mode */}
+              <div className="grid grid-cols-2 gap-4">
                 <Field label="Payment Date">
                   <input type="date" className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
                     readOnly={isViewMode} value={form.toilePaymentDate}
                     onChange={e => set("toilePaymentDate", e.target.value)} />
                 </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <Field label="Payment Mode">
                   <select className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
                     disabled={isViewMode} value={form.toilePaymentMode}
@@ -645,13 +648,23 @@ export default function StyleOrderArtworkDetail() {
                     {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
+              </div>
+              {/* Row 4: Transaction ID + Remarks */}
+              <div className="grid grid-cols-2 gap-4">
                 <Field label="Transaction ID">
                   <input type="text" placeholder="e.g. TXN123"
                     className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
                     readOnly={isViewMode} value={form.toileTransactionId}
                     onChange={e => set("toileTransactionId", e.target.value)} />
                 </Field>
+                <Field label="Remarks">
+                  <input type="text" placeholder="Payment remarks or notes"
+                    className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
+                    readOnly={isViewMode} value={form.toileRemarks}
+                    onChange={e => set("toileRemarks", e.target.value)} />
+                </Field>
               </div>
+              {/* Payment Status */}
               <Field label="Payment Status">
                 <div className="flex gap-2 mt-1">
                   {PAYMENT_STATUSES.map(s => (
@@ -669,12 +682,6 @@ export default function StyleOrderArtworkDetail() {
                     </button>
                   ))}
                 </div>
-              </Field>
-              <Field label="Remarks">
-                <input type="text" placeholder="Payment remarks or notes"
-                  className={`${inputCls} ${isViewMode ? "bg-gray-50 text-gray-500 cursor-default" : ""}`}
-                  readOnly={isViewMode} value={form.toileRemarks}
-                  onChange={e => set("toileRemarks", e.target.value)} />
               </Field>
               <Field label="Toile Making Images">
                 <FileUploadZone files={form.toileImages} onChange={f => set("toileImages", f)}
