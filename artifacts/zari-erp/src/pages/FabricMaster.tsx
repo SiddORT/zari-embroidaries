@@ -528,7 +528,7 @@ export default function FabricMaster() {
             )}
           </div>
 
-          <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+          <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-3" style={{ color: "#B8A240" }}>
               Stock Control Settings
             </p>
@@ -560,7 +560,7 @@ export default function FabricMaster() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 pt-3">
+          <div className="col-span-2 flex items-center gap-3 pt-3">
             <label className="text-sm font-medium text-gray-700">Status</label>
             <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
               className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
