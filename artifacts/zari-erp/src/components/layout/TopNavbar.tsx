@@ -326,6 +326,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   {[
                     { label: "Dashboard",            href: "/accounts/dashboard" },
                     { label: "Ledgers",              href: "/accounts/ledgers" },
+                    { label: "Purchases",            href: "/accounts/purchases" },
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
@@ -595,6 +596,7 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                   {[
                     { label: "Dashboard",            href: "/accounts/dashboard" },
                     { label: "Ledgers",              href: "/accounts/ledgers" },
+                    { label: "Purchases",            href: "/accounts/purchases" },
                     { label: "Invoices",             href: "/accounts/invoices" },
                     { label: "Payments",             href: "/accounts/payments" },
                     { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
