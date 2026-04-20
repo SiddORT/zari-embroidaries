@@ -1,0 +1,400 @@
+Build the Credit Note / Debit Note Engine for the embroidery sampling ERP system.
+
+This module must support:
+
+invoice correction
+
+vendor bill correction
+
+discount adjustment
+
+overbilling correction
+
+returns adjustment
+
+sampling adjustment
+
+manual correction entries
+
+automatic outstanding balance update
+
+client ledger integration
+
+vendor ledger integration
+
+Follow structure exactly as defined below.
+
+---
+
+MODULE NAME
+
+Credit Note / Debit Note Engine
+
+---
+
+SECTION 1 — CREDIT DEBIT NOTE TABLE STRUCTURE
+
+**Create** table:
+
+credit_debit_notes
+
+Fields:
+
+note_id (primary key)
+
+note_number (auto generated)
+
+note_type
+
+reference_type
+
+reference_id
+
+invoice_id
+
+vendor_bill_id
+
+party_id
+
+currency_code
+
+exchange_rate_snapshot
+
+note_amount
+
+base_currency_amount
+
+reason
+
+remarks
+
+note_date
+
+status
+
+created_by
+
+created_at
+
+updated_at
+
+note_type values:
+
+Credit Note
+
+Debit Note
+
+---
+
+SECTION 2 — NOTE NUMBER FORMAT
+
+Format:
+
+CN-YYYY-00001 (Credit Note)
+
+DN-YYYY-00001 (Debit Note)
+
+Example:
+
+CN-2026-00012
+
+---
+
+SECTION 3 — REFERENCE LINKING SUPPORT
+
+reference_type values:
+
+Client Invoice
+
+Vendor Bill
+
+Manual Entry
+
+Rules:
+
+If Client Invoice selected:
+
+invoice_id required
+
+If Vendor Bill selected:
+
+vendor_bill_id required
+
+---
+
+SECTION 4 — NOTE PURPOSE SUPPORT
+
+Credit Note must support:
+
+discount correction
+
+overbilling correction
+
+returns adjustment
+
+sampling adjustment
+
+manual reduction
+
+Debit Note must support:
+
+additional billing
+
+rate correction
+
+additional service charge
+
+material recovery correction
+
+manual increase
+
+---
+
+SECTION 5 — MULTI-CURRENCY SUPPORT
+
+Store:
+
+currency_code
+
+exchange_rate_snapshot
+
+Calculate:
+
+base_currency_amount
+
+Formula:
+
+base_currency_amount =
+note_amount × exchange_rate_snapshot
+
+Lock exchange rate after save.
+
+---
+
+SECTION 6 — CLIENT LEDGER INTEGRATION
+
+If note_type = Credit Note
+
+AND reference_type = Client Invoice
+
+Create entry inside:
+
+client_ledger
+
+Fields mapped:
+
+client_id
+
+invoice_id
+
+entry_type = Credit Note
+
+note_amount
+
+note_date
+
+remarks
+
+status = Applied
+
+---
+
+SECTION 7 — VENDOR LEDGER INTEGRATION
+
+If note_type = Debit Note
+
+AND reference_type = Vendor Bill
+
+Create entry inside:
+
+vendor_ledger
+
+Fields mapped:
+
+vendor_id
+
+vendor_bill_id
+
+entry_type = Debit Note
+
+note_amount
+
+note_date
+
+remarks
+
+status = Applied
+
+---
+
+SECTION 8 — OUTSTANDING BALANCE UPDATE
+
+When Credit Note created for Client Invoice:
+
+Reduce:
+
+invoice.pending_amount
+
+When Debit Note created for Vendor Bill:
+
+Increase:
+
+vendor_bill.pending_amount
+
+Update automatically:
+
+client outstanding summary
+
+vendor outstanding summary
+
+---
+
+SECTION 9 — NOTE ENTRY SCREEN UI
+
+Create page:
+
+Accounts → Credit / Debit Notes
+
+Display columns:
+
+Note Number
+
+Note Type
+
+Reference Type
+
+Invoice Number / Vendor Bill Number
+
+Party Name
+
+Amount
+
+Currency
+
+Note Date
+
+Status
+
+Add button:
+
+Create Note
+
+---
+
+SECTION 10 — CREATE NOTE FORM FIELDS
+
+Form fields:
+
+note_type selector
+
+reference_type selector
+
+invoice selector OR vendor bill selector
+
+party selector (auto-filled)
+
+currency selector
+
+note_amount
+
+note_date
+
+reason
+
+remarks
+
+attachment upload (optional)
+
+---
+
+SECTION 11 — VALIDATION RULES
+
+Prevent:
+
+note_amount <= 0
+
+missing reference_type
+
+missing party_id
+
+missing invoice_id when reference_type = Client Invoice
+
+missing vendor_bill_id when reference_type = Vendor Bill
+
+---
+
+SECTION 12 — STATUS VALUES
+
+status values:
+
+Draft
+
+Applied
+
+Cancelled
+
+Only Applied notes affect outstanding balances.
+
+---
+
+SECTION 13 — PAYMENT ADJUSTMENT SUPPORT
+
+Allow Credit Notes to:
+
+adjust existing invoice balances automatically
+
+Example:
+
+Invoice = 10,000
+
+Credit Note = 2,000
+
+New pending amount:
+
+8,000
+
+---
+
+SECTION 14 — ATTACHMENT SUPPORT
+
+Allow upload:
+
+supporting_document
+
+Supported formats:
+
+PDF
+
+JPG
+
+PNG
+
+Store inside:
+
+/uploads/credit_debit_notes/
+
+---
+
+SECTION 15 — PERMISSIONS CONTROL
+
+Allow:
+
+Create note → authorized users
+
+Edit draft note → authorized users
+
+Cancel note → admin users only
+
+View notes → authorized users
+
+---
+
+SECTION 16 — SUCCESS MESSAGE
+
+After saving note:
+
+Display:
+
+Credit / Debit note created successfully and balances updated
+
+END OF MODULE REQUIREMENTS

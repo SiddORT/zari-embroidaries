@@ -31,6 +31,7 @@ import quotationsRouter from "./quotations";
 import shippingRouter from "./shipping";
 import settingsRouter from "./settings";
 import invoicePaymentsRouter from "./invoicePayments";
+import creditDebitNotesRouter from "./creditDebitNotes";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(quotationsRouter);
 router.use(shippingRouter);
 router.use(settingsRouter);
 router.use(invoicePaymentsRouter);
+router.use("/credit-debit-notes", creditDebitNotesRouter);
 
 export default router;

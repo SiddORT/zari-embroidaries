@@ -278,11 +278,12 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountsOpen ? "rotate-180" : ""}`} />
               </button>
               {accountsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
                   {[
-                    { label: "Ledgers",  href: "/accounts/ledgers" },
-                    { label: "Invoices", href: "/accounts/invoices" },
-                    { label: "Payments", href: "/accounts/payments" },
+                    { label: "Ledgers",              href: "/accounts/ledgers" },
+                    { label: "Invoices",             href: "/accounts/invoices" },
+                    { label: "Payments",             href: "/accounts/payments" },
+                    { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
@@ -510,9 +511,10 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
               {mobileAccountsOpen && (
                 <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
                   {[
-                    { label: "Ledgers",  href: "/accounts/ledgers" },
-                    { label: "Invoices", href: "/accounts/invoices" },
-                    { label: "Payments", href: "/accounts/payments" },
+                    { label: "Ledgers",              href: "/accounts/ledgers" },
+                    { label: "Invoices",             href: "/accounts/invoices" },
+                    { label: "Payments",             href: "/accounts/payments" },
+                    { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
                   ].map(({ label, href }) => (
                     <Link
                       key={href}
