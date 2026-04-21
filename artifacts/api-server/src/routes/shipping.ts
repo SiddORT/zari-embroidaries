@@ -46,6 +46,23 @@ export async function ensureShippingTables() {
       updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  // Migration: expand reference_type check constraint to allow 'PackingList'
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'order_shipping_details_reference_type_check'
+      ) THEN
+        ALTER TABLE order_shipping_details
+          DROP CONSTRAINT order_shipping_details_reference_type_check;
+      END IF;
+      ALTER TABLE order_shipping_details
+        ADD CONSTRAINT order_shipping_details_reference_type_check
+        CHECK (reference_type IN ('Swatch','Style','PackingList'));
+    END $$;
+  `);
 }
 
 // ═══════════════════════════════════════════════════════════════
