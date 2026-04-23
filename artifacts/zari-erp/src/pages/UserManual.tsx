@@ -6,7 +6,7 @@ import {
   AlertTriangle, RotateCcw, DollarSign, Receipt, UserCheck, HelpCircle,
   CheckCircle, Info, List, Box, Globe, Lock, Bell, Database, Tag,
   Layers, Hash, Scissors, Send, Eye, PenLine, Trash2, Plus, Download,
-  LogIn, Home, ChevronDown,
+  LogIn, Home, ChevronDown, ArrowLeft,
 } from "lucide-react";
 
 const G = "#C6AF4B";
@@ -899,6 +899,13 @@ export default function UserManual() {
       {/* ── Top bar (hidden in print) ── */}
       <div className="zari-no-print flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="h-8 w-8 rounded-lg flex items-center justify-center border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors shrink-0"
+            title="Go back"
+          >
+            <ArrowLeft className="h-4 w-4 text-gray-500" />
+          </button>
           <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "#111" }}>
             <BookOpen className="h-4 w-4" style={{ color: G }} />
           </div>
