@@ -953,6 +953,25 @@ export default function UserManual() {
               <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
                 <p className="text-[10px] text-gray-400">Use your browser's "Save as PDF" option in the print dialog.</p>
               </div>
+              <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Project Document</p>
+              </div>
+              <div className="p-1">
+                <a
+                  href={`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}/ZARI_ERP_Scope_Document_v2.docx`}
+                  download="ZARI_ERP_Scope_Document_v2.docx"
+                  onClick={() => setDlOpen(false)}
+                  className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#EEF2FF" }}>
+                    <FileText className="h-3.5 w-3.5" style={{ color: "#4F46E5" }} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">Scope Document</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Download .docx — Full project scope</p>
+                  </div>
+                </a>
+              </div>
             </div>
           )}
         </div>
