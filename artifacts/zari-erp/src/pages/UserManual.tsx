@@ -661,15 +661,33 @@ const CONTENT_MAP: Record<string, React.ComponentType> = {
   "settings-admin":SettingsContent,
 };
 
+const SECTION_LABELS: Record<string, string> = {
+  overview:        "Introduction",
+  login:           "Getting Started",
+  dashboard:       "Dashboard",
+  masters:         "Masters",
+  "swatch-orders": "Swatch Orders",
+  "style-orders":  "Style Orders",
+  quotations:      "Quotations",
+  accounts:        "Accounts & Finance",
+  inventory:       "Inventory",
+  procurement:     "Procurement",
+  logistics:       "Logistics",
+  "settings-admin":"Settings & Administration",
+};
+
+const ALL_SECTION_IDS = Object.keys(CONTENT_MAP);
+
 export default function UserManual() {
-  const [active, setActive] = useState("overview");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [search, setSearch] = useState("");
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [active, setActive]         = useState("overview");
+  const [expanded, setExpanded]     = useState<Record<string, boolean>>({});
+  const [search, setSearch]         = useState("");
+  const [dlOpen, setDlOpen]         = useState(false);
+  const [printMode, setPrintMode]   = useState<"full" | "section" | null>(null);
+  const contentRef  = useRef<HTMLDivElement>(null);
+  const dlRef       = useRef<HTMLDivElement>(null);
 
   const ActiveContent = CONTENT_MAP[active] ?? OverviewContent;
-
-  const handlePrint = () => window.print();
 
   const scrollTop = () => contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -680,11 +698,38 @@ export default function UserManual() {
       )
     : SECTIONS;
 
-  return (
-    <div className="h-screen flex flex-col bg-[#f8f9fb] overflow-hidden print:h-auto print:overflow-visible">
+  // Close download dropdown when clicking outside
+  const handleDocClick = (e: MouseEvent) => {
+    if (dlRef.current && !dlRef.current.contains(e.target as Node)) setDlOpen(false);
+  };
+  // attach/detach listener
+  if (dlOpen) {
+    document.addEventListener("mousedown", handleDocClick);
+  } else {
+    document.removeEventListener("mousedown", handleDocClick);
+  }
 
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shrink-0 print:hidden">
+  const triggerPrint = (mode: "full" | "section") => {
+    setDlOpen(false);
+    setPrintMode(mode);
+    // Give React one frame to render the print content, then print
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+        // Reset after dialog closes (afterprint fires when print dialog is dismissed)
+        const reset = () => { setPrintMode(null); window.removeEventListener("afterprint", reset); };
+        window.addEventListener("afterprint", reset);
+      });
+    });
+  };
+
+  const activeSectionLabel = SECTION_LABELS[active] ?? active;
+
+  return (
+    <div className={`flex flex-col bg-[#f8f9fb] ${printMode ? "" : "h-screen overflow-hidden"}`}>
+
+      {/* ── Top bar (hidden in print) ── */}
+      <div className="zari-no-print flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "#111" }}>
             <BookOpen className="h-4 w-4" style={{ color: G }} />
@@ -694,24 +739,62 @@ export default function UserManual() {
             <p className="text-xs text-gray-400">ZARI ERP — Complete Guide</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <a href="/help/print" target="_blank" rel="noopener noreferrer">
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Print Manual
-            </button>
-          </a>
+
+        {/* Download dropdown */}
+        <div className="relative" ref={dlRef}>
+          <button
+            onClick={() => setDlOpen(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+            <ChevronDown className={`h-3 w-3 ml-0.5 transition-transform ${dlOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {dlOpen && (
+            <div className="absolute top-full right-0 mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+              <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Download as PDF</p>
+              </div>
+              <div className="p-1">
+                <button
+                  onClick={() => triggerPrint("full")}
+                  className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#fdf8e7" }}>
+                    <BookOpen className="h-3.5 w-3.5" style={{ color: G }} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">Full Manual</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">All {ALL_SECTION_IDS.length} sections in one PDF</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => triggerPrint("section")}
+                  className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-blue-50">
+                    <FileText className="h-3.5 w-3.5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">Current Section</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 truncate max-w-[130px]">{activeSectionLabel} only</p>
+                  </div>
+                </button>
+              </div>
+              <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
+                <p className="text-[10px] text-gray-400">Use your browser's "Save as PDF" option in the print dialog.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex flex-1 overflow-hidden print:overflow-visible">
+      {/* ── Body ── */}
+      <div className={`flex ${printMode ? "" : "flex-1 overflow-hidden"}`}>
 
         {/* Left sidebar */}
-        <div className="w-56 shrink-0 bg-white border-r border-gray-100 flex flex-col overflow-hidden print:hidden">
+        <div className="zari-no-print w-56 shrink-0 bg-white border-r border-gray-100 flex flex-col overflow-hidden">
           <div className="p-3 border-b border-gray-100">
             <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
               <Search className="h-3.5 w-3.5 text-gray-400" />
@@ -770,31 +853,83 @@ export default function UserManual() {
         </div>
 
         {/* Main content */}
-        <div ref={contentRef} className="flex-1 overflow-y-auto p-8 print:p-4">
-          <div className="max-w-3xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 print:shadow-none print:border-0">
-              <ActiveContent />
-            </div>
+        <div
+          ref={contentRef}
+          className={printMode ? "w-full" : "flex-1 overflow-y-auto p-8"}
+        >
+          <div className={printMode ? "w-full" : "max-w-3xl mx-auto"}>
 
-            {/* Back to top */}
-            <div className="flex justify-end mt-4 print:hidden">
-              <button
-                onClick={scrollTop}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <ArrowUp className="h-3.5 w-3.5" />
-                Back to top
-              </button>
-            </div>
+            {/* Normal / section-print view */}
+            {(!printMode || printMode === "section") && (
+              <div className={printMode ? "zari-print-section" : "bg-white rounded-2xl shadow-sm border border-gray-100 p-8"}>
+                <ActiveContent />
+              </div>
+            )}
+
+            {/* Full manual print view — all sections */}
+            {printMode === "full" && (
+              <div className="zari-print-full">
+                {ALL_SECTION_IDS.map((id) => {
+                  const Comp = CONTENT_MAP[id];
+                  return (
+                    <div key={id} className="zari-print-page">
+                      <Comp />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Back to top — screen only */}
+            {!printMode && (
+              <div className="zari-no-print flex justify-end mt-4">
+                <button
+                  onClick={scrollTop}
+                  className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  Back to top
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Print styles */}
+      {/* ── Print styles ── */}
       <style>{`
+        /* Screen: full-print and section-print divs are invisible until printMode kicks in */
+        .zari-print-full,
+        .zari-print-section { display: none; }
+
         @media print {
-          body { background: white; }
-          .print\\:hidden { display: none !important; }
+          /* Hide UI chrome */
+          .zari-no-print { display: none !important; }
+
+          /* Show print content */
+          .zari-print-full  { display: block !important; }
+          .zari-print-section { display: block !important; }
+
+          /* Each section on its own page */
+          .zari-print-page {
+            page-break-after: always;
+            padding: 32px 48px;
+          }
+          .zari-print-page:last-child { page-break-after: avoid; }
+
+          /* Section-only padding */
+          .zari-print-section { padding: 32px 48px; }
+
+          /* Nice print typography */
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 13px;
+            line-height: 1.65;
+            color: #111;
+            background: white;
+          }
+
+          @page { margin: 20mm 18mm; }
         }
       `}</style>
     </div>
