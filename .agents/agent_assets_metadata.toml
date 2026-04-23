@@ -6,3 +6,9 @@ id = "cmmdSr0w5EJtPheKqkhRU"
 uri = "file://ZARI_ERP_Scope_Document.docx"
 type = "word_document"
 title = "ZARI ERP — Project Scope Document"
+
+[[outputs]]
+id = "KAOvrZQSOTd8wc7p73Ze1"
+uri = "file://ZARI_ERP_Scope_Document_v2.docx"
+type = "word_document"
+title = "ZARI ERP — Detailed Scope Document v2.0"
