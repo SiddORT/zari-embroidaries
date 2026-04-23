@@ -54,6 +54,7 @@ import PackingLists from "@/pages/PackingLists";
 import PackingListForm from "@/pages/PackingListForm";
 import PackingListDetail from "@/pages/PackingListDetail";
 import Settings from "@/pages/Settings";
+import UserManual from "@/pages/UserManual";
 import InvoiceList from "@/pages/InvoiceList";
 import InvoiceForm from "@/pages/InvoiceForm";
 import Accounts from "@/pages/Accounts";
@@ -159,6 +160,7 @@ function Router() {
       <Route path="/masters/shipping-vendors" component={ShippingVendors} />
       <Route path="/settings/reports" component={Reports} />
       <Route path="/settings" component={Settings} />
+      <Route path="/help" component={UserManual} />
       <Route component={NotFound} />
     </Switch>
   );

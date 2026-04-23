@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings, BarChart2 } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings, BarChart2, BookOpen } from "lucide-react";
 
 interface TopNavbarProps {
   username: string;
@@ -404,6 +404,13 @@ export default function TopNavbar({ username, role, onLogout, isLoggingOut }: To
                     >
                       <Settings className="h-4 w-4 text-gray-400 shrink-0" />
                       Settings
+                    </button>
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate("/help"); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
+                    >
+                      <BookOpen className="h-4 w-4 text-gray-400 shrink-0" />
+                      User Manual
                     </button>
                     <button
                       onClick={() => { setProfileOpen(false); navigate("/user-management"); }}
