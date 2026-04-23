@@ -11,6 +11,55 @@ import {
 
 const G = "#C6AF4B";
 
+// ─── Screenshot with annotated callout highlights ───────────────────────────
+
+interface Callout {
+  n: number;
+  label: string;
+  top: number; left: number; width: number; height: number;
+}
+
+function ScreenshotCallout({ src, alt, callouts }: { src: string; alt: string; callouts: Callout[] }) {
+  return (
+    <div className="my-5 not-prose">
+      <div className="relative w-full overflow-hidden rounded-xl border border-gray-200 shadow-md bg-gray-50">
+        <img src={src} alt={alt} className="w-full block" style={{ display: "block" }} />
+        {callouts.map(c => (
+          <div
+            key={c.n}
+            style={{
+              position: "absolute",
+              top: `${c.top}%`, left: `${c.left}%`,
+              width: `${c.width}%`, height: `${c.height}%`,
+              border: `2px solid ${G}`,
+              borderRadius: "5px",
+              background: "rgba(198,175,75,0.10)",
+              pointerEvents: "none",
+            }}
+          >
+            <span style={{
+              position: "absolute", top: "-13px", left: "6px",
+              background: G, color: "#fff",
+              fontSize: "10px", fontWeight: "800",
+              padding: "1px 6px", borderRadius: "4px", lineHeight: "1.5",
+              whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+            }}>{c.n}</span>
+          </div>
+        ))}
+      </div>
+      {/* Legend */}
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {callouts.map(c => (
+          <div key={c.n} className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-[#fdf8e7] border border-[#e8d68a]/50">
+            <span className="h-5 w-5 rounded shrink-0 flex items-center justify-center text-[10px] font-black text-white mt-0.5" style={{ background: G }}>{c.n}</span>
+            <span className="text-xs text-gray-700 leading-relaxed">{c.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface Section {
   id: string;
   icon: React.ElementType;
@@ -222,12 +271,23 @@ function LoginContent() {
 }
 
 function DashboardContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={LayoutDashboard} title="Dashboard" subtitle="Your real-time business overview" />
       <p className="text-sm text-gray-700 mb-4">
         The Dashboard is the first screen you see after logging in. It gives you a live snapshot of your business across all key areas.
       </p>
+
+      <ScreenshotCallout
+        src={`${base}/manual-screenshots/dashboard.jpg`}
+        alt="Dashboard"
+        callouts={[
+          { n: 1, label: "KPI Cards — Style Orders, Swatch Orders, Artworks, Active Clients with month-on-month trends", top: 9, left: 1, width: 96, height: 28 },
+          { n: 2, label: "Monthly Revenue Chart — Bar chart showing Style vs Swatch order trends over the last 6 months", top: 39, left: 1, width: 62, height: 57 },
+          { n: 3, label: "Status Tracker — Donut charts showing the current pipeline breakdown for Style and Swatch orders", top: 39, left: 64, width: 34, height: 57 },
+        ]}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         {[
@@ -261,6 +321,7 @@ function DashboardContent() {
 }
 
 function MastersContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={Database} title="Masters" subtitle="Core reference data used throughout the system" />
@@ -271,6 +332,16 @@ function MastersContent() {
       <div id="clients" className="mb-7">
         <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><Users className="h-4 w-4" style={{ color: G }} /> Clients</h3>
         <p className="text-sm text-gray-600 mb-3">Client records store all buyer information. Clients are linked to orders, invoices, and packing lists.</p>
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/clients.jpg`}
+          alt="Client Master"
+          callouts={[
+            { n: 1, label: "Add Client — opens the form to create a new client record", top: 8, left: 84, width: 14, height: 13 },
+            { n: 2, label: "Search bar — find clients by name, code, or contact details", top: 20, left: 1, width: 72, height: 11 },
+            { n: 3, label: "Status filter & Export — filter active/inactive clients or export the list to Excel", top: 20, left: 74, width: 24, height: 11 },
+            { n: 4, label: "Client table — shows all clients with code, brand name, contact, email, country and currency", top: 32, left: 1, width: 96, height: 65 },
+          ]}
+        />
         <Step n={1}>Go to <Badge>Masters → Clients</Badge> from the top navigation.</Step>
         <Step n={2}>Click <strong>Add Client</strong> to create a new client record.</Step>
         <Step n={3}>Fill in the Brand Name, Contact Person, Email, Phone, Address, GST number, and any other details.</Step>
@@ -281,6 +352,16 @@ function MastersContent() {
       <div id="vendors" className="mb-7">
         <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><ShoppingBag className="h-4 w-4" style={{ color: G }} /> Vendors</h3>
         <p className="text-sm text-gray-600 mb-3">Vendors are suppliers from whom you purchase materials. They appear in purchase orders and ledgers.</p>
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/vendors.jpg`}
+          alt="Vendor Master"
+          callouts={[
+            { n: 1, label: "Add Vendor — create a new supplier record", top: 8, left: 84, width: 14, height: 13 },
+            { n: 2, label: "Search bar — find vendors by name, code, or contact", top: 20, left: 1, width: 73, height: 11 },
+            { n: 3, label: "Status filter & Export — filter active/inactive vendors or download the list", top: 20, left: 74, width: 24, height: 11 },
+            { n: 4, label: "Vendor table — shows vendor code, name, contact, GST status, country, and active status", top: 32, left: 1, width: 96, height: 65 },
+          ]}
+        />
         <Step n={1}>Go to <Badge>Masters → Vendors</Badge>.</Step>
         <Step n={2}>Click <strong>Add Vendor</strong> and enter the vendor details: name, contact, GSTIN, bank details, and payment terms.</Step>
         <Step n={3}>Save the vendor. It will now be available in Procurement and Accounts modules.</Step>
@@ -331,12 +412,24 @@ function MastersContent() {
 }
 
 function SwatchOrdersContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={Zap} title="Swatch Orders" subtitle="Manage embroidery sampling and swatch production orders" />
       <p className="text-sm text-gray-700 mb-4">
         Swatch Orders track sample embroidery orders — small runs done before full production — that clients use to approve designs.
       </p>
+
+      <ScreenshotCallout
+        src={`${base}/manual-screenshots/swatch-orders.jpg`}
+        alt="Swatch Orders"
+        callouts={[
+          { n: 1, label: "New Swatch Order — click to create a new sampling order", top: 9, left: 82, width: 17, height: 13 },
+          { n: 2, label: "Status tabs — filter orders by All, Draft, Issued, In Sampling, In Artwork, Pending Approval, Completed, etc.", top: 20, left: 1, width: 63, height: 10 },
+          { n: 3, label: "Search & filters — find orders by swatch name or client; filter by priority and chargeability", top: 31, left: 1, width: 55, height: 12 },
+          { n: 4, label: "Order cards — each card shows the order code, client, due date, quantity, fabric type, and status badge", top: 44, left: 1, width: 96, height: 55 },
+        ]}
+      />
 
       <h3 className="font-semibold text-gray-800 mb-3">Creating a Swatch Order</h3>
       <Step n={1}>Go to <Badge>Orders → Swatch Orders</Badge>.</Step>
@@ -367,12 +460,24 @@ function SwatchOrdersContent() {
 }
 
 function StyleOrdersContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={Star} title="Style Orders" subtitle="Full production orders with costing, invoicing, and shipping" />
       <p className="text-sm text-gray-700 mb-4">
         Style Orders are the main production orders. They go through a complete lifecycle: creation → artworks → costing → invoicing → shipping.
       </p>
+
+      <ScreenshotCallout
+        src={`${base}/manual-screenshots/style-orders.jpg`}
+        alt="Style Orders"
+        callouts={[
+          { n: 1, label: "New Style Order — start a new production order", top: 9, left: 82, width: 17, height: 13 },
+          { n: 2, label: "Status tabs — filter by Draft, Issued, In Production, In Review, Pending Approval, Completed, Rejected, Cancelled", top: 20, left: 1, width: 64, height: 10 },
+          { n: 3, label: "Search & Priority filters — search by style name, order code or client; filter by priority and chargeability", top: 31, left: 1, width: 55, height: 12 },
+          { n: 4, label: "Order cards — each shows order code, client, due date, quantity, collection, and current status", top: 44, left: 1, width: 96, height: 55 },
+        ]}
+      />
 
       <h3 className="font-semibold text-gray-800 mb-3">Creating a Style Order</h3>
       <Step n={1}>Go to <Badge>Orders → Style Orders</Badge>.</Step>
@@ -436,13 +541,34 @@ function QuotationsContent() {
 }
 
 function AccountsContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={DollarSign} title="Accounts & Finance" subtitle="Invoices, payments, ledgers, credit notes, and financial reports" />
 
+      <ScreenshotCallout
+        src={`${base}/manual-screenshots/accounts.jpg`}
+        alt="Accounts Dashboard"
+        callouts={[
+          { n: 1, label: "Date & Vendor/Client filters — narrow all dashboard figures to a specific time range, vendor, or client", top: 16, left: 1, width: 96, height: 17 },
+          { n: 2, label: "Sales Summary — Total Invoiced, Amount Received, and Pending Receivables at a glance", top: 35, left: 1, width: 96, height: 22 },
+          { n: 3, label: "Vendor Bills & Payments — Total vendor bills, paid amount, and pending payables", top: 59, left: 1, width: 96, height: 30 },
+        ]}
+      />
+
       <div id="invoices" className="mb-7">
         <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><Receipt className="h-4 w-4" style={{ color: G }} /> Invoices</h3>
         <p className="text-sm text-gray-600 mb-3">Create, view, and manage GST invoices for style orders and other sales.</p>
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/invoices.jpg`}
+          alt="Invoices"
+          callouts={[
+            { n: 1, label: "New Invoice — create a standalone invoice or link one to an existing Style Order", top: 9, left: 84, width: 14, height: 13 },
+            { n: 2, label: "Summary cards — Total Invoice Value, Amount Received, and Amount Pending across all invoices", top: 20, left: 1, width: 96, height: 18 },
+            { n: 3, label: "Search & multi-filter row — filter by direction (in/out), type, status, and order type", top: 40, left: 1, width: 96, height: 11 },
+            { n: 4, label: "Invoice table — shows invoice number, client/vendor, type, amount, received, pending, and date", top: 53, left: 1, width: 96, height: 45 },
+          ]}
+        />
         <Step n={1}>Go to <Badge>Accounts → Invoices</Badge> or create an invoice directly from a Style Order's Invoice tab.</Step>
         <Step n={2}>Select the client and the order reference. Line items are auto-filled from the order.</Step>
         <Step n={3}>Verify GST rates (CGST/SGST/IGST), add any adjustments, and save.</Step>
@@ -490,6 +616,7 @@ function AccountsContent() {
 }
 
 function InventoryContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={Warehouse} title="Inventory" subtitle="Track stock levels, movements, alerts, and adjustments" />
@@ -497,7 +624,17 @@ function InventoryContent() {
       <div id="inv-dashboard" className="mb-7">
         <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><LayoutDashboard className="h-4 w-4" style={{ color: G }} /> Inventory Dashboard</h3>
         <p className="text-sm text-gray-600">Provides a visual overview of total stock value, items near reorder point, and recent stock movements.</p>
-        <p className="text-sm text-gray-600 mt-1">Navigate to <Badge>Operations → Inventory → Dashboard</Badge>.</p>
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/inventory.jpg`}
+          alt="Inventory Dashboard"
+          callouts={[
+            { n: 1, label: "Category & date filters — narrow the dashboard to a specific category, sub-category, or date range", top: 14, left: 1, width: 96, height: 16 },
+            { n: 2, label: "Stock Status cards — Total Items, In Stock, Low Stock, Out of Stock, and Total Stock Value", top: 32, left: 1, width: 96, height: 19 },
+            { n: 3, label: "Procurement snapshot — Active Purchase Orders, Line Items in POs, Pending Quantity, and Receipts", top: 53, left: 1, width: 96, height: 17 },
+            { n: 4, label: "Charts — Stock status split (In/Low/Out) and Category split (Fabric/Material/Packaging) at a glance", top: 71, left: 1, width: 96, height: 26 },
+          ]}
+        />
+        <p className="text-sm text-gray-600 mt-1">Navigate to <Badge>Stock → Inventory Dashboard</Badge>.</p>
       </div>
 
       <div id="stock-list" className="mb-7">
@@ -564,6 +701,7 @@ function ProcurementContent() {
 }
 
 function LogisticsContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={Truck} title="Logistics" subtitle="Packing lists, package management, and shipment tracking" />
@@ -573,6 +711,17 @@ function LogisticsContent() {
         <p className="text-sm text-gray-600 mb-4">
           Packing Lists are the core logistics document. They define how goods are packed into individual packages before dispatch — specifying which products go in which box, with weights and dimensions.
         </p>
+
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/packing-lists.jpg`}
+          alt="Packing Lists"
+          callouts={[
+            { n: 1, label: "New Packing List — create a packing list and optionally create a new shipment inline", top: 13, left: 82, width: 17, height: 17 },
+            { n: 2, label: "Search bar — find packing lists by PL number, client name, or shipment reference", top: 30, left: 1, width: 71, height: 16 },
+            { n: 3, label: "Client & Status filters — quickly narrow the list by client or status (Draft / Ready / Shipped)", top: 30, left: 73, width: 25, height: 16 },
+            { n: 4, label: "Packing list table — shows PL number, client, delivery address, destination, packages, weights, and status", top: 47, left: 1, width: 96, height: 48 },
+          ]}
+        />
 
         <h4 className="text-sm font-semibold text-gray-700 mb-2">Creating a Packing List</h4>
         <Step n={1}>Go to <Badge>Logistics → Packing Lists</Badge> and click <strong>New Packing List</strong>.</Step>
@@ -602,7 +751,16 @@ function LogisticsContent() {
       <div id="shipping" className="mb-7">
         <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><Send className="h-4 w-4" style={{ color: G }} /> Shipping</h3>
         <p className="text-sm text-gray-600 mb-3">The Shipping module lists all shipment records across swatch orders, style orders, and packing lists.</p>
-        <Step n={1}>Go to <Badge>Shipping</Badge> from the top navigation.</Step>
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/shipping.jpg`}
+          alt="Shipping"
+          callouts={[
+            { n: 1, label: "Search bar — find shipments by tracking number, reference ID, or client name", top: 19, left: 1, width: 34, height: 16 },
+            { n: 2, label: "Multi-filters — filter by status, type (Swatch/Style/PackingList), vendor, and ship date", top: 19, left: 35, width: 64, height: 16 },
+            { n: 3, label: "Shipment table — shows type, reference order, client, vendor, tracking no., weight, cost, status, ship date, and EDD", top: 37, left: 1, width: 96, height: 60 },
+          ]}
+        />
+        <Step n={1}>Go to <Badge>Logistics → Shipping</Badge> from the top navigation.</Step>
         <Step n={2}>View all shipments with vendor, tracking number, status, and dates.</Step>
         <Step n={3}>Click a shipment to view or edit its details.</Step>
         <Tip>Shipments can be created directly from Swatch Orders, Style Orders, or Packing Lists. All shipments are centralised here for easy tracking.</Tip>
@@ -612,6 +770,7 @@ function LogisticsContent() {
 }
 
 function SettingsContent() {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return (
     <div>
       <SectionHeader icon={Settings} title="Settings & Administration" subtitle="Configure your profile, manage users, and access reports" />
@@ -619,6 +778,15 @@ function SettingsContent() {
       <div id="profile" className="mb-7">
         <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2"><UserCheck className="h-4 w-4" style={{ color: G }} /> Profile Settings</h3>
         <p className="text-sm text-gray-600 mb-3">Update your personal details, upload a profile photo, and change your password.</p>
+        <ScreenshotCallout
+          src={`${base}/manual-screenshots/settings.jpg`}
+          alt="Settings"
+          callouts={[
+            { n: 1, label: "Settings sidebar — switch between Profile, Currency, Bank Details, GST Settings, Activity Logs, Warehouses, and Invoice Templates", top: 16, left: 1, width: 20, height: 60 },
+            { n: 2, label: "Profile Information — update your display name, phone number, and profile photo", top: 16, left: 22, width: 76, height: 50 },
+            { n: 3, label: "Change Password — set a new password from the same page below Profile Information", top: 68, left: 22, width: 76, height: 28 },
+          ]}
+        />
         <Step n={1}>Click your name/avatar at the top right and select <strong>Settings</strong>.</Step>
         <Step n={2}>Edit your display name, email, and upload a profile photo.</Step>
         <Step n={3}>To change your password, enter your current password, then the new password twice, and save.</Step>

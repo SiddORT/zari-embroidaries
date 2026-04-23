@@ -226,6 +226,8 @@ export default function InventoryStockList() {
   const [resModal, setResModal]   = useState<{ item: InventoryItem | null; open: boolean; data: ReservationData | null; loading: boolean; tab: "swatch" | "style" }>({
     item: null, open: false, data: null, loading: false, tab: "swatch",
   });
+  const [lightboxImages, setLightboxImages] = useState<Array<{ id: string; name: string; data: string; size: number }> | null>(null);
+  const [lightboxIdx, setLightboxIdx] = useState(0);
 
   const buildQs = useCallback(() => {
     const p = new URLSearchParams({ search, category, department, location, stockLevel, sourceType, sort, order, page: String(page), limit: String(limit) });
@@ -354,8 +356,6 @@ export default function InventoryStockList() {
     );
   }
 
-  const [lightboxImages, setLightboxImages] = useState<Array<{ id: string; name: string; data: string; size: number }> | null>(null);
-  const [lightboxIdx, setLightboxIdx] = useState(0);
   const colSpan = isAdmin ? 18 : 17;
 
   return (
