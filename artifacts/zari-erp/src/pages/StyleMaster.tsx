@@ -151,7 +151,7 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
               className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C6AF4B] hover:bg-gray-800 disabled:opacity-60"
             >
               {createSwatch.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-              {createSwatch.isPending ? "Creating…" : "Create &amp; Link"}
+              {createSwatch.isPending ? "Creating…" : "Create & Link"}
             </button>
           </div>
         </form>
