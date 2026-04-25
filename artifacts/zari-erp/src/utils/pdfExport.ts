@@ -570,81 +570,111 @@ export function downloadCostingPoPdf(data: PoPdfData) {
     if (!isFirstPage) doc.addPage();
     isFirstPage = false;
 
-    // ── Header band ──
+    // ── Header band (full-width gold) ──
     doc.setFillColor(...GOLD);
-    doc.rect(0, 0, 210, 18, "F");
+    doc.rect(0, 0, 210, 22, "F");
+    doc.setFillColor(...DARK);
+    doc.rect(0, 22, 210, 1, "F");
+
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(13);
+    doc.setFontSize(15);
     doc.setFont("helvetica", "bold");
-    doc.text("ZARI EMBROIDERIES", 14, 9);
+    doc.text("ZARI EMBROIDERIES", 14, 11);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(255, 245, 210);
+    doc.text("PRECISION CRAFTED FOR THE ART OF EMBROIDERY", 14, 17);
+
+    // PO number — top-right
     doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text("PURCHASE ORDER", 14, 14);
-
-    // ── Document title ──
-    doc.setTextColor(...DARK);
-    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("Purchase Order", 14, 28);
-
-    // ── PO number badge ──
-    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text(po.poNumber, 196, 11, { align: "right" });
+    doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(...GRAY);
-    doc.text(po.poNumber, 196, 28, { align: "right" });
+    doc.setTextColor(255, 245, 210);
+    doc.text("PURCHASE ORDER", 196, 17, { align: "right" });
+
+    // ── Title row ──
+    doc.setTextColor(...DARK);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Purchase Order", 14, 33);
+
+    // Status pill
+    const statusLabel = (po.status ?? "OPEN").toUpperCase();
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    const pillW = doc.getTextWidth(statusLabel) + 6;
+    doc.setFillColor(...GOLD);
+    doc.roundedRect(196 - pillW, 27, pillW, 8, 2, 2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.text(statusLabel, 196 - pillW / 2, 32.5, { align: "center" });
 
     // ── Gold rule ──
     doc.setDrawColor(...GOLD);
-    doc.setLineWidth(0.5);
-    doc.line(14, 32, 196, 32);
+    doc.setLineWidth(0.6);
+    doc.line(14, 37, 196, 37);
 
-    // ── Info block ──
-    const fields: [string, string][] = [
+    // ── Info panel (light background box) ──
+    const infoFields: [string, string][] = [
       [data.referenceType === "swatch" ? "Swatch Order" : "Style Order", data.orderCode ?? "—"],
       [data.referenceType === "swatch" ? "Swatch Name" : "Style Name", data.entityName ?? "—"],
       ["Vendor", po.vendorName],
       ["PO Date", po.poDate ? new Date(po.poDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : today],
-      ["Status", po.status],
+      ["Client", data.clientName ?? "—"],
       ["Printed", today],
     ];
-    let y = 38;
+    const numRows = Math.ceil(infoFields.length / 2);
+    const panelH = numRows * 12 + 6;
+    doc.setFillColor(250, 248, 242);
+    doc.setDrawColor(220, 205, 160);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(14, 40, 182, panelH, 2, 2, "FD");
+
     const colW = 91;
-    fields.forEach(([label, value], idx) => {
+    infoFields.forEach(([label, value], idx) => {
       const col = idx % 2;
       const row = Math.floor(idx / 2);
-      const x = 14 + col * colW;
-      const fy = y + row * 10;
-      doc.setFontSize(7);
+      const fx = 20 + col * colW;
+      const fy = 47 + row * 12;
+      doc.setFontSize(6.5);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(...GRAY);
-      doc.text(label.toUpperCase(), x, fy);
+      doc.setTextColor(150, 130, 80);
+      doc.text(label.toUpperCase(), fx, fy);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...DARK);
       doc.setFontSize(8.5);
-      doc.text(String(value || "—"), x, fy + 4.5);
+      doc.text(String(value || "—"), fx, fy + 5);
     });
 
+    let y = 40 + panelH + 4;
+
     if (po.notes) {
-      const ny = y + Math.ceil(fields.length / 2) * 10;
-      doc.setFontSize(7);
+      doc.setFontSize(6.5);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(...GRAY);
-      doc.text("NOTES", 14, ny);
+      doc.setTextColor(150, 130, 80);
+      doc.text("NOTES", 14, y + 4);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...DARK);
       doc.setFontSize(8);
-      doc.text(po.notes, 14, ny + 5, { maxWidth: 182 });
+      doc.text(po.notes, 14, y + 9, { maxWidth: 182 });
+      y += 16;
     }
 
-    y += Math.ceil(fields.length / 2) * 10 + (po.notes ? 14 : 6);
+    y += 4;
 
     // ── Section label ──
-    doc.setFontSize(8.5);
+    doc.setFillColor(...GOLD);
+    doc.rect(14, y, 182, 7, "F");
+    doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...GRAY);
-    doc.text("LINE ITEMS", 14, y);
-    y += 3;
+    doc.setTextColor(255, 255, 255);
+    doc.text("LINE ITEMS", 17, y + 5);
+    y += 7;
 
+    // Sample column is 34mm wide; rows are 34mm tall → perfect square cell content
+    const SQ = 34;
     autoTable(doc, {
       startY: y,
       head: [["Code", "Material / Fabric", "Qty & Unit", "Preferred Vendor", "Sample"]],
@@ -665,34 +695,49 @@ export function downloadCostingPoPdf(data: PoPdfData) {
         : [["—", "No line items", "—", "—", ""]],
       styles: {
         fontSize: 8.5,
-        cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+        cellPadding: { top: 4, right: 4, bottom: 4, left: 4 },
         textColor: DARK,
-        lineColor: [200, 200, 200],
-        lineWidth: 0.2,
-        minCellHeight: 36,
+        lineColor: [220, 210, 185],
+        lineWidth: 0.25,
       },
       headStyles: {
         fillColor: DARK,
         textColor: [255, 255, 255],
         fontStyle: "bold",
         fontSize: 8,
+        minCellHeight: 9,
+        cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+      },
+      bodyStyles: {
+        minCellHeight: SQ,
+        valign: "middle",
       },
       columnStyles: {
         0: { cellWidth: 22 },
-        1: { cellWidth: 64 },
+        1: { cellWidth: 60 },
         2: { cellWidth: 28, halign: "center" },
-        3: { cellWidth: 44 },
-        4: { cellWidth: 24, halign: "center" },
+        3: { cellWidth: 38 },
+        4: { cellWidth: SQ, halign: "center" },
       },
-      alternateRowStyles: { fillColor: [252, 250, 246] },
+      alternateRowStyles: { fillColor: [252, 249, 242] },
       margin: { left: 14, right: 14 },
       didDrawCell(hookData) {
         if (hookData.section === "body" && hookData.column.index === 4) {
           const { x, y: cy, width, height } = hookData.cell;
-          const pad = 3;
-          doc.setDrawColor(120, 120, 120);
-          doc.setLineWidth(0.4);
-          doc.rect(x + pad, cy + pad, width - pad * 2, height - pad * 2);
+          const pad = 4;
+          const sq = Math.min(width, height) - pad * 2;
+          const bx = x + (width - sq) / 2;
+          const by = cy + (height - sq) / 2;
+          doc.setDrawColor(140, 120, 70);
+          doc.setLineWidth(0.5);
+          doc.setFillColor(255, 255, 255);
+          doc.rect(bx, by, sq, sq, "FD");
+          doc.setFontSize(5.5);
+          doc.setTextColor(190, 170, 120);
+          doc.text("attach sample", bx + sq / 2, by + sq - 3, { align: "center" });
+        }
+        if (hookData.section === "head" && hookData.column.index === 4) {
+          // no inner box in header
         }
       },
     });
