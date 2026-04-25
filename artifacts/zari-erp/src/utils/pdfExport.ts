@@ -645,28 +645,21 @@ export function downloadCostingPoPdf(data: PoPdfData) {
     doc.text("LINE ITEMS", 14, y);
     y += 3;
 
-    const totalAmt = po.items.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.targetPrice) || 0), 0);
-
     autoTable(doc, {
       startY: y,
-      head: [["Code", "Material / Fabric", "Qty", "Unit", "Target Price (₹)", "Amount (₹)"]],
+      head: [["Material / Fabric", "Qty", "Unit", "Preferred Vendor", "Sample"]],
       body: po.items.length > 0
-        ? [
-            ...po.items.map(i => {
-              const qty = parseFloat(i.quantity) || 0;
-              const price = parseFloat(i.targetPrice) || 0;
-              return [
-                i.materialCode || "—",
-                i.materialName || "—",
-                qty.toFixed(3),
-                i.unitType || "—",
-                price > 0 ? `₹ ${price.toFixed(2)}` : "—",
-                qty > 0 && price > 0 ? `₹ ${(qty * price).toFixed(2)}` : "—",
-              ];
-            }),
-            ["", "", "", "", { content: "TOTAL", styles: { fontStyle: "bold", halign: "right" } }, { content: `₹ ${totalAmt.toFixed(2)}`, styles: { fontStyle: "bold" } }],
-          ]
-        : [["No line items", "—", "—", "—", "—", "—"]],
+        ? po.items.map(i => {
+            const qty = parseFloat(i.quantity) || 0;
+            return [
+              i.materialName || "—",
+              qty > 0 ? qty.toFixed(3) : "—",
+              i.unitType || "—",
+              po.vendorName || "—",
+              "",
+            ];
+          })
+        : [["No line items", "—", "—", "—", ""]],
       styles: {
         fontSize: 8.5,
         cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
@@ -681,15 +674,25 @@ export function downloadCostingPoPdf(data: PoPdfData) {
         fontSize: 8,
       },
       columnStyles: {
-        0: { cellWidth: 24 },
-        1: { cellWidth: 68 },
-        2: { cellWidth: 18, halign: "right" },
-        3: { cellWidth: 16, halign: "center" },
-        4: { cellWidth: 28, halign: "right" },
-        5: { cellWidth: 28, halign: "right" },
+        0: { cellWidth: 72 },
+        1: { cellWidth: 22, halign: "right" },
+        2: { cellWidth: 18, halign: "center" },
+        3: { cellWidth: 52 },
+        4: { cellWidth: 18, halign: "center" },
       },
       alternateRowStyles: { fillColor: [252, 250, 246] },
       margin: { left: 14, right: 14 },
+      didDrawCell(hookData) {
+        if (hookData.section === "body" && hookData.column.index === 4) {
+          const { x, y: cy, width, height } = hookData.cell;
+          const bSize = 7;
+          const bx = x + (width - bSize) / 2;
+          const by = cy + (height - bSize) / 2;
+          doc.setDrawColor(100, 100, 100);
+          doc.setLineWidth(0.3);
+          doc.rect(bx, by, bSize, bSize);
+        }
+      },
     });
 
     // ── Signature footer ──
