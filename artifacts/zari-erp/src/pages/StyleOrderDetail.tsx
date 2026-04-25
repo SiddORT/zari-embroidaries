@@ -89,6 +89,7 @@ type FormState = {
   internalNotes: string;
   clientInstructions: string;
   isChargeable: boolean;
+  isInhouse: boolean;
   styleReferences: ReferenceItem[];
   swatchReferences: ReferenceItem[];
   refDocs: FileAttachment[];
@@ -109,7 +110,7 @@ const EMPTY_FORM: FormState = {
   season: "", colorway: "", sampleSize: "", fabricType: "",
   orderIssueDate: "", deliveryDate: "", targetHours: "",
   issuedTo: "", department: "", description: "",
-  internalNotes: "", clientInstructions: "", isChargeable: false,
+  internalNotes: "", clientInstructions: "", isChargeable: false, isInhouse: false,
   styleReferences: [], swatchReferences: [],
   refDocs: [], refImages: [],
   estimate: makeDefaultEstimate(),
@@ -311,6 +312,7 @@ export default function StyleOrderDetail() {
         internalNotes: o.internalNotes ?? "",
         clientInstructions: o.clientInstructions ?? "",
         isChargeable: o.isChargeable ?? false,
+        isInhouse: o.isInhouse ?? false,
         styleReferences: o.styleReferences ?? [],
         swatchReferences: o.swatchReferences ?? [],
         refDocs: o.refDocs ?? [],
@@ -526,6 +528,18 @@ export default function StyleOrderDetail() {
                       </button>
                       <span className={`text-sm font-medium ${form.isChargeable ? "text-gray-900" : "text-gray-400"}`}>
                         {form.isChargeable ? "Yes — Invoice will be generated" : "No — Non-billable"}
+                      </span>
+                    </div>
+                  </Field>
+
+                  <Field label="In-house Order" hint="Enable if this is an internal production order (no external client)">
+                    <div className="flex items-center gap-3 pt-1.5">
+                      <button type="button" onClick={() => set("isInhouse", !form.isInhouse)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.isInhouse ? "bg-gray-900" : "bg-gray-200"}`}>
+                        <span className={`inline-block h-4 w-4 rounded-full shadow transform transition-transform ${form.isInhouse ? "translate-x-6 bg-[#C9B45C]" : "translate-x-1 bg-white"}`} />
+                      </button>
+                      <span className={`text-sm font-medium ${form.isInhouse ? "text-gray-900" : "text-gray-400"}`}>
+                        {form.isInhouse ? "Yes — Internal production order" : "No — Client order"}
                       </span>
                     </div>
                   </Field>

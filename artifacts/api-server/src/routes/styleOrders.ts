@@ -43,6 +43,9 @@ router.get("/style-orders", requireAuth, async (req, res) => {
   if (priority !== "all") conditions.push(eq(styleOrdersTable.priority, priority));
   if (chargeable === "yes") conditions.push(eq(styleOrdersTable.isChargeable, true));
   if (chargeable === "no") conditions.push(eq(styleOrdersTable.isChargeable, false));
+  const { inhouse = "all" } = req.query as Record<string, string>;
+  if (inhouse === "yes") conditions.push(eq(styleOrdersTable.isInhouse, true));
+  if (inhouse === "no") conditions.push(eq(styleOrdersTable.isInhouse, false));
 
   const where = and(...conditions);
 

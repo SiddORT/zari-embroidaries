@@ -31,6 +31,9 @@ router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
   if (priority !== "all") conditions.push(eq(swatchOrdersTable.priority, priority));
   if (chargeable === "yes") conditions.push(eq(swatchOrdersTable.isChargeable, true));
   if (chargeable === "no") conditions.push(eq(swatchOrdersTable.isChargeable, false));
+  const { inhouse = "all" } = req.query as Record<string, string>;
+  if (inhouse === "yes") conditions.push(eq(swatchOrdersTable.isInhouse, true));
+  if (inhouse === "no") conditions.push(eq(swatchOrdersTable.isInhouse, false));
 
   const where = and(...conditions);
   const [rows, countRow] = await Promise.all([
@@ -67,6 +70,7 @@ router.post("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
     clientId: (body.clientId as string) || null,
     clientName: (body.clientName as string) || null,
     isChargeable: Boolean(body.isChargeable),
+    isInhouse: Boolean(body.isInhouse),
     quantity: (body.quantity as string) || null,
     priority: (body.priority as string) || "Medium",
     orderStatus: (body.orderStatus as string) || "Draft",
@@ -120,6 +124,7 @@ router.put("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> =>
     clientId: (body.clientId as string) ?? null,
     clientName: (body.clientName as string) ?? null,
     isChargeable: body.isChargeable !== undefined ? Boolean(body.isChargeable) : undefined,
+    isInhouse: body.isInhouse !== undefined ? Boolean(body.isInhouse) : undefined,
     quantity: (body.quantity as string) ?? null,
     priority: (body.priority as string) || undefined,
     orderStatus: (body.orderStatus as string) || undefined,

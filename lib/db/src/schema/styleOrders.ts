@@ -30,6 +30,7 @@ export const styleOrdersTable = pgTable("style_orders", {
   clientInstructions: text("client_instructions"),
 
   isChargeable: boolean("is_chargeable").notNull().default(false),
+  isInhouse: boolean("is_inhouse").notNull().default(false),
 
   styleReferences: jsonb("style_references").default([]),
   swatchReferences: jsonb("swatch_references").default([]),
@@ -76,6 +77,7 @@ export const insertStyleOrderSchema = z.object({
   internalNotes: z.string().optional(),
   clientInstructions: z.string().optional(),
   isChargeable: z.boolean().default(false),
+  isInhouse: z.boolean().default(false),
   styleReferences: z.array(z.any()).optional(),
   swatchReferences: z.array(z.any()).optional(),
   refDocs: z.array(z.any()).optional(),

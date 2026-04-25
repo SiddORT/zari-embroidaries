@@ -105,11 +105,18 @@ function OrderCard({ order, onView, onDelete }: {
           )}
         </div>
 
-        {order.isChargeable && (
-          <div className="text-xs font-medium rounded-lg px-2.5 py-1 mb-3 inline-flex items-center gap-1" style={{ background: "rgba(198,175,75,0.10)", color: "#A8943E" }}>
-            ⚡ Chargeable
-          </div>
-        )}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {order.isChargeable && (
+            <div className="text-xs font-medium rounded-lg px-2.5 py-1 inline-flex items-center gap-1" style={{ background: "rgba(198,175,75,0.10)", color: "#A8943E" }}>
+              ⚡ Chargeable
+            </div>
+          )}
+          {order.isInhouse && (
+            <div className="text-xs font-medium rounded-lg px-2.5 py-1 inline-flex items-center gap-1 bg-sky-50 text-sky-700 border border-sky-100">
+              🏭 In-house
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
           <button onClick={onView}
@@ -140,11 +147,12 @@ export default function SwatchOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [chargeableFilter, setChargeableFilter] = useState("all");
+  const [inhouseFilter, setInhouseFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [view, setView] = useState<"grid" | "table">("grid");
 
-  const { data, isLoading } = useSwatchOrderList({ search, status: statusFilter, priority: priorityFilter, chargeable: chargeableFilter, page, limit: 24 });
+  const { data, isLoading } = useSwatchOrderList({ search, status: statusFilter, priority: priorityFilter, chargeable: chargeableFilter, inhouse: inhouseFilter, page, limit: 24 });
   const deleteOrder = useDeleteSwatchOrder();
 
   const orders = data?.data ?? [];
@@ -245,6 +253,12 @@ export default function SwatchOrders() {
             <option value="all">All (Chargeable)</option>
             <option value="yes">Chargeable</option>
             <option value="no">Not Chargeable</option>
+          </select>
+          <select value={inhouseFilter} onChange={e => { setInhouseFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 focus:border-[#C6AF4B]/50">
+            <option value="all">All Orders</option>
+            <option value="yes">In-house Only</option>
+            <option value="no">Client Orders Only</option>
           </select>
         </div>
 
