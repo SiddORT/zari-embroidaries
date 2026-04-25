@@ -442,7 +442,7 @@ router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
 
 router.post("/bom", requireAuth, async (req, res) => {
   const user = (req as any).user;
-  const { swatchOrderId, materialType, materialId, materialCode, materialName, currentStock, avgUnitPrice, unitType, warehouseLocation, requiredQty } = req.body as Record<string, string>;
+  const { swatchOrderId, materialType, materialId, materialCode, materialName, currentStock, avgUnitPrice, unitType, warehouseLocation, requiredQty, targetVendorId, targetVendorName } = req.body as Record<string, string>;
   const reqQty = parseFloat(requiredQty) || 0;
   const price = parseFloat(avgUnitPrice) || 0;
   const estimatedAmount = (reqQty * price).toFixed(2);
@@ -462,6 +462,8 @@ router.post("/bom", requireAuth, async (req, res) => {
     warehouseLocation,
     requiredQty,
     estimatedAmount,
+    targetVendorId: targetVendorId ? Number(targetVendorId) : null,
+    targetVendorName: targetVendorName || null,
     createdBy: user.email,
   }).returning();
 
@@ -1192,7 +1194,7 @@ router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
 
 router.post("/style-bom", requireAuth, async (req, res) => {
   const user = (req as any).user;
-  const { styleOrderId, materialType, materialId, materialCode, materialName, currentStock, avgUnitPrice, unitType, warehouseLocation, requiredQty } = req.body as Record<string, string>;
+  const { styleOrderId, materialType, materialId, materialCode, materialName, currentStock, avgUnitPrice, unitType, warehouseLocation, requiredQty, targetVendorId, targetVendorName } = req.body as Record<string, string>;
   const reqQty = parseFloat(requiredQty) || 0;
   const price = parseFloat(avgUnitPrice) || 0;
   const estimatedAmount = (reqQty * price).toFixed(2);
@@ -1212,6 +1214,8 @@ router.post("/style-bom", requireAuth, async (req, res) => {
     warehouseLocation,
     requiredQty,
     estimatedAmount,
+    targetVendorId: targetVendorId ? Number(targetVendorId) : null,
+    targetVendorName: targetVendorName || null,
     createdBy: user.email,
   }).returning();
 

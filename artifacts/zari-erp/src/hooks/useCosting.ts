@@ -26,6 +26,8 @@ export interface BomRecord {
   requiredQty: string;
   estimatedAmount: string;
   consumedQty: string;
+  targetVendorId: number | null;
+  targetVendorName: string | null;
   createdAt: string;
   liveCurrentStock: string | null;
   liveAvailableStock: string | null;

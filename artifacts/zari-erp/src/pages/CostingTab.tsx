@@ -8,7 +8,7 @@ import {
   ArrowRight, Paperclip, Package, Info, Download, Clock, Truck,
   Pencil, History, FileDown,
 } from "lucide-react";
-import { downloadBomPdf } from "@/utils/pdfExport";
+import { downloadCostingPoPdf } from "@/utils/pdfExport";
 import { logActivity } from "@/utils/logActivity";
 import { logDownload } from "@/utils/logDownload";
 import CostingPaymentsPanel from "@/components/CostingPaymentsPanel";
@@ -117,6 +117,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
   const [form, setForm] = useState({
     materialType: "", materialId: 0, materialCode: "", materialName: "",
     currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "",
+    targetVendorId: 0, targetVendorName: "",
   });
 
   // Live inventory lookup for the currently-selected material/fabric
@@ -165,7 +166,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
     if (!form.materialId) { toast({ title: "Select a material or fabric first", variant: "destructive" }); return; }
     if (!form.requiredQty || parseFloat(form.requiredQty) <= 0) { toast({ title: "Required quantity must be > 0", variant: "destructive" }); return; }
     const result = await addRow.mutateAsync({ ...form, swatchOrderId, estimatedAmount: estimatedAmount.toFixed(2) });
-    setForm({ materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "" });
+    setForm({ materialType: "", materialId: 0, materialCode: "", materialName: "", currentStock: "", avgUnitPrice: "", unitType: "", warehouseLocation: "", requiredQty: "", targetVendorId: 0, targetVendorName: "" });
     setShowForm(false);
     const resv = result?.reservation;
     if (resv?.status === "created") {
@@ -183,25 +184,31 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
 
   const [pdfExporting, setPdfExporting] = useState(false);
 
-  function exportToPdf() {
+  function exportPoPdf() {
     setPdfExporting(true);
     try {
-      downloadBomPdf({
+      downloadCostingPoPdf({
         referenceType: "swatch",
-        referenceId: swatchOrderId,
         orderCode,
         entityName: swatchName,
         clientName,
-        rows: rows.map(r => ({
-          materialName: r.materialName,
-          materialCode: r.materialCode,
-          materialType: r.materialType,
-          requiredQty: r.requiredQty,
-          unitType: r.unitType,
+        orders: pos.map(po => ({
+          poNumber: po.poNumber,
+          vendorName: po.vendorName,
+          poDate: po.poDate,
+          status: po.status,
+          notes: po.notes,
+          items: (po.bomItems ?? []).map(i => ({
+            materialCode: i.materialCode,
+            materialName: i.materialName,
+            unitType: i.unitType,
+            quantity: i.quantity,
+            targetPrice: i.targetPrice,
+          })),
         })),
       });
-      logActivity(`Downloaded BOM PDF for Swatch Order ${orderCode}${clientName ? ` — ${clientName}` : ""}`);
-      toast({ title: "BOM PDF generated successfully" });
+      logActivity(`Downloaded PO PDF for Swatch Order ${orderCode}${clientName ? ` — ${clientName}` : ""}`);
+      toast({ title: "PO PDF generated successfully" });
     } catch {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
     } finally {
@@ -263,16 +270,16 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               <Download className="h-3.5 w-3.5" /> Export
             </button>
           )}
-          {rows.length > 0 && (
+          {pos.length > 0 && (
             <button
-              onClick={exportToPdf}
+              onClick={exportPoPdf}
               disabled={pdfExporting}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#C6AF4B] text-[#8a7a30] hover:bg-[#fdf9ec] transition-colors disabled:opacity-60"
             >
               {pdfExporting
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : <FileDown className="h-3.5 w-3.5" />}
-              Export BOM PDF
+              Export PO PDF
             </button>
           )}
           <button onClick={() => setShowForm(v => !v)}
@@ -361,6 +368,20 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
               <div className="mt-0.5 text-xs border border-gray-100 rounded-xl px-3 py-2 bg-gray-50 font-semibold text-gray-700">
                 ₹{estimatedAmount.toFixed(2)}
               </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-gray-500 font-medium">Target Vendor</label>
+              <select
+                value={form.targetVendorId}
+                onChange={e => {
+                  const v = vendors.find(x => x.id === Number(e.target.value));
+                  setForm(f => ({ ...f, targetVendorId: Number(e.target.value), targetVendorName: v?.name ?? "" }));
+                }}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              >
+                <option value={0}>Optional</option>
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
             </div>
             <button onClick={handleAdd} disabled={addRow.isPending}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">

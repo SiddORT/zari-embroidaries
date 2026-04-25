@@ -532,3 +532,237 @@ export function downloadBomPdf(data: BomPdfData) {
   doc.save(filename);
   logDownload({ file_type: "PDF", file_name: filename, module: "Bill of Materials", reference: data.orderCode ?? data.referenceId ?? "" });
 }
+
+// ─── PO PDF ───────────────────────────────────────────────────────────────────
+
+export interface PoPdfLineItem {
+  materialCode: string;
+  materialName: string;
+  unitType: string;
+  quantity: string;
+  targetPrice: string;
+}
+
+export interface PoPdfOrder {
+  poNumber: string;
+  vendorName: string;
+  poDate: string;
+  status: string;
+  notes?: string | null;
+  items: PoPdfLineItem[];
+}
+
+export interface PoPdfData {
+  referenceType: "swatch" | "style";
+  orderCode?: string;
+  entityName?: string;
+  clientName?: string;
+  orders: PoPdfOrder[];
+}
+
+export function downloadCostingPoPdf(data: PoPdfData) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  let isFirstPage = true;
+
+  const drawPo = (po: PoPdfOrder) => {
+    if (!isFirstPage) doc.addPage();
+    isFirstPage = false;
+
+    // ── Header band ──
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 0, 210, 18, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("ZARI EMBROIDERIES", 14, 9);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("PURCHASE ORDER", 14, 14);
+
+    // ── Document title ──
+    doc.setTextColor(...DARK);
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Purchase Order", 14, 28);
+
+    // ── PO number badge ──
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...GRAY);
+    doc.text(po.poNumber, 196, 28, { align: "right" });
+
+    // ── Gold rule ──
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.5);
+    doc.line(14, 32, 196, 32);
+
+    // ── Info block ──
+    const fields: [string, string][] = [
+      [data.referenceType === "swatch" ? "Swatch Order" : "Style Order", data.orderCode ?? "—"],
+      [data.referenceType === "swatch" ? "Swatch Name" : "Style Name", data.entityName ?? "—"],
+      ["Vendor", po.vendorName],
+      ["PO Date", po.poDate ? new Date(po.poDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : today],
+      ["Status", po.status],
+      ["Printed", today],
+    ];
+    let y = 38;
+    const colW = 91;
+    fields.forEach(([label, value], idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const x = 14 + col * colW;
+      const fy = y + row * 10;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...GRAY);
+      doc.text(label.toUpperCase(), x, fy);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...DARK);
+      doc.setFontSize(8.5);
+      doc.text(String(value || "—"), x, fy + 4.5);
+    });
+
+    if (po.notes) {
+      const ny = y + Math.ceil(fields.length / 2) * 10;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...GRAY);
+      doc.text("NOTES", 14, ny);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...DARK);
+      doc.setFontSize(8);
+      doc.text(po.notes, 14, ny + 5, { maxWidth: 182 });
+    }
+
+    y += Math.ceil(fields.length / 2) * 10 + (po.notes ? 14 : 6);
+
+    // ── Section label ──
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...GRAY);
+    doc.text("LINE ITEMS", 14, y);
+    y += 3;
+
+    const totalAmt = po.items.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.targetPrice) || 0), 0);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Code", "Material / Fabric", "Qty", "Unit", "Target Price (₹)", "Amount (₹)"]],
+      body: po.items.length > 0
+        ? [
+            ...po.items.map(i => {
+              const qty = parseFloat(i.quantity) || 0;
+              const price = parseFloat(i.targetPrice) || 0;
+              return [
+                i.materialCode || "—",
+                i.materialName || "—",
+                qty.toFixed(3),
+                i.unitType || "—",
+                price > 0 ? `₹ ${price.toFixed(2)}` : "—",
+                qty > 0 && price > 0 ? `₹ ${(qty * price).toFixed(2)}` : "—",
+              ];
+            }),
+            ["", "", "", "", { content: "TOTAL", styles: { fontStyle: "bold", halign: "right" } }, { content: `₹ ${totalAmt.toFixed(2)}`, styles: { fontStyle: "bold" } }],
+          ]
+        : [["No line items", "—", "—", "—", "—", "—"]],
+      styles: {
+        fontSize: 8.5,
+        cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
+        textColor: DARK,
+        lineColor: [200, 200, 200],
+        lineWidth: 0.2,
+      },
+      headStyles: {
+        fillColor: DARK,
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 8,
+      },
+      columnStyles: {
+        0: { cellWidth: 24 },
+        1: { cellWidth: 68 },
+        2: { cellWidth: 18, halign: "right" },
+        3: { cellWidth: 16, halign: "center" },
+        4: { cellWidth: 28, halign: "right" },
+        5: { cellWidth: 28, halign: "right" },
+      },
+      alternateRowStyles: { fillColor: [252, 250, 246] },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Signature footer ──
+    const finalY: number = (doc as any).lastAutoTable.finalY ?? 240;
+    const sigY = finalY + 12;
+    const pageH = 297;
+    const startSigY = sigY + 50 > pageH - 10 ? (() => { doc.addPage(); return 20; })() : sigY;
+
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.4);
+    doc.line(14, startSigY, 196, startSigY);
+
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...DARK);
+    doc.text("APPROVAL & SIGN-OFF", 14, startSigY + 6);
+
+    [{ label: "Prepared By", x: 14 }, { label: "Authorized By", x: 80 }, { label: "Vendor Acknowledgement", x: 146 }].forEach(({ label, x }) => {
+      const bY = startSigY + 12;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...GRAY);
+      doc.text(label.toUpperCase(), x, bY);
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(x, bY + 10, x + 54, bY + 10);
+      doc.setFontSize(6.5);
+      doc.setTextColor(...GRAY);
+      doc.text("Name & Designation", x, bY + 14);
+      doc.line(x, bY + 22, x + 54, bY + 22);
+      doc.text("Date", x, bY + 26);
+      doc.setDrawColor(...GOLD);
+      doc.setLineWidth(0.3);
+      doc.rect(x, bY + 28, 54, 10);
+      doc.setFontSize(6);
+      doc.setTextColor(200, 185, 130);
+      doc.text("Signature", x + 27, bY + 34, { align: "center" });
+    });
+  };
+
+  if (data.orders.length === 0) {
+    // Empty page placeholder
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 0, 210, 18, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("ZARI EMBROIDERIES", 14, 9);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("PURCHASE ORDER", 14, 14);
+    doc.setTextColor(...DARK);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text("No purchase orders found for this order.", 14, 40);
+  } else {
+    data.orders.forEach(drawPo);
+  }
+
+  // Page numbers
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(160, 160, 160);
+    doc.text(
+      `Page ${i} of ${pageCount}  ·  ZARI EMBROIDERIES  ·  Purchase Order  ·  Confidential`,
+      14, 290,
+    );
+  }
+
+  const filename = `PO_${data.orderCode ?? "ORDER"}_${today.replace(/\s/g, "-")}.pdf`;
+  doc.save(filename);
+  logDownload({ file_type: "PDF", file_name: filename, module: "Purchase Orders", reference: data.orderCode ?? "" });
+}
