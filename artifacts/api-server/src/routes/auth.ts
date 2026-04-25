@@ -20,6 +20,7 @@ import {
 } from "../lib/auth";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { sendPasswordResetEmail } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -87,11 +88,12 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     .where(eq(usersTable.email, email.toLowerCase()));
 
   if (!user) {
-    res.json(
-      ForgotPasswordResponse.parse({
-        message: "If that email exists, a reset link has been sent.",
-      }),
-    );
+    res.status(404).json({ error: "No account found with this email address. Please check and try again." });
+    return;
+  }
+
+  if (!user.isActive) {
+    res.status(403).json({ error: "This account has been deactivated. Please contact your administrator." });
     return;
   }
 
@@ -101,12 +103,21 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     expiresAt: Date.now() + 15 * 60 * 1000,
   });
 
-  logger.info({ email: user.email }, "Password reset token generated");
+  logger.info({ email: user.email }, "Password reset token generated — sending email");
+
+  try {
+    await sendPasswordResetEmail(user.email, token);
+    logger.info({ email: user.email }, "Password reset email sent");
+  } catch (err) {
+    logger.error({ err, email: user.email }, "Failed to send password reset email");
+    resetTokens.delete(token);
+    res.status(500).json({ error: "Failed to send reset email. Please try again or contact support." });
+    return;
+  }
 
   res.json(
     ForgotPasswordResponse.parse({
-      message: "Password reset instructions have been sent to your email.",
-      resetToken: token,
+      message: `Password reset instructions have been sent to ${user.email}.`,
     }),
   );
 });

@@ -56,23 +56,19 @@ export default function ForgotPassword() {
     forgotMutation.mutate(
       { data: values },
       {
-        onSuccess: (data) => {
+        onSuccess: () => {
           setUserEmail(values.email);
-          if (data.resetToken) {
-            resetForm.setValue("token", data.resetToken);
-          }
           setStep("reset");
           toast({
-            title: "Reset Code Sent",
-            description: "Check your email for the reset instructions.",
+            title: "Reset Token Sent",
+            description: `Check ${values.email} for your password reset token.`,
           });
         },
-        onError: () => {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Unable to process request. Please try again.",
-          });
+        onError: (err) => {
+          const message = (err as { data?: { error?: string }; message?: string })?.data?.error
+            ?? (err as { message?: string })?.message
+            ?? "Unable to process request. Please try again.";
+          requestForm.setError("email", { message });
         },
       }
     );
