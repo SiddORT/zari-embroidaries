@@ -1095,11 +1095,126 @@ function CreatePoModal({
   );
 }
 
+// ─── Edit PO Modal ────────────────────────────────────────────────────────────
+function EditSwatchPoModal({ po, vendors, onClose, onSave, saving }: {
+  po: PurchaseOrderRecord;
+  vendors: { id: number; brandName: string }[];
+  onClose: () => void;
+  onSave: (data: { notes: string; bomItems: PoLineItem[] }) => void;
+  saving: boolean;
+}) {
+  const items: PoLineItem[] = po.bomItems ?? [];
+  const [notes, setNotes] = useState(po.notes ?? "");
+  type ItemEdit = { quantity: string; targetPrice: string; targetVendorId: string; targetVendorName: string };
+  const [edits, setEdits] = useState<Record<number, ItemEdit>>(() =>
+    Object.fromEntries(items.map((item, i) => [i, {
+      quantity: item.quantity,
+      targetPrice: item.targetPrice,
+      targetVendorId: item.targetVendorId ? String(item.targetVendorId) : "",
+      targetVendorName: item.targetVendorName ?? "",
+    }]))
+  );
+  const setField = (i: number, field: "quantity" | "targetPrice", val: string) =>
+    setEdits(prev => ({ ...prev, [i]: { ...prev[i], [field]: val } }));
+  const setVendor = (i: number, vid: string) => {
+    const v = vendors.find(v => String(v.id) === vid);
+    setEdits(prev => ({ ...prev, [i]: { ...prev[i], targetVendorId: vid, targetVendorName: v?.brandName ?? "" } }));
+  };
+  function handleSave() {
+    const bomItems: PoLineItem[] = items.map((item, i) => ({
+      ...item,
+      quantity: edits[i]?.quantity ?? item.quantity,
+      targetPrice: edits[i]?.targetPrice ?? item.targetPrice,
+      targetVendorId: edits[i]?.targetVendorId ? Number(edits[i].targetVendorId) : null,
+      targetVendorName: edits[i]?.targetVendorName || null,
+    }));
+    onSave({ notes, bomItems });
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900">Edit Purchase Order</h4>
+            <p className="text-[11px] text-gray-400 mt-0.5">{po.poNumber}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+          <div>
+            <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Notes</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)}
+              className="w-full mt-1 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              placeholder="Add notes…" />
+          </div>
+          {items.length > 0 && (
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide mb-2 block">Line Items</label>
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      {["Code", "Item", "Qty", "Target Price", "Target Vendor"].map(h => (
+                        <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, i) => {
+                      const ed = edits[i] ?? { quantity: item.quantity, targetPrice: item.targetPrice, targetVendorId: "", targetVendorName: "" };
+                      return (
+                        <tr key={i} className="border-b border-gray-50">
+                          <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">{item.materialCode}</td>
+                          <td className="px-3 py-2.5 text-gray-800 font-medium">{item.materialName}
+                            <span className="ml-1.5 text-[9px] font-bold px-1 py-0.5 rounded bg-blue-100 text-blue-600">{item.unitType}</span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <input type="number" min="0" step="any" value={ed.quantity}
+                              onChange={e => setField(i, "quantity", e.target.value)}
+                              className="w-20 text-xs text-gray-900 border border-gray-200 rounded-lg px-2 py-1 focus:outline-none" />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-400">₹</span>
+                              <input type="number" min="0" step="any" value={ed.targetPrice}
+                                onChange={e => setField(i, "targetPrice", e.target.value)}
+                                className="w-24 text-xs text-gray-900 border border-gray-200 rounded-lg px-2 py-1 focus:outline-none" />
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <select value={ed.targetVendorId} onChange={e => setVendor(i, e.target.value)}
+                              className="w-36 text-xs text-gray-900 border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none">
+                              <option value="">— Vendor —</option>
+                              {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-50">
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PO Card ─────────────────────────────────────────────────────────────────
-function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf }: { po: PurchaseOrderRecord; swatchOrderId: number; onCreatePR: (poId: number, vendorName: string, bomItems: PoLineItem[]) => void; onExportPdf: () => void }) {
+function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf, vendors }: { po: PurchaseOrderRecord; swatchOrderId: number; onCreatePR: (poId: number, vendorName: string, bomItems: PoLineItem[]) => void; onExportPdf: () => void; vendors: { id: number; brandName: string }[] }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const updatePO = useUpdatePO();
   const deletePO = useDeletePO();
   const items: PoLineItem[] = po.bomItems ?? [];
@@ -1158,6 +1273,10 @@ function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf }: { po: PurchaseOr
             className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-[#C6AF4B] text-[#8a7a30] hover:bg-[#fdf9ec] font-medium transition-colors disabled:opacity-50">
             {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />} PDF
           </button>
+          <button onClick={() => setEditOpen(true)}
+            className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors">
+            <Pencil className="h-3 w-3" /> Edit
+          </button>
           <button onClick={() => deletePO.mutate(po.id)} disabled={deletePO.isPending}
             className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
             <Trash2 className="h-3.5 w-3.5" />
@@ -1174,7 +1293,7 @@ function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf }: { po: PurchaseOr
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200">
-                {["Code", "Item", "Qty", "Target Price", "Line Total"].map(h => (
+                {["Code", "Item", "Vendor", "Qty", "Target Price", "Line Total"].map(h => (
                   <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-2 py-1.5">{h}</th>
                 ))}
               </tr>
@@ -1184,6 +1303,7 @@ function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf }: { po: PurchaseOr
                 <tr key={i} className="border-b border-gray-50">
                   <td className="px-2 py-2 font-mono text-[10px] text-gray-500">{item.materialCode}</td>
                   <td className="px-2 py-2 text-gray-800">{item.materialName}</td>
+                  <td className="px-2 py-2 text-gray-500">{item.targetVendorName || po.vendorName || "—"}</td>
                   <td className="px-2 py-2 text-gray-600">{parseFloat(item.quantity).toFixed(2)} {item.unitType}</td>
                   <td className="px-2 py-2 text-gray-600">₹{parseFloat(item.targetPrice).toFixed(2)}</td>
                   <td className="px-2 py-2 font-semibold text-gray-900">
@@ -1192,7 +1312,7 @@ function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf }: { po: PurchaseOr
                 </tr>
               ))}
               <tr className="bg-gray-50">
-                <td colSpan={4} className="px-2 py-1.5 text-right text-[10px] font-semibold text-gray-500">Total Target</td>
+                <td colSpan={5} className="px-2 py-1.5 text-right text-[10px] font-semibold text-gray-500">Total Target</td>
                 <td className="px-2 py-1.5 font-bold text-gray-900">
                   ₹{items.reduce((s, i) => s + (parseFloat(i.targetPrice) || 0) * (parseFloat(i.quantity) || 0), 0).toFixed(2)}
                 </td>
@@ -1200,6 +1320,20 @@ function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf }: { po: PurchaseOr
             </tbody>
           </table>
         </div>
+      )}
+      {editOpen && (
+        <EditSwatchPoModal
+          po={po}
+          vendors={vendors}
+          saving={updatePO.isPending}
+          onClose={() => setEditOpen(false)}
+          onSave={({ notes, bomItems }) => {
+            updatePO.mutate({ id: po.id, notes, bomItems }, {
+              onSuccess: () => { toast({ title: "PO updated" }); setEditOpen(false); },
+              onError: (err: any) => toast({ title: err?.message ?? "Failed to update PO", variant: "destructive" }),
+            });
+          }}
+        />
       )}
     </div>
   );
@@ -1312,7 +1446,7 @@ function PoSection({ swatchOrderId, orderCode, swatchName, clientName }: {
       ) : (
         <div className="space-y-2">
           {pos.map(po => (
-            <PoCard key={po.id} po={po} swatchOrderId={swatchOrderId}
+            <PoCard key={po.id} po={po} swatchOrderId={swatchOrderId} vendors={vendors}
               onExportPdf={() => exportSinglePoPdf(po)}
               onCreatePR={(poId, vendorName, bomItems) => {
                 const singleItem = bomItems.length === 1 ? String(bomItems[0].bomRowId) : "";

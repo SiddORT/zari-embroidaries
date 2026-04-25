@@ -769,11 +769,15 @@ router.post("/po", requireAuth, async (req, res) => {
 
 router.patch("/po/:id", requireAuth, async (req, res) => {
   const user = (req as any).user;
-  const { status, notes } = req.body as { status?: string; notes?: string };
+  const { status, notes, bomItems } = req.body as { status?: string; notes?: string; bomItems?: any[] };
   const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
   if (status !== undefined) updates.status = status;
   if (notes !== undefined) updates.notes = notes;
   if (status === "Approved") { updates.approvedBy = user.email; updates.approvedAt = new Date(); }
+  if (bomItems !== undefined) {
+    updates.bomItems = bomItems;
+    updates.bomRowIds = bomItems.map((i: any) => i.bomRowId);
+  }
   const [row] = await db.update(purchaseOrdersTable).set(updates).where(eq(purchaseOrdersTable.id, Number(req.params.id))).returning();
   res.json({ data: row });
 });

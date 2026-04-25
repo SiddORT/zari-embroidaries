@@ -196,7 +196,7 @@ export function useCreatePO() {
 export function useUpdatePO() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; status?: string; notes?: string }) =>
+    mutationFn: ({ id, ...body }: { id: number; status?: string; notes?: string; bomItems?: PoLineItem[] }) =>
       customFetch<{ data: PurchaseOrderRecord }>(`/api/costing/po/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["swatch-pos"] }); },
   });
@@ -530,7 +530,7 @@ export function useCreateStylePO() {
 export function useUpdateStylePO() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; status?: string; notes?: string }) =>
+    mutationFn: ({ id, ...body }: { id: number; status?: string; notes?: string; bomItems?: PoLineItem[] }) =>
       customFetch<{ data: PurchaseOrderRecord }>(`/api/costing/po/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-pos"] }); },
   });
