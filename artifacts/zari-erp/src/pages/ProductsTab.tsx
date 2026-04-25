@@ -327,26 +327,25 @@ export default function ProductsTab({
   }
 
   async function handleCopy(p: StyleOrderProductRecord) {
+    const nn = <T,>(v: T | null | undefined): T | undefined => (v === null || v === undefined ? undefined : v);
     try {
       await createProduct.mutateAsync({
         styleOrderId: styleOrderId!,
         productName: `Copy of ${p.productName}`,
-        styleCategoryId: p.styleCategoryId,
-        styleCategoryName: p.styleCategoryName,
+        styleCategoryId: nn(p.styleCategoryId),
+        styleCategoryName: nn(p.styleCategoryName),
         productStatus: "Draft",
-        fabricId: p.fabricId,
-        fabricName: p.fabricName,
+        fabricId: nn(p.fabricId),
+        fabricName: nn(p.fabricName),
         hasLining: p.hasLining,
-        liningFabricId: p.liningFabricId,
-        liningFabricName: p.liningFabricName,
-        unitLength: p.unitLength,
-        unitWidth: p.unitWidth,
-        unitType: p.unitType,
-        orderIssueDate: null,
-        deliveryDate: null,
-        targetHours: p.targetHours,
-        issuedTo: p.issuedTo,
-        department: p.department,
+        liningFabricId: nn(p.liningFabricId),
+        liningFabricName: nn(p.liningFabricName),
+        unitLength: nn(p.unitLength),
+        unitWidth: nn(p.unitWidth),
+        unitType: nn(p.unitType),
+        targetHours: nn(p.targetHours),
+        issuedTo: nn(p.issuedTo),
+        department: nn(p.department),
         refDocs: [],
         refImages: [],
       });
