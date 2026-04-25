@@ -5,6 +5,15 @@ import { db, usersTable, rolesTable, rolePermissionsTable } from "@workspace/db"
 import { requireAuth } from "../middlewares/requireAuth";
 import { hashPassword } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { sendInviteEmail, sendAdminPasswordResetEmail } from "../lib/mailer";
+
+function buildInviteUrl(token: string): string {
+  const domain =
+    process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : process.env.APP_URL ?? "http://localhost:5173";
+  return `${domain}/accept-invite?token=${token}`;
+}
 
 const router: IRouter = Router();
 
@@ -143,8 +152,19 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
     inviteToken: usersTable.inviteToken, inviteTokenExpiry: usersTable.inviteTokenExpiry,
   });
 
-  logger.info({ userId: user.id }, "User invited");
-  res.status(201).json({ data: user, inviteToken });
+  logger.info({ userId: user.id }, "User invited — sending invite email");
+
+  const inviteUrl = buildInviteUrl(inviteToken);
+  try {
+    await sendInviteEmail(user.email, user.username, inviteUrl);
+    logger.info({ userId: user.id }, "Invite email sent");
+  } catch (err) {
+    logger.error({ err, userId: user.id }, "Failed to send invite email — returning token as fallback");
+    res.status(201).json({ data: user, inviteToken, inviteUrl, emailSent: false });
+    return;
+  }
+
+  res.status(201).json({ data: user, inviteToken, inviteUrl, emailSent: true });
 });
 
 router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
@@ -189,10 +209,49 @@ router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req
     .update(usersTable)
     .set({ inviteToken, inviteTokenExpiry, isActive: false })
     .where(eq(usersTable.id, id))
-    .returning({ id: usersTable.id, email: usersTable.email, inviteToken: usersTable.inviteToken });
+    .returning({ id: usersTable.id, email: usersTable.email, username: usersTable.username, inviteToken: usersTable.inviteToken });
 
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  res.json({ data: user, inviteToken });
+
+  const inviteUrl = buildInviteUrl(inviteToken);
+  try {
+    await sendInviteEmail(user.email, user.username, inviteUrl);
+    logger.info({ userId: user.id }, "Invite email re-sent");
+    res.json({ data: user, inviteToken, inviteUrl, emailSent: true });
+  } catch (err) {
+    logger.error({ err, userId: user.id }, "Failed to re-send invite email");
+    res.json({ data: user, inviteToken, inviteUrl, emailSent: false });
+  }
+});
+
+router.post("/user-management/users/:id/send-reset", requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const authUser = (req as typeof req & { user?: { userId: number } }).user;
+  if (authUser?.userId === id) {
+    res.status(400).json({ error: "Use the Forgot Password flow to reset your own password" });
+    return;
+  }
+
+  const inviteToken = crypto.randomBytes(32).toString("hex");
+  const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  const [user] = await db
+    .update(usersTable)
+    .set({ inviteToken, inviteTokenExpiry, isActive: false })
+    .where(eq(usersTable.id, id))
+    .returning({ id: usersTable.id, email: usersTable.email, username: usersTable.username, inviteToken: usersTable.inviteToken });
+
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const inviteUrl = buildInviteUrl(inviteToken);
+  try {
+    await sendAdminPasswordResetEmail(user.email, user.username, inviteUrl);
+    logger.info({ userId: user.id }, "Admin password reset email sent");
+    res.json({ data: user, inviteToken, inviteUrl, emailSent: true });
+  } catch (err) {
+    logger.error({ err, userId: user.id }, "Failed to send admin password reset email");
+    res.json({ data: user, inviteToken, inviteUrl, emailSent: false });
+  }
 });
 
 router.get("/user-management/roles", requireAdmin, async (_req, res): Promise<void> => {

@@ -41,7 +41,7 @@ export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { email: string; username: string; role: string }) =>
-      customFetch<{ data: UserRecord; inviteToken: string }>(`${BASE}/users`, {
+      customFetch<{ data: UserRecord; inviteToken: string; inviteUrl: string; emailSent: boolean }>(`${BASE}/users`, {
         method: "POST", body: JSON.stringify(body),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["um-users"] }),
@@ -69,11 +69,24 @@ export function useDeleteUser() {
 }
 
 export function useResendInvite() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
-      customFetch<{ data: UserRecord; inviteToken: string }>(`${BASE}/users/${id}/resend-invite`, {
+      customFetch<{ data: UserRecord; inviteToken: string; inviteUrl: string; emailSent: boolean }>(`${BASE}/users/${id}/resend-invite`, {
         method: "POST", body: JSON.stringify({}),
       }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["um-users"] }),
+  });
+}
+
+export function useAdminSendReset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ data: UserRecord; inviteToken: string; inviteUrl: string; emailSent: boolean }>(`${BASE}/users/${id}/send-reset`, {
+        method: "POST", body: JSON.stringify({}),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["um-users"] }),
   });
 }
 

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Users, Shield, Plus, Pencil, Trash2, Copy, Check, RefreshCw, X, ChevronDown, LayoutDashboard, BookOpen, ClipboardList, Package, DollarSign, ShieldCheck } from "lucide-react";
+import { Users, Shield, Plus, Pencil, Trash2, Copy, Check, RefreshCw, X, ChevronDown, LayoutDashboard, BookOpen, ClipboardList, Package, DollarSign, ShieldCheck, KeyRound, Mail } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,7 +10,7 @@ import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 
 import {
-  useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResendInvite,
+  useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResendInvite, useAdminSendReset,
   useRoles, useCreateRole, useUpdateRole, useDeleteRole, useSetRolePermissions,
   usePermissions,
   type UserRecord, type RoleRecord, type PermissionDef,
@@ -42,7 +42,7 @@ interface AddUserModalProps {
   open: boolean;
   onClose: () => void;
   roles: RoleRecord[];
-  onCreated: (token: string, email: string) => void;
+  onCreated: (result: { emailSent: boolean; inviteUrl: string; inviteToken: string; email: string }) => void;
 }
 
 function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
@@ -68,10 +68,11 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
 
     try {
       const res = await create.mutateAsync({ email: email.trim(), username: username.trim(), role });
-      onCreated(res.inviteToken, res.data.email);
+      onCreated({ emailSent: res.emailSent, inviteUrl: res.inviteUrl, inviteToken: res.inviteToken, email: res.data.email });
       onClose();
     } catch (err: unknown) {
-      setErrors({ email: err instanceof Error ? err.message : "Failed to create user" });
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? (err instanceof Error ? err.message : "Failed to create user");
+      setErrors({ email: msg });
     }
   }
 
@@ -101,7 +102,7 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
               className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={create.isPending}
               className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800 disabled:opacity-60">
-              {create.isPending ? "Sending…" : "Create & Get Invite Link"}
+              {create.isPending ? "Sending Invite…" : "Create & Send Invite"}
             </button>
           </div>
         </form>
@@ -113,27 +114,52 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
 interface InviteLinkModalProps {
   open: boolean;
   onClose: () => void;
-  token: string;
+  inviteUrl: string;
   email: string;
+  emailSent: boolean;
+  mode?: "invite" | "reset";
 }
 
-function InviteLinkModal({ open, onClose, token, email }: InviteLinkModalProps) {
+function InviteLinkModal({ open, onClose, inviteUrl, email, emailSent, mode = "invite" }: InviteLinkModalProps) {
   if (!open) return null;
-  const url = buildInviteUrl(token);
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-900">Invite Link Ready</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            {mode === "reset" ? "Password Reset Initiated" : "Invite Sent"}
+          </h2>
           <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-400"><X size={16} /></button>
         </div>
-        <p className="text-sm text-gray-600 mb-4">
-          Share the link below with <strong>{email}</strong>. They'll use it to set their password and activate their account. The link expires in <strong>7 days</strong>.
-        </p>
+
+        {emailSent ? (
+          <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+            <Mail className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-green-800">
+                {mode === "reset" ? "Reset email sent!" : "Invite email sent!"}
+              </p>
+              <p className="text-xs text-green-700 mt-0.5">
+                An email has been sent to <strong>{email}</strong> with instructions to {mode === "reset" ? "set a new password" : "set their password and activate their account"}.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <Mail className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Email could not be sent</p>
+              <p className="text-xs text-amber-700 mt-0.5">Share the link below manually with <strong>{email}</strong>.</p>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-gray-500 mb-2">Invite link (expires in 7 days):</p>
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
-          <span className="flex-1 text-xs text-gray-700 font-mono break-all">{url}</span>
-          <CopyButton text={url} />
+          <span className="flex-1 text-xs text-gray-700 font-mono break-all">{inviteUrl}</span>
+          <CopyButton text={inviteUrl} />
         </div>
+
         <div className="flex justify-end mt-5">
           <button type="button" onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-gray-800">Done</button>
@@ -274,12 +300,13 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
   const { data, isLoading } = useUsers();
   const deleteUser = useDeleteUser();
   const resendInvite = useResendInvite();
+  const adminReset = useAdminSendReset();
   const { toast } = useToast();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [inviteState, setInviteState] = useState<{ token: string; email: string } | null>(null);
+  const [inviteState, setInviteState] = useState<{ inviteUrl: string; email: string; emailSent: boolean; mode: "invite" | "reset" } | null>(null);
 
   const users = data?.data ?? [];
 
@@ -296,9 +323,19 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
   async function handleResend(user: UserRecord) {
     try {
       const res = await resendInvite.mutateAsync(user.id);
-      setInviteState({ token: res.inviteToken, email: user.email });
+      setInviteState({ inviteUrl: res.inviteUrl, email: user.email, emailSent: res.emailSent, mode: "invite" });
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
+    }
+  }
+
+  async function handleAdminReset(user: UserRecord) {
+    try {
+      const res = await adminReset.mutateAsync(user.id);
+      setInviteState({ inviteUrl: res.inviteUrl, email: user.email, emailSent: res.emailSent, mode: "reset" });
+    } catch (err: unknown) {
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? (err instanceof Error ? err.message : "Failed");
+      toast({ title: "Error", description: msg, variant: "destructive" });
     }
   }
 
@@ -321,7 +358,7 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Name", "Email", "Role", "Status", "Joined", ""].map(h => (
+                {["Name", "Email", "Role", "Status", "Joined", "Actions"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -342,12 +379,19 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
-                        {isPending && (
-                          <button onClick={() => handleResend(u)} title="Resend invite"
-                            className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition-colors">
-                            <RefreshCw className="h-3.5 w-3.5" />
+                        {isPending ? (
+                          <button onClick={() => handleResend(u)} title="Resend invite email"
+                            disabled={resendInvite.isPending}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-50">
+                            <RefreshCw className="h-3 w-3" /> Resend Invite
                           </button>
-                        )}
+                        ) : u.isActive ? (
+                          <button onClick={() => handleAdminReset(u)} title="Send password reset email to this user"
+                            disabled={adminReset.isPending}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                            <KeyRound className="h-3 w-3" /> Reset Password
+                          </button>
+                        ) : null}
                         <button onClick={() => setEditUser(u)} title="Edit"
                           className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
                           <Pencil className="h-3.5 w-3.5" />
@@ -367,14 +411,20 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
       )}
 
       <AddUserModal open={addOpen} onClose={() => setAddOpen(false)} roles={roles}
-        onCreated={(token, email) => setInviteState({ token, email })} />
+        onCreated={(result) => setInviteState({ ...result, mode: "invite" })} />
 
       {editUser && (
         <EditUserModal open={!!editUser} onClose={() => setEditUser(null)} user={editUser} roles={roles} />
       )}
 
-      <InviteLinkModal open={!!inviteState} onClose={() => setInviteState(null)}
-        token={inviteState?.token ?? ""} email={inviteState?.email ?? ""} />
+      <InviteLinkModal
+        open={!!inviteState}
+        onClose={() => setInviteState(null)}
+        inviteUrl={inviteState?.inviteUrl ?? ""}
+        email={inviteState?.email ?? ""}
+        emailSent={inviteState?.emailSent ?? false}
+        mode={inviteState?.mode ?? "invite"}
+      />
 
       <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}
         title="Delete User" message="Are you sure you want to delete this user? This cannot be undone." />
