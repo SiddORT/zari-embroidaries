@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Eye, Trash2, ChevronLeft, ChevronRight, Palette, Calendar, User, Hash, LayoutGrid, LayoutList } from "lucide-react";
+import { Plus, Search, Eye, Trash2, Copy, ChevronLeft, ChevronRight, Palette, Calendar, User, Hash, LayoutGrid, LayoutList } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import ConfirmModal from "@/components/ui/ConfirmModal";
-import { useSwatchOrderList, useDeleteSwatchOrder, type SwatchOrderRecord } from "@/hooks/useSwatchOrders";
+import { useSwatchOrderList, useDeleteSwatchOrder, useCreateSwatchOrder, type SwatchOrderRecord } from "@/hooks/useSwatchOrders";
 
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -59,10 +59,11 @@ function PriorityDot({ priority }: { priority: string }) {
   );
 }
 
-function OrderCard({ order, onView, onDelete }: {
+function OrderCard({ order, onView, onDelete, onCopy }: {
   order: SwatchOrderRecord;
   onView: () => void;
   onDelete: () => void;
+  onCopy: () => void;
 }) {
   return (
     <div className={CARD}>
@@ -124,6 +125,10 @@ function OrderCard({ order, onView, onDelete }: {
             style={{ color: G }}>
             <Eye className="h-3.5 w-3.5" /> View / Edit
           </button>
+          <button onClick={onCopy} title="Copy order"
+            className="p-2 rounded-xl text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors border border-gray-100">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
           <button onClick={onDelete}
             className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
             <Trash2 className="h-3.5 w-3.5" />
@@ -154,6 +159,7 @@ export default function SwatchOrders() {
 
   const { data, isLoading } = useSwatchOrderList({ search, status: statusFilter, priority: priorityFilter, chargeable: chargeableFilter, inhouse: inhouseFilter, page, limit: 24 });
   const deleteOrder = useDeleteSwatchOrder();
+  const copyOrder = useCreateSwatchOrder();
 
   const orders = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -178,6 +184,29 @@ export default function SwatchOrders() {
       toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
     } finally {
       setDeleteId(null);
+    }
+  }
+
+  async function handleCopy(order: SwatchOrderRecord) {
+    const { id: _id, orderCode: _code, createdAt: _ca, updatedAt: _ua, createdBy: _cb, updatedBy: _ub, isDeleted: _del, ...rest } = order;
+    try {
+      const result = await copyOrder.mutateAsync({
+        ...rest,
+        swatchName: `Copy of ${order.swatchName}`,
+        orderStatus: "Draft",
+        orderIssueDate: null,
+        actualStartDate: null,
+        actualStartTime: null,
+        actualCompletionDate: null,
+        actualCompletionTime: null,
+        approvalDate: null,
+        revisionCount: 0,
+      });
+      toast({ title: "Order copied", description: `"Copy of ${order.swatchName}" created` });
+      const created = result as { data?: { id?: number } };
+      if (created?.data?.id) setLocation(`/swatch-orders/${created.data.id}`);
+    } catch {
+      toast({ title: "Error", description: "Failed to copy order", variant: "destructive" });
     }
   }
 
@@ -286,6 +315,7 @@ export default function SwatchOrders() {
               <OrderCard key={order.id} order={order}
                 onView={() => setLocation(`/swatch-orders/${order.id}`)}
                 onDelete={() => setDeleteId(order.id)}
+                onCopy={() => void handleCopy(order)}
               />
             ))}
           </div>
@@ -321,6 +351,10 @@ export default function SwatchOrders() {
                         <button onClick={() => setLocation(`/swatch-orders/${order.id}`)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors">
                           <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => void handleCopy(order)} title="Copy order"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
+                          <Copy className="h-3.5 w-3.5" />
                         </button>
                         <button onClick={() => setDeleteId(order.id)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
