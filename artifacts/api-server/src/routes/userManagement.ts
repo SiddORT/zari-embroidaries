@@ -17,49 +17,163 @@ function buildInviteUrl(token: string): string {
 
 const router: IRouter = Router();
 
+export const SUPERUSER_EMAIL = "admin@zarierp";
+
 export const ALL_PERMISSIONS = [
-  /* ── Dashboard ──────────────────────────────────────────── */
-  { key: "dashboard",                    label: "Dashboard",            menu: "Dashboard",  subgroup: null },
+  /* ── Dashboard ─────────────────────────────────────────── */
+  { key: "dashboard:view",  label: "Dashboard",  resource: "dashboard",  action: "view",  menu: "Dashboard", subgroup: null },
 
-  /* ── Masters ────────────────────────────────────────────── */
-  { key: "masters:hsn",                  label: "HSN",                  menu: "Masters",    subgroup: null },
-  { key: "masters:materials",            label: "Materials",            menu: "Masters",    subgroup: null },
-  { key: "masters:fabric",               label: "Fabric",               menu: "Masters",    subgroup: null },
-  { key: "masters:clients",              label: "Clients",              menu: "Masters",    subgroup: null },
-  { key: "masters:vendors",              label: "Vendors",              menu: "Masters",    subgroup: null },
-  { key: "masters:style_categories",     label: "Style Categories",     menu: "Masters",    subgroup: null },
-  { key: "masters:swatch_categories",    label: "Swatch Categories",    menu: "Masters",    subgroup: null },
-  { key: "masters:swatches",             label: "Swatch",               menu: "Masters",    subgroup: null },
-  { key: "masters:styles",               label: "Style",                menu: "Masters",    subgroup: null },
-  { key: "masters:item_types",           label: "Item Types",           menu: "Masters",    subgroup: null },
-  { key: "masters:packaging_materials",  label: "Item Master",          menu: "Masters",    subgroup: null },
-  { key: "masters:shipping_vendors",     label: "Shipping Vendors",     menu: "Masters",    subgroup: null },
+  /* ── Masters ───────────────────────────────────────────── */
+  { key: "masters:hsn:view",                    label: "HSN",                resource: "masters:hsn",                 action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:hsn:add_edit",                label: "HSN",                resource: "masters:hsn",                 action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:hsn:delete",                  label: "HSN",                resource: "masters:hsn",                 action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:hsn:download",                label: "HSN",                resource: "masters:hsn",                 action: "download", menu: "Masters", subgroup: null },
 
-  /* ── Orders ─────────────────────────────────────────────── */
-  { key: "swatch_orders",               label: "Swatch Orders",         menu: "Orders",     subgroup: null },
-  { key: "style_orders",                label: "Style Orders",          menu: "Orders",     subgroup: null },
-  { key: "artwork",                     label: "Artwork",               menu: "Orders",     subgroup: null },
+  { key: "masters:materials:view",              label: "Materials",           resource: "masters:materials",           action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:materials:add_edit",          label: "Materials",           resource: "masters:materials",           action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:materials:delete",            label: "Materials",           resource: "masters:materials",           action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:materials:download",          label: "Materials",           resource: "masters:materials",           action: "download", menu: "Masters", subgroup: null },
 
-  /* ── Stock ──────────────────────────────────────────────── */
-  { key: "stock:items",                 label: "Item Stock List",       menu: "Stock",      subgroup: "Inventory" },
-  { key: "stock:ledger",                label: "Stock Ledger",          menu: "Stock",      subgroup: "Inventory" },
-  { key: "stock:reservations",          label: "Reservations",          menu: "Stock",      subgroup: "Inventory" },
-  { key: "stock:adjustments",           label: "Stock Adjustments",     menu: "Stock",      subgroup: "Inventory" },
-  { key: "stock:purchase_orders",       label: "Purchase Orders",       menu: "Stock",      subgroup: "Procurement" },
-  { key: "stock:purchase_receipts",     label: "Purchase Receipts",     menu: "Stock",      subgroup: "Procurement" },
+  { key: "masters:fabric:view",                 label: "Fabric",              resource: "masters:fabric",              action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:fabric:add_edit",             label: "Fabric",              resource: "masters:fabric",              action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:fabric:delete",               label: "Fabric",              resource: "masters:fabric",              action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:fabric:download",             label: "Fabric",              resource: "masters:fabric",              action: "download", menu: "Masters", subgroup: null },
+
+  { key: "masters:clients:view",                label: "Clients",             resource: "masters:clients",             action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:clients:add_edit",            label: "Clients",             resource: "masters:clients",             action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:clients:delete",              label: "Clients",             resource: "masters:clients",             action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:clients:download",            label: "Clients",             resource: "masters:clients",             action: "download", menu: "Masters", subgroup: null },
+
+  { key: "masters:vendors:view",                label: "Vendors",             resource: "masters:vendors",             action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:vendors:add_edit",            label: "Vendors",             resource: "masters:vendors",             action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:vendors:delete",              label: "Vendors",             resource: "masters:vendors",             action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:vendors:download",            label: "Vendors",             resource: "masters:vendors",             action: "download", menu: "Masters", subgroup: null },
+
+  { key: "masters:style_categories:view",       label: "Style Categories",    resource: "masters:style_categories",    action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:style_categories:add_edit",   label: "Style Categories",    resource: "masters:style_categories",    action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:style_categories:delete",     label: "Style Categories",    resource: "masters:style_categories",    action: "delete",   menu: "Masters", subgroup: null },
+
+  { key: "masters:swatch_categories:view",      label: "Swatch Categories",   resource: "masters:swatch_categories",   action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:swatch_categories:add_edit",  label: "Swatch Categories",   resource: "masters:swatch_categories",   action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:swatch_categories:delete",    label: "Swatch Categories",   resource: "masters:swatch_categories",   action: "delete",   menu: "Masters", subgroup: null },
+
+  { key: "masters:swatches:view",               label: "Swatch",              resource: "masters:swatches",            action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:swatches:add_edit",           label: "Swatch",              resource: "masters:swatches",            action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:swatches:delete",             label: "Swatch",              resource: "masters:swatches",            action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:swatches:download",           label: "Swatch",              resource: "masters:swatches",            action: "download", menu: "Masters", subgroup: null },
+
+  { key: "masters:styles:view",                 label: "Style",               resource: "masters:styles",              action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:styles:add_edit",             label: "Style",               resource: "masters:styles",              action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:styles:delete",               label: "Style",               resource: "masters:styles",              action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:styles:download",             label: "Style",               resource: "masters:styles",              action: "download", menu: "Masters", subgroup: null },
+
+  { key: "masters:item_types:view",             label: "Item Types",          resource: "masters:item_types",          action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:item_types:add_edit",         label: "Item Types",          resource: "masters:item_types",          action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:item_types:delete",           label: "Item Types",          resource: "masters:item_types",          action: "delete",   menu: "Masters", subgroup: null },
+
+  { key: "masters:packaging_materials:view",    label: "Item Master",         resource: "masters:packaging_materials", action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:packaging_materials:add_edit",label: "Item Master",         resource: "masters:packaging_materials", action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:packaging_materials:delete",  label: "Item Master",         resource: "masters:packaging_materials", action: "delete",   menu: "Masters", subgroup: null },
+
+  { key: "masters:shipping_vendors:view",       label: "Shipping Vendors",    resource: "masters:shipping_vendors",    action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:shipping_vendors:add_edit",   label: "Shipping Vendors",    resource: "masters:shipping_vendors",    action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:shipping_vendors:delete",     label: "Shipping Vendors",    resource: "masters:shipping_vendors",    action: "delete",   menu: "Masters", subgroup: null },
+
+  /* ── Orders ────────────────────────────────────────────── */
+  { key: "swatch_orders:view",     label: "Swatch Orders", resource: "swatch_orders", action: "view",     menu: "Orders", subgroup: null },
+  { key: "swatch_orders:add_edit", label: "Swatch Orders", resource: "swatch_orders", action: "add_edit", menu: "Orders", subgroup: null },
+  { key: "swatch_orders:delete",   label: "Swatch Orders", resource: "swatch_orders", action: "delete",   menu: "Orders", subgroup: null },
+  { key: "swatch_orders:download", label: "Swatch Orders", resource: "swatch_orders", action: "download", menu: "Orders", subgroup: null },
+
+  { key: "style_orders:view",      label: "Style Orders",  resource: "style_orders",  action: "view",     menu: "Orders", subgroup: null },
+  { key: "style_orders:add_edit",  label: "Style Orders",  resource: "style_orders",  action: "add_edit", menu: "Orders", subgroup: null },
+  { key: "style_orders:delete",    label: "Style Orders",  resource: "style_orders",  action: "delete",   menu: "Orders", subgroup: null },
+  { key: "style_orders:download",  label: "Style Orders",  resource: "style_orders",  action: "download", menu: "Orders", subgroup: null },
+
+  { key: "artwork:view",           label: "Artwork",        resource: "artwork",        action: "view",     menu: "Orders", subgroup: null },
+  { key: "artwork:add_edit",       label: "Artwork",        resource: "artwork",        action: "add_edit", menu: "Orders", subgroup: null },
+  { key: "artwork:delete",         label: "Artwork",        resource: "artwork",        action: "delete",   menu: "Orders", subgroup: null },
+  { key: "artwork:download",       label: "Artwork",        resource: "artwork",        action: "download", menu: "Orders", subgroup: null },
+
+  { key: "quotation:view",         label: "Quotation",      resource: "quotation",      action: "view",     menu: "Orders", subgroup: null },
+  { key: "quotation:add_edit",     label: "Quotation",      resource: "quotation",      action: "add_edit", menu: "Orders", subgroup: null },
+  { key: "quotation:delete",       label: "Quotation",      resource: "quotation",      action: "delete",   menu: "Orders", subgroup: null },
+  { key: "quotation:download",     label: "Quotation",      resource: "quotation",      action: "download", menu: "Orders", subgroup: null },
+
+  /* ── Stock ─────────────────────────────────────────────── */
+  { key: "stock:dashboard:view",              label: "Inventory Dashboard", resource: "stock:dashboard",         action: "view",     menu: "Stock", subgroup: "Inventory" },
+
+  { key: "stock:items:view",                  label: "Item Stock List",     resource: "stock:items",             action: "view",     menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:items:add_edit",              label: "Item Stock List",     resource: "stock:items",             action: "add_edit", menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:items:download",              label: "Item Stock List",     resource: "stock:items",             action: "download", menu: "Stock", subgroup: "Inventory" },
+
+  { key: "stock:low_stock:view",              label: "Low Stock Alerts",    resource: "stock:low_stock",         action: "view",     menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:low_stock:download",          label: "Low Stock Alerts",    resource: "stock:low_stock",         action: "download", menu: "Stock", subgroup: "Inventory" },
+
+  { key: "stock:ledger:view",                 label: "Stock Ledger",        resource: "stock:ledger",            action: "view",     menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:ledger:download",             label: "Stock Ledger",        resource: "stock:ledger",            action: "download", menu: "Stock", subgroup: "Inventory" },
+
+  { key: "stock:reservations:view",           label: "Reservations",        resource: "stock:reservations",      action: "view",     menu: "Stock", subgroup: "Inventory" },
+
+  { key: "stock:adjustments:view",            label: "Stock Adjustments",   resource: "stock:adjustments",       action: "view",     menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:adjustments:add_edit",        label: "Stock Adjustments",   resource: "stock:adjustments",       action: "add_edit", menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:adjustments:delete",          label: "Stock Adjustments",   resource: "stock:adjustments",       action: "delete",   menu: "Stock", subgroup: "Inventory" },
+
+  { key: "stock:purchase_orders:view",        label: "Purchase Orders",     resource: "stock:purchase_orders",   action: "view",     menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_orders:add_edit",    label: "Purchase Orders",     resource: "stock:purchase_orders",   action: "add_edit", menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_orders:delete",      label: "Purchase Orders",     resource: "stock:purchase_orders",   action: "delete",   menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_orders:download",    label: "Purchase Orders",     resource: "stock:purchase_orders",   action: "download", menu: "Stock", subgroup: "Procurement" },
+
+  { key: "stock:purchase_receipts:view",      label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "view",     menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_receipts:add_edit",  label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "add_edit", menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_receipts:delete",    label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "delete",   menu: "Stock", subgroup: "Procurement" },
+
+  /* ── Logistics ──────────────────────────────────────────── */
+  { key: "logistics:shipments:view",          label: "Shipments",           resource: "logistics:shipments",     action: "view",     menu: "Logistics", subgroup: null },
+  { key: "logistics:shipments:add_edit",      label: "Shipments",           resource: "logistics:shipments",     action: "add_edit", menu: "Logistics", subgroup: null },
+  { key: "logistics:shipments:delete",        label: "Shipments",           resource: "logistics:shipments",     action: "delete",   menu: "Logistics", subgroup: null },
+  { key: "logistics:shipments:download",      label: "Shipments",           resource: "logistics:shipments",     action: "download", menu: "Logistics", subgroup: null },
+
+  { key: "logistics:packing_lists:view",      label: "Packing Lists",       resource: "logistics:packing_lists", action: "view",     menu: "Logistics", subgroup: null },
+  { key: "logistics:packing_lists:add_edit",  label: "Packing Lists",       resource: "logistics:packing_lists", action: "add_edit", menu: "Logistics", subgroup: null },
+  { key: "logistics:packing_lists:delete",    label: "Packing Lists",       resource: "logistics:packing_lists", action: "delete",   menu: "Logistics", subgroup: null },
+  { key: "logistics:packing_lists:download",  label: "Packing Lists",       resource: "logistics:packing_lists", action: "download", menu: "Logistics", subgroup: null },
 
   /* ── Accounts ───────────────────────────────────────────── */
-  { key: "accounts:dashboard",          label: "Dashboard",             menu: "Accounts",   subgroup: null },
-  { key: "accounts:vendor_ledgers",     label: "Ledgers",               menu: "Accounts",   subgroup: null },
-  { key: "accounts:invoices",           label: "Invoices",              menu: "Accounts",   subgroup: null },
-  { key: "accounts:payments",           label: "Payments",              menu: "Accounts",   subgroup: null },
-  { key: "accounts:credit_debit_notes", label: "Credit / Debit Notes",  menu: "Accounts",   subgroup: null },
-  { key: "accounts:other_expenses",     label: "Other Expenses",        menu: "Accounts",   subgroup: null },
-  { key: "shipping",                    label: "Shipments",             menu: "Accounts",   subgroup: null },
+  { key: "accounts:dashboard:view",           label: "Dashboard",           resource: "accounts:dashboard",          action: "view",     menu: "Accounts", subgroup: null },
+
+  { key: "accounts:vendor_ledgers:view",      label: "Vendor Ledgers",      resource: "accounts:vendor_ledgers",     action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:vendor_ledgers:download",  label: "Vendor Ledgers",      resource: "accounts:vendor_ledgers",     action: "download", menu: "Accounts", subgroup: null },
+
+  { key: "accounts:purchases:view",           label: "Purchases",           resource: "accounts:purchases",          action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:purchases:download",       label: "Purchases",           resource: "accounts:purchases",          action: "download", menu: "Accounts", subgroup: null },
+
+  { key: "accounts:invoices:view",            label: "Invoices",            resource: "accounts:invoices",           action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:invoices:add_edit",        label: "Invoices",            resource: "accounts:invoices",           action: "add_edit", menu: "Accounts", subgroup: null },
+  { key: "accounts:invoices:delete",          label: "Invoices",            resource: "accounts:invoices",           action: "delete",   menu: "Accounts", subgroup: null },
+  { key: "accounts:invoices:download",        label: "Invoices",            resource: "accounts:invoices",           action: "download", menu: "Accounts", subgroup: null },
+
+  { key: "accounts:payments:view",            label: "Payments",            resource: "accounts:payments",           action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:payments:add_edit",        label: "Payments",            resource: "accounts:payments",           action: "add_edit", menu: "Accounts", subgroup: null },
+  { key: "accounts:payments:delete",          label: "Payments",            resource: "accounts:payments",           action: "delete",   menu: "Accounts", subgroup: null },
+  { key: "accounts:payments:download",        label: "Payments",            resource: "accounts:payments",           action: "download", menu: "Accounts", subgroup: null },
+
+  { key: "accounts:credit_debit_notes:view",     label: "Credit / Debit Notes", resource: "accounts:credit_debit_notes", action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:credit_debit_notes:add_edit", label: "Credit / Debit Notes", resource: "accounts:credit_debit_notes", action: "add_edit", menu: "Accounts", subgroup: null },
+  { key: "accounts:credit_debit_notes:delete",   label: "Credit / Debit Notes", resource: "accounts:credit_debit_notes", action: "delete",   menu: "Accounts", subgroup: null },
+  { key: "accounts:credit_debit_notes:download", label: "Credit / Debit Notes", resource: "accounts:credit_debit_notes", action: "download", menu: "Accounts", subgroup: null },
+
+  { key: "accounts:other_expenses:view",      label: "Other Expenses",      resource: "accounts:other_expenses",     action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:other_expenses:add_edit",  label: "Other Expenses",      resource: "accounts:other_expenses",     action: "add_edit", menu: "Accounts", subgroup: null },
+  { key: "accounts:other_expenses:delete",    label: "Other Expenses",      resource: "accounts:other_expenses",     action: "delete",   menu: "Accounts", subgroup: null },
 
   /* ── Admin ──────────────────────────────────────────────── */
-  { key: "settings",                    label: "Settings",              menu: "Admin",      subgroup: null },
-  { key: "user_management",             label: "User Management",       menu: "Admin",      subgroup: null },
+  { key: "settings:view",               label: "Settings",        resource: "settings",        action: "view",     menu: "Admin", subgroup: null },
+  { key: "settings:add_edit",           label: "Settings",        resource: "settings",        action: "add_edit", menu: "Admin", subgroup: null },
+
+  { key: "user_management:view",        label: "User Management", resource: "user_management", action: "view",     menu: "Admin", subgroup: null },
+  { key: "user_management:add_edit",    label: "User Management", resource: "user_management", action: "add_edit", menu: "Admin", subgroup: null },
+  { key: "user_management:delete",      label: "User Management", resource: "user_management", action: "delete",   menu: "Admin", subgroup: null },
 ];
 
 const requireAdmin = requireAuth;
@@ -171,6 +285,11 @@ router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise
   const id = parseInt(req.params.id);
   const { username, email, role, isActive } = req.body as { username?: string; email?: string; role?: string; isActive?: boolean };
 
+  const [target] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, id));
+  if (target?.email === SUPERUSER_EMAIL) {
+    res.status(403).json({ error: "The superuser account cannot be modified" }); return;
+  }
+
   if (email !== undefined) {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
@@ -208,6 +327,10 @@ router.delete("/user-management/users/:id", requireAdmin, async (req, res): Prom
   if (authUser?.userId === id) {
     res.status(400).json({ error: "Cannot delete your own account" });
     return;
+  }
+  const [target] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, id));
+  if (target?.email === SUPERUSER_EMAIL) {
+    res.status(403).json({ error: "The superuser account cannot be deleted" }); return;
   }
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.json({ message: "User deleted" });

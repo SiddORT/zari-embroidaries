@@ -26,6 +26,8 @@ export interface RoleRecord {
 export interface PermissionDef {
   key: string;
   label: string;
+  resource: string;
+  action: "view" | "add_edit" | "delete" | "download";
   menu: string;
   subgroup: string | null;
 }

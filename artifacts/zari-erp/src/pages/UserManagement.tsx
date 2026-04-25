@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Users, Shield, Plus, Pencil, Trash2, Copy, Check, RefreshCw, X, ChevronDown, LayoutDashboard, BookOpen, ClipboardList, Package, DollarSign, ShieldCheck, KeyRound, Mail } from "lucide-react";
@@ -387,12 +387,16 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
               {users.map(u => {
                 const isPending = !u.isActive && !!u.inviteToken;
                 const isMe = myId !== undefined && u.id === myId;
+                const isSuperuser = u.email === SUPERUSER_EMAIL;
                 return (
                   <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       <span className="flex items-center gap-1.5">
                         {u.username}
-                        {isMe && (
+                        {isSuperuser && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-900 text-[#C9B45C] leading-none">Super Admin</span>
+                        )}
+                        {!isSuperuser && isMe && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#C6AF4B]/15 text-[#9a8530] leading-none">You</span>
                         )}
                       </span>
@@ -407,7 +411,7 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
-                        {!isMe && (
+                        {!isSuperuser && !isMe && (
                           isPending ? (
                             <button onClick={() => handleResend(u)} title="Resend invite email"
                               disabled={resendInvite.isPending}
@@ -422,15 +426,20 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                             </button>
                           ) : null
                         )}
-                        <button onClick={() => setEditUser(u)} title="Edit"
-                          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        {!isMe && (
+                        {!isSuperuser && (
+                          <button onClick={() => setEditUser(u)} title="Edit"
+                            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {!isSuperuser && !isMe && (
                           <button onClick={() => setDeleteId(u.id)} title="Delete"
                             className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
+                        )}
+                        {isSuperuser && (
+                          <span className="text-xs text-gray-300 italic pr-1">Protected</span>
                         )}
                       </div>
                     </td>
@@ -464,32 +473,66 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
   );
 }
 
-const MENU_ORDER = ["Dashboard", "Masters", "Orders", "Stock", "Accounts", "Admin"];
+const SUPERUSER_EMAIL = "admin@zarierp";
+
+const MENU_ORDER = ["Dashboard", "Masters", "Orders", "Stock", "Logistics", "Accounts", "Admin"];
 
 const MENU_ICONS: Record<string, React.ReactNode> = {
   Dashboard: <LayoutDashboard className="h-4 w-4" />,
   Masters:   <BookOpen       className="h-4 w-4" />,
   Orders:    <ClipboardList  className="h-4 w-4" />,
   Stock:     <Package        className="h-4 w-4" />,
+  Logistics: <Package        className="h-4 w-4" />,
   Accounts:  <DollarSign     className="h-4 w-4" />,
   Admin:     <ShieldCheck    className="h-4 w-4" />,
 };
 
-function buildMenuTree(allPermissions: PermissionDef[]) {
-  const map = new Map<string, PermissionDef[]>();
+const ACTION_COLS: Array<{ key: "view" | "add_edit" | "delete" | "download"; label: string; color: string }> = [
+  { key: "view",     label: "View",      color: "text-blue-600" },
+  { key: "add_edit", label: "Add / Edit",color: "text-green-600" },
+  { key: "delete",   label: "Delete",    color: "text-red-500" },
+  { key: "download", label: "Download",  color: "text-purple-600" },
+];
+
+interface ResourceGroup {
+  resource: string;
+  label: string;
+  actionKeys: Partial<Record<"view" | "add_edit" | "delete" | "download", string>>;
+}
+
+interface SubgroupSection { name: string | null; resources: ResourceGroup[] }
+interface MenuSection     { menu: string; subgroups: SubgroupSection[] }
+
+function buildResourceTree(allPermissions: PermissionDef[]): MenuSection[] {
+  const menuMap = new Map<string, Map<string | null, Map<string, ResourceGroup>>>();
   for (const p of allPermissions) {
-    const m = p.menu;
-    if (!map.has(m)) map.set(m, []);
-    map.get(m)!.push(p);
+    if (!menuMap.has(p.menu)) menuMap.set(p.menu, new Map());
+    const sgMap = menuMap.get(p.menu)!;
+    if (!sgMap.has(p.subgroup)) sgMap.set(p.subgroup, new Map());
+    const rMap = sgMap.get(p.subgroup)!;
+    if (!rMap.has(p.resource)) rMap.set(p.resource, { resource: p.resource, label: p.label, actionKeys: {} });
+    rMap.get(p.resource)!.actionKeys[p.action] = p.key;
   }
-  const ordered: Array<{ menu: string; perms: PermissionDef[] }> = [];
-  for (const m of MENU_ORDER) {
-    if (map.has(m)) ordered.push({ menu: m, perms: map.get(m)! });
+  const result: MenuSection[] = [];
+  for (const menu of MENU_ORDER) {
+    if (!menuMap.has(menu)) continue;
+    const sgMap = menuMap.get(menu)!;
+    const subgroups: SubgroupSection[] = [];
+    const nullSg = sgMap.get(null);
+    if (nullSg) subgroups.push({ name: null, resources: Array.from(nullSg.values()) });
+    for (const [sg, rMap] of sgMap) {
+      if (sg !== null) subgroups.push({ name: sg, resources: Array.from(rMap.values()) });
+    }
+    result.push({ menu, subgroups });
   }
-  for (const [m, perms] of map) {
-    if (!MENU_ORDER.includes(m)) ordered.push({ menu: m, perms });
+  for (const [menu, sgMap] of menuMap) {
+    if (!MENU_ORDER.includes(menu)) {
+      const subgroups: SubgroupSection[] = [];
+      for (const [sg, rMap] of sgMap) subgroups.push({ name: sg, resources: Array.from(rMap.values()) });
+      result.push({ menu, subgroups });
+    }
   }
-  return ordered;
+  return result;
 }
 
 function PermissionsPanel({ role, allPermissions, onSave, saving }: {
@@ -503,20 +546,28 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
 
   useEffect(() => { setSelected(new Set(role.permissions)); }, [role.id, role.permissions.join(",")]);
 
-  const tree = buildMenuTree(allPermissions);
+  const tree = buildResourceTree(allPermissions);
 
   function toggle(key: string) {
     setSelected(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
   }
 
-  function toggleMenu(perms: PermissionDef[]) {
-    const keys = perms.map(p => p.key);
+  function toggleResource(rg: ResourceGroup) {
+    const keys = Object.values(rg.actionKeys).filter(Boolean) as string[];
     const allOn = keys.every(k => selected.has(k));
-    setSelected(s => {
-      const n = new Set(s);
-      keys.forEach(k => allOn ? n.delete(k) : n.add(k));
-      return n;
-    });
+    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
+  }
+
+  function toggleAction(action: "view" | "add_edit" | "delete" | "download", allResources: ResourceGroup[]) {
+    const keys = allResources.map(r => r.actionKeys[action]).filter(Boolean) as string[];
+    const allOn = keys.every(k => selected.has(k));
+    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
+  }
+
+  function toggleSection(allResources: ResourceGroup[]) {
+    const keys = allResources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+    const allOn = keys.every(k => selected.has(k));
+    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
   }
 
   function toggleCollapse(menu: string) {
@@ -525,7 +576,6 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-semibold text-gray-900 capitalize">{role.name}</h3>
@@ -537,89 +587,110 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
         </button>
       </div>
 
-      {/* Nav tree */}
-      <div className="space-y-1.5 overflow-y-auto flex-1 pr-0.5">
-        {tree.map(({ menu, perms }) => {
+      <div className="space-y-2 overflow-y-auto flex-1 pr-0.5">
+        {tree.map(({ menu, subgroups }) => {
           const isCollapsed = collapsed.has(menu);
-          const keys = perms.map(p => p.key);
-          const allOn  = keys.every(k => selected.has(k));
-          const someOn = keys.some(k => selected.has(k));
-          const isSingle = perms.length === 1;
-
-          /* collect unique subgroups in declaration order */
-          const subgroups: string[] = [];
-          for (const p of perms) {
-            if (p.subgroup && !subgroups.includes(p.subgroup)) subgroups.push(p.subgroup);
-          }
-          const hasSubgroups = subgroups.length > 0;
-
-          const countLabel = isSingle
-            ? null
-            : `${keys.filter(k => selected.has(k)).length} / ${keys.length}`;
+          const allResources = subgroups.flatMap(sg => sg.resources);
+          const allKeys = allResources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+          const allOn  = allKeys.length > 0 && allKeys.every(k => selected.has(k));
+          const someOn = allKeys.some(k => selected.has(k));
+          const selectedCount = allKeys.filter(k => selected.has(k)).length;
 
           return (
             <div key={menu} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-
-              {/* Menu header row */}
-              <div
-                className="flex items-center gap-3 px-4 py-3 select-none"
-                style={{ cursor: isSingle ? "default" : "pointer" }}
-                onClick={() => !isSingle && toggleCollapse(menu)}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSingle ? selected.has(keys[0]) : allOn}
-                  ref={el => { if (el && !isSingle) el.indeterminate = someOn && !allOn; }}
-                  onChange={e => {
-                    e.stopPropagation();
-                    isSingle ? toggle(keys[0]) : toggleMenu(perms);
-                  }}
+              {/* Section header */}
+              <div className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none" onClick={() => toggleCollapse(menu)}>
+                <input type="checkbox"
+                  checked={allOn}
+                  ref={el => { if (el) el.indeterminate = someOn && !allOn; }}
+                  onChange={e => { e.stopPropagation(); toggleSection(allResources); }}
                   onClick={e => e.stopPropagation()}
                   className="h-4 w-4 rounded border-gray-300 accent-gray-900 shrink-0"
                 />
                 <span className="text-[#C9B45C] shrink-0">{MENU_ICONS[menu] ?? <Shield className="h-4 w-4" />}</span>
                 <span className="text-sm font-semibold text-gray-800 flex-1">{menu}</span>
-                {countLabel && (
-                  <span className="text-xs font-medium text-gray-400 tabular-nums">{countLabel}</span>
-                )}
-                {!isSingle && (
-                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isCollapsed ? "" : "rotate-180"}`} />
-                )}
+                <span className="text-xs text-gray-400 tabular-nums">{selectedCount} / {allKeys.length}</span>
+                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isCollapsed ? "" : "rotate-180"}`} />
               </div>
 
-              {/* Submenu items */}
-              {!isSingle && !isCollapsed && (
-                <div className="border-t border-gray-100 px-4 pt-2 pb-3">
-                  {hasSubgroups ? (
-                    /* Render each subgroup with a header, then items with no subgroup first */
-                    <>
-                      {perms.filter(p => !p.subgroup).length > 0 && (
-                        <div className="grid grid-cols-2 gap-y-1.5 gap-x-6 mb-2">
-                          {perms.filter(p => !p.subgroup).map(p => (
-                            <PermItem key={p.key} p={p} selected={selected} toggle={toggle} />
-                          ))}
-                        </div>
-                      )}
-                      {subgroups.map(sg => (
-                        <div key={sg} className="mb-2 last:mb-0">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 py-1.5 border-b border-gray-100 mb-1.5">
-                            {sg}
-                          </p>
-                          <div className="grid grid-cols-2 gap-y-1.5 gap-x-6 pl-1">
-                            {perms.filter(p => p.subgroup === sg).map(p => (
-                              <PermItem key={p.key} p={p} selected={selected} toggle={toggle} />
-                            ))}
-                          </div>
-                        </div>
+              {/* Resource matrix */}
+              {!isCollapsed && (
+                <div className="border-t border-gray-100 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/70">
+                        <th className="text-left px-4 py-2 text-gray-500 font-semibold w-full">Section</th>
+                        {ACTION_COLS.map(col => {
+                          const colKeys = allResources.map(r => r.actionKeys[col.key]).filter(Boolean) as string[];
+                          if (colKeys.length === 0) return null;
+                          const colAllOn = colKeys.every(k => selected.has(k));
+                          const colSomeOn = colKeys.some(k => selected.has(k));
+                          return (
+                            <th key={col.key} className="px-3 py-2 text-center whitespace-nowrap">
+                              <label className="flex flex-col items-center gap-1 cursor-pointer">
+                                <input type="checkbox"
+                                  checked={colAllOn}
+                                  ref={el => { if (el) el.indeterminate = colSomeOn && !colAllOn; }}
+                                  onChange={() => toggleAction(col.key, allResources)}
+                                  className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900"
+                                />
+                                <span className={`font-semibold ${col.color}`}>{col.label}</span>
+                              </label>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {subgroups.map(({ name: sgName, resources }) => (
+                        <React.Fragment key={sgName ?? "__root__"}>
+                          {sgName && (
+                            <tr className="bg-gray-50/50">
+                              <td colSpan={5} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">{sgName}</td>
+                            </tr>
+                          )}
+                          {resources.map(rg => {
+                            const rgKeys = Object.values(rg.actionKeys).filter(Boolean) as string[];
+                            const rgAllOn = rgKeys.every(k => selected.has(k));
+                            const rgSomeOn = rgKeys.some(k => selected.has(k));
+                            return (
+                              <tr key={rg.resource} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-4 py-2.5">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox"
+                                      checked={rgAllOn}
+                                      ref={el => { if (el) el.indeterminate = rgSomeOn && !rgAllOn; }}
+                                      onChange={() => toggleResource(rg)}
+                                      className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 shrink-0"
+                                    />
+                                    <span className="text-gray-700 font-medium">{rg.label}</span>
+                                  </label>
+                                </td>
+                                {ACTION_COLS.map(col => {
+                                  const colKeys = allResources.map(r => r.actionKeys[col.key]).filter(Boolean) as string[];
+                                  if (colKeys.length === 0) return null;
+                                  const permKey = rg.actionKeys[col.key];
+                                  return (
+                                    <td key={col.key} className="px-3 py-2.5 text-center">
+                                      {permKey ? (
+                                        <input type="checkbox"
+                                          checked={selected.has(permKey)}
+                                          onChange={() => toggle(permKey)}
+                                          className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-200 select-none">—</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
                       ))}
-                    </>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-y-1.5 gap-x-6">
-                      {perms.map(p => (
-                        <PermItem key={p.key} p={p} selected={selected} toggle={toggle} />
-                      ))}
-                    </div>
-                  )}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -627,20 +698,6 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
         })}
       </div>
     </div>
-  );
-}
-
-function PermItem({ p, selected, toggle }: { p: PermissionDef; selected: Set<string>; toggle: (key: string) => void }) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer group py-0.5">
-      <input
-        type="checkbox"
-        checked={selected.has(p.key)}
-        onChange={() => toggle(p.key)}
-        className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 shrink-0"
-      />
-      <span className="text-sm text-gray-700 group-hover:text-gray-900 leading-tight">{p.label}</span>
-    </label>
   );
 }
 
