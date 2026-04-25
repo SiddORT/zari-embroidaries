@@ -372,12 +372,12 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                 value={form.targetVendorId}
                 onChange={e => {
                   const v = vendors.find(x => x.id === Number(e.target.value));
-                  setForm(f => ({ ...f, targetVendorId: Number(e.target.value), targetVendorName: v?.name ?? "" }));
+                  setForm(f => ({ ...f, targetVendorId: Number(e.target.value), targetVendorName: v?.brandName ?? "" }));
                 }}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
               >
                 <option value={0}>Optional</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
               </select>
             </div>
             <button onClick={handleAdd} disabled={addRow.isPending}
