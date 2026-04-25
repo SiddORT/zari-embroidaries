@@ -86,12 +86,13 @@ function SheetTable({ headers, rows, footer }: {
 
 // ─── Cost Sheet Tab ────────────────────────────────────────────────────────────
 export default function CostSheetTab({
-  swatchOrderId, orderCode, swatchName, clientName,
+  swatchOrderId, orderCode, swatchName, clientName, quantity,
 }: {
   swatchOrderId: number;
   orderCode?: string;
   swatchName?: string;
   clientName?: string;
+  quantity?: string;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
@@ -388,6 +389,15 @@ export default function CostSheetTab({
                   <span className="text-xs font-bold text-white tracking-wide">GRAND TOTAL</span>
                   <span className="text-base font-black text-[#C9B45C]">{rupee(grandTotal)}</span>
                 </div>
+                {quantity && parseFloat(quantity) > 0 && (
+                  <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-100 mt-1.5">
+                    <div>
+                      <span className="text-xs font-semibold text-indigo-700">Cost per Unit</span>
+                      <p className="text-[9px] text-indigo-400 mt-0.5">Grand Total ÷ {quantity} units</p>
+                    </div>
+                    <span className="text-sm font-black text-indigo-700">{rupee(grandTotal / parseFloat(quantity))}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

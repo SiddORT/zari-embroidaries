@@ -1262,6 +1262,7 @@ export default function SwatchOrderDetail() {
             orderCode={orderData?.data?.orderCode ?? undefined}
             swatchName={orderData?.data?.swatchName ?? undefined}
             clientName={orderData?.data?.clientName ?? undefined}
+            quantity={form.quantity}
           />
         )}
 

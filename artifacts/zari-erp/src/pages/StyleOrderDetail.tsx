@@ -976,6 +976,7 @@ export default function StyleOrderDetail() {
               orderCode={orderData?.data?.orderCode}
               styleName={orderData?.data?.styleName}
               clientName={form.clientName}
+              quantity={form.quantity}
             />
           )}
 
