@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Plus, Trash2, Info, Upload, X, FileText, Image as ImageIcon,
   User, Layers, Scissors, CalendarDays, MessageSquare, Paperclip, CheckCircle2,
-  ChevronDown, Loader2, Palette, ExternalLink, Pencil,
+  ChevronDown, Loader2, Palette, ExternalLink, Pencil, Lock,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -480,6 +480,7 @@ export default function SwatchOrderDetail() {
   );
 
   const orderCode = isNew ? "New Order" : (orderData?.data?.orderCode ?? `#${numId}`);
+  const isCompleted = !isNew && form.orderStatus === "Completed";
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
@@ -497,16 +498,22 @@ export default function SwatchOrderDetail() {
               {orderCode}
             </span>
             <div className="flex-1" />
-            {/* Status selector */}
-            <div className="relative shrink-0">
-              <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
-                className={`pl-3 pr-7 py-1.5 text-xs font-medium rounded-full border cursor-pointer appearance-none focus:outline-none ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
-            </div>
-            {/* Save — only on tabs with editable data (0=Basic Info, 1=References) */}
-            {activeTab <= 1 && (
+            {/* Status selector / completed badge */}
+            {isCompleted ? (
+              <span className={`inline-flex items-center gap-1.5 pl-3 pr-3 py-1.5 text-xs font-semibold rounded-full border ${STATUS_COLORS["Completed"]}`}>
+                <Lock className="h-3 w-3" /> Completed
+              </span>
+            ) : (
+              <div className="relative shrink-0">
+                <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
+                  className={`pl-3 pr-7 py-1.5 text-xs font-medium rounded-full border cursor-pointer appearance-none focus:outline-none ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                  {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
+              </div>
+            )}
+            {/* Save — only on editable tabs and non-completed orders */}
+            {!isCompleted && activeTab <= 1 && (
               <button onClick={() => { void handleSave(); }} disabled={saving}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -532,7 +539,14 @@ export default function SwatchOrderDetail() {
           </div>
         </div>
 
-        <div className="mt-5">
+        {isCompleted && (
+          <div className="mt-4 mx-0 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+            <Lock className="h-4 w-4 shrink-0 text-emerald-600" />
+            <span>This order is <strong>completed</strong> and locked — no further changes can be made.</span>
+          </div>
+        )}
+
+        <div className={`mt-5${isCompleted ? " pointer-events-none select-none opacity-75" : ""}`}>
 
         {/* ══ TAB 0: Basic Info ══ */}
         {activeTab === 0 && <div className="space-y-5">
