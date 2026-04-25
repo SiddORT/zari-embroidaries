@@ -96,7 +96,6 @@ export default function StyleMaster() {
   function validate() {
     const e: FormErrors = {};
     if (!form.client.trim()) e.client = "Client is required";
-    if (!form.styleNo.trim()) e.styleNo = "Style No is required";
     setErrors(e); return Object.keys(e).length === 0;
   }
   async function handleSubmit() {
@@ -187,8 +186,21 @@ export default function StyleMaster() {
               onChange={(v) => setForm(f => ({ ...f, client: v }))}
               options={clientOptions.map(o => o.value)}
               placeholder="Select client" required error={errors.client} clearable />
-            <InputField label="Style No" value={form.styleNo} onChange={(e) => setForm(f => ({ ...f, styleNo: e.target.value }))}
-              error={errors.styleNo} required placeholder="e.g. STY-001" />
+            {editRecord ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Style No</label>
+                <div className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-500 font-mono">
+                  {editRecord.styleNo}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Style No</label>
+                <div className="px-3 py-2 text-sm bg-gray-50 border border-dashed border-gray-300 rounded-lg text-gray-400 italic">
+                  Auto-generated (ST-0001)
+                </div>
+              </div>
+            )}
             <InputField label="Invoice No (Optional)" value={form.invoiceNo} onChange={(e) => setForm(f => ({ ...f, invoiceNo: e.target.value }))} placeholder="Invoice number" />
             <InputField label="Description (Style Name)" value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Style description" />
             <SearchableSelect label="Place of Issue" value={form.placeOfIssue}

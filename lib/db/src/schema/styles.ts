@@ -25,7 +25,7 @@ export type StyleRecord = typeof stylesTable.$inferSelect;
 
 export const insertStyleSchema = z.object({
   client: z.string().min(1, "Client is required"),
-  styleNo: z.string().min(1, "Style No is required"),
+  styleNo: z.string().optional(),
   invoiceNo: z.string().optional(),
   description: z.string().optional(),
   attachLink: z.string().optional(),

@@ -7,17 +7,16 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 async function generateOrderCode(): Promise<string> {
-  const year = new Date().getFullYear();
-  const prefix = `SWO-${year}-`;
+  const prefix = "ZSW-";
   const [latest] = await db
     .select({ orderCode: swatchOrdersTable.orderCode })
     .from(swatchOrdersTable)
     .where(ilike(swatchOrdersTable.orderCode, `${prefix}%`))
-    .orderBy(desc(swatchOrdersTable.createdAt))
+    .orderBy(desc(swatchOrdersTable.orderCode))
     .limit(1);
-  if (!latest) return `${prefix}001`;
+  if (!latest) return `${prefix}0001`;
   const num = parseInt(latest.orderCode.replace(prefix, ""), 10);
-  return `${prefix}${String(num + 1).padStart(3, "0")}`;
+  return `${prefix}${String(num + 1).padStart(4, "0")}`;
 }
 
 router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {

@@ -7,8 +7,7 @@ import { insertStyleOrderSchema, updateStyleOrderSchema } from "@workspace/db";
 const router = Router();
 
 async function generateOrderCode(): Promise<string> {
-  const year = new Date().getFullYear();
-  const prefix = `SO-${year}-`;
+  const prefix = "ZST-";
   const rows = await db
     .select({ orderCode: styleOrdersTable.orderCode })
     .from(styleOrdersTable)

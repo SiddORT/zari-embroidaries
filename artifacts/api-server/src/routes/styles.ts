@@ -9,6 +9,19 @@ import type { Request } from "express";
 const router: IRouter = Router();
 type AuthRequest = Request & { user?: { userId: number; email: string; role: string } };
 
+async function generateStyleNo(): Promise<string> {
+  const prefix = "ST-";
+  const [latest] = await db
+    .select({ styleNo: stylesTable.styleNo })
+    .from(stylesTable)
+    .where(ilike(stylesTable.styleNo, `${prefix}%`))
+    .orderBy(desc(stylesTable.styleNo))
+    .limit(1);
+  if (!latest) return `${prefix}0001`;
+  const num = parseInt(latest.styleNo.replace(prefix, ""), 10);
+  return `${prefix}${String(isNaN(num) ? 1 : num + 1).padStart(4, "0")}`;
+}
+
 router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
@@ -71,15 +84,9 @@ router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void>
   const parsed = insertStyleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
-  const existing = await db.select().from(stylesTable).where(and(
-    eq(stylesTable.client, parsed.data.client),
-    eq(stylesTable.styleNo, parsed.data.styleNo),
-    eq(stylesTable.isDeleted, false),
-  ));
-  if (existing.length > 0) { res.status(409).json({ error: "Style No already exists for this client" }); return; }
-
   const createdBy = req.user?.email ?? "system";
-  const [record] = await db.insert(stylesTable).values({ ...parsed.data, createdBy }).returning();
+  const styleNo = await generateStyleNo();
+  const [record] = await db.insert(stylesTable).values({ ...parsed.data, styleNo, createdBy }).returning();
   logger.info({ id: record.id }, "Style created");
   res.status(201).json(record);
 });
@@ -90,7 +97,8 @@ router.put("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
   const parsed = updateStyleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
   const updatedBy = req.user?.email ?? "system";
-  const [record] = await db.update(stylesTable).set({ ...parsed.data, updatedBy, updatedAt: new Date() })
+  const { styleNo: _ignored, ...updateData } = parsed.data;
+  const [record] = await db.update(stylesTable).set({ ...updateData, updatedBy, updatedAt: new Date() })
     .where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false))).returning();
   if (!record) { res.status(404).json({ error: "Style not found" }); return; }
   res.json(record);
