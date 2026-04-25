@@ -647,27 +647,29 @@ export function downloadCostingPoPdf(data: PoPdfData) {
 
     autoTable(doc, {
       startY: y,
-      head: [["Code", "Material / Fabric", "Qty", "Unit", "Preferred Vendor", "Sample"]],
+      head: [["Code", "Material / Fabric", "Qty & Unit", "Preferred Vendor", "Sample"]],
       body: po.items.length > 0
         ? po.items.map(i => {
             const qty = parseFloat(i.quantity) || 0;
+            const qtyUnit = qty > 0
+              ? `${qty.toFixed(3)}${i.unitType ? ` ${i.unitType}` : ""}`
+              : "—";
             return [
               i.materialCode || "—",
               i.materialName || "—",
-              qty > 0 ? qty.toFixed(3) : "—",
-              i.unitType || "—",
+              qtyUnit,
               po.vendorName || "—",
               "",
             ];
           })
-        : [["—", "No line items", "—", "—", "—", ""]],
+        : [["—", "No line items", "—", "—", ""]],
       styles: {
         fontSize: 8.5,
         cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
         textColor: DARK,
         lineColor: [200, 200, 200],
         lineWidth: 0.2,
-        minCellHeight: 18,
+        minCellHeight: 36,
       },
       headStyles: {
         fillColor: DARK,
@@ -677,16 +679,15 @@ export function downloadCostingPoPdf(data: PoPdfData) {
       },
       columnStyles: {
         0: { cellWidth: 22 },
-        1: { cellWidth: 58 },
-        2: { cellWidth: 18, halign: "right" },
-        3: { cellWidth: 16, halign: "center" },
-        4: { cellWidth: 44 },
-        5: { cellWidth: 24, halign: "center" },
+        1: { cellWidth: 64 },
+        2: { cellWidth: 28, halign: "center" },
+        3: { cellWidth: 44 },
+        4: { cellWidth: 24, halign: "center" },
       },
       alternateRowStyles: { fillColor: [252, 250, 246] },
       margin: { left: 14, right: 14 },
       didDrawCell(hookData) {
-        if (hookData.section === "body" && hookData.column.index === 5) {
+        if (hookData.section === "body" && hookData.column.index === 4) {
           const { x, y: cy, width, height } = hookData.cell;
           const pad = 3;
           doc.setDrawColor(120, 120, 120);
