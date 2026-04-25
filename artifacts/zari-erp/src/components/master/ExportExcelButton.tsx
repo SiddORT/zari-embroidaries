@@ -1,5 +1,6 @@
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import { logDownload } from "@/utils/logDownload";
 
 export interface ExportColumn {
   key: string;
@@ -11,6 +12,8 @@ interface ExportExcelButtonProps {
   filename?: string;
   columns: ExportColumn[];
   disabled?: boolean;
+  module?: string;
+  reference?: string;
 }
 
 export default function ExportExcelButton({
@@ -18,6 +21,8 @@ export default function ExportExcelButton({
   filename = "export",
   columns,
   disabled = false,
+  module = "",
+  reference = "",
 }: ExportExcelButtonProps) {
   const handleExport = () => {
     const rows = data.map((row) =>
@@ -27,6 +32,13 @@ export default function ExportExcelButton({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Data");
     XLSX.writeFile(wb, `${filename}.xlsx`);
+
+    logDownload({
+      file_type: "Excel",
+      file_name: `${filename}.xlsx`,
+      module: module || filename,
+      reference,
+    });
   };
 
   return (

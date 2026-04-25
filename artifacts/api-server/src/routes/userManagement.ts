@@ -167,13 +167,37 @@ export const ALL_PERMISSIONS = [
   { key: "accounts:other_expenses:add_edit",  label: "Other Expenses",      resource: "accounts:other_expenses",     action: "add_edit", menu: "Accounts", subgroup: null },
   { key: "accounts:other_expenses:delete",    label: "Other Expenses",      resource: "accounts:other_expenses",     action: "delete",   menu: "Accounts", subgroup: null },
 
-  /* ── Admin ──────────────────────────────────────────────── */
-  { key: "settings:view",               label: "Settings",        resource: "settings",        action: "view",     menu: "Admin", subgroup: null },
-  { key: "settings:add_edit",           label: "Settings",        resource: "settings",        action: "add_edit", menu: "Admin", subgroup: null },
+  /* ── Admin › Settings ──────────────────────────────────── */
+  { key: "settings:profile:view",          label: "Profile",           resource: "settings:profile",          action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:profile:add_edit",      label: "Profile",           resource: "settings:profile",          action: "add_edit", menu: "Admin", subgroup: "Settings" },
 
-  { key: "user_management:view",        label: "User Management", resource: "user_management", action: "view",     menu: "Admin", subgroup: null },
-  { key: "user_management:add_edit",    label: "User Management", resource: "user_management", action: "add_edit", menu: "Admin", subgroup: null },
-  { key: "user_management:delete",      label: "User Management", resource: "user_management", action: "delete",   menu: "Admin", subgroup: null },
+  { key: "settings:currency:view",         label: "Currency",          resource: "settings:currency",         action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:currency:add_edit",     label: "Currency",          resource: "settings:currency",         action: "add_edit", menu: "Admin", subgroup: "Settings" },
+  { key: "settings:currency:delete",       label: "Currency",          resource: "settings:currency",         action: "delete",   menu: "Admin", subgroup: "Settings" },
+
+  { key: "settings:banks:view",            label: "Bank Details",      resource: "settings:banks",            action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:banks:add_edit",        label: "Bank Details",      resource: "settings:banks",            action: "add_edit", menu: "Admin", subgroup: "Settings" },
+  { key: "settings:banks:delete",          label: "Bank Details",      resource: "settings:banks",            action: "delete",   menu: "Admin", subgroup: "Settings" },
+
+  { key: "settings:gst:view",              label: "GST Settings",      resource: "settings:gst",              action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:gst:add_edit",          label: "GST Settings",      resource: "settings:gst",              action: "add_edit", menu: "Admin", subgroup: "Settings" },
+
+  { key: "settings:activity_logs:view",    label: "Activity Logs",     resource: "settings:activity_logs",    action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:activity_logs:download",label: "Activity Logs",     resource: "settings:activity_logs",    action: "download", menu: "Admin", subgroup: "Settings" },
+
+  { key: "settings:warehouses:view",       label: "Warehouses",        resource: "settings:warehouses",       action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:warehouses:add_edit",   label: "Warehouses",        resource: "settings:warehouses",       action: "add_edit", menu: "Admin", subgroup: "Settings" },
+  { key: "settings:warehouses:delete",     label: "Warehouses",        resource: "settings:warehouses",       action: "delete",   menu: "Admin", subgroup: "Settings" },
+
+  { key: "settings:templates:view",        label: "Invoice Templates", resource: "settings:templates",        action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:templates:add_edit",    label: "Invoice Templates", resource: "settings:templates",        action: "add_edit", menu: "Admin", subgroup: "Settings" },
+
+  { key: "settings:download_logs:view",    label: "Download Logs",     resource: "settings:download_logs",    action: "view",     menu: "Admin", subgroup: "Settings" },
+  { key: "settings:download_logs:download",label: "Download Logs",     resource: "settings:download_logs",    action: "download", menu: "Admin", subgroup: "Settings" },
+
+  { key: "user_management:view",           label: "User Management",   resource: "user_management",           action: "view",     menu: "Admin", subgroup: null },
+  { key: "user_management:add_edit",       label: "User Management",   resource: "user_management",           action: "add_edit", menu: "Admin", subgroup: null },
+  { key: "user_management:delete",         label: "User Management",   resource: "user_management",           action: "delete",   menu: "Admin", subgroup: null },
 ];
 
 const requireAdmin = requireAuth;

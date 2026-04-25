@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { logDownload } from "./logDownload";
 
 const GOLD_RGB: [number, number, number] = [198, 175, 75];
 const DARK_RGB: [number, number, number] = [30, 30, 30];
@@ -376,5 +377,7 @@ export async function generateQuotationPdf(data: QuotationPdfData): Promise<jsPD
 
 export async function downloadQuotationPdf(data: QuotationPdfData) {
   const doc = await generateQuotationPdf(data);
-  doc.save(`${data.quotation_number}.pdf`);
+  const qFileName = `${data.quotation_number}.pdf`;
+  doc.save(qFileName);
+  logDownload({ file_type: "PDF", file_name: qFileName, module: "Quotations", reference: data.quotation_number });
 }

@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { logDownload } from "./logDownload";
 
 const GOLD = [198, 175, 75] as [number, number, number];
 const DARK = [30, 30, 30]   as [number, number, number];
@@ -191,7 +192,9 @@ export function downloadPoPdf(po: POPdfData) {
   }
 
   addFooter(doc);
-  doc.save(`${po.po_number.replace(/\//g, "-")}.pdf`);
+  const poFileName = `${po.po_number.replace(/\//g, "-")}.pdf`;
+  doc.save(poFileName);
+  logDownload({ file_type: "PDF", file_name: poFileName, module: "Purchase Orders", reference: po.po_number });
 }
 
 export interface PRPdfData {
@@ -281,7 +284,9 @@ export function downloadPrPdf(pr: PRPdfData) {
   });
 
   addFooter(doc);
-  doc.save(`${pr.pr_number.replace(/\//g, "-")}.pdf`);
+  const prFileName = `${pr.pr_number.replace(/\//g, "-")}.pdf`;
+  doc.save(prFileName);
+  logDownload({ file_type: "PDF", file_name: prFileName, module: "Purchase Receipts", reference: pr.pr_number });
 }
 
 function addFooter(doc: jsPDF) {
@@ -525,4 +530,5 @@ export function downloadBomPdf(data: BomPdfData) {
 
   const filename = `BOM_${data.orderCode ?? data.referenceId}_${today.replace(/\s/g, "-")}.pdf`;
   doc.save(filename);
+  logDownload({ file_type: "PDF", file_name: filename, module: "Bill of Materials", reference: data.orderCode ?? data.referenceId ?? "" });
 }

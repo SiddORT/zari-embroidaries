@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { downloadBomPdf } from "@/utils/pdfExport";
 import { logActivity } from "@/utils/logActivity";
+import { logDownload } from "@/utils/logDownload";
 import CostingPaymentsPanel from "@/components/CostingPaymentsPanel";
 import { useCostingPaymentTotals } from "@/hooks/useCostingPayments";
 import { useQuery } from "@tanstack/react-query";
@@ -232,7 +233,9 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
     ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "BOM");
-    XLSX.writeFile(wb, `BOM_${orderCode ?? styleOrderId}_${today.replace(/\//g, "-")}.xlsx`);
+    const bomXlsxName = `BOM_${orderCode ?? styleOrderId}_${today.replace(/\//g, "-")}.xlsx`;
+    XLSX.writeFile(wb, bomXlsxName);
+    logDownload({ file_type: "Excel", file_name: bomXlsxName, module: "Bill of Materials", reference: orderCode ?? String(styleOrderId ?? "") });
   }
 
   return (

@@ -12,10 +12,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
+import { logDownload } from "@/utils/logDownload";
 
 const G = "#C6AF4B";
 
-type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses" | "templates" | "reports";
+type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses" | "templates" | "reports" | "download_logs";
 
 const STATUS_COLORS: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -46,11 +47,20 @@ export default function Settings() {
   const logoutMutation = useLogout();
 
   const [tab, setTab] = useState<Tab>(() => {
-    const valid: Tab[] = ["profile", "currency", "banks", "gst", "logs", "warehouses", "templates"];
+    const valid: Tab[] = ["profile", "currency", "banks", "gst", "logs", "warehouses", "templates", "download_logs"];
     const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     return p && valid.includes(p) ? p : "profile";
   });
   const isAdmin = user?.role === "admin";
+
+  const [myPerms, setMyPerms] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!token) return;
+    customFetch<{ data: string[] }>("/api/settings/my-permissions")
+      .then(r => setMyPerms(new Set(r.data)))
+      .catch(() => {});
+  }, [token]);
+  const can = (key: string) => isAdmin || myPerms.has(key);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
@@ -79,35 +89,43 @@ export default function Settings() {
           {/* Sidebar */}
           <aside className="w-52 shrink-0">
             <div className={`${card} p-2 space-y-0.5`}>
-              <NavItem icon={<User size={16} />} label="Profile" active={tab === "profile"} onClick={() => setTab("profile")} />
-              {isAdmin && (
+              {can("settings:profile:view") && (
+                <NavItem icon={<User size={16} />} label="Profile" active={tab === "profile"} onClick={() => setTab("profile")} />
+              )}
+              {can("settings:currency:view") && (
                 <NavItem icon={<Globe size={16} />} label="Currency" active={tab === "currency"} onClick={() => setTab("currency")} />
               )}
-              {isAdmin && (
+              {can("settings:banks:view") && (
                 <NavItem icon={<Landmark size={16} />} label="Bank Details" active={tab === "banks"} onClick={() => setTab("banks")} />
               )}
-              {isAdmin && (
+              {can("settings:gst:view") && (
                 <NavItem icon={<Receipt size={16} />} label="GST Settings" active={tab === "gst"} onClick={() => setTab("gst")} />
               )}
-              <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
-              {isAdmin && (
-                <>
-                  <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
-                  <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => setTab("templates")} />
-                </>
+              {can("settings:activity_logs:view") && (
+                <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
+              )}
+              {can("settings:warehouses:view") && (
+                <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
+              )}
+              {can("settings:templates:view") && (
+                <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => setTab("templates")} />
+              )}
+              {can("settings:download_logs:view") && (
+                <NavItem icon={<Download size={16} />} label="Download Logs" active={tab === "download_logs"} onClick={() => setTab("download_logs")} />
               )}
             </div>
           </aside>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {tab === "profile" && <ProfileTab card={card} inp={inp} label={label} toast={toast} userId={user?.id} />}
-            {tab === "currency" && isAdmin && <CurrencyTab card={card} inp={inp} label={label} toast={toast} />}
-            {tab === "banks" && isAdmin && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} />}
-            {tab === "gst" && isAdmin && <GSTSettingsTab card={card} inp={inp} label={label} toast={toast} />}
-            {tab === "logs" && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} />}
-            {tab === "warehouses" && isAdmin && <WarehouseTab card={card} inp={inp} label={label} toast={toast} />}
-            {tab === "templates" && isAdmin && <InvoiceTemplatesTab card={card} toast={toast} />}
+            {tab === "profile" && can("settings:profile:view") && <ProfileTab card={card} inp={inp} label={label} toast={toast} userId={user?.id} canEdit={can("settings:profile:add_edit")} />}
+            {tab === "currency" && can("settings:currency:view") && <CurrencyTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:currency:add_edit")} />}
+            {tab === "banks" && can("settings:banks:view") && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:banks:add_edit")} />}
+            {tab === "gst" && can("settings:gst:view") && <GSTSettingsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:gst:add_edit")} />}
+            {tab === "logs" && can("settings:activity_logs:view") && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} canDownload={can("settings:activity_logs:download")} />}
+            {tab === "warehouses" && can("settings:warehouses:view") && <WarehouseTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:warehouses:add_edit")} />}
+            {tab === "templates" && can("settings:templates:view") && <InvoiceTemplatesTab card={card} toast={toast} />}
+            {tab === "download_logs" && can("settings:download_logs:view") && <DownloadLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} canDownload={can("settings:download_logs:download")} />}
           </div>
         </div>
       </div>
@@ -1577,7 +1595,9 @@ function WarehouseTab({ card, inp, label, toast }: any) {
         doc.text(`Page ${i} of ${pageCount} — Confidential — ZARI EMBROIDERIES`, 148.5, 205, { align: "center" });
       }
 
-      doc.save(`warehouses-${new Date().toISOString().slice(0, 10)}.pdf`);
+      const wFileName = `warehouses-${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.save(wFileName);
+      logDownload({ file_type: "PDF", file_name: wFileName, module: "Warehouses", reference: "" });
     } catch (e: any) {
       toast({ title: "PDF export failed: " + e.message, variant: "destructive" });
     } finally { setExportingPdf(false); }
@@ -2549,6 +2569,252 @@ function InvoiceTemplatesTab({ card, toast }: any) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// DOWNLOAD LOGS TAB
+// ─────────────────────────────────────────────────────────
+
+interface DownloadLog {
+  id: number;
+  user_id: number | null;
+  user_name: string;
+  user_email: string;
+  file_type: string;
+  file_name: string;
+  module: string;
+  reference: string;
+  downloaded_at: string;
+}
+
+function DownloadLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) {
+  const token = localStorage.getItem("zarierp_token");
+  const hdrs = { Authorization: `Bearer ${token}` };
+
+  const [logs, setLogs] = useState<DownloadLog[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [users, setUsers] = useState<{ user_email: string; user_name: string }[]>([]);
+  const [filters, setFilters] = useState({ user_email: "", from: "", to: "", search: "", file_type: "" });
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 25;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams({ page: String(page), limit: String(PER_PAGE) });
+      if (filters.user_email) q.set("user_email", filters.user_email);
+      if (filters.from) q.set("from", filters.from);
+      if (filters.to) q.set("to", filters.to);
+      if (filters.search) q.set("search", filters.search);
+      if (filters.file_type) q.set("file_type", filters.file_type);
+      const r = await fetch(`/api/settings/download-logs?${q}`, { headers: hdrs });
+      const j = await r.json();
+      setLogs(j.data ?? []);
+      setTotal(j.total ?? 0);
+    } catch {}
+    finally { setLoading(false); }
+  }, [token, filters, page]);
+
+  const loadUsers = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const r = await fetch("/api/settings/download-logs/users", { headers: hdrs });
+      const j = await r.json();
+      setUsers(j.data ?? []);
+    } catch {}
+  }, [token, isAdmin]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  const setF = (k: string, v: string) => { setFilters(f => ({ ...f, [k]: v })); setPage(1); };
+  const totalPages = Math.ceil(total / PER_PAGE);
+
+  async function handleExportCSV() {
+    if (!canDownload) return;
+    setExporting(true);
+    try {
+      const q = new URLSearchParams({ page: "1", limit: "10000" });
+      if (filters.user_email) q.set("user_email", filters.user_email);
+      if (filters.from) q.set("from", filters.from);
+      if (filters.to) q.set("to", filters.to);
+      const r = await fetch(`/api/settings/download-logs?${q}`, { headers: hdrs });
+      const j = await r.json();
+      const all: DownloadLog[] = j.data ?? [];
+      const header = ["#", "User Email", "User Name", "File Type", "File Name", "Module", "Reference", "Downloaded At"];
+      const rows = all.map((l, i) => [
+        i + 1, l.user_email, l.user_name, l.file_type, l.file_name, l.module, l.reference, fmtDateTime(l.downloaded_at)
+      ]);
+      const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = `download-logs-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    } catch {}
+    finally { setExporting(false); }
+  }
+
+  const fileTypeBadge = (t: string) => {
+    const map: Record<string, string> = {
+      PDF: "bg-red-50 text-red-700",
+      Excel: "bg-green-50 text-green-700",
+      CSV: "bg-blue-50 text-blue-700",
+    };
+    return map[t] ?? "bg-gray-100 text-gray-600";
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className={`${card} p-5`}>
+        <div className="flex items-center gap-2 mb-1">
+          <Download size={18} style={{ color: G }} />
+          <h2 className="text-base font-bold text-gray-900">Download Logs</h2>
+          <div className="ml-auto flex items-center gap-3">
+            {total > 0 && <span className="text-xs text-gray-400 font-medium">{total.toLocaleString()} total downloads</span>}
+            {canDownload && (
+              <button
+                onClick={handleExportCSV}
+                disabled={exporting || logs.length === 0}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-gray-500">
+          {isAdmin ? "Track all file downloads (PDFs, Excel exports) across the system." : "Your recent file downloads."}
+        </p>
+      </div>
+
+      {/* Filters */}
+      <div className={`${card} px-4 py-3`}>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">
+            <Filter size={12} /> Filters
+          </div>
+          {isAdmin && (
+            <select
+              value={filters.user_email}
+              onChange={e => setF("user_email", e.target.value)}
+              className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/20"
+            >
+              <option value="">All Users</option>
+              {users.map(u => (
+                <option key={u.user_email} value={u.user_email}>{u.user_name || u.user_email}</option>
+              ))}
+            </select>
+          )}
+          <select
+            value={filters.file_type}
+            onChange={e => setF("file_type", e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/20"
+          >
+            <option value="">All Types</option>
+            <option value="PDF">PDF</option>
+            <option value="Excel">Excel</option>
+            <option value="CSV">CSV</option>
+          </select>
+          <input
+            type="date" value={filters.from}
+            onChange={e => setF("from", e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/20"
+            placeholder="From date"
+          />
+          <input
+            type="date" value={filters.to}
+            onChange={e => setF("to", e.target.value)}
+            className="text-sm border border-gray-200 rounded-xl px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/20"
+            placeholder="To date"
+          />
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text" value={filters.search}
+              onChange={e => setF("search", e.target.value)}
+              placeholder="Search file, module…"
+              className="text-sm border border-gray-200 rounded-xl pl-7 pr-3 py-1.5 text-gray-700 w-44 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/20"
+            />
+          </div>
+          {(filters.user_email || filters.from || filters.to || filters.search || filters.file_type) && (
+            <button
+              onClick={() => { setFilters({ user_email: "", from: "", to: "", search: "", file_type: "" }); setPage(1); }}
+              className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1"
+            >
+              <X size={12} /> Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className={`${card} overflow-hidden`}>
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-gray-400">
+            <span className="h-6 w-6 border-2 border-gray-200 border-t-[#C6AF4B] rounded-full animate-spin" />
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+            <Download size={32} className="opacity-20" />
+            <p className="text-sm">No download records found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  {isAdmin && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>}
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">File Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Module</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Downloaded At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {logs.map(l => (
+                  <tr key={l.id} className="hover:bg-gray-50/50 transition-colors">
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900 text-xs">{l.user_name || "—"}</div>
+                        <div className="text-gray-400 text-[11px]">{l.user_email}</div>
+                      </td>
+                    )}
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${fileTypeBadge(l.file_type)}`}>
+                        {l.file_type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-800 max-w-[200px] truncate" title={l.file_name}>{l.file_name}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{l.module || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{l.reference || "—"}</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(l.downloaded_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+            <span className="text-xs text-gray-400">
+              Page {page} of {totalPages} · {total} records
+            </span>
+            <div className="flex gap-1">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
+                className="px-2 py-1 rounded text-xs border border-gray-200 hover:bg-gray-50 disabled:opacity-40">← Prev</button>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
+                className="px-2 py-1 rounded text-xs border border-gray-200 hover:bg-gray-50 disabled:opacity-40">Next →</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -686,4 +686,102 @@ router.post("/settings/invoice-templates/:id/set-default", requireAuth, async (r
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// MY PERMISSIONS — for current user's role
+// ═══════════════════════════════════════════════════════════════
+
+router.get("/settings/my-permissions", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT rp.permission
+       FROM role_permissions rp
+       JOIN roles r ON r.id = rp.role_id
+       JOIN users u ON u.role = r.name
+       WHERE u.id = $1`,
+      [req.user?.userId]
+    );
+    res.json({ data: rows.map((r: any) => r.permission) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DOWNLOAD LOGS
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/settings/download-logs — log a download (any authenticated user)
+router.post("/settings/download-logs", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { file_type, file_name, module = "", reference = "" } = req.body as {
+      file_type: string; file_name: string; module?: string; reference?: string;
+    };
+    if (!file_type?.trim() || !file_name?.trim()) {
+      return res.status(400).json({ error: "file_type and file_name are required" });
+    }
+    await pool.query(
+      `INSERT INTO download_logs (user_id, user_name, user_email, file_type, file_name, module, reference)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        req.user?.userId ?? null,
+        req.user?.username ?? req.user?.email ?? "",
+        req.user?.email ?? "",
+        file_type.trim(),
+        file_name.trim(),
+        module.trim(),
+        reference.trim(),
+      ]
+    );
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/settings/download-logs — list downloads
+router.get("/settings/download-logs", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { user_email, from, to, search, file_type, page = "1", limit: lim = "100" } = req.query as Record<string, string>;
+    const isAdmin = req.user?.role === "admin";
+    const offset = (parseInt(page) - 1) * parseInt(lim);
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (!isAdmin) {
+      conditions.push(`user_email = $${idx++}`);
+      params.push(req.user?.email);
+    } else if (user_email) {
+      conditions.push(`user_email = $${idx++}`);
+      params.push(user_email);
+    }
+
+    if (from) { conditions.push(`downloaded_at >= $${idx++}`); params.push(new Date(from).toISOString()); }
+    if (to)   { conditions.push(`downloaded_at <= $${idx++}`); params.push(new Date(to).toISOString()); }
+    if (file_type) { conditions.push(`file_type = $${idx++}`); params.push(file_type); }
+    if (search) {
+      conditions.push(`(file_name ILIKE $${idx} OR module ILIKE $${idx} OR reference ILIKE $${idx} OR user_name ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const countRes = await pool.query(`SELECT COUNT(*) FROM download_logs ${where}`, params);
+    const { rows } = await pool.query(
+      `SELECT * FROM download_logs ${where} ORDER BY downloaded_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, parseInt(lim), offset]
+    );
+    res.json({ data: rows, total: parseInt(countRes.rows[0].count) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/settings/download-logs/users — distinct users (admin only)
+router.get("/settings/download-logs/users", requireAuth, async (req: AuthRequest, res) => {
+  if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (user_email) user_email, user_name
+       FROM download_logs ORDER BY user_email, downloaded_at DESC`
+    );
+    res.json({ data: rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
