@@ -41,6 +41,8 @@ export interface PoLineItem {
   unitType: string;
   targetPrice: string;
   quantity: string;
+  targetVendorId?: number | null;
+  targetVendorName?: string | null;
 }
 
 export interface PurchaseOrderRecord {

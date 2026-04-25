@@ -541,6 +541,7 @@ export interface PoPdfLineItem {
   unitType: string;
   quantity: string;
   targetPrice: string;
+  targetVendorName?: string | null;
 }
 
 export interface PoPdfOrder {
@@ -688,7 +689,7 @@ export function downloadCostingPoPdf(data: PoPdfData) {
               i.materialCode || "—",
               i.materialName || "—",
               qtyUnit,
-              po.vendorName || "—",
+              i.targetVendorName || po.vendorName || "—",
               "",
             ];
           })

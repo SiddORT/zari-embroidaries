@@ -920,15 +920,23 @@ function CreatePoModal({
   const [vendorId, setVendorId] = useState("");
   const [notes, setNotes] = useState("");
   const [isPending, setIsPending] = useState(false);
-  type Override = { checked: boolean; targetPrice: string; quantity: string };
+  type Override = { checked: boolean; targetPrice: string; quantity: string; targetVendorId: string; targetVendorName: string };
   const [overrides, setOverrides] = useState<Record<number, Override>>(() =>
-    Object.fromEntries(bomRows.map(r => [r.id, { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty }]))
+    Object.fromEntries(bomRows.map(r => [r.id, {
+      checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty,
+      targetVendorId: r.targetVendorId ? String(r.targetVendorId) : "",
+      targetVendorName: r.targetVendorName ?? "",
+    }]))
   );
 
   const toggleRow = (id: number) =>
     setOverrides(prev => ({ ...prev, [id]: { ...prev[id], checked: !prev[id].checked } }));
   const setField = (id: number, field: "targetPrice" | "quantity", val: string) =>
     setOverrides(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
+  const setItemVendor = (id: number, vid: string) => {
+    const v = vendors.find(v => String(v.id) === vid);
+    setOverrides(prev => ({ ...prev, [id]: { ...prev[id], targetVendorId: vid, targetVendorName: v?.brandName ?? "" } }));
+  };
 
   const selectedItems = bomRows.filter(r => overrides[r.id]?.checked);
   const totalTarget = selectedItems.reduce((s, r) => {
@@ -946,6 +954,8 @@ function CreatePoModal({
       unitType: r.unitType,
       targetPrice: overrides[r.id].targetPrice,
       quantity: overrides[r.id].quantity,
+      targetVendorId: overrides[r.id].targetVendorId ? Number(overrides[r.id].targetVendorId) : null,
+      targetVendorName: overrides[r.id].targetVendorName || null,
     }));
     setIsPending(true);
     try {
@@ -999,12 +1009,13 @@ function CreatePoModal({
                       <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">BOM Qty</th>
                       <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Target Price (₹)</th>
                       <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Order Qty</th>
+                      <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2">Target Vendor</th>
                       <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2">Line Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {bomRows.map(r => {
-                      const ov = overrides[r.id] ?? { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty };
+                      const ov = overrides[r.id] ?? { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty, targetVendorId: "", targetVendorName: "" };
                       const lineTotal = (parseFloat(ov.targetPrice) || 0) * (parseFloat(ov.quantity) || 0);
                       return (
                         <tr key={r.id} className={`border-b border-gray-50 transition-colors ${ov.checked ? "bg-amber-50/50" : "hover:bg-gray-50/50"}`}>
@@ -1033,6 +1044,17 @@ function CreatePoModal({
                               disabled={!ov.checked}
                               onChange={e => setField(r.id, "quantity", e.target.value)}
                               className={`w-20 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-900/20 ${!ov.checked ? "opacity-30 cursor-not-allowed" : ""}`} />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <select
+                              value={ov.targetVendorId}
+                              onChange={e => setItemVendor(r.id, e.target.value)}
+                              disabled={!ov.checked}
+                              className={`w-36 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none ${!ov.checked ? "opacity-30 cursor-not-allowed" : ""}`}
+                            >
+                              <option value="">— Vendor —</option>
+                              {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
+                            </select>
                           </td>
                           <td className="px-3 py-2.5 text-right font-semibold text-gray-700">
                             {ov.checked ? `₹${lineTotal.toFixed(2)}` : <span className="text-gray-300">—</span>}
@@ -1210,6 +1232,7 @@ function PoSection({ swatchOrderId, orderCode, swatchName, clientName }: {
             unitType: i.unitType,
             quantity: i.quantity,
             targetPrice: i.targetPrice,
+            targetVendorName: i.targetVendorName,
           })),
         })),
       });

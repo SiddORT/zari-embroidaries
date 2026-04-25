@@ -813,14 +813,22 @@ function StyleCreatePoModal({
   const [vendorId, setVendorId] = useState("");
   const [notes, setNotes] = useState("");
   const [isPending, setIsPending] = useState(false);
-  type Override = { checked: boolean; targetPrice: string; quantity: string };
+  type Override = { checked: boolean; targetPrice: string; quantity: string; targetVendorId: string; targetVendorName: string };
   const [overrides, setOverrides] = useState<Record<number, Override>>(() =>
-    Object.fromEntries(bomRows.map(r => [r.id, { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty }]))
+    Object.fromEntries(bomRows.map(r => [r.id, {
+      checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty,
+      targetVendorId: r.targetVendorId ? String(r.targetVendorId) : "",
+      targetVendorName: r.targetVendorName ?? "",
+    }]))
   );
 
   const toggleRow = (id: number) => setOverrides(prev => ({ ...prev, [id]: { ...prev[id], checked: !prev[id].checked } }));
   const setField = (id: number, field: "targetPrice" | "quantity", val: string) =>
     setOverrides(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
+  const setItemVendor = (id: number, vid: string) => {
+    const v = vendors.find(v => String(v.id) === vid);
+    setOverrides(prev => ({ ...prev, [id]: { ...prev[id], targetVendorId: vid, targetVendorName: v?.brandName ?? "" } }));
+  };
 
   const selectedItems = bomRows.filter(r => overrides[r.id]?.checked);
   const totalTarget = selectedItems.reduce((s, r) => {
@@ -834,6 +842,8 @@ function StyleCreatePoModal({
     const bomItems: PoLineItem[] = selectedItems.map(r => ({
       bomRowId: r.id, materialCode: r.materialCode, materialName: r.materialName,
       unitType: r.unitType, targetPrice: overrides[r.id].targetPrice, quantity: overrides[r.id].quantity,
+      targetVendorId: overrides[r.id].targetVendorId ? Number(overrides[r.id].targetVendorId) : null,
+      targetVendorName: overrides[r.id].targetVendorName || null,
     }));
     setIsPending(true);
     try {
@@ -878,14 +888,14 @@ function StyleCreatePoModal({
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="px-3 py-2 w-8"></th>
-                      {["Code", "Item", "Stock", "Qty", "Target Price"].map(h => (
+                      {["Code", "Item", "Stock", "Qty", "Target Price", "Target Vendor"].map(h => (
                         <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {bomRows.map(r => {
-                      const ov = overrides[r.id] ?? { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty };
+                      const ov = overrides[r.id] ?? { checked: false, targetPrice: r.avgUnitPrice, quantity: r.requiredQty, targetVendorId: "", targetVendorName: "" };
                       return (
                         <tr key={r.id} className={`border-b border-gray-50 transition-colors ${ov.checked ? "bg-[#C9B45C]/5" : "hover:bg-gray-50/50"}`}>
                           <td className="px-3 py-2.5">
@@ -913,6 +923,17 @@ function StyleCreatePoModal({
                                 disabled={!ov.checked}
                                 className="w-24 text-xs border border-gray-200 rounded-lg px-2 py-1 disabled:opacity-40 focus:outline-none" />
                             </div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <select
+                              value={ov.targetVendorId}
+                              onChange={e => setItemVendor(r.id, e.target.value)}
+                              disabled={!ov.checked}
+                              className="w-36 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white disabled:opacity-40 focus:outline-none"
+                            >
+                              <option value="">— Vendor —</option>
+                              {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
+                            </select>
                           </td>
                         </tr>
                       );
@@ -978,6 +999,7 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
             unitType: i.unitType,
             quantity: i.quantity,
             targetPrice: i.targetPrice,
+            targetVendorName: i.targetVendorName,
           })),
         })),
       });
