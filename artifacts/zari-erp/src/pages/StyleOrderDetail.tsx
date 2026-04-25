@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -287,11 +288,13 @@ export default function StyleOrderDetail() {
   });
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const savedFormRef = useRef<FormState>(EMPTY_FORM);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
     if (orderData?.data) {
       const o = orderData.data;
-      setForm({
+      const loaded: FormState = {
         styleName: o.styleName ?? "",
         styleNo: o.styleNo ?? "",
         clientId: o.clientId ?? "",
@@ -334,7 +337,9 @@ export default function StyleOrderDetail() {
         actualCompletionTime: o.actualCompletionTime ?? "",
         delayReason: o.delayReason ?? "",
         approvalDate: o.approvalDate ?? "",
-      });
+      };
+      setForm(loaded);
+      savedFormRef.current = loaded;
     }
   }, [orderData]);
 
@@ -392,9 +397,11 @@ export default function StyleOrderDetail() {
       if (isNew) {
         const res = await createOrder.mutateAsync(form);
         toast({ title: "Style order created", description: res.data.orderCode });
+        savedFormRef.current = form;
         setLocation(`/style-orders/${res.data.id}`);
       } else if (numId) {
         await updateOrder.mutateAsync({ id: numId, data: form });
+        savedFormRef.current = form;
         toast({ title: "Changes saved" });
       }
     } catch {
@@ -403,6 +410,9 @@ export default function StyleOrderDetail() {
       setSaving(false);
     }
   }
+
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, isNew, numId]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {

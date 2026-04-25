@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -294,6 +295,8 @@ export default function SwatchOrderDetail() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
   const [saving, setSaving] = useState(false);
+  const savedFormRef = useRef<FormState>(EMPTY_FORM);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [unitTypeError, setUnitTypeError] = useState("");
@@ -309,7 +312,7 @@ export default function SwatchOrderDetail() {
   useEffect(() => {
     if (orderData?.data) {
       const o = orderData.data;
-      setForm({
+      const loaded: FormState = {
         swatchName: o.swatchName ?? "", clientId: o.clientId ?? "", clientName: o.clientName ?? "",
         isChargeable: o.isChargeable, isInhouse: o.isInhouse ?? false, quantity: o.quantity ?? "", priority: o.priority,
         orderStatus: o.orderStatus, styleReferences: o.styleReferences ?? [], swatchReferences: o.swatchReferences ?? [],
@@ -328,7 +331,6 @@ export default function SwatchOrderDetail() {
         estimate: (() => {
           const saved = (o.estimate ?? []) as EstimateItem[];
           const defaults = makeDefaultEstimate();
-          // Merge: keep saved rates for standard items, preserve order, append custom items
           const merged = defaults.map(def => {
             const found = saved.find(s => s.id === def.id && !s.isCustom);
             return found ? { ...def, rate: found.rate ?? "" } : def;
@@ -336,7 +338,9 @@ export default function SwatchOrderDetail() {
           const custom = saved.filter(s => s.isCustom);
           return [...merged, ...custom];
         })(),
-      });
+      };
+      setForm(loaded);
+      savedFormRef.current = loaded;
     }
   }, [orderData]);
 
@@ -380,9 +384,11 @@ export default function SwatchOrderDetail() {
       if (isNew) {
         const res = await createOrder.mutateAsync(form);
         toast({ title: "Swatch order created", description: res.data.orderCode });
+        savedFormRef.current = form;
         setLocation(`/swatch-orders/${res.data.id}`);
       } else if (numId) {
         await updateOrder.mutateAsync({ id: numId, data: form });
+        savedFormRef.current = form;
         toast({ title: "Changes saved" });
       }
     } catch {
@@ -391,6 +397,9 @@ export default function SwatchOrderDetail() {
       setSaving(false);
     }
   }
+
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, isNew, numId]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
 
   function handleAddUnitType() {
     const trimmed = newUnitTypeName.trim();

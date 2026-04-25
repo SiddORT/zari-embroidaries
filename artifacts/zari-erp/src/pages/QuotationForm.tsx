@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Plus, Trash2, Save, Upload, X, User, Phone, Mail, MapPin, CreditCard, FileText } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -89,6 +90,7 @@ export default function QuotationForm() {
   const [charges, setCharges] = useState<Charge[]>([emptyCharge()]);
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(isEdit);
+  const savedSnapshotRef = useRef<string | null>(null);
 
   // Auto-set GST type from client state (only when client changes and user hasn't overridden)
   useEffect(() => {
@@ -145,6 +147,16 @@ export default function QuotationForm() {
       .finally(() => setLoadingData(false));
   }, [id, isEdit]);
 
+  // ── Dirty tracking ────────────────────────────────────────────────────────
+  const qSnapshot = JSON.stringify({ selectedClientId, requirementSummary, estimatedWeight, shippingRatePerKg, internalNotes, clientNotes, gstTaxType, gstRate, coverPage, designs, charges });
+  useEffect(() => {
+    if (!loadingData && savedSnapshotRef.current === null) {
+      savedSnapshotRef.current = qSnapshot;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingData]);
+  const isDirty = savedSnapshotRef.current !== null && qSnapshot !== savedSnapshotRef.current;
+
   // ── Image helper ──────────────────────────────────────────────────────────
   async function toBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -195,6 +207,7 @@ export default function QuotationForm() {
         }
       );
       toast({ title: "Saved", description: j.message || "Quotation saved successfully" });
+      savedSnapshotRef.current = qSnapshot;
       navigate(isEdit ? `/quotation/${id}` : `/quotation/${j.data?.id}`);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -202,6 +215,9 @@ export default function QuotationForm() {
       setSaving(false);
     }
   }
+
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [selectedClientId, requirementSummary, estimatedWeight, shippingRatePerKg, internalNotes, clientNotes, gstTaxType, gstRate, coverPage, coverPageImage, designs, charges, isEdit, id]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {

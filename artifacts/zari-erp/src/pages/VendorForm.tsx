@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -93,6 +94,8 @@ export default function VendorForm() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [pincodeLoading, setPincodeLoading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const savedFormRef = useRef<VendorFormData>(EMPTY_FORM);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
     if (existingVendor && !isNew) {
@@ -112,7 +115,7 @@ export default function VendorForm() {
           isBillingDefault: true,
         });
       }
-      setForm({
+      const loaded: VendorFormData = {
         brandName: existingVendor.brandName,
         contactName: existingVendor.contactName,
         email: existingVendor.email ?? "",
@@ -133,7 +136,9 @@ export default function VendorForm() {
           : legacyAddr,
         paymentAttachments: existingVendor.paymentAttachments ?? [],
         isActive: existingVendor.isActive,
-      });
+      };
+      setForm(loaded);
+      savedFormRef.current = loaded;
     }
   }, [existingVendor, isNew]);
 
@@ -159,6 +164,7 @@ export default function VendorForm() {
         await updateMutation.mutateAsync({ id: numId!, data: form });
         toast({ title: "Vendor updated successfully" });
       }
+      savedFormRef.current = form;
       setLocation("/masters/vendors");
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "An error occurred", variant: "destructive" });
@@ -166,6 +172,9 @@ export default function VendorForm() {
       setSaving(false);
     }
   }
+
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, isNew, numId]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
 
   function addAddress() {
     if (form.addresses.length >= 5) {

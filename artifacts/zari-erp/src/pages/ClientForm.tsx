@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -99,6 +100,8 @@ export default function ClientForm() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [pincodeLoading, setPincodeLoading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const savedFormRef = useRef<ClientFormData>(EMPTY_FORM);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
     if (existingClient && !isNew) {
@@ -118,7 +121,7 @@ export default function ClientForm() {
           isBillingDefault: true,
         });
       }
-      setForm({
+      const loaded: ClientFormData = {
         brandName: existingClient.brandName,
         contactName: existingClient.contactName,
         email: existingClient.email,
@@ -131,7 +134,9 @@ export default function ClientForm() {
           : legacyAddr,
         invoiceCurrency: existingClient.invoiceCurrency ?? getCurrencyDefault(existingClient.country ?? ""),
         isActive: existingClient.isActive,
-      });
+      };
+      setForm(loaded);
+      savedFormRef.current = loaded;
     }
   }, [existingClient, isNew]);
 
@@ -169,6 +174,7 @@ export default function ClientForm() {
         await updateMutation.mutateAsync({ id: numId!, data: form });
         toast({ title: "Client updated successfully" });
       }
+      savedFormRef.current = form;
       setLocation("/masters/clients");
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "An error occurred", variant: "destructive" });
@@ -176,6 +182,9 @@ export default function ClientForm() {
       setSaving(false);
     }
   }
+
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, isNew, numId]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
 
   function addAddress() {
     if (form.addresses.length >= 5) {

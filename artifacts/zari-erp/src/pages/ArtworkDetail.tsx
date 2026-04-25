@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Save, Info, Upload, X, FileText, Image as ImageIcon,
@@ -196,11 +197,13 @@ export default function ArtworkDetail() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [lightbox, setLightbox] = useState<{ images: FileAttachment[]; index: number } | null>(null);
+  const savedFormRef = useRef<FormState>(EMPTY_FORM);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
     if (artworkData?.data) {
       const a = artworkData.data;
-      setForm({
+      const loaded: FormState = {
         artworkName: a.artworkName ?? "",
         unitLength: a.unitLength ?? "",
         unitWidth: a.unitWidth ?? "",
@@ -221,7 +224,9 @@ export default function ArtworkDetail() {
         refImages: (a.refImages ?? []) as FileAttachment[],
         wipImages: (a.wipImages ?? []) as FileAttachment[],
         finalImages: (a.finalImages ?? []) as FileAttachment[],
-      });
+      };
+      setForm(loaded);
+      savedFormRef.current = loaded;
     }
   }, [artworkData]);
 
@@ -258,6 +263,7 @@ export default function ArtworkDetail() {
         const payload = { ...form, swatchOrderId: swatchOrderIdNum };
         await createArtwork.mutateAsync(payload);
         toast({ title: "Artwork created" });
+        savedFormRef.current = form;
         setLocation(`/swatch-orders/${swatchOrderId}?tab=2`);
       } else if (isViewMode) {
         await updateArtwork.mutateAsync({
@@ -274,10 +280,12 @@ export default function ArtworkDetail() {
             totalCost: form.totalCost,
           },
         });
+        savedFormRef.current = form;
         toast({ title: "Artwork updated" });
       } else {
         const payload = { ...form, swatchOrderId: swatchOrderIdNum };
         await updateArtwork.mutateAsync({ id: numericId!, data: payload });
+        savedFormRef.current = form;
         toast({ title: "Artwork saved" });
       }
     } catch {
@@ -286,6 +294,9 @@ export default function ArtworkDetail() {
       setSaving(false);
     }
   }
+
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, isNew, isViewMode, numericId, swatchOrderId, swatchOrderIdNum]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
 
   if (!isNew && isLoading) {
     return (

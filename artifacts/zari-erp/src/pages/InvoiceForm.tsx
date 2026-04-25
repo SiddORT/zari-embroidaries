@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download, Wallet, X, ChevronDown, ChevronRight, Loader2, AlertCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -452,6 +453,7 @@ export default function InvoiceForm() {
   });
 
   const [items, setItems] = useState<LineItem[]>([]);
+  const savedInvoiceRef = useRef<string | null>(null);
 
   const totals = calcTotals(
     items,
@@ -612,6 +614,18 @@ export default function InvoiceForm() {
     }).catch(() => {});
   }, [isEdit, params.id]);
 
+  // ── Dirty tracking ────────────────────────────────────────────────────────
+  const invoiceSnapshot = JSON.stringify({ form, items });
+  useEffect(() => {
+    if (savedInvoiceRef.current === null && form.invoiceNo) {
+      savedInvoiceRef.current = JSON.stringify({ form, items });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.invoiceNo]);
+  const isDirty = savedInvoiceRef.current !== null && invoiceSnapshot !== savedInvoiceRef.current;
+  const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, items]);
+  useUnsavedChanges(isDirty, handleSaveForGuard);
+
   function setF(key: string, val: string) { setForm(f => ({ ...f, [key]: val })); }
 
   function updateItem(id: string, field: keyof LineItem, val: any) {
@@ -648,6 +662,7 @@ export default function InvoiceForm() {
         await customFetch("/api/invoices", { method: "POST", body: JSON.stringify(payload) });
       }
 
+      savedInvoiceRef.current = invoiceSnapshot;
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
