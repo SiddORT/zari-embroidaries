@@ -316,6 +316,8 @@ function StatusBadge({ active, pending }: { active: boolean; pending: boolean })
 
 function UsersTab({ roles }: { roles: RoleRecord[] }) {
   const { data, isLoading } = useUsers();
+  const { data: meData } = useGetMe();
+  const myId: number | undefined = (meData as unknown as { id?: number })?.id;
   const deleteUser = useDeleteUser();
   const resendInvite = useResendInvite();
   const adminReset = useAdminSendReset();
@@ -384,9 +386,17 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
             <tbody className="divide-y divide-gray-100">
               {users.map(u => {
                 const isPending = !u.isActive && !!u.inviteToken;
+                const isMe = myId !== undefined && u.id === myId;
                 return (
                   <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">{u.username}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      <span className="flex items-center gap-1.5">
+                        {u.username}
+                        {isMe && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#C6AF4B]/15 text-[#9a8530] leading-none">You</span>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-500">{u.email}</td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 capitalize">{u.role}</span>
@@ -397,27 +407,31 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
-                        {isPending ? (
-                          <button onClick={() => handleResend(u)} title="Resend invite email"
-                            disabled={resendInvite.isPending}
-                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-50">
-                            <RefreshCw className="h-3 w-3" /> Resend Invite
-                          </button>
-                        ) : u.isActive ? (
-                          <button onClick={() => handleAdminReset(u)} title="Send password reset email to this user"
-                            disabled={adminReset.isPending}
-                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50">
-                            <KeyRound className="h-3 w-3" /> Reset Password
-                          </button>
-                        ) : null}
+                        {!isMe && (
+                          isPending ? (
+                            <button onClick={() => handleResend(u)} title="Resend invite email"
+                              disabled={resendInvite.isPending}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-50">
+                              <RefreshCw className="h-3 w-3" /> Resend Invite
+                            </button>
+                          ) : u.isActive ? (
+                            <button onClick={() => handleAdminReset(u)} title="Send password reset email to this user"
+                              disabled={adminReset.isPending}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                              <KeyRound className="h-3 w-3" /> Reset Password
+                            </button>
+                          ) : null
+                        )}
                         <button onClick={() => setEditUser(u)} title="Edit"
                           className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => setDeleteId(u.id)} title="Delete"
-                          className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {!isMe && (
+                          <button onClick={() => setDeleteId(u.id)} title="Delete"
+                            className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
