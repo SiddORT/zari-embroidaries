@@ -64,7 +64,6 @@ function OrderCard({ order, onView, onDelete }: {
   onView: () => void;
   onDelete: () => void;
 }) {
-  const isCompleted = order.orderStatus === "Completed";
   return (
     <div className={CARD}>
       <div className={`h-1 w-full ${STATUS_BAR[order.orderStatus] ?? "bg-gray-200"}`} />
@@ -116,15 +115,12 @@ function OrderCard({ order, onView, onDelete }: {
           <button onClick={onView}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-gray-900 hover:bg-black transition-colors"
             style={{ color: G }}>
-            <Eye className="h-3.5 w-3.5" />
-            {isCompleted ? "View" : "View / Edit"}
+            <Eye className="h-3.5 w-3.5" /> View / Edit
           </button>
-          {!isCompleted && (
-            <button onClick={onDelete}
-              className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button onClick={onDelete}
+            className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>
@@ -312,12 +308,10 @@ export default function SwatchOrders() {
                           className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors">
                           <Eye className="h-3.5 w-3.5" />
                         </button>
-                        {order.orderStatus !== "Completed" && (
-                          <button onClick={() => setDeleteId(order.id)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                        <button onClick={() => setDeleteId(order.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>

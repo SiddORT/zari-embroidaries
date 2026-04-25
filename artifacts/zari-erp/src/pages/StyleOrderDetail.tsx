@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Save, Loader2, ChevronDown, Lock,
+  ArrowLeft, Save, Loader2, ChevronDown,
   User, CalendarDays, MessageSquare, CheckCircle2,
   Layers, Paperclip, Plus, X, FileText, Image as ImageIcon,
 } from "lucide-react";
@@ -421,7 +421,6 @@ export default function StyleOrderDetail() {
   );
 
   const orderCode = isNew ? "New Style Order" : (orderData?.data?.orderCode ?? `#${numId}`);
-  const isCompleted = !isNew && form.orderStatus === "Completed";
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
@@ -441,26 +440,18 @@ export default function StyleOrderDetail() {
               {orderCode}
             </span>
             <div className="flex-1" />
-            {isCompleted ? (
-              <span className={`inline-flex items-center gap-1.5 pl-3 pr-3 py-1.5 text-xs font-semibold rounded-full border shadow-sm ${STATUS_COLORS["Completed"]}`}>
-                <Lock className="h-3 w-3" /> Completed
-              </span>
-            ) : (
-              <div className="relative shrink-0">
-                <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
-                  className={`pl-3 pr-7 py-1.5 text-xs font-semibold rounded-full border cursor-pointer appearance-none focus:outline-none shadow-sm ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                  {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-60" />
-              </div>
-            )}
-            {!isCompleted && (
-              <button onClick={() => { void handleSave(); }} disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-semibold hover:bg-black transition-all disabled:opacity-60 shadow-md shrink-0">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {saving ? "Saving…" : "Save"}
-              </button>
-            )}
+            <div className="relative shrink-0">
+              <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
+                className={`pl-3 pr-7 py-1.5 text-xs font-semibold rounded-full border cursor-pointer appearance-none focus:outline-none shadow-sm ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-60" />
+            </div>
+            <button onClick={() => { void handleSave(); }} disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-semibold hover:bg-black transition-all disabled:opacity-60 shadow-md shrink-0">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : "Save"}
+            </button>
           </div>
 
           {/* Tab bar */}
@@ -478,14 +469,7 @@ export default function StyleOrderDetail() {
           </div>
         </div>
 
-        {isCompleted && (
-          <div className="mt-4 mx-0 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
-            <Lock className="h-4 w-4 shrink-0 text-emerald-600" />
-            <span>This order is <strong>completed</strong> and locked — no further changes can be made.</span>
-          </div>
-        )}
-
-        <div className={`mt-5${isCompleted ? " pointer-events-none select-none opacity-75" : ""}`}>
+        <div className="mt-5">
 
           {/* ══ TAB 0: Basic Info ══════════════════════════════════════════ */}
           {activeTab === 0 && (
