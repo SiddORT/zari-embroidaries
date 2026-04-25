@@ -51,7 +51,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; username?: string; role?: string; isActive?: boolean }) =>
+    mutationFn: ({ id, ...body }: { id: number; username?: string; email?: string; role?: string; isActive?: boolean }) =>
       customFetch<{ data: UserRecord }>(`${BASE}/users/${id}`, {
         method: "PUT", body: JSON.stringify(body),
       }),

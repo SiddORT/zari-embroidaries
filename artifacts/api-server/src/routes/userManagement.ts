@@ -169,10 +169,23 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
 
 router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { username, role, isActive } = req.body as { username?: string; role?: string; isActive?: boolean };
+  const { username, email, role, isActive } = req.body as { username?: string; email?: string; role?: string; isActive?: boolean };
+
+  if (email !== undefined) {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      res.status(400).json({ error: "Invalid email address" }); return;
+    }
+    const [conflict] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.email, trimmed));
+    if (conflict && conflict.id !== id) {
+      res.status(409).json({ error: "That email is already in use by another account" }); return;
+    }
+  }
 
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (username !== undefined) updates.username = username;
+  if (email !== undefined) updates.email = email.trim().toLowerCase();
   if (role !== undefined) updates.role = role;
   if (isActive !== undefined) updates.isActive = isActive;
 

@@ -178,25 +178,39 @@ interface EditUserModalProps {
 
 function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
   const [username, setUsername] = useState(user.username);
+  const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.isActive);
+  const [emailError, setEmailError] = useState("");
   const update = useUpdateUser();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (open) { setUsername(user.username); setRole(user.role); setIsActive(user.isActive); }
+    if (open) {
+      setUsername(user.username);
+      setEmail(user.email);
+      setRole(user.role);
+      setIsActive(user.isActive);
+      setEmailError("");
+    }
   }, [open, user]);
 
   if (!open) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setEmailError("");
     try {
-      await update.mutateAsync({ id: user.id, username: username.trim(), role, isActive });
+      await update.mutateAsync({ id: user.id, username: username.trim(), email: email.trim(), role, isActive });
       toast({ title: "User updated" });
       onClose();
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? (err instanceof Error ? err.message : "Failed");
+      if (msg.toLowerCase().includes("email")) {
+        setEmailError(msg);
+      } else {
+        toast({ title: "Error", description: msg, variant: "destructive" });
+      }
     }
   }
 
@@ -209,6 +223,10 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <InputField label="Full Name" value={username} onChange={e => setUsername(e.target.value)} required placeholder="Full name" />
+          <div>
+            <InputField label="Email" type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError(""); }} required placeholder="email@example.com" />
+            {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
             <select value={role} onChange={e => setRole(e.target.value)}
