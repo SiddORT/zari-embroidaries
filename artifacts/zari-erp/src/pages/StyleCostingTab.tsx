@@ -508,8 +508,9 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                   {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
                 </label>
                 <button type="button" onClick={() => setQuickAddMat(true)}
-                  className="flex items-center gap-0.5 text-[10px] text-[#8a7a30] hover:text-[#C6AF4B] font-semibold transition-colors">
-                  <Plus className="h-3 w-3" /> New
+                  title="Add new material"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors">
+                  <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
               <select value={selectedMaterialId} disabled={form.materialType === "fabric"}
@@ -528,8 +529,9 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                   {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
                 </label>
                 <button type="button" onClick={() => setQuickAddFab(true)}
-                  className="flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-700 font-semibold transition-colors">
-                  <Plus className="h-3 w-3" /> New
+                  title="Add new fabric"
+                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors">
+                  <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
               <select value={selectedFabricId} disabled={form.materialType === "material"}
