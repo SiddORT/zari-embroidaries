@@ -145,6 +145,92 @@ export async function sendAdminPasswordResetEmail(to: string, username: string, 
   });
 }
 
+export async function sendPoApprovalRequestEmail(opts: {
+  adminEmails: string[];
+  poNumber: string;
+  vendorName: string;
+  createdBy: string;
+  referenceType: "Swatch" | "Style";
+  referenceId: number | string;
+  orderCode?: string;
+  itemCount: number;
+  erpUrl: string;
+}): Promise<void> {
+  const transporter = createTransporter();
+  const from = process.env.EMAIL_FROM ?? process.env.EMAIL_USER;
+  const { adminEmails, poNumber, vendorName, createdBy, referenceType, orderCode, itemCount, erpUrl } = opts;
+
+  const refLabel = referenceType === "Swatch" ? "Swatch Order" : "Style Order";
+  const refValue = orderCode ?? String(opts.referenceId);
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <style>
+        body { margin: 0; padding: 0; background: #f8f9fb; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        .wrapper { max-width: 540px; margin: 40px auto; }
+        .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: #111111; padding: 24px 32px; }
+        .header-title { color: #C6AF4B; font-size: 22px; font-weight: 700; letter-spacing: 1px; margin: 0; }
+        .header-sub { color: #888; font-size: 11px; margin: 4px 0 0; letter-spacing: 0.5px; }
+        .alert-bar { background: #FEF3C7; border-left: 4px solid #C6AF4B; padding: 12px 20px; font-size: 13px; color: #92400E; font-weight: 600; }
+        .body { padding: 28px 32px; }
+        .body h2 { margin: 0 0 8px; font-size: 17px; color: #1C1C1C; }
+        .body p { margin: 0 0 14px; font-size: 14px; color: #4B5563; line-height: 1.6; }
+        .info-grid { background: #FAFAF8; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px 20px; margin: 18px 0; }
+        .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #F0F0F0; font-size: 13px; }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #6B7280; font-weight: 500; }
+        .info-value { color: #111111; font-weight: 600; }
+        .btn { display: inline-block; background: #C6AF4B; color: #111111 !important; text-decoration: none; font-weight: 700; font-size: 14px; padding: 13px 32px; border-radius: 8px; letter-spacing: 0.3px; }
+        .footer { padding: 18px 32px; background: #F9FAFB; border-top: 1px solid #F0F0F0; text-align: center; }
+        .footer p { margin: 0; font-size: 11px; color: #9CA3AF; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="card">
+          <div class="header">
+            <p class="header-title">ZARI ERP</p>
+            <p class="header-sub">ENTERPRISE RESOURCE PLANNING</p>
+          </div>
+          <div class="alert-bar">⏳ Action Required: Purchase Order Awaiting Your Approval</div>
+          <div class="body">
+            <h2>New Purchase Order — Approval Needed</h2>
+            <p>A new Purchase Order has been created and is waiting for your approval before any purchase receipts can be raised.</p>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">PO Number</span><span class="info-value">${poNumber}</span></div>
+              <div class="info-row"><span class="info-label">Vendor</span><span class="info-value">${vendorName}</span></div>
+              <div class="info-row"><span class="info-label">${refLabel}</span><span class="info-value">${refValue}</span></div>
+              <div class="info-row"><span class="info-label">Items</span><span class="info-value">${itemCount} line item${itemCount !== 1 ? "s" : ""}</span></div>
+              <div class="info-row"><span class="info-label">Created By</span><span class="info-value">${createdBy}</span></div>
+              <div class="info-row"><span class="info-label">Status</span><span class="info-value" style="color:#D97706;">Draft — Pending Approval</span></div>
+            </div>
+            <p style="text-align:center; margin: 24px 0;">
+              <a href="${erpUrl}" class="btn">Review &amp; Approve in ZARI ERP</a>
+            </p>
+            <p style="font-size:12px; color:#9CA3AF;">Once approved, purchase receipts will be enabled for this order. If you did not expect this PO, please contact the creator.</p>
+          </div>
+          <div class="footer">
+            <p>ZARI Embroideries &copy; ${new Date().getFullYear()} &mdash; This is an automated notification, please do not reply.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await transporter.sendMail({
+    from: `"ZARI ERP" <${from}>`,
+    to: adminEmails.join(", "),
+    subject: `[Action Required] PO ${poNumber} — Approve to enable Purchase Receipts`,
+    html,
+    text: `A new Purchase Order (${poNumber}) from vendor "${vendorName}" has been created for ${refLabel} ${refValue} by ${createdBy}.\n\nPlease log in to ZARI ERP to review and approve it:\n${erpUrl}\n\nOnce approved, purchase receipts will be enabled.`,
+  });
+}
+
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   const transporter = createTransporter();
   const from = process.env.EMAIL_FROM ?? process.env.EMAIL_USER;

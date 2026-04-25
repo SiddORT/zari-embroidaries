@@ -1105,6 +1105,11 @@ function PoCard({ po, swatchOrderId, onCreatePR }: { po: PurchaseOrderRecord; sw
             )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{po.vendorName} · {new Date(po.poDate).toLocaleDateString()}</p>
+          {po.status === "Draft" && (
+            <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+              <span>⏳</span> Awaiting admin approval — email sent
+            </p>
+          )}
           {po.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{po.notes}</p>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">

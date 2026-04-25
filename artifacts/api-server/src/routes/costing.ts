@@ -6,8 +6,10 @@ import {
   materialsTable, fabricsTable, vendorsTable, hsnTable, inventoryItemsTable,
   bomChangeLogTable,
 } from "@workspace/db/schema";
+import { usersTable } from "@workspace/db";
 import { eq, ilike, or, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { sendPoApprovalRequestEmail } from "../lib/mailer";
 
 const router = Router();
 
@@ -748,6 +750,21 @@ router.post("/po", requireAuth, async (req, res) => {
     createdBy: user.email,
   }).returning();
   res.status(201).json({ data: row });
+  const adminUsers = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.role, "admin"));
+  const adminEmails = adminUsers.map(u => u.email).filter(Boolean) as string[];
+  if (adminEmails.length > 0) {
+    const erpUrl = `${process.env.APP_URL ?? "https://zari-erp.replit.app"}/costing`;
+    sendPoApprovalRequestEmail({
+      adminEmails,
+      poNumber,
+      vendorName: vendor.brandName,
+      createdBy: user.email,
+      referenceType: "Swatch",
+      referenceId: swatchOrderId,
+      itemCount: items.length,
+      erpUrl,
+    }).catch(() => {});
+  }
 });
 
 router.patch("/po/:id", requireAuth, async (req, res) => {
@@ -779,6 +796,10 @@ router.post("/pr", requireAuth, async (req, res) => {
   const { poId, swatchOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
   const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+  if (!["Approved", "In Process"].includes(po.status)) {
+    res.status(403).json({ error: `Purchase Receipt cannot be created: PO is currently in "${po.status}" status. An admin must approve it first.` });
+    return;
+  }
 
   const newQty = parseFloat(String(receivedQty)) || 0;
   const resolvedBomRowId = bomRowId != null ? Number(bomRowId) : null;
@@ -1265,6 +1286,21 @@ router.post("/style-po", requireAuth, async (req, res) => {
     createdBy: user.email,
   }).returning();
   res.status(201).json({ data: row });
+  const adminUsers = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.role, "admin"));
+  const adminEmails = adminUsers.map(u => u.email).filter(Boolean) as string[];
+  if (adminEmails.length > 0) {
+    const erpUrl = `${process.env.APP_URL ?? "https://zari-erp.replit.app"}/costing`;
+    sendPoApprovalRequestEmail({
+      adminEmails,
+      poNumber,
+      vendorName: vendor.brandName,
+      createdBy: user.email,
+      referenceType: "Style",
+      referenceId: styleOrderId,
+      itemCount: items.length,
+      erpUrl,
+    }).catch(() => {});
+  }
 });
 
 // ─── Style PR ─────────────────────────────────────────────────────────────────
@@ -1280,6 +1316,10 @@ router.post("/style-pr", requireAuth, async (req, res) => {
   const { poId, styleOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
   const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+  if (!["Approved", "In Process"].includes(po.status)) {
+    res.status(403).json({ error: `Purchase Receipt cannot be created: PO is currently in "${po.status}" status. An admin must approve it first.` });
+    return;
+  }
 
   const newQty = parseFloat(String(receivedQty)) || 0;
   const resolvedBomRowId = bomRowId != null ? Number(bomRowId) : null;

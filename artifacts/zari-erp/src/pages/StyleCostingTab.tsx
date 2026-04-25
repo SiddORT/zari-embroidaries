@@ -738,6 +738,11 @@ function StylePoCard({ po, onCreatePR }: { po: PurchaseOrderRecord; onCreatePR: 
             {items.length > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-0.5"><Package className="h-3 w-3" />{items.length} item{items.length > 1 ? "s" : ""}</span>}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{po.vendorName} · {new Date(po.poDate).toLocaleDateString()}</p>
+          {po.status === "Draft" && (
+            <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+              <span>⏳</span> Awaiting admin approval — email sent
+            </p>
+          )}
           {po.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{po.notes}</p>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
