@@ -15,8 +15,10 @@ import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors } from "@/hooks/useVendors";
-import { useAllMaterials } from "@/hooks/useMaterials";
-import { useAllFabrics } from "@/hooks/useFabrics";
+import { useAllMaterials, useCreateMaterial, type MaterialFormData } from "@/hooks/useMaterials";
+import { useAllFabrics, useCreateFabric, type FabricFormData } from "@/hooks/useFabrics";
+import { useItemTypes, useUnitTypes, useFabricTypes, useWidthUnitTypes } from "@/hooks/useLookups";
+import { useHSNList } from "@/hooks/useHSN";
 import { useStyleOrderProducts } from "@/hooks/useStyleOrderProducts";
 import {
   useStyleBom, useAddStyleBomRow, useDeleteStyleBomRow, useUpdateBomQty, useBomChangeLog,
@@ -88,6 +90,248 @@ function StatusBadge({ status, map }: { status: string; map: Record<string, stri
   return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>{status}</span>;
 }
 
+const GST_OPTS = ["0", "5", "12", "18", "28"];
+
+function QuickAddMaterialModal({ onClose, onCreated }: {
+  onClose: () => void;
+  onCreated: (id: number, code: string) => void;
+}) {
+  const { toast } = useToast();
+  const { data: itemTypes = [] } = useItemTypes();
+  const { data: unitTypes = [] } = useUnitTypes();
+  const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
+  const hsnOptions = hsnData?.data ?? [];
+  const createMat = useCreateMaterial();
+
+  const [f, setF] = useState<MaterialFormData>({
+    itemType: "", quality: "", type: "", colorName: "", size: "",
+    unitPrice: "", unitType: "", currentStock: "0", hsnCode: "", gstPercent: "0",
+    vendor: "", location: "", isActive: true, images: [],
+  });
+
+  async function handleSave() {
+    if (!f.quality.trim()) { toast({ title: "Quality is required", variant: "destructive" }); return; }
+    if (!f.colorName.trim()) { toast({ title: "Color name is required", variant: "destructive" }); return; }
+    if (!f.size.trim()) { toast({ title: "Size is required", variant: "destructive" }); return; }
+    if (!f.unitPrice || parseFloat(f.unitPrice) < 0) { toast({ title: "Unit price is required", variant: "destructive" }); return; }
+    if (!f.unitType) { toast({ title: "Unit type is required", variant: "destructive" }); return; }
+    if (!f.hsnCode) { toast({ title: "HSN code is required", variant: "destructive" }); return; }
+    try {
+      const rec = await createMat.mutateAsync(f);
+      toast({ title: "Material created", description: rec.materialCode });
+      onCreated(rec.id, rec.materialCode);
+    } catch (err: any) {
+      toast({ title: err?.data?.error ?? "Failed to create material", variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900">Quick Add Material</h4>
+            <p className="text-[11px] text-gray-400">New material will appear in the master & selector</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-4 grid grid-cols-2 gap-3">
+          {[
+            { label: "Item Type", node: (
+              <select value={f.itemType} onChange={e => setF(p => ({ ...p, itemType: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {itemTypes.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            )},
+            { label: "Quality *", node: (
+              <input value={f.quality} onChange={e => setF(p => ({ ...p, quality: e.target.value }))}
+                placeholder="e.g. Premium" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Size *", node: (
+              <input value={f.size} onChange={e => setF(p => ({ ...p, size: e.target.value }))}
+                placeholder="e.g. 8mm" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Color Name *", node: (
+              <input value={f.colorName} onChange={e => setF(p => ({ ...p, colorName: e.target.value }))}
+                placeholder="e.g. Gold" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Unit Type *", node: (
+              <select value={f.unitType} onChange={e => setF(p => ({ ...p, unitType: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {unitTypes.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            )},
+            { label: "Unit Price ₹ *", node: (
+              <input type="number" min="0" step="any" value={f.unitPrice} onChange={e => setF(p => ({ ...p, unitPrice: e.target.value }))}
+                placeholder="0.00" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Current Stock", node: (
+              <input type="number" min="0" step="any" value={f.currentStock} onChange={e => setF(p => ({ ...p, currentStock: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "HSN Code *", node: (
+              <select value={f.hsnCode} onChange={e => setF(p => ({ ...p, hsnCode: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {hsnOptions.map((h: any) => <option key={h.id} value={h.hsnCode}>{h.hsnCode}</option>)}
+              </select>
+            )},
+            { label: "GST %", node: (
+              <select value={f.gstPercent} onChange={e => setF(p => ({ ...p, gstPercent: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                {GST_OPTS.map(v => <option key={v} value={v}>{v}%</option>)}
+              </select>
+            )},
+            { label: "Vendor", node: (
+              <input value={f.vendor ?? ""} onChange={e => setF(p => ({ ...p, vendor: e.target.value }))}
+                placeholder="optional" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+          ].map(({ label, node }) => (
+            <div key={label}>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide block mb-1">{label}</label>
+              {node}
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSave} disabled={createMat.isPending}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black disabled:opacity-50">
+            {createMat.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add Material
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuickAddFabricModal({ onClose, onCreated }: {
+  onClose: () => void;
+  onCreated: (id: number, code: string) => void;
+}) {
+  const { toast } = useToast();
+  const { data: fabricTypes = [] } = useFabricTypes();
+  const { data: unitTypes = [] } = useUnitTypes();
+  const { data: widthUnitTypes = [] } = useWidthUnitTypes();
+  const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
+  const hsnOptions = hsnData?.data ?? [];
+  const createFab = useCreateFabric();
+
+  const [f, setF] = useState<FabricFormData>({
+    fabricType: "", quality: "", colorName: "", width: "", widthUnitType: "",
+    pricePerMeter: "", unitType: "", currentStock: "0", hsnCode: "", gstPercent: "0",
+    vendor: "", location: "", locationStocks: [], isActive: true, images: [],
+  });
+
+  async function handleSave() {
+    if (!f.fabricType) { toast({ title: "Fabric type is required", variant: "destructive" }); return; }
+    if (!f.quality.trim()) { toast({ title: "Quality is required", variant: "destructive" }); return; }
+    if (!f.colorName.trim()) { toast({ title: "Color name is required", variant: "destructive" }); return; }
+    if (!f.width.trim()) { toast({ title: "Width is required", variant: "destructive" }); return; }
+    if (!f.widthUnitType) { toast({ title: "Width unit is required", variant: "destructive" }); return; }
+    if (!f.pricePerMeter || parseFloat(f.pricePerMeter) < 0) { toast({ title: "Price/meter is required", variant: "destructive" }); return; }
+    if (!f.unitType) { toast({ title: "Unit type is required", variant: "destructive" }); return; }
+    if (!f.hsnCode) { toast({ title: "HSN code is required", variant: "destructive" }); return; }
+    try {
+      const rec = await createFab.mutateAsync(f);
+      toast({ title: "Fabric created", description: rec.fabricCode });
+      onCreated(rec.id, rec.fabricCode);
+    } catch (err: any) {
+      toast({ title: err?.data?.error ?? "Failed to create fabric", variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900">Quick Add Fabric</h4>
+            <p className="text-[11px] text-gray-400">New fabric will appear in the master & selector</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-4 grid grid-cols-2 gap-3">
+          {[
+            { label: "Fabric Type *", node: (
+              <select value={f.fabricType} onChange={e => setF(p => ({ ...p, fabricType: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {fabricTypes.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            )},
+            { label: "Quality *", node: (
+              <input value={f.quality} onChange={e => setF(p => ({ ...p, quality: e.target.value }))}
+                placeholder="e.g. Premium" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Color Name *", node: (
+              <input value={f.colorName} onChange={e => setF(p => ({ ...p, colorName: e.target.value }))}
+                placeholder="e.g. Ivory" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Width *", node: (
+              <input type="number" min="0" step="any" value={f.width} onChange={e => setF(p => ({ ...p, width: e.target.value }))}
+                placeholder="e.g. 44" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Width Unit *", node: (
+              <select value={f.widthUnitType} onChange={e => setF(p => ({ ...p, widthUnitType: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {widthUnitTypes.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            )},
+            { label: "Unit Type *", node: (
+              <select value={f.unitType} onChange={e => setF(p => ({ ...p, unitType: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {unitTypes.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            )},
+            { label: "Price/Meter ₹ *", node: (
+              <input type="number" min="0" step="any" value={f.pricePerMeter} onChange={e => setF(p => ({ ...p, pricePerMeter: e.target.value }))}
+                placeholder="0.00" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "Current Stock", node: (
+              <input type="number" min="0" step="any" value={f.currentStock} onChange={e => setF(p => ({ ...p, currentStock: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+            { label: "HSN Code *", node: (
+              <select value={f.hsnCode} onChange={e => setF(p => ({ ...p, hsnCode: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                <option value="">— Select —</option>
+                {hsnOptions.map((h: any) => <option key={h.id} value={h.hsnCode}>{h.hsnCode}</option>)}
+              </select>
+            )},
+            { label: "GST %", node: (
+              <select value={f.gstPercent} onChange={e => setF(p => ({ ...p, gstPercent: e.target.value }))}
+                className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none">
+                {GST_OPTS.map(v => <option key={v} value={v}>{v}%</option>)}
+              </select>
+            )},
+            { label: "Vendor", node: (
+              <input value={f.vendor ?? ""} onChange={e => setF(p => ({ ...p, vendor: e.target.value }))}
+                placeholder="optional" className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none" />
+            )},
+          ].map(({ label, node }) => (
+            <div key={label}>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide block mb-1">{label}</label>
+              {node}
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSave} disabled={createFab.isPending}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black disabled:opacity-50">
+            {createFab.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add Fabric
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── BOM Section ─────────────────────────────────────────────────────────────
 function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
   styleOrderId: number;
@@ -132,6 +376,25 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
     enabled: !!form.materialType && form.materialId > 0,
     staleTime: 30_000,
   });
+
+  const [quickAddMat, setQuickAddMat] = useState(false);
+  const [quickAddFab, setQuickAddFab] = useState(false);
+  const [pendingMatId, setPendingMatId] = useState<number | null>(null);
+  const [pendingFabId, setPendingFabId] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (pendingMatId != null) {
+      const m = allMaterials.find(m => m.id === pendingMatId);
+      if (m) { onMaterialChange(String(pendingMatId)); setPendingMatId(null); setShowForm(true); }
+    }
+  }, [allMaterials, pendingMatId]);
+
+  React.useEffect(() => {
+    if (pendingFabId != null) {
+      const f = allFabrics.find(f => f.id === pendingFabId);
+      if (f) { onFabricChange(String(pendingFabId)); setPendingFabId(null); setShowForm(true); }
+    }
+  }, [allFabrics, pendingFabId]);
 
   const estimatedAmount = (parseFloat(form.requiredQty) || 0) * (parseFloat(form.avgUnitPrice) || 0);
   const selectedMaterialId = form.materialType === "material" ? String(form.materialId) : "";
@@ -239,10 +502,16 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
         <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
-                Select Material
-                {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
-              </label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                  Select Material
+                  {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
+                </label>
+                <button type="button" onClick={() => setQuickAddMat(true)}
+                  className="flex items-center gap-0.5 text-[10px] text-[#8a7a30] hover:text-[#C6AF4B] font-semibold transition-colors">
+                  <Plus className="h-3 w-3" /> New
+                </button>
+              </div>
               <select value={selectedMaterialId} disabled={form.materialType === "fabric"}
                 onChange={e => onMaterialChange(e.target.value)}
                 className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "fabric" ? "opacity-40 cursor-not-allowed" : ""}`}>
@@ -253,10 +522,16 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
-                Select Fabric
-                {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
-              </label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                  Select Fabric
+                  {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
+                </label>
+                <button type="button" onClick={() => setQuickAddFab(true)}
+                  className="flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-700 font-semibold transition-colors">
+                  <Plus className="h-3 w-3" /> New
+                </button>
+              </div>
               <select value={selectedFabricId} disabled={form.materialType === "material"}
                 onChange={e => onFabricChange(e.target.value)}
                 className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "material" ? "opacity-40 cursor-not-allowed" : ""}`}>
@@ -489,6 +764,22 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Quick-Add Material Modal ── */}
+      {quickAddMat && (
+        <QuickAddMaterialModal
+          onClose={() => setQuickAddMat(false)}
+          onCreated={(id) => { setQuickAddMat(false); setPendingMatId(id); }}
+        />
+      )}
+
+      {/* ── Quick-Add Fabric Modal ── */}
+      {quickAddFab && (
+        <QuickAddFabricModal
+          onClose={() => setQuickAddFab(false)}
+          onCreated={(id) => { setQuickAddFab(false); setPendingFabId(id); }}
+        />
       )}
 
       {/* ── BOM Change Log Modal ── */}
