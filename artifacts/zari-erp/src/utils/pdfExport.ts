@@ -647,11 +647,12 @@ export function downloadCostingPoPdf(data: PoPdfData) {
 
     autoTable(doc, {
       startY: y,
-      head: [["Material / Fabric", "Qty", "Unit", "Preferred Vendor", "Sample"]],
+      head: [["Code", "Material / Fabric", "Qty", "Unit", "Preferred Vendor", "Sample"]],
       body: po.items.length > 0
         ? po.items.map(i => {
             const qty = parseFloat(i.quantity) || 0;
             return [
+              i.materialCode || "—",
               i.materialName || "—",
               qty > 0 ? qty.toFixed(3) : "—",
               i.unitType || "—",
@@ -659,13 +660,14 @@ export function downloadCostingPoPdf(data: PoPdfData) {
               "",
             ];
           })
-        : [["No line items", "—", "—", "—", ""]],
+        : [["—", "No line items", "—", "—", "—", ""]],
       styles: {
         fontSize: 8.5,
         cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
         textColor: DARK,
         lineColor: [200, 200, 200],
         lineWidth: 0.2,
+        minCellHeight: 18,
       },
       headStyles: {
         fillColor: DARK,
@@ -674,23 +676,22 @@ export function downloadCostingPoPdf(data: PoPdfData) {
         fontSize: 8,
       },
       columnStyles: {
-        0: { cellWidth: 72 },
-        1: { cellWidth: 22, halign: "right" },
-        2: { cellWidth: 18, halign: "center" },
-        3: { cellWidth: 52 },
-        4: { cellWidth: 18, halign: "center" },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 58 },
+        2: { cellWidth: 18, halign: "right" },
+        3: { cellWidth: 16, halign: "center" },
+        4: { cellWidth: 44 },
+        5: { cellWidth: 24, halign: "center" },
       },
       alternateRowStyles: { fillColor: [252, 250, 246] },
       margin: { left: 14, right: 14 },
       didDrawCell(hookData) {
-        if (hookData.section === "body" && hookData.column.index === 4) {
+        if (hookData.section === "body" && hookData.column.index === 5) {
           const { x, y: cy, width, height } = hookData.cell;
-          const bSize = 7;
-          const bx = x + (width - bSize) / 2;
-          const by = cy + (height - bSize) / 2;
-          doc.setDrawColor(100, 100, 100);
-          doc.setLineWidth(0.3);
-          doc.rect(bx, by, bSize, bSize);
+          const pad = 3;
+          doc.setDrawColor(120, 120, 120);
+          doc.setLineWidth(0.4);
+          doc.rect(x + pad, cy + pad, width - pad * 2, height - pad * 2);
         }
       },
     });
@@ -710,27 +711,26 @@ export function downloadCostingPoPdf(data: PoPdfData) {
     doc.setTextColor(...DARK);
     doc.text("APPROVAL & SIGN-OFF", 14, startSigY + 6);
 
-    [{ label: "Prepared By", x: 14 }, { label: "Authorized By", x: 80 }, { label: "Vendor Acknowledgement", x: 146 }].forEach(({ label, x }) => {
-      const bY = startSigY + 12;
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...GRAY);
-      doc.text(label.toUpperCase(), x, bY);
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.2);
-      doc.line(x, bY + 10, x + 54, bY + 10);
-      doc.setFontSize(6.5);
-      doc.setTextColor(...GRAY);
-      doc.text("Name & Designation", x, bY + 14);
-      doc.line(x, bY + 22, x + 54, bY + 22);
-      doc.text("Date", x, bY + 26);
-      doc.setDrawColor(...GOLD);
-      doc.setLineWidth(0.3);
-      doc.rect(x, bY + 28, 54, 10);
-      doc.setFontSize(6);
-      doc.setTextColor(200, 185, 130);
-      doc.text("Signature", x + 27, bY + 34, { align: "center" });
-    });
+    const bY = startSigY + 12;
+    const x = 14;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...GRAY);
+    doc.text("AUTHORIZED BY", x, bY);
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(x, bY + 10, x + 80, bY + 10);
+    doc.setFontSize(6.5);
+    doc.setTextColor(...GRAY);
+    doc.text("Name & Designation", x, bY + 14);
+    doc.line(x, bY + 22, x + 80, bY + 22);
+    doc.text("Date", x, bY + 26);
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.3);
+    doc.rect(x, bY + 28, 80, 10);
+    doc.setFontSize(6);
+    doc.setTextColor(200, 185, 130);
+    doc.text("Signature", x + 40, bY + 34, { align: "center" });
   };
 
   if (data.orders.length === 0) {
