@@ -17,6 +17,7 @@ export interface FabricRecord {
   hexCode: string | null;
   colorName: string;
   width: string;
+  height: string | null;
   widthUnitType: string;
   pricePerMeter: string;
   unitType: string;
@@ -52,6 +53,7 @@ export interface FabricFormData {
   hexCode?: string;
   colorName: string;
   width: string;
+  height?: string;
   widthUnitType: string;
   pricePerMeter: string;
   unitType: string;

@@ -76,7 +76,7 @@ function hexToColorName(hex: string): string {
 
 const EMPTY_FORM: FabricFormData = {
   fabricType: "", quality: "", color: "#c9b45c", hexCode: "#c9b45c",
-  colorName: "", width: "", widthUnitType: "", pricePerMeter: "",
+  colorName: "", width: "", height: "", widthUnitType: "", pricePerMeter: "",
   unitType: "", currentStock: "", hsnCode: "", gstPercent: "",
   vendor: "", location: "", locationStocks: [], isActive: true, images: [],
   reorderLevel: "", minimumLevel: "", maximumLevel: "",
@@ -183,7 +183,7 @@ export default function FabricMaster() {
       ? r.locationStocks
       : r.currentStock ? [{ location: r.location ?? "Out-house", stock: r.currentStock }] : [];
     setForm({ fabricType: r.fabricType, quality: r.quality, color: r.color ?? "#c9b45c",
-      hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, width: r.width,
+      hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, width: r.width, height: r.height ?? "",
       widthUnitType: r.widthUnitType, pricePerMeter: r.pricePerMeter, unitType: r.unitType,
       currentStock: r.currentStock, hsnCode: r.hsnCode, gstPercent: r.gstPercent,
       vendor: r.vendor ?? "", location: r.location ?? "", locationStocks: existingStocks,
@@ -519,13 +519,15 @@ export default function FabricMaster() {
               placeholder="e.g. Ivory White"
               value={form.colorName}
               onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
-              className={`rounded-lg border px-3.5 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
+              className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
             />
             {errors.colorName && <p className="text-xs text-red-500">{errors.colorName}</p>}
           </div>
 
           <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
             onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
+          <InputField label="Height" placeholder="e.g. 2.0" type="number" value={form.height ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
           <AddableSelect
             label="Width Unit Type" required value={form.widthUnitType}
             onChange={(v) => setForm((f) => ({ ...f, widthUnitType: v }))}
@@ -577,14 +579,16 @@ export default function FabricMaster() {
               <div className="space-y-2">
                 {form.locationStocks.map((ls, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
-                    <select
+                    <input
+                      list={`loc-list-${idx}`}
                       value={ls.location}
                       onChange={e => updateLocationStock(idx, "location", e.target.value)}
-                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    >
-                      <option value="">Select location</option>
-                      {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
+                      placeholder="Type or select location"
+                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                    <datalist id={`loc-list-${idx}`}>
+                      {locationOptions.map(l => <option key={l} value={l} />)}
+                    </datalist>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
                       <input
