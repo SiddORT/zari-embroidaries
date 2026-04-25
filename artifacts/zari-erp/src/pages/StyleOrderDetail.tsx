@@ -256,7 +256,7 @@ export default function StyleOrderDetail() {
   const updateOrder = useUpdateStyleOrder();
 
   const { data: clientsData } = useAllClients();
-  const clients = clientsData?.data ?? [];
+  const clients = (clientsData as any)?.data ?? clientsData ?? [];
 
   const { data: styleRefs } = useStylesForReference();
   const { data: swatchRefs } = useSwatchesForReference();
