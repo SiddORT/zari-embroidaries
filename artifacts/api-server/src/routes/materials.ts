@@ -40,6 +40,7 @@ router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<voi
     conditions.push(
       or(
         ilike(materialsTable.materialCode, `%${search}%`),
+        ilike(materialsTable.materialName, `%${search}%`),
         ilike(materialsTable.itemType, `%${search}%`),
         ilike(materialsTable.quality, `%${search}%`),
         ilike(materialsTable.colorName, `%${search}%`),
@@ -72,7 +73,7 @@ router.post("/materials", requireAuth, async (req: AuthRequest, res): Promise<vo
   const [record] = await db.insert(materialsTable).values({ ...parsed.data, materialCode, createdBy }).returning();
   logger.info({ id: record.id, materialCode }, "Material created");
   ensureInventoryRecord("material", record.id, {
-    itemName: [record.itemType, record.quality, record.colorName].filter(Boolean).join(" - "),
+    itemName: record.materialName || [record.itemType, record.quality, record.colorName].filter(Boolean).join(" - "),
     itemCode: record.materialCode,
     category: record.itemType,
     warehouseLocation: record.location ?? undefined,

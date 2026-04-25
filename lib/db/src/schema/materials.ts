@@ -4,7 +4,8 @@ import { z } from "zod/v4";
 export const materialsTable = pgTable("materials", {
   id: serial("id").primaryKey(),
   materialCode: text("material_code").notNull().unique(),
-  itemType: text("item_type").notNull(),
+  materialName: text("material_name"),
+  itemType: text("item_type").notNull().default(""),
   quality: text("quality").notNull(),
   type: text("type"),
   color: text("color"),
@@ -40,7 +41,8 @@ export const masterImageSchema = z.object({
 });
 
 export const insertMaterialSchema = z.object({
-  itemType: z.string().min(1, "Item Type is required"),
+  materialName: z.string().optional(),
+  itemType: z.string().optional().default(""),
   quality: z.string().min(1, "Quality is required"),
   type: z.string().optional(),
   color: z.string().optional(),

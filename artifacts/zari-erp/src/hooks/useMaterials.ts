@@ -11,6 +11,7 @@ export interface MasterImage {
 export interface MaterialRecord {
   id: number;
   materialCode: string;
+  materialName: string | null;
   itemType: string;
   quality: string;
   type: string | null;
@@ -45,6 +46,7 @@ interface MaterialListResponse {
 }
 
 export interface MaterialFormData {
+  materialName?: string;
   itemType: string;
   quality: string;
   type?: string;

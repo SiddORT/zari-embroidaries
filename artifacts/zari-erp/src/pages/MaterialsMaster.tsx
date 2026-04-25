@@ -14,7 +14,6 @@ import StatusToggle from "@/components/master/StatusToggle";
 import ExportExcelButton, { type ExportColumn } from "@/components/master/ExportExcelButton";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
-import AddableSelect from "@/components/ui/AddableSelect";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
@@ -28,12 +27,12 @@ import {
   type MasterImage,
   type StatusFilter,
 } from "@/hooks/useMaterials";
-import { useItemTypes, useUnitTypes, useCreateItemType, useCreateUnitType } from "@/hooks/useLookups";
+import { useItemTypes, useUnitTypes, useCreateUnitType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 
 const EMPTY_FORM: MaterialFormData = {
-  itemType: "", quality: "", type: "", color: "#c9b45c", hexCode: "#c9b45c",
+  materialName: "", itemType: "", quality: "", type: "", color: "#c9b45c", hexCode: "#c9b45c",
   colorName: "", size: "", unitPrice: "", unitType: "", currentStock: "",
   hsnCode: "", gstPercent: "", vendor: "", location: "", isActive: true, images: [],
   reorderLevel: "", minimumLevel: "", maximumLevel: "",
@@ -101,7 +100,6 @@ export default function MaterialsMaster() {
 
   const { data: itemTypes = [] } = useItemTypes();
   const { data: unitTypes = [] } = useUnitTypes();
-  const createItemType = useCreateItemType();
   const createUnitType = useCreateUnitType();
   const createHSN = useCreateHSN();
 
@@ -117,8 +115,6 @@ export default function MaterialsMaster() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
-  const [addItemTypeOpen, setAddItemTypeOpen] = useState(false);
-  const [newItemTypeName, setNewItemTypeName] = useState("");
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [addHSNOpen, setAddHSNOpen] = useState(false);
@@ -128,11 +124,12 @@ export default function MaterialsMaster() {
   const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); };
   const openEdit = (r: MaterialRecord) => {
     setEditRecord(r);
-    setForm({ itemType: r.itemType, quality: r.quality, type: r.type ?? "", color: r.color ?? "#c9b45c",
-      hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, size: r.size, unitPrice: r.unitPrice,
-      unitType: r.unitType, currentStock: r.currentStock, hsnCode: r.hsnCode, gstPercent: r.gstPercent,
-      vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive, images: r.images ?? [],
-      reorderLevel: r.reorderLevel ?? "", minimumLevel: r.minimumLevel ?? "", maximumLevel: r.maximumLevel ?? "" });
+    setForm({ materialName: r.materialName ?? "", itemType: r.itemType, quality: r.quality, type: r.type ?? "",
+      color: r.color ?? "#c9b45c", hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, size: r.size,
+      unitPrice: r.unitPrice, unitType: r.unitType, currentStock: r.currentStock, hsnCode: r.hsnCode,
+      gstPercent: r.gstPercent, vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive,
+      images: r.images ?? [], reorderLevel: r.reorderLevel ?? "", minimumLevel: r.minimumLevel ?? "",
+      maximumLevel: r.maximumLevel ?? "" });
     setErrors({});
     setModalOpen(true);
   };
@@ -162,7 +159,6 @@ export default function MaterialsMaster() {
 
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!form.itemType) e.itemType = "Item Type is required";
     if (!form.quality.trim()) e.quality = "Quality is required";
     if (!form.colorName.trim()) e.colorName = "Color Name is required";
     if (!form.size.trim()) e.size = "Size is required";
@@ -218,16 +214,6 @@ export default function MaterialsMaster() {
     } catch { toast({ title: "Error", description: "Failed to delete.", variant: "destructive" }); }
   };
 
-  const handleAddItemType = async () => {
-    if (!newItemTypeName.trim()) return;
-    try {
-      await createItemType.mutateAsync({ name: newItemTypeName.trim(), isActive: true });
-      setForm((f) => ({ ...f, itemType: newItemTypeName.trim() }));
-      setNewItemTypeName("");
-      setAddItemTypeOpen(false);
-    } catch { toast({ title: "Error", description: "Failed to add item type.", variant: "destructive" }); }
-  };
-
   const handleAddUnitType = async () => {
     if (!newUnitTypeName.trim()) return;
     try {
@@ -262,7 +248,6 @@ export default function MaterialsMaster() {
   };
 
   const asMat = (r: TableRow) => r as unknown as MaterialRecord;
-  const itemTypeOptions = itemTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const unitTypeOptions = unitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
 
@@ -415,18 +400,10 @@ export default function MaterialsMaster() {
         size="xl"
       >
         <div className="grid grid-cols-2 gap-4">
-          <AddableSelect
-            label="Item Type" required value={form.itemType}
-            onChange={(v) => setForm((f) => ({ ...f, itemType: v }))}
-            onAdd={() => { setNewItemTypeName(""); setAddItemTypeOpen(true); }}
-            addLabel="+ Add Item Type"
-            options={itemTypeOptions} placeholder="Select Item Type" error={errors.itemType}
-          />
+          <InputField label="Material Name" placeholder="e.g. Silk Thread" value={form.materialName ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, materialName: e.target.value }))} />
           <InputField label="Quality" required placeholder="e.g. Premium" value={form.quality}
             onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))} error={errors.quality} />
-
-          <InputField label="Type" placeholder="e.g. Raw Material" value={form.type ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} />
 
           {/* Color picker */}
           <div className="flex flex-col gap-1.5">
@@ -587,19 +564,6 @@ export default function MaterialsMaster() {
         onCancel={() => setDeleteTarget(null)}
         loading={deleteMutation.isPending}
       />
-
-      {/* Add Item Type mini-modal */}
-      <MasterFormModal
-        open={addItemTypeOpen}
-        title="Add Item Type"
-        onClose={() => setAddItemTypeOpen(false)}
-        onSubmit={handleAddItemType}
-        submitting={createItemType.isPending}
-        submitLabel="Add"
-      >
-        <InputField label="Item Type Name" required placeholder="e.g. Thread" value={newItemTypeName}
-          onChange={(e) => setNewItemTypeName(e.target.value)} />
-      </MasterFormModal>
 
       {/* Add Unit Type mini-modal */}
       <MasterFormModal
