@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, and, desc, count } from "drizzle-orm";
-import { db, swatchesTable } from "@workspace/db";
+import { db, pool, swatchesTable } from "@workspace/db";
 import { insertSwatchSchema, updateSwatchSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
@@ -44,6 +44,34 @@ router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void
 
 router.get("/swatches/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(swatchesTable).where(and(eq(swatchesTable.isDeleted, false), eq(swatchesTable.isActive, true))).orderBy(swatchesTable.swatchName);
+  res.json(rows);
+});
+
+// Combined reference list: active master swatches + non-cancelled swatch orders
+router.get("/swatches/for-reference", requireAuth, async (_req, res): Promise<void> => {
+  const { rows } = await (pool as any).query(`
+    SELECT
+      CAST(id AS text)           AS id,
+      swatch_code                AS code,
+      swatch_name                AS name,
+      COALESCE(client, '')       AS client,
+      'master'                   AS source
+    FROM swatches
+    WHERE is_deleted = false AND is_active = true
+
+    UNION ALL
+
+    SELECT
+      'swo:' || CAST(id AS text) AS id,
+      order_code                 AS code,
+      swatch_name                AS name,
+      COALESCE(client_name, '')  AS client,
+      'order'                    AS source
+    FROM swatch_orders
+    WHERE is_deleted = false AND order_status <> 'Cancelled'
+
+    ORDER BY code
+  `);
   res.json(rows);
 });
 

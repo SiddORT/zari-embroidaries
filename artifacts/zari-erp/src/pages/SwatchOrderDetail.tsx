@@ -17,8 +17,8 @@ import { useUnitTypes, useCreateUnitType, type LookupRecord } from "@/hooks/useL
 import AddableSelect from "@/components/ui/AddableSelect";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import ImageLightbox from "@/components/ui/ImageLightbox";
-import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
-import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
+import { useStylesForReference, type StyleRefOption } from "@/hooks/useStyles";
+import { useSwatchesForReference, type SwatchRefOption } from "@/hooks/useSwatches";
 import ClientLinkTab from "@/pages/ClientLinkTab";
 import CostingTab from "@/pages/CostingTab";
 import CostSheetTab from "@/pages/CostSheetTab";
@@ -260,22 +260,30 @@ export default function SwatchOrderDetail() {
   const { data: clientsData } = useAllClients();
   const { data: fabricsData } = useAllFabrics();
   const { data: unitTypesData } = useUnitTypes();
-  const { data: stylesData } = useStyleList({ search: "", status: "active", client: "", location: "", page: 1, limit: 200 });
-  const { data: swatchesData } = useSwatchList({ search: "", status: "active", client: "", location: "", swatchCategory: "", page: 1, limit: 200 });
+  const { data: styleRefs } = useStylesForReference();
+  const { data: swatchRefs } = useSwatchesForReference();
 
   const createUnitType = useCreateUnitType();
 
   const clients: ClientRecord[] = clientsData ?? [];
   const fabrics: FabricRecord[] = fabricsData ?? [];
   const unitTypes: LookupRecord[] = unitTypesData ?? [];
-  const styles: StyleRecord[] = stylesData?.data ?? [];
-  const swatches: SwatchRecord[] = swatchesData?.data ?? [];
 
   const unitTypeOptions = unitTypes.filter(t => t.isActive).map(t => ({ value: t.name, label: t.name }));
   const clientOptions = clients.map(c => ({ value: String(c.id), label: c.brandName }));
   const fabricOptions = fabrics.map(f => ({ value: String(f.id), label: `${f.fabricCode} — ${f.fabricType} ${f.quality}` }));
-  const styleOptions = styles.map(s => ({ value: String(s.id), label: `${s.styleNo} – ${s.client}` }));
-  const swatchOptions = swatches.map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
+  const styleOptions = (styleRefs ?? []).map((s: StyleRefOption) => ({
+    value: s.id,
+    label: s.source === "master"
+      ? `${s.code}${s.client ? ` – ${s.client}` : ""}${s.name && s.name !== s.code ? ` (${s.name})` : ""}`
+      : `${s.code} – ${s.name}${s.client ? ` · ${s.client}` : ""} [Order]`,
+  }));
+  const swatchOptions = (swatchRefs ?? []).map((s: SwatchRefOption) => ({
+    value: s.id,
+    label: s.source === "master"
+      ? `${s.code} – ${s.name}${s.client ? ` (${s.client})` : ""}`
+      : `${s.code} – ${s.name}${s.client ? ` · ${s.client}` : ""} [Order]`,
+  }));
 
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -806,9 +814,11 @@ export default function SwatchOrderDetail() {
                           <AddableSelect
                             value={ref.id}
                             onChange={v => {
-                              const s = styles.find(s => String(s.id) === v);
+                              const s = (styleRefs ?? []).find(s => s.id === v);
                               updateRef("style", i, "id", v);
-                              updateRef("style", i, "label", s ? `${s.styleNo} – ${s.client}` : "");
+                              updateRef("style", i, "label", s
+                                ? (s.source === "master" ? `${s.code}${s.client ? ` – ${s.client}` : ""}` : `${s.code} – ${s.name}`)
+                                : "");
                             }}
                             options={styleOptions}
                             placeholder="— Select style —"
@@ -844,9 +854,9 @@ export default function SwatchOrderDetail() {
                           <AddableSelect
                             value={ref.id}
                             onChange={v => {
-                              const s = swatches.find(s => String(s.id) === v);
+                              const s = (swatchRefs ?? []).find(s => s.id === v);
                               updateRef("swatch", i, "id", v);
-                              updateRef("swatch", i, "label", s?.swatchName ?? "");
+                              updateRef("swatch", i, "label", s ? `${s.code} – ${s.name}` : "");
                             }}
                             options={swatchOptions}
                             placeholder="— Select swatch —"

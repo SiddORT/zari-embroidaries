@@ -29,6 +29,22 @@ export function useStyleList(p: { search: string; status: StatusFilter; client: 
   });
 }
 
+export type StyleRefOption = {
+  id: string;       // plain numeric string for masters; "sto:<n>" for style orders
+  code: string;     // styleNo or orderCode
+  name: string;     // description or styleName
+  client: string;
+  source: "master" | "order";
+};
+
+export function useStylesForReference() {
+  return useQuery({
+    queryKey: [QK, "for-reference"],
+    queryFn: () => customFetch<StyleRefOption[]>(`${BASE}/for-reference`),
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateStyle() {
   const qc = useQueryClient();
   return useMutation({

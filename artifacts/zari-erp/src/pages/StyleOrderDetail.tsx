@@ -13,8 +13,8 @@ import { useAllClients } from "@/hooks/useClients";
 import AddableSelect from "@/components/ui/AddableSelect";
 import { useDepartments, useCreateDepartment } from "@/hooks/useLookups";
 import { useStyleOrder, useCreateStyleOrder, useUpdateStyleOrder, type ReferenceItem, type FileAttachment } from "@/hooks/useStyleOrders";
-import { useStyleList, type StyleRecord } from "@/hooks/useStyles";
-import { useSwatchList, type SwatchRecord } from "@/hooks/useSwatches";
+import { useStylesForReference, type StyleRefOption } from "@/hooks/useStyles";
+import { useSwatchesForReference, type SwatchRefOption } from "@/hooks/useSwatches";
 import ProductsTab from "./ProductsTab";
 import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
 import StyleCostingTab from "./StyleCostingTab";
@@ -257,12 +257,20 @@ export default function StyleOrderDetail() {
   const { data: clientsData } = useAllClients();
   const clients = clientsData?.data ?? [];
 
-  const { data: stylesData } = useStyleList({ search: "", status: "active", client: "", location: "", page: 1, limit: 200 });
-  const { data: swatchesData } = useSwatchList({ search: "", status: "active", client: "", location: "", swatchCategory: "", page: 1, limit: 200 });
-  const styles: StyleRecord[] = stylesData?.data ?? [];
-  const swatches: SwatchRecord[] = swatchesData?.data ?? [];
-  const styleOptions = styles.map(s => ({ value: String(s.id), label: `${s.styleNo} – ${s.client}` }));
-  const swatchOptions = swatches.map(s => ({ value: String(s.id), label: `${s.swatchCode} – ${s.swatchName}` }));
+  const { data: styleRefs } = useStylesForReference();
+  const { data: swatchRefs } = useSwatchesForReference();
+  const styleOptions = (styleRefs ?? []).map((s: StyleRefOption) => ({
+    value: s.id,
+    label: s.source === "master"
+      ? `${s.code}${s.client ? ` – ${s.client}` : ""}${s.name && s.name !== s.code ? ` (${s.name})` : ""}`
+      : `${s.code} – ${s.name}${s.client ? ` · ${s.client}` : ""} [Order]`,
+  }));
+  const swatchOptions = (swatchRefs ?? []).map((s: SwatchRefOption) => ({
+    value: s.id,
+    label: s.source === "master"
+      ? `${s.code} – ${s.name}${s.client ? ` (${s.client})` : ""}`
+      : `${s.code} – ${s.name}${s.client ? ` · ${s.client}` : ""} [Order]`,
+  }));
 
   const { data: deptData } = useDepartments();
   const createDept = useCreateDepartment();
@@ -661,9 +669,11 @@ export default function StyleOrderDetail() {
                             <AddableSelect
                               value={ref.id}
                               onChange={v => {
-                                const s = styles.find(s => String(s.id) === v);
+                                const s = (styleRefs ?? []).find(s => s.id === v);
                                 updateRef("style", i, "id", v);
-                                updateRef("style", i, "label", s ? `${s.styleNo} – ${s.client}` : "");
+                                updateRef("style", i, "label", s
+                                  ? (s.source === "master" ? `${s.code}${s.client ? ` – ${s.client}` : ""}` : `${s.code} – ${s.name}`)
+                                  : "");
                               }}
                               options={styleOptions}
                               placeholder="— Select style —"
@@ -699,9 +709,9 @@ export default function StyleOrderDetail() {
                             <AddableSelect
                               value={ref.id}
                               onChange={v => {
-                                const s = swatches.find(s => String(s.id) === v);
+                                const s = (swatchRefs ?? []).find(s => s.id === v);
                                 updateRef("swatch", i, "id", v);
-                                updateRef("swatch", i, "label", s?.swatchName ?? "");
+                                updateRef("swatch", i, "label", s ? `${s.code} – ${s.name}` : "");
                               }}
                               options={swatchOptions}
                               placeholder="— Select swatch —"

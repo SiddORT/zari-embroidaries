@@ -58,6 +58,22 @@ export function useAllSwatches() {
   return useQuery({ queryKey: [QK, "all"], queryFn: () => customFetch<SwatchRecord[]>(`${BASE}/all`) });
 }
 
+export type SwatchRefOption = {
+  id: string;       // plain numeric string for masters; "swo:<n>" for swatch orders
+  code: string;     // swatchCode or orderCode
+  name: string;     // swatchName
+  client: string;
+  source: "master" | "order";
+};
+
+export function useSwatchesForReference() {
+  return useQuery({
+    queryKey: [QK, "for-reference"],
+    queryFn: () => customFetch<SwatchRefOption[]>(`${BASE}/for-reference`),
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateSwatch() {
   const qc = useQueryClient();
   return useMutation({

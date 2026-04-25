@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, and, desc } from "drizzle-orm";
-import { db, stylesTable } from "@workspace/db";
+import { db, pool, stylesTable } from "@workspace/db";
 import { insertStyleSchema, updateStyleSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
@@ -37,6 +37,34 @@ router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> 
     db.select({ id: stylesTable.id }).from(stylesTable).where(whereClause),
   ]);
   res.json({ data: rows, total: countRows.length, page, limit });
+});
+
+// Combined reference list: active master styles + non-cancelled style orders
+router.get("/styles/for-reference", requireAuth, async (_req, res): Promise<void> => {
+  const { rows } = await (pool as any).query(`
+    SELECT
+      CAST(id AS text)                      AS id,
+      style_no                              AS code,
+      COALESCE(description, style_no, '')   AS name,
+      COALESCE(client, '')                  AS client,
+      'master'                              AS source
+    FROM styles
+    WHERE is_deleted = false AND is_active = true
+
+    UNION ALL
+
+    SELECT
+      'sto:' || CAST(id AS text)            AS id,
+      order_code                            AS code,
+      style_name                            AS name,
+      COALESCE(client_name, '')             AS client,
+      'order'                               AS source
+    FROM style_orders
+    WHERE is_deleted = false AND order_status <> 'Cancelled'
+
+    ORDER BY code
+  `);
+  res.json(rows);
 });
 
 router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
