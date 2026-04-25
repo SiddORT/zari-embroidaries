@@ -810,7 +810,6 @@ function StyleCreatePoModal({
   onCreate: (payload: Record<string, unknown>) => void;
 }) {
   const { toast } = useToast();
-  const [vendorId, setVendorId] = useState("");
   const [notes, setNotes] = useState("");
   const [isPending, setIsPending] = useState(false);
   type Override = { checked: boolean; targetPrice: string; quantity: string; targetVendorId: string; targetVendorName: string };
@@ -837,7 +836,6 @@ function StyleCreatePoModal({
   }, 0);
 
   function handleSubmit() {
-    if (!vendorId) { toast({ title: "Select a vendor", variant: "destructive" }); return; }
     if (selectedItems.length === 0) { toast({ title: "Select at least one BOM item", variant: "destructive" }); return; }
     const bomItems: PoLineItem[] = selectedItems.map(r => ({
       bomRowId: r.id, materialCode: r.materialCode, materialName: r.materialName,
@@ -847,7 +845,7 @@ function StyleCreatePoModal({
     }));
     setIsPending(true);
     try {
-      onCreate({ styleOrderId, vendorId: Number(vendorId), notes: notes || undefined, bomItems });
+      onCreate({ styleOrderId, notes: notes || undefined, bomItems });
       onClose();
     } finally {
       setIsPending(false);
@@ -862,21 +860,11 @@ function StyleCreatePoModal({
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Vendor *</label>
-              <select value={vendorId} onChange={e => setVendorId(e.target.value)}
-                className="w-full mt-1 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
-                <option value="">Select vendor…</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Notes (optional)</label>
-              <input value={notes} onChange={e => setNotes(e.target.value)}
-                className="w-full mt-1 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                placeholder="Add notes…" />
-            </div>
+          <div>
+            <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Notes (optional)</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)}
+              className="w-full mt-1 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              placeholder="Add notes…" />
           </div>
           <div>
             <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide mb-2 block">Select BOM Items *</label>
@@ -952,7 +940,7 @@ function StyleCreatePoModal({
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
-          <button onClick={handleSubmit} disabled={isPending || selectedItems.length === 0 || !vendorId}
+          <button onClick={handleSubmit} disabled={isPending || selectedItems.length === 0}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-50">
             {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5" />} Create PO
           </button>

@@ -1264,12 +1264,16 @@ router.post("/style-po", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { styleOrderId, vendorId, notes, bomItems } = req.body as {
     styleOrderId: number;
-    vendorId: number;
+    vendorId?: number;
     notes?: string;
     bomItems?: { bomRowId: number; materialCode: string; materialName: string; unitType: string; targetPrice: string; quantity: string }[];
   };
-  const [vendor] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId));
-  if (!vendor) { res.status(404).json({ error: "Vendor not found" }); return; }
+  let vendor: { brandName: string } | undefined;
+  if (vendorId) {
+    const [v] = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId));
+    if (!v) { res.status(404).json({ error: "Vendor not found" }); return; }
+    vendor = v;
+  }
   const poNumber = await nextPoNumber();
   const items = bomItems ?? [];
   const [row] = await db.insert(purchaseOrdersTable).values({
@@ -1277,8 +1281,8 @@ router.post("/style-po", requireAuth, async (req, res) => {
     styleOrderId: Number(styleOrderId),
     referenceType: "Style",
     referenceId: Number(styleOrderId),
-    vendorId,
-    vendorName: vendor.brandName,
+    vendorId: vendorId ?? null,
+    vendorName: vendor?.brandName ?? null,
     status: "Draft",
     notes: notes ?? null,
     bomRowIds: items.map(i => i.bomRowId),
@@ -1293,7 +1297,7 @@ router.post("/style-po", requireAuth, async (req, res) => {
     sendPoApprovalRequestEmail({
       adminEmails,
       poNumber,
-      vendorName: vendor.brandName,
+      vendorName: vendor?.brandName ?? "—",
       createdBy: user.email,
       referenceType: "Style",
       referenceId: styleOrderId,
