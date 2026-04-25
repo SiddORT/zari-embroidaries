@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
 export type SwatchAttachment = { name: string; type: string; data: string; size: number };
+export type MediaItem = { url: string; type: "image" | "video"; name: string; };
 
 export type SwatchRecord = {
   id: number; swatchCode: string; swatchName: string;
@@ -9,6 +10,7 @@ export type SwatchRecord = {
   fabric: string | null; location: string | null; swatchDate: string | null;
   length: string | null; width: string | null; unitType: string | null;
   hours: string | null; attachments: SwatchAttachment[] | null;
+  wipMedia: MediaItem[] | null; finalMedia: MediaItem[] | null;
   colorName: string | null; hexCode: string | null; finishType: string | null;
   gsm: string | null; approvalStatus: string; remarks: string | null;
   isActive: boolean; isDeleted: boolean; createdBy: string; createdAt: string;

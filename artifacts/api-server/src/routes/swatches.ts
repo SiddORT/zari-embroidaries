@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, and, desc } from "drizzle-orm";
+import { mediaUploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 import { db, pool, swatchesTable } from "@workspace/db";
 import { insertSwatchSchema, updateSwatchSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -126,6 +127,56 @@ router.delete("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promi
     .where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false))).returning();
   if (!record) { res.status(404).json({ error: "Swatch not found" }); return; }
   res.json({ message: "Swatch deleted" });
+});
+
+// ─── Media upload ──────────────────────────────────────────────────────────────
+
+interface MediaItem { url: string; type: "image" | "video"; name: string; }
+
+router.post("/swatches/:id/media", requireAuth, mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
+
+  const category = (req.body.category as string) === "final" ? "final" : "wip";
+
+  const [existing] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
+  if (!existing) { res.status(404).json({ error: "Swatch not found" }); return; }
+
+  const url = await uploadFile(req.file, { entity: "swatches", id: existing.swatchCode, category });
+  const isVideo = req.file.mimetype.startsWith("video/");
+  const item: MediaItem = { url, type: isVideo ? "video" : "image", name: req.file.originalname };
+
+  const current = (category === "final" ? existing.finalMedia : existing.wipMedia) as MediaItem[] ?? [];
+  const updated = [...current, item];
+
+  const field = category === "final" ? { finalMedia: updated } : { wipMedia: updated };
+  const [record] = await db.update(swatchesTable).set({ ...field, updatedBy: req.user?.email ?? "system", updatedAt: new Date() })
+    .where(eq(swatchesTable.id, id)).returning();
+
+  res.json(record);
+});
+
+router.delete("/swatches/:id/media", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const { url, category } = req.body as { url: string; category: string };
+  if (!url || !category) { res.status(400).json({ error: "url and category are required" }); return; }
+
+  const [existing] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
+  if (!existing) { res.status(404).json({ error: "Swatch not found" }); return; }
+
+  await deleteUpload(url);
+
+  const current = (category === "final" ? existing.finalMedia : existing.wipMedia) as MediaItem[] ?? [];
+  const updated = current.filter(m => m.url !== url);
+
+  const field = category === "final" ? { finalMedia: updated } : { wipMedia: updated };
+  const [record] = await db.update(swatchesTable).set({ ...field, updatedBy: req.user?.email ?? "system", updatedAt: new Date() })
+    .where(eq(swatchesTable.id, id)).returning();
+
+  res.json(record);
 });
 
 export default router;

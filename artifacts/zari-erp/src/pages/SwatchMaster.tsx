@@ -19,8 +19,9 @@ import AddableSelect from "@/components/ui/AddableSelect";
 
 import {
   useSwatchList, useCreateSwatch, useUpdateSwatch, useToggleSwatchStatus, useDeleteSwatch,
-  type SwatchRecord, type SwatchFormData, type SwatchAttachment, type StatusFilter,
+  type SwatchRecord, type SwatchFormData, type SwatchAttachment, type StatusFilter, type MediaItem,
 } from "@/hooks/useSwatches";
+import MediaUploadSection from "@/components/ui/MediaUploadSection";
 import { useAllFabrics } from "@/hooks/useFabrics";
 import { useUnitTypes, useSwatchCategories, useCreateSwatchCategory, useCreateUnitType } from "@/hooks/useLookups";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
@@ -184,6 +185,8 @@ export default function SwatchMaster() {
   const [form, setForm] = useState<SwatchFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [wipMedia, setWipMedia] = useState<MediaItem[]>([]);
+  const [finalMedia, setFinalMedia] = useState<MediaItem[]>([]);
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
@@ -206,7 +209,11 @@ export default function SwatchMaster() {
   const clientOptions = ((clientsData ?? []) as ClientRecord[]).map(c => c.brandName);
   const swatchCatOptions = (swatchCatsData ?? []).filter(c => c.isActive).map(c => ({ value: c.name, label: c.name }));
 
-  function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
+  function openCreate() {
+    setEditRecord(null); setForm(EMPTY_FORM); setErrors({});
+    setWipMedia([]); setFinalMedia([]);
+    setModalOpen(true);
+  }
   function openEdit(r: SwatchRecord) {
     setEditRecord(r);
     setForm({
@@ -217,6 +224,8 @@ export default function SwatchMaster() {
       unitType: r.unitType ?? "", hours: r.hours ?? "",
       attachments: (r.attachments as SwatchAttachment[]) ?? [], isActive: r.isActive,
     });
+    setWipMedia((r.wipMedia as MediaItem[]) ?? []);
+    setFinalMedia((r.finalMedia as MediaItem[]) ?? []);
     setErrors({}); setModalOpen(true);
   }
 
@@ -425,6 +434,22 @@ export default function SwatchMaster() {
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
+
+          {editRecord ? (
+            <MediaUploadSection
+              entityType="swatches"
+              entityId={editRecord.id}
+              wipMedia={wipMedia}
+              finalMedia={finalMedia}
+              onUpdate={({ wipMedia: wip, finalMedia: fin }) => {
+                setWipMedia(wip); setFinalMedia(fin);
+              }}
+            />
+          ) : (
+            <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-3">
+              Save this swatch first, then edit it to upload WIP &amp; final media.
+            </p>
+          )}
         </MasterFormModal>
 
         <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}

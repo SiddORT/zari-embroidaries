@@ -18,8 +18,9 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
   useStyleList, useCreateStyle, useUpdateStyle, useToggleStyleStatus, useDeleteStyle,
-  type StyleRecord, type StyleFormData, type StatusFilter,
+  type StyleRecord, type StyleFormData, type StatusFilter, type MediaItem,
 } from "@/hooks/useStyles";
+import MediaUploadSection from "@/components/ui/MediaUploadSection";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 
 const EMPTY_FORM: StyleFormData = {
@@ -73,6 +74,8 @@ export default function StyleMaster() {
   const [form, setForm] = useState<StyleFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [wipMedia, setWipMedia] = useState<MediaItem[]>([]);
+  const [finalMedia, setFinalMedia] = useState<MediaItem[]>([]);
 
   const { data, isLoading } = useStyleList({ search, status, client: filterClient, location: filterLocation, page, limit });
   const { data: clientsData } = useAllClients();
@@ -82,7 +85,11 @@ export default function StyleMaster() {
   const toggleStatus = useToggleStyleStatus();
   const deleteMutation = useDeleteStyle();
 
-  function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
+  function openCreate() {
+    setEditRecord(null); setForm(EMPTY_FORM); setErrors({});
+    setWipMedia([]); setFinalMedia([]);
+    setModalOpen(true);
+  }
   function openEdit(r: StyleRecord) {
     setEditRecord(r);
     setForm({
@@ -91,6 +98,8 @@ export default function StyleMaster() {
       placeOfIssue: r.placeOfIssue ?? "", vendorPoNo: r.vendorPoNo ?? "",
       shippingDate: r.shippingDate ?? "", isActive: r.isActive,
     });
+    setWipMedia((r.wipMedia as MediaItem[]) ?? []);
+    setFinalMedia((r.finalMedia as MediaItem[]) ?? []);
     setErrors({}); setModalOpen(true);
   }
   function validate() {
@@ -217,6 +226,22 @@ export default function StyleMaster() {
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
+
+          {editRecord ? (
+            <MediaUploadSection
+              entityType="styles"
+              entityId={editRecord.id}
+              wipMedia={wipMedia}
+              finalMedia={finalMedia}
+              onUpdate={({ wipMedia: wip, finalMedia: fin }) => {
+                setWipMedia(wip); setFinalMedia(fin);
+              }}
+            />
+          ) : (
+            <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-3">
+              Save this style first, then edit it to upload WIP &amp; final media.
+            </p>
+          )}
         </MasterFormModal>
 
         <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}

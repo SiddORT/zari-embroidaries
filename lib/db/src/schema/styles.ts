@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const stylesTable = pgTable("styles", {
@@ -13,6 +13,8 @@ export const stylesTable = pgTable("styles", {
   shippingDate: text("shipping_date"),
   styleCategory: text("style_category").notNull(),
   referenceSwatchId: text("reference_swatch_id"),
+  wipMedia: jsonb("wip_media").default([]),
+  finalMedia: jsonb("final_media").default([]),
   isActive: boolean("is_active").notNull().default(true),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),

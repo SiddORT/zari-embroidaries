@@ -1,11 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
+export type MediaItem = { url: string; type: "image" | "video"; name: string; };
+
 export type StyleRecord = {
   id: number; client: string; styleNo: string; invoiceNo: string | null;
   description: string | null; attachLink: string | null; placeOfIssue: string | null;
   vendorPoNo: string | null; shippingDate: string | null; styleCategory: string;
-  referenceSwatchId: string | null; isActive: boolean; isDeleted: boolean;
+  referenceSwatchId: string | null;
+  wipMedia: MediaItem[] | null; finalMedia: MediaItem[] | null;
+  isActive: boolean; isDeleted: boolean;
   createdBy: string; createdAt: string; updatedBy: string | null; updatedAt: string | null;
 };
 

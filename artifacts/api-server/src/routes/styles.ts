@@ -4,6 +4,7 @@ import { db, pool, stylesTable } from "@workspace/db";
 import { insertStyleSchema, updateStyleSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { mediaUploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -122,6 +123,56 @@ router.delete("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise
     .where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false))).returning();
   if (!record) { res.status(404).json({ error: "Style not found" }); return; }
   res.json({ message: "Style deleted" });
+});
+
+// ─── Media upload ──────────────────────────────────────────────────────────────
+
+interface MediaItem { url: string; type: "image" | "video"; name: string; }
+
+router.post("/styles/:id/media", requireAuth, mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
+
+  const category = (req.body.category as string) === "final" ? "final" : "wip";
+
+  const [existing] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
+  if (!existing) { res.status(404).json({ error: "Style not found" }); return; }
+
+  const url = await uploadFile(req.file, { entity: "styles", id: existing.styleNo, category });
+  const isVideo = req.file.mimetype.startsWith("video/");
+  const item: MediaItem = { url, type: isVideo ? "video" : "image", name: req.file.originalname };
+
+  const current = (category === "final" ? existing.finalMedia : existing.wipMedia) as MediaItem[] ?? [];
+  const updated = [...current, item];
+
+  const field = category === "final" ? { finalMedia: updated } : { wipMedia: updated };
+  const [record] = await db.update(stylesTable).set({ ...field, updatedBy: req.user?.email ?? "system", updatedAt: new Date() })
+    .where(eq(stylesTable.id, id)).returning();
+
+  res.json(record);
+});
+
+router.delete("/styles/:id/media", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const { url, category } = req.body as { url: string; category: string };
+  if (!url || !category) { res.status(400).json({ error: "url and category are required" }); return; }
+
+  const [existing] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
+  if (!existing) { res.status(404).json({ error: "Style not found" }); return; }
+
+  await deleteUpload(url);
+
+  const current = (category === "final" ? existing.finalMedia : existing.wipMedia) as MediaItem[] ?? [];
+  const updated = current.filter(m => m.url !== url);
+
+  const field = category === "final" ? { finalMedia: updated } : { wipMedia: updated };
+  const [record] = await db.update(stylesTable).set({ ...field, updatedBy: req.user?.email ?? "system", updatedAt: new Date() })
+    .where(eq(stylesTable.id, id)).returning();
+
+  res.json(record);
 });
 
 export default router;

@@ -19,6 +19,8 @@ export const swatchesTable = pgTable("swatches", {
   hexCode: text("hex_code"),
   finishType: text("finish_type"),
   gsm: text("gsm"),
+  wipMedia: jsonb("wip_media").default([]),
+  finalMedia: jsonb("final_media").default([]),
   approvalStatus: text("approval_status").notNull().default("Pending"),
   remarks: text("remarks"),
   isActive: boolean("is_active").notNull().default(true),

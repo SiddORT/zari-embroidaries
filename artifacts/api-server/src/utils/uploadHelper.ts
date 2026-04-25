@@ -34,6 +34,18 @@ const ALLOWED_MIMES = [
   "image/webp",
 ];
 
+const MEDIA_MIMES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-msvideo",
+  "video/x-matroska",
+];
+
 export const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -42,6 +54,19 @@ export const uploadMiddleware = multer({
       cb(null, true);
     } else {
       cb(new Error("Only PDF, JPG, PNG, or WebP files are allowed"));
+    }
+  },
+});
+
+/** Separate middleware for WIP/Final media uploads — allows images and videos up to 200 MB */
+export const mediaUploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (MEDIA_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image (JPG, PNG, WebP) or video (MP4, MOV, WebM) files are allowed"));
     }
   },
 });
