@@ -1240,6 +1240,13 @@ function CreatePoModal({
   async function handleSubmit() {
     if (!vendorId) { toast({ title: "Select a vendor", variant: "destructive" }); return; }
     if (selectedItems.length === 0) { toast({ title: "Select at least one BOM item", variant: "destructive" }); return; }
+    for (const r of selectedItems) {
+      const poQty = parseFloat(overrides[r.id].quantity) || 0;
+      const bomQty = parseFloat(r.requiredQty) || 0;
+      if (poQty > bomQty) {
+        toast({ title: `"${r.materialName}" — Order qty (${poQty}) cannot exceed BOM qty (${bomQty} ${r.unitType})`, variant: "destructive" }); return;
+      }
+    }
     const bomItems: PoLineItem[] = selectedItems.map(r => ({
       bomRowId: r.id,
       materialCode: r.materialCode,
@@ -1334,9 +1341,13 @@ function CreatePoModal({
                           </td>
                           <td className="px-3 py-2.5">
                             <input type="number" min="0" step="any" value={ov.quantity}
+                              max={parseFloat(r.requiredQty)}
                               disabled={!ov.checked}
                               onChange={e => setField(r.id, "quantity", e.target.value)}
-                              className={`w-20 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-900/20 ${!ov.checked ? "opacity-30 cursor-not-allowed" : ""}`} />
+                              className={`w-20 text-xs text-gray-900 bg-white border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-900/20 ${!ov.checked ? "opacity-30 cursor-not-allowed border-gray-200" : ov.checked && (parseFloat(ov.quantity) || 0) > (parseFloat(r.requiredQty) || 0) ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200"}`} />
+                            {ov.checked && (parseFloat(ov.quantity) || 0) > (parseFloat(r.requiredQty) || 0) && (
+                              <p className="text-[9px] text-red-500 mt-0.5">Max: {r.requiredQty}</p>
+                            )}
                           </td>
                           <td className="px-3 py-2.5">
                             <select
@@ -1976,8 +1987,12 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
     return acc;
   }, { stockInclPr: 0, consumedQty: 0, consumedTotal: 0 });
 
+  const inStockRows = bomRows.filter(r => parseFloat(r.currentStock || "0") > 0);
+
   function openAddModal() {
-    const preselect = filterBomRowId !== "all" ? filterBomRowId : (bomRows.length === 1 ? String(bomRows[0].id) : "");
+    const preselect = filterBomRowId !== "all" && parseFloat(bomRows.find(r => String(r.id) === filterBomRowId)?.currentStock || "0") > 0
+      ? filterBomRowId
+      : (inStockRows.length === 1 ? String(inStockRows[0].id) : "");
     setAddForm({ bomRowId: preselect, consumedQty: "", notes: "" });
     setShowAddModal(true);
   }
@@ -2146,9 +2161,12 @@ function ConsumptionSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <select value={addForm.bomRowId} onChange={e => setAddForm(f => ({ ...f, bomRowId: e.target.value }))}
                   className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10">
                   <option value="">— Select item —</option>
-                  {bomRows.map(r => (
-                    <option key={r.id} value={String(r.id)}>[{r.materialCode}] {r.materialName} ({r.materialType === "fabric" ? "Fabric" : "Material"})</option>
-                  ))}
+                  {inStockRows.length === 0
+                    ? <option disabled>No items in inventory</option>
+                    : inStockRows.map(r => (
+                        <option key={r.id} value={String(r.id)}>[{r.materialCode}] {r.materialName} ({r.materialType === "fabric" ? "Fabric" : "Material"})</option>
+                      ))
+                  }
                 </select>
               </div>
               {selectedRow && selectedRowMetrics && (

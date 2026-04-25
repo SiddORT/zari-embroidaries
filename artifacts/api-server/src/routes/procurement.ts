@@ -50,8 +50,6 @@ async function recalcPoStatus(client: { query: typeof pool.query }, poId: number
   let newStatus: string;
   if (totalReceived <= 0) {
     newStatus = "Approved";
-  } else if (totalReceived >= totalOrdered) {
-    newStatus = "Closed";
   } else {
     newStatus = "Partially Received";
   }
