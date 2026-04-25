@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# User-uploaded files (local disk storage)
+artifacts/api-server/uploads/**
+!artifacts/api-server/uploads/**/.gitkeep

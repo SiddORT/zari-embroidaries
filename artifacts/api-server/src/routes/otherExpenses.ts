@@ -2,35 +2,9 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { uploadMiddleware, uploadFile } from "../utils/uploadHelper";
 
 const router = Router();
-
-const uploadsDir = path.join(process.cwd(), "uploads", "other_expenses");
-fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}${path.extname(file.originalname)}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if ([".pdf", ".jpg", ".jpeg", ".png"].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only PDF, JPG, JPEG, PNG files are allowed"));
-    }
-  },
-});
 
 async function nextExpenseNumber(client: any): Promise<string> {
   const year = new Date().getFullYear();
@@ -129,7 +103,7 @@ router.get("/other-expenses/:id", requireAuth, async (req, res) => {
 });
 
 /* ── create ───────────────────────────────── */
-router.post("/other-expenses", requireAuth, upload.single("attachment"), async (req: any, res) => {
+router.post("/other-expenses", requireAuth, uploadMiddleware.single("attachment"), async (req: any, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -152,7 +126,9 @@ router.post("/other-expenses", requireAuth, upload.single("attachment"), async (
       return res.status(400).json({ error: "Currency is required" });
 
     const expense_number   = await nextExpenseNumber(client);
-    const attachmentPath   = req.file ? `/uploads/other_expenses/${req.file.filename}` : "";
+    const attachmentPath   = req.file
+      ? await uploadFile(req.file, { entity: "expenses", id: expense_number })
+      : "";
     const amountNum        = parseFloat(amount);
     const vendorIdNum      = vendor_id ? parseInt(vendor_id) : null;
 
@@ -206,7 +182,7 @@ router.post("/other-expenses", requireAuth, upload.single("attachment"), async (
 });
 
 /* ── update ───────────────────────────────── */
-router.put("/other-expenses/:id", requireAuth, upload.single("attachment"), async (req: any, res) => {
+router.put("/other-expenses/:id", requireAuth, uploadMiddleware.single("attachment"), async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const {
@@ -227,7 +203,7 @@ router.put("/other-expenses/:id", requireAuth, upload.single("attachment"), asyn
     if (!curr.rows.length) return res.status(404).json({ error: "Not found" });
 
     const attachmentPath = req.file
-      ? `/uploads/other_expenses/${req.file.filename}`
+      ? await uploadFile(req.file, { entity: "expenses", id: id })
       : curr.rows[0].attachment;
 
     const { rows } = await pool.query(

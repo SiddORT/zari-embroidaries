@@ -178,6 +178,36 @@ When Approved: Convert to Swatch or Convert to Style (with duplicate protection 
 
 **GST logic**: `COMPANY_STATE` env var (default "Maharashtra"); CGST+SGST for same state, IGST for different state. Rate: 18%.
 
+## File Upload System
+
+File uploads use a **modular storage abstraction layer** in `artifacts/api-server/src/`:
+
+**Storage drivers** (`src/storage/`):
+- `localStorage.ts` — writes files to local disk under `uploads/`
+- `s3Storage.ts` — stub for future AWS S3 (throws until configured)
+- `index.ts` — picks driver based on `STORAGE_PROVIDER` env var (defaults to `"local"`)
+
+**Upload helper** (`src/utils/uploadHelper.ts`):
+- `uploadMiddleware` — shared multer instance using `memoryStorage` (file stays in buffer, not on disk)
+- `uploadFile(file, { entity, id?, category? })` — saves buffer via storage driver, returns relative URL
+- `deleteUpload(urlOrPath)` — removes file from storage (handles both legacy and new URL formats)
+- `resolveUploadAbsPath(url)` — converts stored URL → absolute filesystem path (used in PDF generation)
+
+**Structured folder layout** under `artifacts/api-server/uploads/`:
+- `procurement/<prId>/invoices/` — vendor invoice PDFs/images
+- `expenses/<expenseId>/` — other expense attachments
+- `packing-lists/<plId>/images/` — packing list item images
+- `orders/<orderId>/{artwork,wip,final,pattern,toile,invoices}/` — order files (future)
+- `materials/`, `fabrics/` — master item images (future)
+
+**Legacy folders** (old data still served):
+- `vendor_invoices/` — served via `/api/packing-lists/item-images/:filename` (backward compat)
+- `other_expenses/`, `packing-list-items/` — still accessible via static `/uploads` middleware
+
+**Routes using uploads**: `procurement.ts` (vendor invoices), `otherExpenses.ts` (attachments), `packingLists.ts` (item images + PDF generation)
+
+**To switch to S3**: set `STORAGE_PROVIDER=s3` and implement `src/storage/s3Storage.ts` — no route changes needed.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

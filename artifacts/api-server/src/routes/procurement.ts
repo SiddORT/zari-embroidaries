@@ -1,31 +1,8 @@
 import { Router } from "express";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
-
-const uploadsDir = path.join(process.cwd(), "uploads", "vendor_invoices");
-fs.mkdirSync(uploadsDir, { recursive: true });
-
-const vendorInvoiceStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ts = Date.now();
-    const ext = path.extname(file.originalname);
-    cb(null, `vendor_inv_${ts}${ext}`);
-  },
-});
-const vendorInvoiceUpload = multer({
-  storage: vendorInvoiceStorage,
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Only PDF or images are allowed"));
-  },
-});
+import { uploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 
 const router = Router();
 
@@ -902,7 +879,7 @@ async function applyInventoryUpdate(
 router.post(
   "/procurement/purchase-receipts/:id/vendor-invoice",
   requireAuth,
-  vendorInvoiceUpload.single("invoice_file"),
+  uploadMiddleware.single("invoice_file"),
   async (req: AuthRequest, res) => {
     const prId = parseInt(req.params.id);
     if (isNaN(prId)) { res.status(400).json({ error: "Invalid PR id" }); return; }
@@ -912,7 +889,6 @@ router.post(
     if (!invoice_amount || isNaN(parseFloat(invoice_amount))) { res.status(400).json({ error: "Invoice amount is required" }); return; }
 
     const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
-    const filePath = req.file ? `/uploads/vendor_invoices/${req.file.filename}` : null;
 
     const client = await (pool as any).connect();
     try {
@@ -930,14 +906,17 @@ router.post(
 
       if (pr.vendor_invoice_number) {
         if (pr.vendor_invoice_file) {
-          const oldPath = path.join(process.cwd(), pr.vendor_invoice_file);
-          fs.unlink(oldPath, () => {});
+          await deleteUpload(pr.vendor_invoice_file);
         }
         await client.query(
           `DELETE FROM vendor_invoice_ledger WHERE purchase_receipt_id = $1`,
           [prId]
         );
       }
+
+      const filePath = req.file
+        ? await uploadFile(req.file, { entity: "procurement", id: prId, category: "invoices" })
+        : null;
 
       await client.query(
         `UPDATE purchase_receipts
@@ -969,7 +948,6 @@ router.post(
       res.json({ success: true, file_path: filePath });
     } catch (err) {
       await client.query("ROLLBACK");
-      if (req.file) fs.unlink(req.file.path, () => {});
       console.error(err);
       res.status(500).json({ error: "Failed to upload vendor invoice" });
     } finally {
@@ -996,8 +974,7 @@ router.delete(
 
       const filePath = prRes.rows[0].vendor_invoice_file;
       if (filePath) {
-        const absPath = path.join(process.cwd(), filePath);
-        fs.unlink(absPath, () => {});
+        await deleteUpload(filePath);
       }
 
       await client.query(

@@ -1,22 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
-import multer from "multer";
 import path from "path";
 import fs from "fs";
-
-const plItemStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const dir = path.join(process.cwd(), "uploads", "packing-list-items");
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `item-${Date.now()}${ext}`);
-  },
-});
-const plItemUpload = multer({ storage: plItemStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+import { uploadMiddleware, uploadFile, deleteUpload, resolveUploadAbsPath } from "../utils/uploadHelper";
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -559,17 +546,21 @@ router.get("/packing-lists/order-artwork-image", requireAuth, async (req, res) =
 router.post(
   "/packing-lists/:id/packages/:pkgId/items/:itemId/image",
   requireAuth,
-  plItemUpload.single("image"),
+  uploadMiddleware.single("image"),
   async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-      const imageUrl = `/api/packing-lists/item-images/${req.file.filename}`;
 
       const old = await pool.query(`SELECT item_image_url FROM packing_package_items WHERE id = $1 AND package_id = $2`, [req.params.itemId, req.params.pkgId]);
       if (old.rows[0]?.item_image_url) {
-        const fname = path.basename(old.rows[0].item_image_url);
-        fs.unlink(path.join(process.cwd(), "uploads", "packing-list-items", fname), () => {});
+        await deleteUpload(old.rows[0].item_image_url);
       }
+
+      const imageUrl = await uploadFile(req.file, {
+        entity: "packing-lists",
+        id: req.params.id,
+        category: "images",
+      });
 
       const r = await pool.query(
         `UPDATE packing_package_items SET item_image_url = $1 WHERE id = $2 AND package_id = $3 RETURNING *`,
@@ -585,8 +576,7 @@ router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId/image", requireA
   try {
     const old = await pool.query(`SELECT item_image_url FROM packing_package_items WHERE id = $1 AND package_id = $2`, [req.params.itemId, req.params.pkgId]);
     if (old.rows[0]?.item_image_url) {
-      const fname = path.basename(old.rows[0].item_image_url);
-      fs.unlink(path.join(process.cwd(), "uploads", "packing-list-items", fname), () => {});
+      await deleteUpload(old.rows[0].item_image_url);
     }
     const r = await pool.query(
       `UPDATE packing_package_items SET item_image_url = NULL WHERE id = $1 AND package_id = $2 RETURNING *`,
@@ -695,8 +685,7 @@ router.get("/packing-lists/:id/pdf-html", requireAuth, async (req, res) => {
         let imgTag = "";
         if (item.item_image_url) {
           try {
-            const fname = path.basename(item.item_image_url);
-            const filePath = path.join(process.cwd(), "uploads", "packing-list-items", fname);
+            const filePath = resolveUploadAbsPath(item.item_image_url);
             const buf = fs.readFileSync(filePath);
             const ext = path.extname(item.item_image_url).slice(1).toLowerCase() || "jpeg";
             const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
