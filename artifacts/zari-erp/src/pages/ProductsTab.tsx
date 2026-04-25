@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import {
   Plus, X, Pencil, Trash2, Scissors, CalendarDays, FileText,
-  ImageIcon, Loader2, Package, ArrowLeft, Info,
+  ImageIcon, Loader2, Package, ArrowLeft, Info, Copy,
 } from "lucide-react";
 import AddableSelect from "@/components/ui/AddableSelect";
 import { useAllFabrics } from "@/hooks/useFabrics";
@@ -324,6 +324,36 @@ export default function ProductsTab({
     await deleteProduct.mutateAsync({ id, styleOrderId: styleOrderId! });
     setDeleteConfirmId(null);
     toast({ title: "Product removed" });
+  }
+
+  async function handleCopy(p: StyleOrderProductRecord) {
+    try {
+      await createProduct.mutateAsync({
+        styleOrderId: styleOrderId!,
+        productName: `Copy of ${p.productName}`,
+        styleCategoryId: p.styleCategoryId,
+        styleCategoryName: p.styleCategoryName,
+        productStatus: "Draft",
+        fabricId: p.fabricId,
+        fabricName: p.fabricName,
+        hasLining: p.hasLining,
+        liningFabricId: p.liningFabricId,
+        liningFabricName: p.liningFabricName,
+        unitLength: p.unitLength,
+        unitWidth: p.unitWidth,
+        unitType: p.unitType,
+        orderIssueDate: null,
+        deliveryDate: null,
+        targetHours: p.targetHours,
+        issuedTo: p.issuedTo,
+        department: p.department,
+        refDocs: [],
+        refImages: [],
+      });
+      toast({ title: "Product duplicated" });
+    } catch {
+      toast({ title: "Failed to duplicate product", variant: "destructive" });
+    }
   }
 
   async function handleAddCategory() {
@@ -662,7 +692,7 @@ export default function ProductsTab({
               No products yet — click "Add Product" to begin.
             </div>
           ) : (
-            products.map(p => <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteConfirmId} />)
+            products.map(p => <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteConfirmId} onCopy={handleCopy} />)
           )}
 
           {/* Add Product button */}
@@ -707,10 +737,12 @@ function ProductCard({
   product: p,
   onEdit,
   onDelete,
+  onCopy,
 }: {
   product: StyleOrderProductRecord;
   onEdit: (r: StyleOrderProductRecord) => void;
   onDelete: (id: number) => void;
+  onCopy: (r: StyleOrderProductRecord) => void;
 }) {
   return (
     <div className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
@@ -740,6 +772,13 @@ function ProductCard({
         </div>
         {/* Actions */}
         <div className="flex items-center gap-1 ml-1 shrink-0">
+          <button
+            onClick={() => onCopy(p)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-[#8a7a30] hover:bg-[#fdf9ec] transition-colors"
+            title="Duplicate product"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
           <button
             onClick={() => onEdit(p)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
