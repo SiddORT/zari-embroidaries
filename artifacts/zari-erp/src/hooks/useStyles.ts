@@ -16,6 +16,7 @@ export type StyleRecord = {
 export type StyleFormData = {
   client: string; styleNo: string; invoiceNo: string; description: string;
   attachLink: string; placeOfIssue: string; vendorPoNo: string; shippingDate: string;
+  referenceSwatchId: string;
   isActive: boolean;
 };
 
