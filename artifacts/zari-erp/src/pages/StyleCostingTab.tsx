@@ -712,15 +712,21 @@ function StylePrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord
   );
 }
 
-function StylePoCard({ po, onCreatePR }: { po: PurchaseOrderRecord; onCreatePR: (poId: number, vendorName: string, bomItems: PoLineItem[]) => void }) {
+function StylePoCard({ po, onCreatePR, onExportPdf }: { po: PurchaseOrderRecord; onCreatePR: (poId: number, vendorName: string, bomItems: PoLineItem[]) => void; onExportPdf: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const updatePo = useUpdatePO();
   const deletePo = useDeleteStylePO();
   const items: PoLineItem[] = po.bomItems ?? [];
   const canAdvance = po.status !== "Closed";
   const nextStatus = PO_STATUSES[PO_STATUSES.indexOf(po.status) + 1];
   const canCreatePR = ["Approved", "In Process"].includes(po.status);
+
+  async function handleExport() {
+    setExporting(true);
+    try { onExportPdf(); } finally { setExporting(false); }
+  }
 
   async function advance() {
     if (!nextStatus) return;
@@ -758,6 +764,10 @@ function StylePoCard({ po, onCreatePR }: { po: PurchaseOrderRecord; onCreatePR: 
               <Plus className="h-3 w-3" /> Create PR
             </button>
           )}
+          <button onClick={handleExport} disabled={exporting}
+            className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-[#C6AF4B] text-[#8a7a30] hover:bg-[#fdf9ec] font-medium transition-colors disabled:opacity-50">
+            {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />} PDF
+          </button>
           <button onClick={() => deletePo.mutate(po.id)} disabled={deletePo.isPending}
             className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
             <Trash2 className="h-3.5 w-3.5" />
@@ -965,17 +975,14 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
   const createPO = useCreateStylePO();
   const createPR = useCreateStylePR();
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-
-  function exportPoPdf() {
-    setPdfExporting(true);
+  function exportSinglePoPdf(po: PurchaseOrderRecord) {
     try {
       downloadCostingPoPdf({
         referenceType: "style",
         orderCode,
         entityName: styleName,
         clientName,
-        orders: pos.map(po => ({
+        orders: [{
           poNumber: po.poNumber,
           vendorName: po.vendorName,
           poDate: po.poDate,
@@ -989,14 +996,12 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
             targetPrice: i.targetPrice,
             targetVendorName: i.targetVendorName,
           })),
-        })),
+        }],
       });
-      logActivity(`Downloaded PO PDF for Style Order ${orderCode}${clientName ? ` — ${clientName}` : ""}`);
+      logActivity(`Downloaded PO PDF ${po.poNumber} for Style Order ${orderCode}${clientName ? ` — ${clientName}` : ""}`);
       toast({ title: "PO PDF generated successfully" });
     } catch {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
-    } finally {
-      setPdfExporting(false);
     }
   }
 
@@ -1044,22 +1049,10 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<ShoppingCart className="h-4 w-4" />} title="Purchase Orders">
-        <div className="flex items-center gap-2">
-          {pos.length > 0 && (
-            <button
-              onClick={exportPoPdf}
-              disabled={pdfExporting}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#C6AF4B] text-[#8a7a30] hover:bg-[#fdf9ec] transition-colors disabled:opacity-60"
-            >
-              {pdfExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-              Export PO PDF
-            </button>
-          )}
-          <button onClick={() => setShowPoModal(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Create PO
-          </button>
-        </div>
+        <button onClick={() => setShowPoModal(true)}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+          <Plus className="h-3.5 w-3.5" /> Create PO
+        </button>
       </SectionHeader>
 
       {isLoading ? (
@@ -1069,11 +1062,13 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
       ) : (
         <div className="space-y-2">
           {pos.map(po => (
-            <StylePoCard key={po.id} po={po} onCreatePR={(poId, vendorName, bomItems) => {
-              const singleItem = bomItems.length === 1 ? String(bomItems[0].bomRowId) : "";
-              setPrForm({ bomRowId: singleItem, receivedQty: "", actualPrice: "", warehouseLocation: "" });
-              setPrModal({ poId, vendorName, bomItems });
-            }} />
+            <StylePoCard key={po.id} po={po}
+              onExportPdf={() => exportSinglePoPdf(po)}
+              onCreatePR={(poId, vendorName, bomItems) => {
+                const singleItem = bomItems.length === 1 ? String(bomItems[0].bomRowId) : "";
+                setPrForm({ bomRowId: singleItem, receivedQty: "", actualPrice: "", warehouseLocation: "" });
+                setPrModal({ poId, vendorName, bomItems });
+              }} />
           ))}
         </div>
       )}
