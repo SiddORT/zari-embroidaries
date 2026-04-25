@@ -9,13 +9,24 @@ export interface WarehouseLocation {
   isActive: boolean;
 }
 
+function normalizeWarehouse(r: any): WarehouseLocation {
+  return {
+    id: r.id,
+    name: r.name,
+    code: r.code,
+    city: r.city ?? null,
+    isActive: r.isActive ?? r.is_active ?? true,
+  };
+}
+
 export function useWarehouseLocations() {
-  return useQuery<WarehouseLocation[]>({
+  return useQuery({
     queryKey: ["warehouse-locations"],
     queryFn: async () => {
       const res = await customFetch("/api/settings/warehouses");
       return Array.isArray(res) ? res : (res?.data ?? []);
     },
+    select: (rows: any[]): WarehouseLocation[] => rows.map(normalizeWarehouse),
     staleTime: 1000 * 60 * 5,
   });
 }
