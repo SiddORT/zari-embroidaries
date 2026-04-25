@@ -509,46 +509,46 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
         <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="flex items-center justify-between mb-0.5">
-                <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
-                  Select Material
-                  {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
-                </label>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                Select Material
+                {form.materialType === "fabric" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear fabric first)</span>}
+              </label>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <select value={selectedMaterialId} disabled={form.materialType === "fabric"}
+                  onChange={e => onMaterialChange(e.target.value)}
+                  className={`flex-1 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "fabric" ? "opacity-40 cursor-not-allowed" : ""}`}>
+                  <option value="">— Select material —</option>
+                  {allMaterials.map(m => (
+                    <option key={m.id} value={m.id}>{[m.itemType, m.quality].filter(Boolean).join(" – ")} ({m.materialCode})</option>
+                  ))}
+                </select>
                 <button type="button" onClick={() => setQuickAddMat(true)}
                   title="Add new material"
-                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors">
+                  className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors">
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <select value={selectedMaterialId} disabled={form.materialType === "fabric"}
-                onChange={e => onMaterialChange(e.target.value)}
-                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "fabric" ? "opacity-40 cursor-not-allowed" : ""}`}>
-                <option value="">— Select material —</option>
-                {allMaterials.map(m => (
-                  <option key={m.id} value={m.id}>{[m.itemType, m.quality].filter(Boolean).join(" – ")} ({m.materialCode})</option>
-                ))}
-              </select>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-0.5">
-                <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
-                  Select Fabric
-                  {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
-                </label>
+              <label className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                Select Fabric
+                {form.materialType === "material" && <span className="ml-1 text-[9px] text-amber-500 normal-case">(clear material first)</span>}
+              </label>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <select value={selectedFabricId} disabled={form.materialType === "material"}
+                  onChange={e => onFabricChange(e.target.value)}
+                  className={`flex-1 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "material" ? "opacity-40 cursor-not-allowed" : ""}`}>
+                  <option value="">— Select fabric —</option>
+                  {allFabrics.map(f => (
+                    <option key={f.id} value={f.id}>{[f.fabricType, f.quality].filter(Boolean).join(" – ")} ({f.fabricCode})</option>
+                  ))}
+                </select>
                 <button type="button" onClick={() => setQuickAddFab(true)}
                   title="Add new fabric"
-                  className="h-6 w-6 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors">
+                  className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors">
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <select value={selectedFabricId} disabled={form.materialType === "material"}
-                onChange={e => onFabricChange(e.target.value)}
-                className={`w-full mt-0.5 text-xs text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900/10 bg-white transition-opacity ${form.materialType === "material" ? "opacity-40 cursor-not-allowed" : ""}`}>
-                <option value="">— Select fabric —</option>
-                {allFabrics.map(f => (
-                  <option key={f.id} value={f.id}>{[f.fabricType, f.quality].filter(Boolean).join(" – ")} ({f.fabricCode})</option>
-                ))}
-              </select>
             </div>
           </div>
           {form.materialId > 0 && (
