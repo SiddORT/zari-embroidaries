@@ -106,6 +106,7 @@ function BomSection({ swatchOrderId, orderCode, swatchName, clientName }: {
   const updateBomQty = useUpdateBomQty();
   const { data: allMaterials = [] } = useAllMaterials();
   const { data: allFabrics = [] } = useAllFabrics();
+  const { data: vendors = [] } = useAllVendors();
 
   const [showForm, setShowForm] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "material" | "fabric">("all");
