@@ -1050,7 +1050,7 @@ function CreatePoModal({
                               value={ov.targetVendorId}
                               onChange={e => setItemVendor(r.id, e.target.value)}
                               disabled={!ov.checked}
-                              className={`w-36 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none ${!ov.checked ? "opacity-30 cursor-not-allowed" : ""}`}
+                              className={`w-36 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none disabled:opacity-40`}
                             >
                               <option value="">— Vendor —</option>
                               {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}

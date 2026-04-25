@@ -913,7 +913,7 @@ function StyleCreatePoModal({
                             <input type="number" min="0" step="any" value={ov.quantity}
                               onChange={e => setField(r.id, "quantity", e.target.value)}
                               disabled={!ov.checked}
-                              className="w-20 text-xs border border-gray-200 rounded-lg px-2 py-1 disabled:opacity-40 focus:outline-none" />
+                              className="w-20 text-xs text-gray-900 border border-gray-200 rounded-lg px-2 py-1 disabled:opacity-40 focus:outline-none" />
                           </td>
                           <td className="px-3 py-2.5">
                             <div className="flex items-center gap-1">
@@ -921,7 +921,7 @@ function StyleCreatePoModal({
                               <input type="number" min="0" step="any" value={ov.targetPrice}
                                 onChange={e => setField(r.id, "targetPrice", e.target.value)}
                                 disabled={!ov.checked}
-                                className="w-24 text-xs border border-gray-200 rounded-lg px-2 py-1 disabled:opacity-40 focus:outline-none" />
+                                className="w-24 text-xs text-gray-900 border border-gray-200 rounded-lg px-2 py-1 disabled:opacity-40 focus:outline-none" />
                             </div>
                           </td>
                           <td className="px-3 py-2.5">
@@ -929,7 +929,7 @@ function StyleCreatePoModal({
                               value={ov.targetVendorId}
                               onChange={e => setItemVendor(r.id, e.target.value)}
                               disabled={!ov.checked}
-                              className="w-36 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white disabled:opacity-40 focus:outline-none"
+                              className="w-36 text-xs text-gray-900 border border-gray-200 rounded-lg px-2 py-1 bg-white disabled:opacity-40 focus:outline-none"
                             >
                               <option value="">— Vendor —</option>
                               {vendors.map(v => <option key={v.id} value={v.id}>{v.brandName}</option>)}
