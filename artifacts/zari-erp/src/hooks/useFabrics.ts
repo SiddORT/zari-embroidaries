@@ -25,6 +25,7 @@ export interface FabricRecord {
   gstPercent: string;
   vendor: string | null;
   location: string | null;
+  locationStocks: { location: string; stock: string }[];
   images: MasterImage[];
   reorderLevel: string | null;
   minimumLevel: string | null;
@@ -59,6 +60,7 @@ export interface FabricFormData {
   gstPercent: string;
   vendor?: string;
   location?: string;
+  locationStocks: { location: string; stock: string }[];
   isActive: boolean;
   images: MasterImage[];
   reorderLevel?: string;

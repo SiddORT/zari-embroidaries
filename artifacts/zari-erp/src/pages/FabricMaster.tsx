@@ -31,12 +31,54 @@ import {
 import { useWidthUnitTypes, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
+import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
+
+const NAMED_COLORS = [
+  { name: "Black", r: 0, g: 0, b: 0 }, { name: "White", r: 255, g: 255, b: 255 },
+  { name: "Red", r: 220, g: 38, b: 38 }, { name: "Dark Red", r: 139, g: 0, b: 0 },
+  { name: "Crimson", r: 185, g: 28, b: 28 }, { name: "Rose", r: 244, g: 63, b: 94 },
+  { name: "Pink", r: 236, g: 72, b: 153 }, { name: "Hot Pink", r: 255, g: 105, b: 180 },
+  { name: "Magenta", r: 217, g: 70, b: 239 }, { name: "Purple", r: 147, g: 51, b: 234 },
+  { name: "Deep Purple", r: 88, g: 28, b: 135 }, { name: "Indigo", r: 67, g: 56, b: 202 },
+  { name: "Navy Blue", r: 30, g: 27, b: 75 }, { name: "Blue", r: 37, g: 99, b: 235 },
+  { name: "Royal Blue", r: 29, g: 78, b: 216 }, { name: "Sky Blue", r: 56, g: 189, b: 248 },
+  { name: "Cyan", r: 6, g: 182, b: 212 }, { name: "Teal", r: 13, g: 148, b: 136 },
+  { name: "Emerald", r: 16, g: 185, b: 129 }, { name: "Green", r: 22, g: 163, b: 74 },
+  { name: "Dark Green", r: 20, g: 83, b: 45 }, { name: "Lime", r: 132, g: 204, b: 22 },
+  { name: "Yellow Green", r: 101, g: 163, b: 13 }, { name: "Yellow", r: 234, g: 179, b: 8 },
+  { name: "Amber", r: 245, g: 158, b: 11 }, { name: "Orange", r: 249, g: 115, b: 22 },
+  { name: "Dark Orange", r: 194, g: 65, b: 12 }, { name: "Brown", r: 120, g: 53, b: 15 },
+  { name: "Chocolate", r: 92, g: 45, b: 10 }, { name: "Tan", r: 210, g: 180, b: 140 },
+  { name: "Beige", r: 245, g: 245, b: 220 }, { name: "Ivory", r: 255, g: 255, b: 240 },
+  { name: "Cream", r: 255, g: 253, b: 208 }, { name: "Gold", r: 198, g: 175, b: 75 },
+  { name: "Silver", r: 192, g: 192, b: 192 }, { name: "Gray", r: 107, g: 114, b: 128 },
+  { name: "Light Gray", r: 209, g: 213, b: 219 }, { name: "Dark Gray", r: 55, g: 65, b: 81 },
+  { name: "Charcoal", r: 30, g: 41, b: 59 }, { name: "Slate", r: 71, g: 85, b: 105 },
+  { name: "Turquoise", r: 45, g: 212, b: 191 }, { name: "Lavender", r: 167, g: 139, b: 250 },
+  { name: "Violet", r: 124, g: 58, b: 237 }, { name: "Maroon", r: 128, g: 0, b: 0 },
+  { name: "Coral", r: 249, g: 115, b: 22 }, { name: "Salmon", r: 252, g: 165, b: 165 },
+  { name: "Peach", r: 253, g: 186, b: 116 }, { name: "Mint", r: 167, g: 243, b: 208 },
+  { name: "Olive", r: 107, g: 114, b: 0 }, { name: "Khaki", r: 189, g: 183, b: 107 },
+];
+
+function hexToColorName(hex: string): string {
+  if (!hex || hex.length < 7) return "";
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  let closest = ""; let minDist = Infinity;
+  for (const c of NAMED_COLORS) {
+    const d = (r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2;
+    if (d < minDist) { minDist = d; closest = c.name; }
+  }
+  return closest;
+}
 
 const EMPTY_FORM: FabricFormData = {
   fabricType: "", quality: "", color: "#c9b45c", hexCode: "#c9b45c",
   colorName: "", width: "", widthUnitType: "", pricePerMeter: "",
   unitType: "", currentStock: "", hsnCode: "", gstPercent: "",
-  vendor: "", location: "", isActive: true, images: [],
+  vendor: "", location: "", locationStocks: [], isActive: true, images: [],
   reorderLevel: "", minimumLevel: "", maximumLevel: "",
 };
 
@@ -52,8 +94,6 @@ const GST_OPTIONS = [
 const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "All Status" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" },
 ];
-
-const LOCATION_OPTIONS = ["In-house", "Out-house"];
 
 function formatDate(val: string | null | undefined) {
   if (!val) return "—";
@@ -112,7 +152,13 @@ export default function FabricMaster() {
 
   const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
   const { data: allVendors = [] } = useAllVendors();
+  const { data: rawWarehouses } = useWarehouseLocations();
+  const warehouseLocations = Array.isArray(rawWarehouses) ? rawWarehouses : [];
   const hsnOptions = hsnData?.data ?? [];
+  const locationOptions = [
+    "Out-house",
+    ...warehouseLocations.filter(w => w.isActive).map(w => w.name),
+  ];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<FabricRecord | null>(null);
@@ -133,11 +179,15 @@ export default function FabricMaster() {
   const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); };
   const openEdit = (r: FabricRecord) => {
     setEditRecord(r);
+    const existingStocks = r.locationStocks?.length
+      ? r.locationStocks
+      : r.currentStock ? [{ location: r.location ?? "Out-house", stock: r.currentStock }] : [];
     setForm({ fabricType: r.fabricType, quality: r.quality, color: r.color ?? "#c9b45c",
       hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, width: r.width,
       widthUnitType: r.widthUnitType, pricePerMeter: r.pricePerMeter, unitType: r.unitType,
       currentStock: r.currentStock, hsnCode: r.hsnCode, gstPercent: r.gstPercent,
-      vendor: r.vendor ?? "", location: r.location ?? "", isActive: r.isActive, images: r.images ?? [],
+      vendor: r.vendor ?? "", location: r.location ?? "", locationStocks: existingStocks,
+      isActive: r.isActive, images: r.images ?? [],
       reorderLevel: r.reorderLevel ?? "", minimumLevel: r.minimumLevel ?? "", maximumLevel: r.maximumLevel ?? "" });
     setErrors({});
     setModalOpen(true);
@@ -166,6 +216,20 @@ export default function FabricMaster() {
     setForm(f => ({ ...f, images: f.images.filter(img => img.id !== id) }));
   };
 
+  const addLocationStock = () => {
+    setForm(f => ({ ...f, locationStocks: [...f.locationStocks, { location: "", stock: "" }] }));
+  };
+  const removeLocationStock = (idx: number) => {
+    setForm(f => ({ ...f, locationStocks: f.locationStocks.filter((_, i) => i !== idx) }));
+  };
+  const updateLocationStock = (idx: number, field: "location" | "stock", value: string) => {
+    setForm(f => ({
+      ...f,
+      locationStocks: f.locationStocks.map((ls, i) => i === idx ? { ...ls, [field]: value } : ls),
+    }));
+  };
+  const totalStock = form.locationStocks.reduce((sum, ls) => sum + (parseFloat(ls.stock) || 0), 0);
+
   const validate = (): boolean => {
     const e: FormErrors = {};
     if (!form.fabricType.trim()) e.fabricType = "Fabric Type is required";
@@ -174,7 +238,6 @@ export default function FabricMaster() {
     if (!form.width.trim()) e.width = "Width is required";
     if (!form.widthUnitType) e.widthUnitType = "Width Unit Type is required";
     if (!form.pricePerMeter.trim()) e.pricePerMeter = "Price Per Meter is required";
-    if (!form.currentStock.trim()) e.currentStock = "Current Stock is required";
     if (!form.hsnCode) e.hsnCode = "HSN Code is required";
     const rl = form.reorderLevel ? parseFloat(form.reorderLevel) : null;
     const mn = form.minimumLevel ? parseFloat(form.minimumLevel) : null;
@@ -193,12 +256,19 @@ export default function FabricMaster() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
+    const computedStock = String(totalStock);
+    const computedLocation = form.locationStocks.map(ls => ls.location).filter(Boolean).join(", ") || undefined;
+    const submitData: FabricFormData = {
+      ...form,
+      currentStock: computedStock || "0",
+      location: computedLocation,
+    };
     try {
       if (editRecord) {
-        await updateMutation.mutateAsync({ id: editRecord.id, data: form });
+        await updateMutation.mutateAsync({ id: editRecord.id, data: submitData });
         toast({ title: "Updated", description: `Fabric ${editRecord.fabricCode} updated.` });
       } else {
-        await createMutation.mutateAsync(form);
+        await createMutation.mutateAsync(submitData);
         toast({ title: "Created", description: "New fabric created successfully." });
       }
       setModalOpen(false);
@@ -433,7 +503,7 @@ export default function FabricMaster() {
               <input
                 type="color"
                 value={form.hexCode || "#c9b45c"}
-                onChange={(e) => setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: hexToColorName(e.target.value) }))}
                 className="h-10 w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
               />
               <input type="text" value={form.hexCode || ""} readOnly
@@ -442,8 +512,17 @@ export default function FabricMaster() {
             </div>
           </div>
 
-          <InputField label="Color Name" required placeholder="e.g. Ivory White" value={form.colorName}
-            onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))} error={errors.colorName} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Color Name <span className="text-red-500">*</span> <span className="text-[10px] text-gray-400 font-normal">(auto-filled from color picker)</span></label>
+            <input
+              type="text"
+              placeholder="e.g. Ivory White"
+              value={form.colorName}
+              onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
+              className={`rounded-lg border px-3.5 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
+            />
+            {errors.colorName && <p className="text-xs text-red-500">{errors.colorName}</p>}
+          </div>
 
           <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
             onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
@@ -458,8 +537,6 @@ export default function FabricMaster() {
           <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
             onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
 
-          <InputField label="Current Stock (meters)" required placeholder="e.g. 500" type="number" value={form.currentStock}
-            onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))} error={errors.currentStock} />
           <AddableSelect
             label="HSN Code" required value={form.hsnCode}
             onChange={(v) => {
@@ -476,9 +553,61 @@ export default function FabricMaster() {
             options={allVendors.map(v => v.brandName)}
             placeholder="Select vendor" clearable />
 
-          <SearchableSelect label="Location" value={form.location ?? ""}
-            onChange={(v) => setForm((f) => ({ ...f, location: v }))}
-            options={LOCATION_OPTIONS} placeholder="Select location" clearable />
+          {/* Per-Warehouse Stock Section */}
+          <div className="col-span-2 rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Stock by Location</p>
+                {form.locationStocks.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Total: <span className="font-semibold text-gray-800">{totalStock} {form.widthUnitType || "units"}</span>
+                  </p>
+                )}
+              </div>
+              <button type="button" onClick={addLocationStock}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors">
+                + Add Location
+              </button>
+            </div>
+            {form.locationStocks.length === 0 ? (
+              <div className="border-2 border-dashed border-indigo-100 rounded-lg py-5 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
+                <p className="text-xs text-gray-400">No locations added. Click "Add Location" to track stock per warehouse.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {form.locationStocks.map((ls, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <select
+                      value={ls.location}
+                      onChange={e => updateLocationStock(idx, "location", e.target.value)}
+                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    >
+                      <option value="">Select location</option>
+                      {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
+                      <input
+                        type="number" min="0" placeholder="0"
+                        value={ls.stock}
+                        onChange={e => updateLocationStock(idx, "stock", e.target.value)}
+                        className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </div>
+                    <button type="button" onClick={() => removeLocationStock(idx)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                      <XIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <div className="border-t border-indigo-100 pt-2 flex justify-end">
+                  <span className="text-sm font-semibold text-gray-700">
+                    Total Stock: <span className="text-indigo-700">{totalStock} {form.widthUnitType || "units"}</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Images */}
           <div className="col-span-2 pt-1">
@@ -529,9 +658,12 @@ export default function FabricMaster() {
           </div>
 
           <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] mb-3" style={{ color: "#B8A240" }}>
-              Stock Control Settings
-            </p>
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#B8A240" }}>
+                Stock Control Settings
+              </p>
+              <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">(Optional)</span>
+            </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700">Minimum Level</label>
