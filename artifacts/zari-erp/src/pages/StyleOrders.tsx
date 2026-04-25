@@ -188,20 +188,22 @@ export default function StyleOrders() {
   }
 
   async function handleCopy(order: StyleOrderRecord) {
-    const { id: _id, orderCode: _code, createdAt: _ca, updatedAt: _ua, createdBy: _cb, updatedBy: _ub, isDeleted: _del, ...rest } = order;
+    const { id: _id, orderCode: _code, createdAt: _ca, updatedAt: _ua, createdBy: _cb, updatedBy: _ub, isDeleted: _del, revisionCount: _rc, ...rest } = order;
     try {
-      const result = await copyOrder.mutateAsync({
+      const raw = {
         ...rest,
         styleName: `Copy of ${order.styleName}`,
         orderStatus: "Draft",
-        orderIssueDate: null,
-        actualStartDate: null,
-        actualStartTime: null,
-        actualCompletionDate: null,
-        actualCompletionTime: null,
-        approvalDate: null,
-        revisionCount: 0,
-      });
+        orderIssueDate: undefined,
+        actualStartDate: undefined,
+        actualStartTime: undefined,
+        actualCompletionDate: undefined,
+        actualCompletionTime: undefined,
+        approvalDate: undefined,
+      };
+      // Strip null values — Zod schema uses z.string().optional() which rejects null
+      const payload = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== null)) as typeof raw;
+      const result = await copyOrder.mutateAsync(payload);
       toast({ title: "Order copied", description: `"Copy of ${order.styleName}" created` });
       const created = result as { data?: { id?: number } };
       if (created?.data?.id) setLocation(`/style-orders/${created.data.id}`);
