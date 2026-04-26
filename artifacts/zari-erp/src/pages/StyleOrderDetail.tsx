@@ -19,6 +19,7 @@ import { useStylesForReference, type StyleRefOption } from "@/hooks/useStyles";
 import { useSwatchesForReference, type SwatchRefOption } from "@/hooks/useSwatches";
 import ProductsTab from "./ProductsTab";
 import StyleOrderArtworksTab from "./StyleOrderArtworksTab";
+import StyleOrderToileTab from "./StyleOrderToileTab";
 import StyleCostingTab from "./StyleCostingTab";
 import StyleCostSheetTab from "./StyleCostSheetTab";
 import StyleClientLinkTab from "./StyleClientLinkTab";
@@ -70,6 +71,7 @@ const FULL_TABS = [
   { label: "References",          permKey: "style_orders:tab:references:view" },
   { label: "Products",            permKey: "style_orders:tab:products:view" },
   { label: "Artworks",            permKey: "style_orders:tab:artworks:view" },
+  { label: "Toile",               permKey: "style_orders:tab:toile:view" },
   { label: "Client Link",         permKey: "style_orders:tab:client_link:view" },
   { label: "Estimate",            permKey: "style_orders:tab:estimate:view" },
   { label: "Costing",             permKey: "style_orders:tab:costing:view" },
@@ -825,6 +827,11 @@ export default function StyleOrderDetail() {
           {/* ══ TAB 3: Artworks ════════════════════════════════════════════ */}
           {activeTab === "Artworks" && (
             <StyleOrderArtworksTab styleOrderId={numId} isNew={isNew} />
+          )}
+
+          {/* ══ TAB: Toile ══════════════════════════════════════════════════ */}
+          {activeTab === "Toile" && (
+            <StyleOrderToileTab styleOrderId={numId} isNew={isNew} />
           )}
 
           {/* ══ TAB 4: Client Link ═════════════════════════════════════════ */}

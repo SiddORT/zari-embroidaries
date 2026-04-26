@@ -205,6 +205,7 @@ export const ALL_PERMISSIONS = [
   { key: "style_orders:tab:references:view",          label: "References",          resource: "style_orders:tab:references",          action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
   { key: "style_orders:tab:products:view",            label: "Products",            resource: "style_orders:tab:products",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
   { key: "style_orders:tab:artworks:view",            label: "Artworks",            resource: "style_orders:tab:artworks",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:toile:view",               label: "Toile",               resource: "style_orders:tab:toile",               action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
   { key: "style_orders:tab:client_link:view",         label: "Client Link",         resource: "style_orders:tab:client_link",         action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
   { key: "style_orders:tab:estimate:view",            label: "Estimate",            resource: "style_orders:tab:estimate",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
   { key: "style_orders:tab:costing:view",             label: "Costing",             resource: "style_orders:tab:costing",             action: "view", menu: "Orders", subgroup: "Style Order Tabs" },

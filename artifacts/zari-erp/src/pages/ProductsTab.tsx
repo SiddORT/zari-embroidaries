@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import {
   Plus, X, Pencil, Trash2, Scissors, CalendarDays, FileText,
-  ImageIcon, Loader2, Package, ArrowLeft, Info, Copy,
+  ImageIcon, Loader2, Package, ArrowLeft, Info, Copy, Layout,
 } from "lucide-react";
 import AddableSelect from "@/components/ui/AddableSelect";
 import { useAllFabrics } from "@/hooks/useFabrics";
@@ -16,9 +16,12 @@ import {
   type StyleOrderProductRecord,
 } from "@/hooks/useStyleOrderProducts";
 import { useToast } from "@/hooks/use-toast";
+import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PRODUCT_STATUSES = ["Draft", "In Progress", "Completed", "On Hold", "Cancelled"];
+const PAYMENT_MODES    = ["Cash", "Bank Transfer", "Cheque", "UPI", "Card", "Other"];
+const PAYMENT_STATUSES = ["Pending", "Partial", "Paid"];
 
 const STATUS_BADGE: Record<string, string> = {
   Draft:         "bg-gray-100 text-gray-600 border-gray-200",
@@ -181,6 +184,19 @@ type ProductForm = {
   department: string;
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  patternType: "Inhouse" | "Outhouse" | "";
+  patternMakingCost: string;
+  patternDoc: FileAttachment[];
+  patternOuthouseDoc: FileAttachment[];
+  patternVendorId: string;
+  patternVendorName: string;
+  patternPaymentType: string;
+  patternPaymentMode: string;
+  patternPaymentStatus: string;
+  patternPaymentAmount: string;
+  patternTransactionId: string;
+  patternPaymentDate: string;
+  patternRemarks: string;
 };
 
 const EMPTY_FORM: ProductForm = {
@@ -189,6 +205,10 @@ const EMPTY_FORM: ProductForm = {
   unitLength: "", unitWidth: "", unitType: "",
   orderIssueDate: "", deliveryDate: "", targetHours: "", issuedTo: "", department: "",
   refDocs: [], refImages: [],
+  patternType: "", patternMakingCost: "", patternDoc: [], patternOuthouseDoc: [],
+  patternVendorId: "", patternVendorName: "", patternPaymentType: "",
+  patternPaymentMode: "", patternPaymentStatus: "Pending", patternPaymentAmount: "",
+  patternTransactionId: "", patternPaymentDate: "", patternRemarks: "",
 };
 
 function recordToForm(r: StyleOrderProductRecord): ProductForm {
@@ -212,6 +232,19 @@ function recordToForm(r: StyleOrderProductRecord): ProductForm {
     department: r.department ?? "",
     refDocs: r.refDocs ?? [],
     refImages: r.refImages ?? [],
+    patternType: (r.patternType ?? "") as "Inhouse" | "Outhouse" | "",
+    patternMakingCost: r.patternMakingCost ?? "",
+    patternDoc: r.patternDoc ?? [],
+    patternOuthouseDoc: r.patternOuthouseDoc ?? [],
+    patternVendorId: r.patternVendorId ?? "",
+    patternVendorName: r.patternVendorName ?? "",
+    patternPaymentType: r.patternPaymentType ?? "",
+    patternPaymentMode: r.patternPaymentMode ?? "",
+    patternPaymentStatus: r.patternPaymentStatus ?? "Pending",
+    patternPaymentAmount: r.patternPaymentAmount ?? "",
+    patternTransactionId: r.patternTransactionId ?? "",
+    patternPaymentDate: r.patternPaymentDate ?? "",
+    patternRemarks: r.patternRemarks ?? "",
   };
 }
 
@@ -244,6 +277,10 @@ export default function ProductsTab({
   const createUnitType  = useCreateUnitType();
   const createCategory  = useCreateStyleCategory();
   const createDept      = useCreateDepartment();
+
+  const { data: vendorData } = useAllVendors();
+  const vendors: VendorRecord[] = (vendorData as VendorRecord[] | undefined) ?? [];
+  const vendorOptions = vendors.map(v => ({ value: String(v.id), label: v.brandName }));
 
   const fabrics    = (fabricsData as FabricRec[] | undefined) ?? [];
   const unitTypes  = (unitTypesData as LookupRec[] | undefined) ?? [];
@@ -580,7 +617,132 @@ export default function ProductsTab({
           </div>
         </SectionCard>
 
-        {/* ── Card 4: Attachments ──────────────────────────────────────────── */}
+        {/* ── Card 4: Pattern ──────────────────────────────────────────────── */}
+        <SectionCard
+          icon={<Layout className="h-4 w-4 text-[#C9B45C]" />}
+          accentColor="bg-gray-900"
+          title="Pattern"
+          subtitle="Pattern making details and documents"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1.5">Pattern Making</label>
+              <div className="flex gap-2">
+                {(["Inhouse", "Outhouse"] as const).map(opt => (
+                  <button key={opt} type="button"
+                    onClick={() => set("patternType", form.patternType === opt ? "" : opt)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold ring-1 transition-all ${
+                      form.patternType === opt
+                        ? "bg-gray-900 text-[#C9B45C] ring-gray-900"
+                        : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
+                    }`}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {form.patternType === "Inhouse" && (
+              <div className="space-y-4">
+                <Field label="Pattern Making Cost">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                    <input type="number" min="0" step="0.01" placeholder="0.00"
+                      className={`${inputCls} pl-7`}
+                      value={form.patternMakingCost}
+                      onChange={e => set("patternMakingCost", e.target.value)} />
+                  </div>
+                </Field>
+                <Field label="Pattern Document">
+                  <FileUploadZone files={form.patternDoc} onChange={f => set("patternDoc", f)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,image/*"
+                    icon={<FileText className="h-5 w-5" />} label="Upload Pattern Doc" />
+                </Field>
+              </div>
+            )}
+
+            {form.patternType === "Outhouse" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Vendor">
+                    <AddableSelect options={vendorOptions} value={form.patternVendorId}
+                      onChange={v => {
+                        const vd = vendors.find(x => String(x.id) === v);
+                        set("patternVendorId", v ?? "");
+                        set("patternVendorName", vd?.brandName ?? "");
+                      }}
+                      placeholder="Select vendor…" />
+                  </Field>
+                  <Field label="Payment Type">
+                    <select className={selectCls} value={form.patternPaymentType}
+                      onChange={e => set("patternPaymentType", e.target.value)}>
+                      <option value="">Select type…</option>
+                      {["Advance", "Partial", "Full"].map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Payment Amount">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                      <input type="number" min="0" step="0.01" placeholder="0.00"
+                        className={`${inputCls} pl-7`}
+                        value={form.patternPaymentAmount}
+                        onChange={e => set("patternPaymentAmount", e.target.value)} />
+                    </div>
+                  </Field>
+                  <Field label="Payment Date">
+                    <input type="date" className={inputCls} value={form.patternPaymentDate}
+                      onChange={e => set("patternPaymentDate", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Payment Mode">
+                    <select className={selectCls} value={form.patternPaymentMode}
+                      onChange={e => set("patternPaymentMode", e.target.value)}>
+                      <option value="">Select mode…</option>
+                      {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Transaction ID">
+                    <input type="text" placeholder="e.g. TXN123" className={inputCls}
+                      value={form.patternTransactionId}
+                      onChange={e => set("patternTransactionId", e.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Payment Status">
+                  <div className="flex gap-2 mt-1">
+                    {PAYMENT_STATUSES.map(s => (
+                      <button key={s} type="button"
+                        onClick={() => set("patternPaymentStatus", s)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-semibold ring-1 transition-all ${
+                          form.patternPaymentStatus === s
+                            ? s === "Paid" ? "bg-green-600 text-white ring-green-600"
+                              : s === "Partial" ? "bg-amber-500 text-white ring-amber-500"
+                              : "bg-red-500 text-white ring-red-500"
+                            : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-400"
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Remarks">
+                  <input type="text" placeholder="Payment remarks or notes" className={inputCls}
+                    value={form.patternRemarks}
+                    onChange={e => set("patternRemarks", e.target.value)} />
+                </Field>
+                <Field label="Upload Document">
+                  <FileUploadZone files={form.patternOuthouseDoc} onChange={f => set("patternOuthouseDoc", f)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,image/*"
+                    icon={<FileText className="h-5 w-5" />} label="Upload Document" />
+                </Field>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+
+        {/* ── Card 5: Attachments ──────────────────────────────────────────── */}
         <SectionCard
           icon={<FileText className="h-4 w-4 text-[#C9B45C]" />}
           accentColor="bg-gray-900"
