@@ -198,6 +198,31 @@ export const ALL_PERMISSIONS = [
   { key: "user_management:view",           label: "User Management",   resource: "user_management",           action: "view",     menu: "Admin", subgroup: null },
   { key: "user_management:add_edit",       label: "User Management",   resource: "user_management",           action: "add_edit", menu: "Admin", subgroup: null },
   { key: "user_management:delete",         label: "User Management",   resource: "user_management",           action: "delete",   menu: "Admin", subgroup: null },
+
+  /* ── Style Order Tabs ───────────────────────────────────── */
+  { key: "style_orders:tab:basic_info:view",          label: "Basic Info",          resource: "style_orders:tab:basic_info",          action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:completion_tracking:view", label: "Completion Tracking", resource: "style_orders:tab:completion_tracking", action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:references:view",          label: "References",          resource: "style_orders:tab:references",          action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:products:view",            label: "Products",            resource: "style_orders:tab:products",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:artworks:view",            label: "Artworks",            resource: "style_orders:tab:artworks",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:client_link:view",         label: "Client Link",         resource: "style_orders:tab:client_link",         action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:estimate:view",            label: "Estimate",            resource: "style_orders:tab:estimate",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:costing:view",             label: "Costing",             resource: "style_orders:tab:costing",             action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:cost_sheet:view",          label: "Cost Sheet",          resource: "style_orders:tab:cost_sheet",          action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:shipping:view",            label: "Shipping",            resource: "style_orders:tab:shipping",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+  { key: "style_orders:tab:invoices:view",            label: "Invoices",            resource: "style_orders:tab:invoices",            action: "view", menu: "Orders", subgroup: "Style Order Tabs" },
+
+  /* ── Swatch Order Tabs ──────────────────────────────────── */
+  { key: "swatch_orders:tab:basic_info:view",          label: "Basic Info",          resource: "swatch_orders:tab:basic_info",          action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:completion_tracking:view", label: "Completion Tracking", resource: "swatch_orders:tab:completion_tracking", action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:references:view",          label: "References",          resource: "swatch_orders:tab:references",          action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:artworks:view",            label: "Artworks",            resource: "swatch_orders:tab:artworks",            action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:client_link:view",         label: "Client Link",         resource: "swatch_orders:tab:client_link",         action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:estimate:view",            label: "Estimate",            resource: "swatch_orders:tab:estimate",            action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:costing:view",             label: "Costing",             resource: "swatch_orders:tab:costing",             action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:cost_sheet:view",          label: "Cost Sheet",          resource: "swatch_orders:tab:cost_sheet",          action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:shipping:view",            label: "Shipping",            resource: "swatch_orders:tab:shipping",            action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
+  { key: "swatch_orders:tab:invoices:view",            label: "Invoices",            resource: "swatch_orders:tab:invoices",            action: "view", menu: "Orders", subgroup: "Swatch Order Tabs" },
 ];
 
 const requireAdmin = requireAuth;

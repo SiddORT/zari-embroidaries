@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -64,16 +65,17 @@ function makeDefaultEstimate(): EstimateItem[] {
   return STANDARD_ESTIMATE_ITEMS.map(label => ({ id: label.toLowerCase(), label, rate: "", isCustom: false }));
 }
 
-const TABS = [
-  { label: "Basic Info",   icon: "🗂" },
-  { label: "References",   icon: "🔗" },
-  { label: "Artworks",     icon: "🎨" },
-  { label: "Client Link",  icon: "🔗" },
-  { label: "Estimate",     icon: "📊" },
-  { label: "Costing",      icon: "💰" },
-  { label: "Cost Sheet",   icon: "📋" },
-  { label: "Shipping",     icon: "🚚" },
-  { label: "Invoices",     icon: "🧾" },
+const FULL_TABS = [
+  { label: "Basic Info",          permKey: "swatch_orders:tab:basic_info:view" },
+  { label: "Completion Tracking", permKey: "swatch_orders:tab:completion_tracking:view" },
+  { label: "References",          permKey: "swatch_orders:tab:references:view" },
+  { label: "Artworks",            permKey: "swatch_orders:tab:artworks:view" },
+  { label: "Client Link",         permKey: "swatch_orders:tab:client_link:view" },
+  { label: "Estimate",            permKey: "swatch_orders:tab:estimate:view" },
+  { label: "Costing",             permKey: "swatch_orders:tab:costing:view" },
+  { label: "Cost Sheet",          permKey: "swatch_orders:tab:cost_sheet:view" },
+  { label: "Shipping",            permKey: "swatch_orders:tab:shipping:view" },
+  { label: "Invoices",            permKey: "swatch_orders:tab:invoices:view" },
 ];
 
 type FormState = {
@@ -287,10 +289,17 @@ export default function SwatchOrderDetail() {
       : `${s.code} – ${s.name}${s.client ? ` · ${s.client}` : ""} [Order]`,
   }));
 
-  const [activeTab, setActiveTab] = useState(() => {
+  const { hasTabPermission } = useMyPermissions();
+  const visibleTabs = useMemo(
+    () => FULL_TABS.filter((t) => hasTabPermission(t.permKey)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search);
     const t = parseInt(params.get("tab") ?? "0", 10);
-    return !isNaN(t) && t >= 0 && t < TABS.length ? t : 0;
+    return FULL_TABS[!isNaN(t) && t >= 0 ? Math.min(t, FULL_TABS.length - 1) : 0]?.label ?? "Basic Info";
   });
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
@@ -526,12 +535,12 @@ export default function SwatchOrderDetail() {
           </div>
           {/* Tab bar */}
           <div className="px-6 flex items-end gap-0 overflow-x-auto scrollbar-none">
-            {TABS.map((tab, i) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.label}
-                onClick={() => setActiveTab(i)}
+                onClick={() => setActiveTab(tab.label)}
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  activeTab === i
+                  activeTab === tab.label
                     ? "border-gray-900 text-gray-900"
                     : "border-transparent text-gray-400 hover:text-gray-600"
                 }`}
@@ -544,8 +553,8 @@ export default function SwatchOrderDetail() {
 
         <div className="mt-5">
 
-        {/* ══ TAB 0: Basic Info ══ */}
-        {activeTab === 0 && <div className="space-y-5">
+        {/* ══ TAB: Basic Info ══════════════════════════════════════════════ */}
+        {activeTab === "Basic Info" && <div className="space-y-5">
 
           {/* ── Section 1: Identity — full width ── */}
           <SectionCard icon={<User className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
@@ -732,41 +741,52 @@ export default function SwatchOrderDetail() {
             </SectionCard>
           </div>
 
-          {/* ── Row: Notes + Completion Tracking side by side ── */}
-          <div className="grid grid-cols-2 gap-5 items-start">
+          {/* ── Notes ────────────────────────────────────────────────── */}
+          <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+            title="Notes" subtitle="Description, internal remarks and client instructions">
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="Description">
+                <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Brief description of the swatch order…"
+                  value={form.description} onChange={e => set("description", e.target.value)} />
+              </Field>
+              <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
+                <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
+                  value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
+              </Field>
+              <Field label="Client Instructions">
+                <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
+                  value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
+              </Field>
+            </div>
+          </SectionCard>
 
-            {/* Notes */}
-            <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-              title="Notes" subtitle="Description, internal remarks and client instructions">
-              <div className="space-y-4">
-                <Field label="Description">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Brief description of the swatch order…"
-                    value={form.description} onChange={e => set("description", e.target.value)} />
-                </Field>
-                <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
-                    value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
-                </Field>
-                <Field label="Client Instructions">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
-                    value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
-                </Field>
-              </div>
-            </SectionCard>
+          {/* Bottom Save — Tab 0 */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setLocation("/swatch-orders")}
+              className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+              Cancel
+            </button>
+            <button onClick={() => { void handleSave(); }} disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
+            </button>
+          </div>
+        </div>} {/* ── end Tab Basic Info ── */}
 
-            {/* Completion Tracking */}
+        {/* ══ TAB: Completion Tracking ══════════════════════════════════════ */}
+        {activeTab === "Completion Tracking" && (
+          <div className="space-y-5">
             <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
               title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <Field label="Actual Start Date">
                     <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
                   </Field>
                   <Field label="Actual Completion Date">
                     <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
                   </Field>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
                   <Field label="Tentative Delivery Date">
                     <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
                   </Field>
@@ -794,24 +814,22 @@ export default function SwatchOrderDetail() {
                 </Field>
               </div>
             </SectionCard>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setLocation("/swatch-orders")}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => { void handleSave(); }} disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
+              </button>
+            </div>
           </div>
+        )}
 
-          {/* Bottom Save — Tab 0 */}
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setLocation("/swatch-orders")}
-              className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
-              Cancel
-            </button>
-            <button onClick={() => { void handleSave(); }} disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
-            </button>
-          </div>
-        </div>} {/* ── end Tab 0 ── */}
-
-        {/* ══ TAB 1: References ══ */}
-        {activeTab === 1 && <div className="space-y-5">
+        {/* ══ TAB: References ═══════════════════════════════════════════════ */}
+        {activeTab === "References" && <div className="space-y-5">
 
           {/* Style + Swatch References */}
           <SectionCard icon={<Layers className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
@@ -934,8 +952,8 @@ export default function SwatchOrderDetail() {
           </div>
         </div>} {/* ── end Tab 1 ── */}
 
-        {/* ══ TAB 2: Artworks ══ */}
-        {activeTab === 2 && <div className="space-y-5">
+        {/* ══ TAB: Artworks ═══════════════════════════════════════════════ */}
+        {activeTab === "Artworks" && <div className="space-y-5">
           {isNew ? (
             <div className="flex flex-col items-center gap-3 py-16 text-center">
               <div className="h-12 w-12 rounded-2xl bg-gray-100 flex items-center justify-center">
@@ -1085,13 +1103,13 @@ export default function SwatchOrderDetail() {
           )}
         </div>} {/* ── end Tab 2 ── */}
 
-        {/* ══ TAB 3: Client Link ══ */}
-        {activeTab === 3 && numId && (
+        {/* ══ TAB: Client Link ══════════════════════════════════════════════ */}
+        {activeTab === "Client Link" && numId && (
           <ClientLinkTab swatchOrderId={numId} />
         )}
 
-        {/* ══ TAB 4: Estimate ══ */}
-        {activeTab === 4 && (
+        {/* ══ TAB: Estimate ═════════════════════════════════════════════════ */}
+        {activeTab === "Estimate" && (
           <div className="space-y-5">
 
             {/* Estimate Items Input */}
@@ -1254,8 +1272,8 @@ export default function SwatchOrderDetail() {
           </div>
         )}
 
-        {/* ══ TAB 5: Costing ══ */}
-        {activeTab === 5 && numId && (
+        {/* ══ TAB: Costing ══════════════════════════════════════════════════ */}
+        {activeTab === "Costing" && numId && (
           <CostingTab
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
@@ -1264,8 +1282,8 @@ export default function SwatchOrderDetail() {
           />
         )}
 
-        {/* ══ TAB 6: Cost Sheet ══ */}
-        {activeTab === 6 && numId && (
+        {/* ══ TAB: Cost Sheet ════════════════════════════════════════════ */}
+        {activeTab === "Cost Sheet" && numId && (
           <CostSheetTab
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
@@ -1275,8 +1293,8 @@ export default function SwatchOrderDetail() {
           />
         )}
 
-        {/* ══ TAB 7: Shipping ══ */}
-        {activeTab === 7 && numId && (
+        {/* ══ TAB: Shipping ══════════════════════════════════════════════ */}
+        {activeTab === "Shipping" && numId && (
           <ShippingTab
             referenceType="Swatch"
             referenceId={numId}
@@ -1286,14 +1304,14 @@ export default function SwatchOrderDetail() {
           />
         )}
 
-        {/* ══ TAB 8: Invoices ══ */}
-        {activeTab === 8 && isNew && (
+        {/* ══ TAB: Invoices ══════════════════════════════════════════════ */}
+        {activeTab === "Invoices" && isNew && (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <span className="text-4xl mb-3">🧾</span>
             <p className="text-sm">Save the order first to view linked invoices.</p>
           </div>
         )}
-        {activeTab === 8 && !isNew && numId && (
+        {activeTab === "Invoices" && !isNew && numId && (
           <LinkedInvoicesPanel type="Swatch" orderId={numId} orderNo={form.swatchName} />
         )}
 

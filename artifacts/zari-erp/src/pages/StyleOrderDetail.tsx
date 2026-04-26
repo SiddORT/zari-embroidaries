@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -63,9 +64,18 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled:          "text-gray-500 bg-gray-50 border-gray-200",
 };
 
-const TABS = [
-  "Basic Info", "References", "Products", "Artworks",
-  "Client Link", "Estimate", "Costing", "Cost Sheet", "Shipping", "Invoices",
+const FULL_TABS = [
+  { label: "Basic Info",          permKey: "style_orders:tab:basic_info:view" },
+  { label: "Completion Tracking", permKey: "style_orders:tab:completion_tracking:view" },
+  { label: "References",          permKey: "style_orders:tab:references:view" },
+  { label: "Products",            permKey: "style_orders:tab:products:view" },
+  { label: "Artworks",            permKey: "style_orders:tab:artworks:view" },
+  { label: "Client Link",         permKey: "style_orders:tab:client_link:view" },
+  { label: "Estimate",            permKey: "style_orders:tab:estimate:view" },
+  { label: "Costing",             permKey: "style_orders:tab:costing:view" },
+  { label: "Cost Sheet",          permKey: "style_orders:tab:cost_sheet:view" },
+  { label: "Shipping",            permKey: "style_orders:tab:shipping:view" },
+  { label: "Invoices",            permKey: "style_orders:tab:invoices:view" },
 ];
 
 // ── Form ──────────────────────────────────────────────────────────────────────
@@ -281,10 +291,17 @@ export default function StyleOrderDetail() {
   const [newDeptName, setNewDeptName] = useState("");
   const [deptError, setDeptError] = useState("");
 
-  const [activeTab, setActiveTab] = useState(() => {
+  const { hasTabPermission } = useMyPermissions();
+  const visibleTabs = useMemo(
+    () => FULL_TABS.filter((t) => hasTabPermission(t.permKey)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search);
     const t = parseInt(params.get("tab") ?? "0", 10);
-    return !isNaN(t) && t >= 0 && t < TABS.length ? t : 0;
+    return FULL_TABS[!isNaN(t) && t >= 0 ? Math.min(t, FULL_TABS.length - 1) : 0]?.label ?? "Basic Info";
   });
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -468,14 +485,14 @@ export default function StyleOrderDetail() {
 
           {/* Tab bar */}
           <div className="px-6 flex items-end gap-0 overflow-x-auto scrollbar-none">
-            {TABS.map((tab, i) => (
-              <button key={tab} onClick={() => setActiveTab(i)}
+            {visibleTabs.map((tab) => (
+              <button key={tab.label} onClick={() => setActiveTab(tab.label)}
                 className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-all ${
-                  activeTab === i
+                  activeTab === tab.label
                     ? "border-[#C9B45C] text-gray-900 font-semibold"
                     : "border-transparent text-gray-400 hover:text-gray-700 hover:border-gray-300"
                 }`}>
-                {tab}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -483,8 +500,8 @@ export default function StyleOrderDetail() {
 
         <div className="mt-5">
 
-          {/* ══ TAB 0: Basic Info ══════════════════════════════════════════ */}
-          {activeTab === 0 && (
+          {/* ══ TAB: Basic Info ═══════════════════════════════════════════ */}
+          {activeTab === "Basic Info" && (
             <div className="space-y-5">
 
               {/* ── Identity ──────────────────────────────────────────────── */}
@@ -603,55 +620,24 @@ export default function StyleOrderDetail() {
                 </div>
               </SectionCard>
 
-              {/* ── Notes + Completion Tracking side by side ──────────────── */}
-              <div className="grid grid-cols-2 gap-5 items-start">
-
-                {/* Notes */}
-                <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-                  title="Notes" subtitle="Description, internal remarks and client instructions">
-                  <div className="space-y-4">
-                    <Field label="Description">
-                      <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Brief description of this style order…"
-                        value={form.description} onChange={e => set("description", e.target.value)} />
-                    </Field>
-                    <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
-                      <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
-                        value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
-                    </Field>
-                    <Field label="Client Instructions">
-                      <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
-                        value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
-                    </Field>
-                  </div>
-                </SectionCard>
-
-                {/* Completion Tracking */}
-                <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-                  title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Actual Start Date">
-                        <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
-                      </Field>
-                      <Field label="Actual Completion Date">
-                        <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Tentative Delivery Date">
-                        <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
-                      </Field>
-                      <Field label="Approval Date">
-                        <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
-                      </Field>
-                    </div>
-                    <Field label="Delay Reason" hint="Explain if order was delayed beyond delivery date">
-                      <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
-                        value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
-                    </Field>
-                  </div>
-                </SectionCard>
-              </div>
+              {/* ── Notes ────────────────────────────────────────────────── */}
+              <SectionCard icon={<MessageSquare className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+                title="Notes" subtitle="Description, internal remarks and client instructions">
+                <div className="grid grid-cols-3 gap-4">
+                  <Field label="Description">
+                    <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Brief description of this style order…"
+                      value={form.description} onChange={e => set("description", e.target.value)} />
+                  </Field>
+                  <Field label="Internal Notes" hint="Only visible to your team, not shown to client">
+                    <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Internal remarks, production notes…"
+                      value={form.internalNotes} onChange={e => set("internalNotes", e.target.value)} />
+                  </Field>
+                  <Field label="Client Instructions">
+                    <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Specific instructions from client…"
+                      value={form.clientInstructions} onChange={e => set("clientInstructions", e.target.value)} />
+                  </Field>
+                </div>
+              </SectionCard>
 
               {/* Bottom Save */}
               <div className="flex justify-end gap-3 pt-2">
@@ -668,8 +654,50 @@ export default function StyleOrderDetail() {
             </div>
           )}
 
-          {/* ══ TAB 1: References ══════════════════════════════════════════ */}
-          {activeTab === 1 && <div className="space-y-5">
+          {/* ══ TAB: Completion Tracking ══════════════════════════════════ */}
+          {activeTab === "Completion Tracking" && (
+            <div className="space-y-5">
+              <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+                title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Actual Start Date">
+                      <input type="date" className={inputCls} value={form.actualStartDate} onChange={e => set("actualStartDate", e.target.value)} />
+                    </Field>
+                    <Field label="Actual Completion Date">
+                      <input type="date" className={inputCls} value={form.actualCompletionDate} onChange={e => set("actualCompletionDate", e.target.value)} />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Tentative Delivery Date">
+                      <input type="date" className={inputCls} value={form.tentativeDeliveryDate} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
+                    </Field>
+                    <Field label="Approval Date">
+                      <input type="date" className={inputCls} value={form.approvalDate} onChange={e => set("approvalDate", e.target.value)} />
+                    </Field>
+                  </div>
+                  <Field label="Delay Reason" hint="Explain if order was delayed beyond delivery date">
+                    <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
+                      value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
+                  </Field>
+                </div>
+              </SectionCard>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setLocation("/style-orders")}
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={() => { void handleSave(); }} disabled={saving}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {saving ? "Saving…" : (isNew ? "Create Style Order" : "Save Changes")}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ══ TAB: References ════════════════════════════════════════════ */}
+          {activeTab === "References" && <div className="space-y-5">
 
             <SectionCard icon={<Layers className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
               title="References" subtitle="Link related styles and swatches, add remarks for each">
@@ -790,23 +818,23 @@ export default function StyleOrderDetail() {
           </div>}
 
           {/* ══ TAB 2: Products ════════════════════════════════════════════ */}
-          {activeTab === 2 && (
+          {activeTab === "Products" && (
             <ProductsTab styleOrderId={numId} isNew={isNew} />
           )}
 
           {/* ══ TAB 3: Artworks ════════════════════════════════════════════ */}
-          {activeTab === 3 && (
+          {activeTab === "Artworks" && (
             <StyleOrderArtworksTab styleOrderId={numId} isNew={isNew} />
           )}
 
           {/* ══ TAB 4: Client Link ═════════════════════════════════════════ */}
-          {activeTab === 4 && isNew && <PlaceholderTab icon="🔗" label="Client Link (save order first)" />}
-          {activeTab === 4 && !isNew && numId && (
+          {activeTab === "Client Link" && isNew && <PlaceholderTab icon="🔗" label="Client Link (save order first)" />}
+          {activeTab === "Client Link" && !isNew && numId && (
             <StyleClientLinkTab styleOrderId={numId} />
           )}
 
           {/* ══ TAB 5: Estimate ════════════════════════════════════════════ */}
-          {activeTab === 5 && (
+          {activeTab === "Estimate" && (
             <div className="space-y-5">
 
               {/* Estimate Items */}
@@ -968,7 +996,7 @@ export default function StyleOrderDetail() {
           )}
 
           {/* ══ TAB 6: Costing ═════════════════════════════════════════════ */}
-          {activeTab === 6 && !isNew && (
+          {activeTab === "Costing" && !isNew && (
             <StyleCostingTab
               styleOrderId={numId}
               orderCode={orderData?.data?.orderCode}
@@ -976,11 +1004,11 @@ export default function StyleOrderDetail() {
               clientName={form.clientName}
             />
           )}
-          {activeTab === 6 && isNew && <PlaceholderTab icon="💰" label="Costing (save order first)" />}
+          {activeTab === "Costing" && isNew && <PlaceholderTab icon="💰" label="Costing (save order first)" />}
 
-          {/* ══ TAB 7: Cost Sheet ══════════════════════════════════════════ */}
-          {activeTab === 7 && isNew && <PlaceholderTab icon="📋" label="Cost Sheet (save order first)" />}
-          {activeTab === 7 && !isNew && numId && (
+          {/* ══ TAB: Cost Sheet ════════════════════════════════════════════ */}
+          {activeTab === "Cost Sheet" && isNew && <PlaceholderTab icon="📋" label="Cost Sheet (save order first)" />}
+          {activeTab === "Cost Sheet" && !isNew && numId && (
             <StyleCostSheetTab
               styleOrderId={numId}
               orderCode={orderData?.data?.orderCode}
@@ -990,9 +1018,9 @@ export default function StyleOrderDetail() {
             />
           )}
 
-          {/* ══ TAB 8: Shipping ═════════════════════════════════════════════ */}
-          {activeTab === 8 && isNew && <PlaceholderTab icon="🚚" label="Shipping (save order first)" />}
-          {activeTab === 8 && !isNew && numId && (
+          {/* ══ TAB: Shipping ══════════════════════════════════════════════ */}
+          {activeTab === "Shipping" && isNew && <PlaceholderTab icon="🚚" label="Shipping (save order first)" />}
+          {activeTab === "Shipping" && !isNew && numId && (
             <ShippingTab
               referenceType="Style"
               referenceId={numId}
@@ -1002,9 +1030,9 @@ export default function StyleOrderDetail() {
             />
           )}
 
-          {/* ══ TAB 9: Invoices ══════════════════════════════════════════════ */}
-          {activeTab === 9 && isNew && <PlaceholderTab icon="🧾" label="Invoices (save order first)" />}
-          {activeTab === 9 && !isNew && numId && (
+          {/* ══ TAB: Invoices ══════════════════════════════════════════════ */}
+          {activeTab === "Invoices" && isNew && <PlaceholderTab icon="🧾" label="Invoices (save order first)" />}
+          {activeTab === "Invoices" && !isNew && numId && (
             <LinkedInvoicesPanel type="Style" orderId={numId} orderNo={form.styleName} />
           )}
 
