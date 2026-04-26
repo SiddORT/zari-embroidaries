@@ -551,6 +551,145 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange, className }: 
   );
 }
 
+function SubgroupContent({
+  sgName, resources, allResources, selected, toggle, toggleResource, toggleAction, toggleSubgroup,
+}: {
+  sgName: string | null;
+  resources: ResourceGroup[];
+  allResources: ResourceGroup[];
+  selected: Set<string>;
+  toggle: (k: string) => void;
+  toggleResource: (rg: ResourceGroup) => void;
+  toggleAction: (a: "view"|"add_edit"|"delete"|"download", rs: ResourceGroup[]) => void;
+  toggleSubgroup: (rs: ResourceGroup[]) => void;
+}) {
+  const sgKeys   = resources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+  const sgAllOn  = sgKeys.length > 0 && sgKeys.every(k => selected.has(k));
+  const sgSomeOn = sgKeys.some(k => selected.has(k));
+  const visibleCols = ACTION_COLS.filter(col => resources.some(r => r.actionKeys[col.key]));
+  const isChipMode  = visibleCols.length === 1 && visibleCols[0].key === "view";
+  const sgSelected  = sgKeys.filter(k => selected.has(k)).length;
+
+  return (
+    <div>
+      {/* Subgroup header */}
+      {sgName && (
+        <div
+          className="flex items-center gap-2 px-4 py-2.5 bg-gray-50/80 border-y border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors group"
+          onClick={() => toggleSubgroup(resources)}
+        >
+          <IndeterminateCheckbox
+            checked={sgAllOn} indeterminate={sgSomeOn && !sgAllOn}
+            onChange={() => toggleSubgroup(resources)}
+            className="h-3.5 w-3.5 shrink-0"
+          />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 flex-1 group-hover:text-gray-700 transition-colors">
+            {sgName}
+          </span>
+          <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-full font-medium ${
+            sgSelected === sgKeys.length && sgKeys.length > 0
+              ? "bg-green-50 text-green-700" : sgSelected > 0
+              ? "bg-amber-50 text-amber-600" : "bg-gray-100 text-gray-400"
+          }`}>
+            {sgSelected}/{sgKeys.length}
+          </span>
+        </div>
+      )}
+
+      {/* Chip grid for view-only subgroups */}
+      {isChipMode ? (
+        <div className="px-4 py-3 grid grid-cols-2 gap-1.5">
+          {resources.map(rg => {
+            const permKey = rg.actionKeys.view!;
+            const on = selected.has(permKey);
+            return (
+              <button key={rg.resource} type="button"
+                onClick={() => toggleResource(rg)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-all text-left ${
+                  on
+                    ? "bg-gray-900 text-[#C9B45C] border-gray-900 shadow-sm"
+                    : "bg-white text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700"
+                }`}>
+                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${on ? "bg-[#C9B45C]" : "bg-gray-300"}`} />
+                {rg.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        /* Full table for multi-action subgroups */
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-50">
+              <th className="text-left px-4 py-2 text-gray-400 font-medium text-[10px] uppercase tracking-wider">Permission</th>
+              {visibleCols.map(col => {
+                const colKeys  = resources.map(r => r.actionKeys[col.key]).filter(Boolean) as string[];
+                const colAllOn = colKeys.every(k => selected.has(k));
+                const colSomeOn= colKeys.some(k => selected.has(k));
+                return (
+                  <th key={col.key} className="px-4 py-2 text-center whitespace-nowrap w-24">
+                    <label className="inline-flex flex-col items-center gap-1 cursor-pointer">
+                      <IndeterminateCheckbox
+                        checked={colAllOn} indeterminate={colSomeOn && !colAllOn}
+                        onChange={() => toggleAction(col.key, resources)}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${col.color}`}>{col.label}</span>
+                    </label>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {resources.map(rg => {
+              const rgKeys  = Object.values(rg.actionKeys).filter(Boolean) as string[];
+              const rgAllOn = rgKeys.every(k => selected.has(k));
+              const rgSomeOn= rgKeys.some(k => selected.has(k));
+              return (
+                <tr key={rg.resource}
+                  className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
+                  onClick={() => toggleResource(rg)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <IndeterminateCheckbox
+                        checked={rgAllOn} indeterminate={rgSomeOn && !rgAllOn}
+                        onChange={() => toggleResource(rg)}
+                        className="h-4 w-4 shrink-0"
+                      />
+                      <span className={`font-medium transition-colors ${rgAllOn ? "text-gray-900" : "text-gray-500 group-hover:text-gray-700"}`}>
+                        {rg.label}
+                      </span>
+                    </div>
+                  </td>
+                  {visibleCols.map(col => {
+                    const permKey = rg.actionKeys[col.key];
+                    return (
+                      <td key={col.key} className="px-4 py-3 text-center w-24"
+                        onClick={e => { e.stopPropagation(); if (permKey) toggle(permKey); }}>
+                        {permKey ? (
+                          <input type="checkbox"
+                            checked={selected.has(permKey)}
+                            onChange={() => toggle(permKey)}
+                            className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                          />
+                        ) : (
+                          <span className="text-gray-200">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   role: RoleRecord;
   allPermissions: PermissionDef[];
@@ -558,18 +697,23 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   saving: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions));
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const initialPerms = useMemo(() => role.permissions.join(","), [role.id]);
-  const isDirty = [...selected].sort().join(",") !== [...new Set(role.permissions)].sort().join(",");
+  const initialPerms = useMemo(() => [...new Set(role.permissions)].sort().join(","), [role.id]);
+  const isDirty = [...selected].sort().join(",") !== initialPerms;
+
+  const tree = useMemo(() => buildResourceTree(allPermissions), [allPermissions]);
 
   useEffect(() => {
     setSelected(new Set(role.permissions));
     setSearch("");
+    setActiveMenu(null);
   }, [role.id, initialPerms]);
 
-  const tree = buildResourceTree(allPermissions);
+  useEffect(() => {
+    if (!activeMenu && tree.length > 0) setActiveMenu(tree[0].menu);
+  }, [tree, activeMenu]);
 
   const lc = search.toLowerCase().trim();
 
@@ -579,10 +723,17 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
       menu,
       subgroups: subgroups.map(({ name, resources }) => ({
         name,
-        resources: resources.filter(r => r.label.toLowerCase().includes(lc) || (name ?? "").toLowerCase().includes(lc) || menu.toLowerCase().includes(lc)),
+        resources: resources.filter(r =>
+          r.label.toLowerCase().includes(lc) ||
+          (name ?? "").toLowerCase().includes(lc) ||
+          menu.toLowerCase().includes(lc)
+        ),
       })).filter(sg => sg.resources.length > 0),
     })).filter(m => m.subgroups.length > 0);
   }, [tree, lc]);
+
+  const activeSection = lc ? null : filteredTree.find(m => m.menu === activeMenu) ?? null;
+  const displayTree   = lc ? filteredTree : (activeSection ? [activeSection] : []);
 
   function toggle(key: string) {
     setSelected(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -592,7 +743,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
     const allOn = keys.every(k => selected.has(k));
     setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
   }
-  function toggleAction(action: "view" | "add_edit" | "delete" | "download", resources: ResourceGroup[]) {
+  function toggleAction(action: "view"|"add_edit"|"delete"|"download", resources: ResourceGroup[]) {
     const keys = resources.map(r => r.actionKeys[action]).filter(Boolean) as string[];
     const allOn = keys.every(k => selected.has(k));
     setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
@@ -607,62 +758,67 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
     const allOn = keys.every(k => selected.has(k));
     setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
   }
-  function toggleCollapse(menu: string) {
-    setCollapsed(s => { const n = new Set(s); n.has(menu) ? n.delete(menu) : n.add(menu); return n; });
-  }
-  function selectAll() {
-    setSelected(new Set(allPermissions.map(p => p.key)));
-  }
-  function clearAll() { setSelected(new Set()); }
+  function selectAll() { setSelected(new Set(allPermissions.map(p => p.key))); }
+  function clearAll()  { setSelected(new Set()); }
 
-  const totalKeys = allPermissions.length;
+  const totalKeys     = allPermissions.length;
   const selectedCount = allPermissions.filter(p => selected.has(p.key)).length;
+  const pct           = totalKeys > 0 ? Math.round((selectedCount / totalKeys) * 100) : 0;
 
   return (
-    <div className="flex flex-col h-full gap-3">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 capitalize">{role.name}</h3>
-          {role.description
-            ? <p className="text-xs text-gray-400 mt-0.5">{role.description}</p>
-            : <p className="text-xs text-gray-400 mt-0.5">{selectedCount} of {totalKeys} permissions granted</p>
-          }
-          {role.description && <p className="text-xs text-gray-400">{selectedCount} / {totalKeys} permissions granted</p>}
+    <div className="flex flex-col h-full gap-0">
+      {/* ── Sticky header ── */}
+      <div className="flex items-center justify-between gap-3 pb-3 flex-wrap border-b border-gray-100 mb-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-sm font-semibold text-gray-900 capitalize">{role.name}</h3>
+            {isDirty && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full">
+                Unsaved changes
+              </span>
+            )}
+          </div>
+          {/* Progress bar */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gray-900 rounded-full transition-all duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-gray-400 tabular-nums shrink-0">{selectedCount}/{totalKeys}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button type="button" onClick={clearAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
-            <Square className="h-3.5 w-3.5" /> Clear All
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+            <Square className="h-3 w-3" /> Clear
           </button>
           <button type="button" onClick={selectAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
-            <CheckSquare className="h-3.5 w-3.5" /> Select All
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+            <CheckSquare className="h-3 w-3" /> All
           </button>
           <button onClick={() => onSave([...selected])} disabled={saving}
-            className={`relative flex items-center gap-2 px-4 py-2 text-sm rounded-xl font-medium transition-colors disabled:opacity-60 ${
+            className={`relative flex items-center gap-1.5 px-4 py-2 text-sm rounded-xl font-semibold transition-all disabled:opacity-60 ${
               isDirty
-                ? "bg-gray-900 text-[#C9B45C] hover:bg-black shadow-sm"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                ? "bg-gray-900 text-[#C9B45C] hover:bg-black shadow-sm ring-1 ring-gray-900"
+                : "bg-gray-100 text-gray-400 cursor-default"
             }`}>
-            {isDirty && (
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-amber-400 rounded-full border border-white" />
-            )}
             {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="relative">
+      {/* ── Search ── */}
+      <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
         <input
           type="text"
-          placeholder="Filter permissions…"
+          placeholder="Search permissions…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-400"
+          className="w-full pl-9 pr-9 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-400 transition-colors"
         />
         {search && (
           <button type="button" onClick={() => setSearch("")}
@@ -672,165 +828,109 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
         )}
       </div>
 
-      {/* Permission tree */}
-      <div className="space-y-2 overflow-y-auto flex-1 pr-0.5 pb-1">
-        {filteredTree.length === 0 && (
-          <div className="text-center py-10 text-sm text-gray-400">No permissions match "{search}"</div>
+      {/* ── Two-column layout ── */}
+      <div className="flex gap-0 flex-1 min-h-0 rounded-xl border border-gray-200 overflow-hidden bg-white">
+        {/* Left: menu nav — hidden when searching */}
+        {!lc && (
+          <div className="w-44 shrink-0 border-r border-gray-100 bg-gray-50/60 overflow-y-auto flex flex-col">
+            {tree.map(({ menu, subgroups }) => {
+              const allRes  = subgroups.flatMap(sg => sg.resources);
+              const allKeys = allRes.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+              const count   = allKeys.filter(k => selected.has(k)).length;
+              const pctMenu = allKeys.length > 0 ? (count / allKeys.length) : 0;
+              const isActive= menu === activeMenu;
+              const allOn   = allKeys.length > 0 && allKeys.every(k => selected.has(k));
+              const someOn  = allKeys.some(k => selected.has(k));
+              return (
+                <button key={menu} type="button"
+                  onClick={() => setActiveMenu(menu)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-3 text-left transition-colors group border-b border-gray-100 last:border-b-0 ${
+                    isActive ? "bg-white border-r-2 border-r-gray-900" : "hover:bg-white/70"
+                  }`}
+                  style={isActive ? { borderRightColor: "#111" } : {}}>
+                  <IndeterminateCheckbox
+                    checked={allOn} indeterminate={someOn && !allOn}
+                    onChange={() => toggleMenu(allRes)}
+                    className="h-3.5 w-3.5 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className={`text-xs font-semibold truncate ${isActive ? "text-gray-900" : "text-gray-600"}`}>
+                        {menu}
+                      </span>
+                      <span className="text-[10px] tabular-nums text-gray-400 shrink-0">{count}</span>
+                    </div>
+                    {/* Mini progress bar per section */}
+                    <div className="h-0.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${pctMenu === 1 ? "bg-green-500" : "bg-gray-900"}`}
+                        style={{ width: `${pctMenu * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
-        {filteredTree.map(({ menu, subgroups }) => {
-          const isCollapsed = !lc && collapsed.has(menu);
-          const allResources = subgroups.flatMap(sg => sg.resources);
-          const allKeys = allResources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
-          const menuAllOn  = allKeys.length > 0 && allKeys.every(k => selected.has(k));
-          const menuSomeOn = allKeys.some(k => selected.has(k));
-          const menuCount  = allKeys.filter(k => selected.has(k)).length;
 
-          return (
-            <div key={menu} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              {/* Menu section header */}
-              <div
-                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-gray-50/60 transition-colors"
-                onClick={() => !lc && toggleCollapse(menu)}
-              >
-                <IndeterminateCheckbox
-                  checked={menuAllOn} indeterminate={menuSomeOn && !menuAllOn}
-                  onChange={() => toggleMenu(allResources)}
-                  className="h-4 w-4"
-                />
-                <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-gray-900 shrink-0">
-                  <span className="text-[#C9B45C]">{MENU_ICONS[menu] ?? <Shield className="h-4 w-4" />}</span>
-                </span>
-                <span className="text-sm font-semibold text-gray-800 flex-1">{menu}</span>
-                <span className={`text-xs tabular-nums px-2 py-0.5 rounded-full ${
-                  menuCount > 0 ? "bg-gray-900 text-[#C9B45C]" : "bg-gray-100 text-gray-400"
-                }`}>
-                  {menuCount}/{allKeys.length}
-                </span>
-                {!lc && <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isCollapsed ? "" : "rotate-180"}`} />}
-              </div>
-
-              {/* Resource matrix */}
-              {!isCollapsed && (
-                <div className="border-t border-gray-100">
-                  {subgroups.map(({ name: sgName, resources }) => {
-                    const sgKeys = resources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
-                    const sgAllOn  = sgKeys.length > 0 && sgKeys.every(k => selected.has(k));
-                    const sgSomeOn = sgKeys.some(k => selected.has(k));
-                    const visibleCols = ACTION_COLS.filter(col =>
-                      resources.some(r => r.actionKeys[col.key])
-                    );
-
-                    return (
-                      <div key={sgName ?? "__root__"}>
-                        {/* Subgroup header — clickable toggle */}
-                        {sgName && (
-                          <div
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-t border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors group"
-                            onClick={() => toggleSubgroup(resources)}
-                          >
-                            <IndeterminateCheckbox
-                              checked={sgAllOn} indeterminate={sgSomeOn && !sgAllOn}
-                              onChange={() => toggleSubgroup(resources)}
-                              className="h-3.5 w-3.5"
-                            />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 flex-1 group-hover:text-gray-700 transition-colors">
-                              {sgName}
-                            </span>
-                            <span className="text-[10px] text-gray-400 tabular-nums">
-                              {sgKeys.filter(k => selected.has(k)).length}/{sgKeys.length}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Resource rows */}
-                        <table className="w-full text-xs">
-                          {/* Column headers — only once per subgroup, only for existing action types */}
-                          <thead>
-                            <tr className="border-b border-gray-50">
-                              <th className="text-left px-4 py-2 text-gray-400 font-medium text-[10px] uppercase tracking-wider">Permission</th>
-                              {visibleCols.map(col => {
-                                const colKeys = resources.map(r => r.actionKeys[col.key]).filter(Boolean) as string[];
-                                const colAllOn = colKeys.every(k => selected.has(k));
-                                const colSomeOn = colKeys.some(k => selected.has(k));
-                                return (
-                                  <th key={col.key} className="px-4 py-2 text-center whitespace-nowrap w-20">
-                                    <label className="inline-flex flex-col items-center gap-1 cursor-pointer">
-                                      <IndeterminateCheckbox
-                                        checked={colAllOn} indeterminate={colSomeOn && !colAllOn}
-                                        onChange={() => toggleAction(col.key, resources)}
-                                        className="h-3.5 w-3.5"
-                                      />
-                                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${col.color}`}>{col.label}</span>
-                                    </label>
-                                  </th>
-                                );
-                              })}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {resources.map(rg => {
-                              const rgKeys = Object.values(rg.actionKeys).filter(Boolean) as string[];
-                              const rgAllOn  = rgKeys.every(k => selected.has(k));
-                              const rgSomeOn = rgKeys.some(k => selected.has(k));
-                              const isOnlyView = visibleCols.length === 1 && visibleCols[0].key === "view";
-                              return (
-                                <tr key={rg.resource}
-                                  className="hover:bg-gray-50/60 transition-colors cursor-pointer group"
-                                  onClick={() => toggleResource(rg)}
-                                >
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2.5">
-                                      <IndeterminateCheckbox
-                                        checked={rgAllOn} indeterminate={rgSomeOn && !rgAllOn}
-                                        onChange={() => toggleResource(rg)}
-                                        className="h-4 w-4 shrink-0"
-                                      />
-                                      <span className={`font-medium transition-colors ${rgAllOn ? "text-gray-900" : "text-gray-500 group-hover:text-gray-700"}`}>
-                                        {rg.label}
-                                      </span>
-                                      {/* If only "view" action exists, show enabled/disabled chip inline */}
-                                      {isOnlyView && (
-                                        <span className={`ml-auto mr-2 text-[10px] px-2 py-0.5 rounded-full border font-medium ${
-                                          rgAllOn
-                                            ? "bg-green-50 text-green-700 border-green-200"
-                                            : "bg-gray-50 text-gray-400 border-gray-200"
-                                        }`}>
-                                          {rgAllOn ? "Enabled" : "Disabled"}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  {!isOnlyView && visibleCols.map(col => {
-                                    const permKey = rg.actionKeys[col.key];
-                                    return (
-                                      <td key={col.key} className="px-4 py-3 text-center w-20"
-                                        onClick={e => { e.stopPropagation(); if (permKey) toggle(permKey); }}>
-                                        {permKey ? (
-                                          <input type="checkbox"
-                                            checked={selected.has(permKey)}
-                                            onChange={() => toggle(permKey)}
-                                            className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
-                                          />
-                                        ) : (
-                                          <span className="text-gray-200">—</span>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                  {isOnlyView && <td />}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+        {/* Right: content panel */}
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          {displayTree.length === 0 && lc && (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-center py-12">
+              <Search className="h-6 w-6 text-gray-300" />
+              <p className="text-sm text-gray-400">No permissions match "<span className="font-medium text-gray-600">{search}</span>"</p>
             </div>
-          );
-        })}
+          )}
+          {displayTree.map(({ menu, subgroups }) => {
+            const allRes = subgroups.flatMap(sg => sg.resources);
+            const allKeys= allRes.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+            const menuAllOn = allKeys.length > 0 && allKeys.every(k => selected.has(k));
+            const menuSomeOn= allKeys.some(k => selected.has(k));
+            const menuCount = allKeys.filter(k => selected.has(k)).length;
+
+            return (
+              <div key={menu}>
+                {/* Section title bar */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
+                  <IndeterminateCheckbox
+                    checked={menuAllOn} indeterminate={menuSomeOn && !menuAllOn}
+                    onChange={() => toggleMenu(allRes)}
+                    className="h-4 w-4"
+                  />
+                  <span className="flex items-center justify-center h-6 w-6 rounded-lg bg-gray-900 shrink-0">
+                    <span className="text-[#C9B45C] scale-75">{MENU_ICONS[menu] ?? <Shield className="h-4 w-4" />}</span>
+                  </span>
+                  <span className="text-sm font-semibold text-gray-800 flex-1">{menu}</span>
+                  <span className={`text-xs tabular-nums px-2 py-0.5 rounded-full font-medium ${
+                    menuCount === allKeys.length && allKeys.length > 0
+                      ? "bg-green-50 text-green-700"
+                      : menuCount > 0
+                      ? "bg-[#C9B45C]/15 text-[#9a8530]"
+                      : "bg-gray-100 text-gray-400"
+                  }`}>
+                    {menuCount}/{allKeys.length}
+                  </span>
+                </div>
+
+                {/* Subgroups */}
+                {subgroups.map(({ name: sgName, resources }) => (
+                  <SubgroupContent
+                    key={sgName ?? "__root__"}
+                    sgName={sgName}
+                    resources={resources}
+                    allResources={allRes}
+                    selected={selected}
+                    toggle={toggle}
+                    toggleResource={toggleResource}
+                    toggleAction={toggleAction}
+                    toggleSubgroup={toggleSubgroup}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -935,7 +1035,7 @@ function RolesTab() {
       </div>
 
       {/* Permissions panel */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 min-h-[600px] flex flex-col shadow-sm">
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col shadow-sm" style={{ height: "calc(100vh - 220px)", minHeight: "540px" }}>
         {selectedRole ? (
           <PermissionsPanel role={selectedRole} allPermissions={allPerms}
             onSave={handleSavePerms} saving={setPerms.isPending} />
