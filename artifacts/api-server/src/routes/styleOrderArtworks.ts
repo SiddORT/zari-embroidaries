@@ -96,6 +96,7 @@ router.post("/style-order-artworks", requireAuth, async (req, res): Promise<void
     refImages: (body.refImages as object[]) || [],
     wipImages: (body.wipImages as object[]) || [],
     finalImages: (body.finalImages as object[]) || [],
+    videos: (body.videos as object[]) || [],
     createdBy: user?.email ?? "system",
   }).returning();
 
@@ -165,6 +166,7 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
     refImages: (body.refImages as object[]) ?? undefined,
     wipImages: (body.wipImages as object[]) ?? undefined,
     finalImages: (body.finalImages as object[]) ?? undefined,
+    videos: (body.videos as object[]) ?? undefined,
     updatedBy: user?.email ?? "system",
     updatedAt: new Date(),
   }).where(eq(styleOrderArtworksTable.id, id)).returning();

@@ -38,6 +38,10 @@ export const swatchOrdersTable = pgTable("swatch_orders", {
 
   refDocs: jsonb("ref_docs").default([]),
   refImages: jsonb("ref_images").default([]),
+  wipImages: jsonb("wip_images").default([]),
+  finalImages: jsonb("final_images").default([]),
+  wipVideos: jsonb("wip_videos").default([]),
+  finalVideos: jsonb("final_videos").default([]),
 
   actualStartDate: text("actual_start_date"),
   actualStartTime: text("actual_start_time"),
@@ -93,6 +97,10 @@ export const insertSwatchOrderSchema = z.object({
   clientInstructions: z.string().optional(),
   refDocs: z.array(z.record(z.unknown())).optional().default([]),
   refImages: z.array(z.record(z.unknown())).optional().default([]),
+  wipImages: z.array(z.record(z.unknown())).optional().default([]),
+  finalImages: z.array(z.record(z.unknown())).optional().default([]),
+  wipVideos: z.array(z.record(z.unknown())).optional().default([]),
+  finalVideos: z.array(z.record(z.unknown())).optional().default([]),
   actualStartDate: z.string().optional(),
   actualStartTime: z.string().optional(),
   tentativeDeliveryDate: z.string().optional(),

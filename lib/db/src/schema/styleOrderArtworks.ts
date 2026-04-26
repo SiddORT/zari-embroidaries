@@ -62,6 +62,7 @@ export const styleOrderArtworksTable = pgTable("style_order_artworks", {
   refImages: jsonb("ref_images").default([]),
   wipImages: jsonb("wip_images").default([]),
   finalImages: jsonb("final_images").default([]),
+  videos: jsonb("videos").default([]),
 
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: text("created_by").notNull(),
@@ -121,6 +122,7 @@ export const insertStyleOrderArtworkSchema = z.object({
   refImages: z.array(z.record(z.unknown())).optional().default([]),
   wipImages: z.array(z.record(z.unknown())).optional().default([]),
   finalImages: z.array(z.record(z.unknown())).optional().default([]),
+  videos: z.array(z.record(z.unknown())).optional().default([]),
 });
 
 export const updateStyleOrderArtworkSchema = insertStyleOrderArtworkSchema.partial().extend({

@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Plus, Trash2, Info, Upload, X, FileText, Image as ImageIcon,
   User, Layers, Scissors, CalendarDays, MessageSquare, Paperclip, CheckCircle2,
-  ChevronDown, Loader2, Palette, ExternalLink, Pencil,
+  ChevronDown, Loader2, Palette, ExternalLink, Pencil, Video,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -107,6 +107,10 @@ type FormState = {
   clientInstructions: string;
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  wipImages: FileAttachment[];
+  finalImages: FileAttachment[];
+  wipVideos: FileAttachment[];
+  finalVideos: FileAttachment[];
   actualStartDate: string;
   actualStartTime: string;
   tentativeDeliveryDate: string;
@@ -127,6 +131,8 @@ const EMPTY_FORM: FormState = {
   orderIssueDate: "", deliveryDate: "", targetHours: "", issuedTo: "", department: "",
   description: "", internalNotes: "", clientInstructions: "",
   refDocs: [], refImages: [],
+  wipImages: [], finalImages: [],
+  wipVideos: [], finalVideos: [],
   actualStartDate: "", actualStartTime: "", tentativeDeliveryDate: "",
   actualCompletionDate: "", actualCompletionTime: "", delayReason: "",
   approvalDate: "", revisionCount: 0,
@@ -220,13 +226,17 @@ function FileUploadZone({ files, onChange, accept, icon, label }: {
         <div className="mt-2 space-y-2">
           {files.map((f, i) => (
             <div key={i} className="flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
-              {f.type.startsWith("image/") && (
+              {f.type.startsWith("image/") ? (
                 <img
                   src={f.data}
                   alt={f.name}
                   className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0"
                 />
-              )}
+              ) : f.type.startsWith("video/") ? (
+                <div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                  <Video className="h-5 w-5 text-[#C9B45C]" />
+                </div>
+              ) : null}
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
                 <span className="text-xs font-medium text-gray-700 truncate">{f.name}</span>
                 <span className="text-xs text-gray-400">{(f.size / 1024).toFixed(0)} KB</span>
@@ -332,6 +342,10 @@ export default function SwatchOrderDetail() {
         targetHours: o.targetHours ?? "", issuedTo: o.issuedTo ?? "", department: o.department ?? "",
         description: o.description ?? "", internalNotes: o.internalNotes ?? "",
         clientInstructions: o.clientInstructions ?? "", refDocs: o.refDocs ?? [], refImages: o.refImages ?? [],
+        wipImages: (o.wipImages as FileAttachment[]) ?? [],
+        finalImages: (o.finalImages as FileAttachment[]) ?? [],
+        wipVideos: (o.wipVideos as FileAttachment[]) ?? [],
+        finalVideos: (o.finalVideos as FileAttachment[]) ?? [],
         actualStartDate: o.actualStartDate ?? "", actualStartTime: o.actualStartTime ?? "",
         tentativeDeliveryDate: o.tentativeDeliveryDate ?? "",
         actualCompletionDate: o.actualCompletionDate ?? "", actualCompletionTime: o.actualCompletionTime ?? "",
@@ -917,8 +931,9 @@ export default function SwatchOrderDetail() {
 
           {/* Attachments */}
           <SectionCard icon={<Paperclip className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-            title="Attachments" subtitle="Upload reference documents and images">
-            <div className="grid grid-cols-2 gap-6">
+            title="Attachments" subtitle="Reference documents, WIP and final images & videos">
+            {/* Row 1: Reference */}
+            <div className="grid grid-cols-2 gap-6 mb-6">
               <Field label="Reference Documents">
                 <FileUploadZone
                   files={form.refDocs} onChange={files => set("refDocs", files)}
@@ -933,6 +948,48 @@ export default function SwatchOrderDetail() {
                   accept="image/*"
                   icon={<ImageIcon className="h-5 w-5" />}
                   label="Upload Images"
+                />
+              </Field>
+            </div>
+            <div className="border-t border-gray-100 mb-6" />
+            {/* Row 2: WIP */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Work In Progress</p>
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <Field label="WIP Images">
+                <FileUploadZone
+                  files={form.wipImages} onChange={files => set("wipImages", files)}
+                  accept="image/*"
+                  icon={<ImageIcon className="h-5 w-5" />}
+                  label="Upload WIP Images"
+                />
+              </Field>
+              <Field label="WIP Videos">
+                <FileUploadZone
+                  files={form.wipVideos} onChange={files => set("wipVideos", files)}
+                  accept="video/*"
+                  icon={<Video className="h-5 w-5" />}
+                  label="Upload WIP Videos"
+                />
+              </Field>
+            </div>
+            <div className="border-t border-gray-100 mb-6" />
+            {/* Row 3: Final */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Final / Approved</p>
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="Final Images">
+                <FileUploadZone
+                  files={form.finalImages} onChange={files => set("finalImages", files)}
+                  accept="image/*"
+                  icon={<ImageIcon className="h-5 w-5" />}
+                  label="Upload Final Images"
+                />
+              </Field>
+              <Field label="Final Videos">
+                <FileUploadZone
+                  files={form.finalVideos} onChange={files => set("finalVideos", files)}
+                  accept="video/*"
+                  icon={<Video className="h-5 w-5" />}
+                  label="Upload Final Videos"
                 />
               </Field>
             </div>

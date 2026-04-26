@@ -32,6 +32,10 @@ export type StyleOrderRecord = {
   swatchReferences: ReferenceItem[];
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  wipImages: FileAttachment[];
+  finalImages: FileAttachment[];
+  wipVideos: FileAttachment[];
+  finalVideos: FileAttachment[];
   estimate: Record<string, unknown>[];
   actualStartDate: string | null;
   actualStartTime: string | null;

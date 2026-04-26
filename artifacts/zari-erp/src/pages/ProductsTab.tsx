@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import {
   Plus, X, Pencil, Trash2, Scissors, CalendarDays, FileText,
-  ImageIcon, Loader2, Package, ArrowLeft, Info, Copy, Layout,
+  ImageIcon, Loader2, Package, ArrowLeft, Info, Copy, Layout, Video,
 } from "lucide-react";
 import AddableSelect from "@/components/ui/AddableSelect";
 import { useAllFabrics } from "@/hooks/useFabrics";
@@ -126,6 +126,10 @@ function FileUploadZone({
             <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
               {f.type.startsWith("image/") ? (
                 <img src={f.data} alt={f.name} className="h-12 w-12 rounded-lg object-cover border border-gray-200 shrink-0" />
+              ) : f.type.startsWith("video/") ? (
+                <div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                  <Video className="h-4 w-4 text-[#C9B45C]" />
+                </div>
               ) : (
                 <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                   <FileText className="h-4 w-4 text-gray-400" />
@@ -184,6 +188,7 @@ type ProductForm = {
   department: string;
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  videos: FileAttachment[];
   patternType: "Inhouse" | "Outhouse" | "";
   patternMakingCost: string;
   patternDoc: FileAttachment[];
@@ -204,7 +209,7 @@ const EMPTY_FORM: ProductForm = {
   fabricId: "", fabricName: "", hasLining: false, liningFabricId: "", liningFabricName: "",
   unitLength: "", unitWidth: "", unitType: "",
   orderIssueDate: "", deliveryDate: "", targetHours: "", issuedTo: "", department: "",
-  refDocs: [], refImages: [],
+  refDocs: [], refImages: [], videos: [],
   patternType: "", patternMakingCost: "", patternDoc: [], patternOuthouseDoc: [],
   patternVendorId: "", patternVendorName: "", patternPaymentType: "",
   patternPaymentMode: "", patternPaymentStatus: "Pending", patternPaymentAmount: "",
@@ -232,6 +237,7 @@ function recordToForm(r: StyleOrderProductRecord): ProductForm {
     department: r.department ?? "",
     refDocs: r.refDocs ?? [],
     refImages: r.refImages ?? [],
+    videos: r.videos ?? [],
     patternType: (r.patternType ?? "") as "Inhouse" | "Outhouse" | "",
     patternMakingCost: r.patternMakingCost ?? "",
     patternDoc: r.patternDoc ?? [],
@@ -747,9 +753,10 @@ export default function ProductsTab({
           icon={<FileText className="h-4 w-4 text-[#C9B45C]" />}
           accentColor="bg-gray-900"
           title="Attachments"
-          subtitle="Reference documents and images for this product"
+          subtitle="Reference documents, images and videos for this product"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Row 1: Documents + Images */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <Field label="Reference Documents">
               <FileUploadZone
                 files={form.refDocs}
@@ -759,7 +766,7 @@ export default function ProductsTab({
                 label="Upload Documents"
               />
             </Field>
-            <Field label="Reference Images">
+            <Field label="Images">
               <FileUploadZone
                 files={form.refImages}
                 onChange={f => set("refImages", f)}
@@ -769,6 +776,17 @@ export default function ProductsTab({
               />
             </Field>
           </div>
+          <div className="border-t border-gray-100 mb-6" />
+          {/* Row 2: Videos */}
+          <Field label="Videos">
+            <FileUploadZone
+              files={form.videos}
+              onChange={f => set("videos", f)}
+              accept="video/*"
+              icon={<Video className="h-4 w-4" />}
+              label="Upload Videos"
+            />
+          </Field>
         </SectionCard>
 
         {/* Bottom save bar */}

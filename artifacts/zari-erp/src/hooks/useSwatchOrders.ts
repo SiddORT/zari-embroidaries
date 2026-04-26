@@ -35,6 +35,10 @@ export type SwatchOrderRecord = {
   clientInstructions: string | null;
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  wipImages: FileAttachment[];
+  finalImages: FileAttachment[];
+  wipVideos: FileAttachment[];
+  finalVideos: FileAttachment[];
   actualStartDate: string | null;
   actualStartTime: string | null;
   tentativeDeliveryDate: string | null;

@@ -54,6 +54,7 @@ export type StyleOrderArtworkRecord = {
   refImages: FileAttachment[];
   wipImages: FileAttachment[];
   finalImages: FileAttachment[];
+  videos: FileAttachment[];
   isDeleted: boolean;
   createdBy: string;
   createdAt: string;

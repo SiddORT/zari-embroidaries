@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Loader2, ChevronDown,
   User, CalendarDays, MessageSquare, CheckCircle2,
-  Layers, Paperclip, Plus, X, FileText, Image as ImageIcon,
+  Layers, Paperclip, Plus, X, FileText, Image as ImageIcon, Video,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -107,6 +107,10 @@ type FormState = {
   swatchReferences: ReferenceItem[];
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  wipImages: FileAttachment[];
+  finalImages: FileAttachment[];
+  wipVideos: FileAttachment[];
+  finalVideos: FileAttachment[];
   estimate: EstimateItem[];
   actualStartDate: string;
   actualStartTime: string;
@@ -126,6 +130,8 @@ const EMPTY_FORM: FormState = {
   internalNotes: "", clientInstructions: "", isChargeable: false, isInhouse: false,
   styleReferences: [], swatchReferences: [],
   refDocs: [], refImages: [],
+  wipImages: [], finalImages: [],
+  wipVideos: [], finalVideos: [],
   estimate: makeDefaultEstimate(),
   actualStartDate: "", actualStartTime: "",
   tentativeDeliveryDate: "", actualCompletionDate: "",
@@ -185,6 +191,10 @@ function FileUploadZone({ files, onChange, accept, icon, label }: {
             <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
               {f.type.startsWith("image/") ? (
                 <img src={f.data} alt={f.name} className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0" />
+              ) : f.type.startsWith("video/") ? (
+                <div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                  <Video className="h-5 w-5 text-[#C9B45C]" />
+                </div>
               ) : (
                 <div className="h-8 w-8 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 shrink-0">
                   <FileText className="h-4 w-4" />
@@ -339,6 +349,10 @@ export default function StyleOrderDetail() {
         swatchReferences: o.swatchReferences ?? [],
         refDocs: o.refDocs ?? [],
         refImages: o.refImages ?? [],
+        wipImages: (o.wipImages as FileAttachment[]) ?? [],
+        finalImages: (o.finalImages as FileAttachment[]) ?? [],
+        wipVideos: (o.wipVideos as FileAttachment[]) ?? [],
+        finalVideos: (o.finalVideos as FileAttachment[]) ?? [],
         estimate: (() => {
           const saved = (o.estimate ?? []) as EstimateItem[];
           const defaults = makeDefaultEstimate();
@@ -785,8 +799,9 @@ export default function StyleOrderDetail() {
             </SectionCard>
 
             <SectionCard icon={<Paperclip className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-              title="Attachments" subtitle="Upload reference documents and images">
-              <div className="grid grid-cols-2 gap-6">
+              title="Attachments" subtitle="Reference documents, WIP and final images & videos">
+              {/* Row 1: Reference Docs + Reference Images */}
+              <div className="grid grid-cols-2 gap-6 mb-6">
                 <Field label="Reference Documents">
                   <FileUploadZone
                     files={form.refDocs} onChange={files => set("refDocs", files)}
@@ -801,6 +816,50 @@ export default function StyleOrderDetail() {
                     accept="image/*"
                     icon={<ImageIcon className="h-5 w-5" />}
                     label="Upload Images"
+                  />
+                </Field>
+              </div>
+              {/* Divider */}
+              <div className="border-t border-gray-100 mb-6" />
+              {/* Row 2: WIP Images + WIP Videos */}
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Work In Progress</p>
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                <Field label="WIP Images">
+                  <FileUploadZone
+                    files={form.wipImages} onChange={files => set("wipImages", files)}
+                    accept="image/*"
+                    icon={<ImageIcon className="h-5 w-5" />}
+                    label="Upload WIP Images"
+                  />
+                </Field>
+                <Field label="WIP Videos">
+                  <FileUploadZone
+                    files={form.wipVideos} onChange={files => set("wipVideos", files)}
+                    accept="video/*"
+                    icon={<Video className="h-5 w-5" />}
+                    label="Upload WIP Videos"
+                  />
+                </Field>
+              </div>
+              {/* Divider */}
+              <div className="border-t border-gray-100 mb-6" />
+              {/* Row 3: Final Images + Final Videos */}
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Final / Approved</p>
+              <div className="grid grid-cols-2 gap-6">
+                <Field label="Final Images">
+                  <FileUploadZone
+                    files={form.finalImages} onChange={files => set("finalImages", files)}
+                    accept="image/*"
+                    icon={<ImageIcon className="h-5 w-5" />}
+                    label="Upload Final Images"
+                  />
+                </Field>
+                <Field label="Final Videos">
+                  <FileUploadZone
+                    files={form.finalVideos} onChange={files => set("finalVideos", files)}
+                    accept="video/*"
+                    icon={<Video className="h-5 w-5" />}
+                    label="Upload Final Videos"
                   />
                 </Field>
               </div>

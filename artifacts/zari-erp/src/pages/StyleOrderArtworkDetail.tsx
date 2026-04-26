@@ -3,7 +3,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 import {
   ArrowLeft, Save, Info, Upload, X, FileText, Image as ImageIcon,
   Palette, Ruler, Settings2, MessageSquare, Loader2, CheckCircle2, Package,
-  Scissors, Layout,
+  Scissors, Layout, Video,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
@@ -113,11 +113,15 @@ function FileUploadZone({ files, onChange, accept, icon, label, onImageClick, re
         <div className="mt-2 space-y-2">
           {files.map((f, i) => (
             <div key={i} className="flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
-              {f.type.startsWith("image/") && (
+              {f.type.startsWith("image/") ? (
                 <img src={f.data} alt={f.name}
                   className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
                   onClick={() => onImageClick?.(imageIndices.indexOf(i))} />
-              )}
+              ) : f.type.startsWith("video/") ? (
+                <div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                  <Video className="h-5 w-5 text-[#C9B45C]" />
+                </div>
+              ) : null}
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
                 <span className="text-xs font-medium text-gray-700 truncate">{f.name}</span>
                 <span className="text-xs text-gray-400">{(f.size / 1024).toFixed(0)} KB</span>
@@ -151,6 +155,7 @@ type FormState = {
   feedbackStatus: string;
   files: FileAttachment[]; refImages: FileAttachment[];
   wipImages: FileAttachment[]; finalImages: FileAttachment[];
+  videos: FileAttachment[];
 };
 
 const EMPTY_FORM: FormState = {
@@ -161,7 +166,7 @@ const EMPTY_FORM: FormState = {
   outsourcePaymentAmount: "", outsourcePaymentMode: "", outsourceTransactionId: "",
   outsourcePaymentStatus: "Pending",
   feedbackStatus: "Pending",
-  files: [], refImages: [], wipImages: [], finalImages: [],
+  files: [], refImages: [], wipImages: [], finalImages: [], videos: [],
 };
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -234,6 +239,7 @@ export default function StyleOrderArtworkDetail() {
         refImages:             (a.refImages ?? []) as FileAttachment[],
         wipImages:             (a.wipImages ?? []) as FileAttachment[],
         finalImages:           (a.finalImages ?? []) as FileAttachment[],
+        videos:                (a.videos ?? []) as FileAttachment[],
       });
     }
   }, [artworkData]);
@@ -563,37 +569,29 @@ export default function StyleOrderArtworkDetail() {
 
           {/* Files & Images */}
           <SectionCard icon={<Upload className="h-4 w-4 text-[#C9B45C]" />}
-            title="Files & Images" subtitle="Reference files and images">
-            <div className="grid grid-cols-2 gap-6">
+            title="Media" subtitle="Reference files, images and videos">
+            {/* Row 1: Docs + Images */}
+            <div className="grid grid-cols-2 gap-6 mb-6">
               <Field label="Reference Files">
                 <FileUploadZone files={form.files} onChange={f => set("files", f)}
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
                   icon={<FileText className="h-5 w-5" />} label="Upload Files"
                   readOnly={isViewMode} />
               </Field>
-              <Field label="Reference Images">
+              <Field label="Images">
                 <FileUploadZone files={form.refImages} onChange={f => set("refImages", f)}
                   accept="image/*" icon={<ImageIcon className="h-5 w-5" />} label="Upload Images"
                   readOnly={isViewMode}
                   onImageClick={i => setLightbox({ images: form.refImages.filter(x => x.type.startsWith("image/")), index: i })} />
               </Field>
             </div>
-          </SectionCard>
-
-          {/* WIP Images */}
-          <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />}
-            title="WIP Images" subtitle="Work-in-progress photos">
-            <FileUploadZone files={form.wipImages} onChange={f => set("wipImages", f)}
-              accept="image/*" icon={<ImageIcon className="h-5 w-5" />} label="Upload WIP Images"
-              onImageClick={i => setLightbox({ images: form.wipImages, index: i })} />
-          </SectionCard>
-
-          {/* Final Images */}
-          <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />}
-            title="Final Images" subtitle="Completed artwork photos">
-            <FileUploadZone files={form.finalImages} onChange={f => set("finalImages", f)}
-              accept="image/*" icon={<ImageIcon className="h-5 w-5" />} label="Upload Final Images"
-              onImageClick={i => setLightbox({ images: form.finalImages, index: i })} />
+            {/* Row 2: Videos */}
+            <div className="border-t border-gray-100 mb-6" />
+            <Field label="Videos">
+              <FileUploadZone files={form.videos} onChange={f => set("videos", f)}
+                accept="video/*" icon={<Video className="h-5 w-5" />} label="Upload Videos"
+                readOnly={isViewMode} />
+            </Field>
           </SectionCard>
 
           {/* Bottom save bar */}

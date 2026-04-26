@@ -30,6 +30,7 @@ export interface StyleOrderProductRecord {
   department: string | null;
   refDocs: FileAttachment[];
   refImages: FileAttachment[];
+  videos: FileAttachment[];
   patternType: string | null;
   patternMakingCost: string | null;
   patternDoc: FileAttachment[];

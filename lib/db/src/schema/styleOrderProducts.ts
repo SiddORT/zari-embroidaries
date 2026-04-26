@@ -27,6 +27,7 @@ export const styleOrderProductsTable = pgTable("style_order_products", {
 
   refDocs: jsonb("ref_docs").default([]),
   refImages: jsonb("ref_images").default([]),
+  videos: jsonb("videos").default([]),
 
   patternType: text("pattern_type"),
   patternMakingCost: text("pattern_making_cost"),
@@ -79,6 +80,7 @@ export const insertStyleOrderProductSchema = z.object({
   department: z.string().optional(),
   refDocs: z.array(fileAttachmentSchema).default([]),
   refImages: z.array(fileAttachmentSchema).default([]),
+  videos: z.array(fileAttachmentSchema).default([]),
   patternType: z.string().optional(),
   patternMakingCost: z.string().optional(),
   patternDoc: z.array(fileAttachmentSchema).default([]),
