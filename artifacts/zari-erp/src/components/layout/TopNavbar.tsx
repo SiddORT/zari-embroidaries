@@ -20,7 +20,7 @@ const MASTERS_ITEMS = [
   { label: "Swatch",            href: "/masters/swatches" },
   { label: "Style",             href: "/masters/styles" },
   { label: "Item Types",        href: "/masters/item-types" },
-  { label: "Item Master",       href: "/masters/packaging-materials" },
+  { label: "Item Master",       href: "/masters/items" },
   { label: "Shipping Vendors",  href: "/masters/shipping-vendors" },
 ];
 
