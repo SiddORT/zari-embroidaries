@@ -35,7 +35,7 @@ The project is structured as a pnpm monorepo using TypeScript, targeting Node.js
 - **File Uploads**: Features a modular storage abstraction layer with interchangeable drivers (local disk, with S3 stub for future integration). Files are organized into a structured folder layout based on entity and category.
 
 ### Feature Specifications
-- **Master Data Management**: Full CRUD operations for HSN, Materials, and Fabrics, including auto-generated codes and status toggles.
+- **Master Data Management**: Full CRUD operations for HSN, Materials, and Fabrics, including auto-generated codes and status toggles. Swatch Category Master and Style Category Master include bulk import (Download Sample Excel / Upload Excel), export-all (respects search + status filters, Active/Inactive labels, DD-MM-YYYY HH:mm:ss dates), regex validation (letters and spaces only, max 100 chars), real-time char counter, save button disabled until valid, and duplicate-check on create/edit.
 - **Procurement Module**: Unified Purchase Order (PO) to Purchase Receipt (PR) workflow, including detailed item tracking, status transitions, and integration with inventory.
 - **Quotation Module**: Comprehensive quotation management with unique numbering, client details, design attachments, custom charges, GST logic, status workflow (Draft → Sent → Client Reviewing → Approved/Rejected/Revised), feedback logging, and conversion to Swatch or Style orders.
 

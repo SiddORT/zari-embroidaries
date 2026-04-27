@@ -9,6 +9,12 @@ export type StyleCategoryRecord = {
 export type StyleCategoryFormData = { categoryName: string; isActive: boolean };
 export type StatusFilter = "all" | "active" | "inactive";
 
+export interface CategoryImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; name: string; error: string }[];
+}
+
 const BASE = "/api/style-categories";
 const QK = "style-categories";
 
@@ -23,6 +29,12 @@ export function useStyleCategoryList(p: { search: string; status: StatusFilter; 
 
 export function useAllStyleCategories() {
   return useQuery({ queryKey: [QK, "all"], queryFn: () => customFetch<StyleCategoryRecord[]>(`${BASE}/all`) });
+}
+
+export async function fetchAllStyleCategoriesForExport(search: string, status: StatusFilter): Promise<StyleCategoryRecord[]> {
+  const qs = new URLSearchParams({ search, status }).toString();
+  const result = await customFetch<{ data: StyleCategoryRecord[] }>(`${BASE}/export-all?${qs}`);
+  return result.data;
 }
 
 export function useCreateStyleCategory() {
@@ -54,6 +66,15 @@ export function useDeleteStyleCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useImportStyleCategories() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: { categoryName: string }[]) =>
+      customFetch<CategoryImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify(rows) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

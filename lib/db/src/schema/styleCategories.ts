@@ -14,8 +14,15 @@ export const styleCategoriesTable = pgTable("style_categories", {
 
 export type StyleCategoryRecord = typeof styleCategoriesTable.$inferSelect;
 
+const CATEGORY_NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+
 export const insertStyleCategorySchema = z.object({
-  categoryName: z.string().min(1, "Category Name is required"),
+  categoryName: z
+    .string()
+    .trim()
+    .min(1, "Category Name is required.")
+    .max(100, "Category Name must be 100 characters or fewer.")
+    .regex(CATEGORY_NAME_REGEX, "Category Name must contain only letters and spaces (max 100 characters)."),
   isActive: z.boolean().default(true),
 });
 

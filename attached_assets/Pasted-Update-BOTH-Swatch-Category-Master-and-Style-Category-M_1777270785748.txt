@@ -1,0 +1,123 @@
+Update BOTH Swatch Category Master and Style Category Master modules with the following validation rules and Excel export corrections.
+
+MODULES:
+- Swatch Category Master
+- Style Category Master
+
+Apply the same logic consistently across both modules.
+
+----------------------------------------
+1. Category Name Field Validation
+----------------------------------------
+
+Validation Rules:
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Trim leading and trailing spaces automatically
+- Prevent multiple consecutive spaces
+- Maximum length: 100 characters
+
+Apply regex validation:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+"Category Name must contain only letters and spaces (max 100 characters)."
+
+Disable Save button if validation fails.
+
+----------------------------------------
+2. Prevent Unlimited Text Entry
+----------------------------------------
+
+- Enforce max length: 100 characters (frontend + backend)
+- Add live character counter
+
+Example:
+"32 / 100 characters used"
+
+----------------------------------------
+3. Duplicate Category Name Prevention
+----------------------------------------
+
+- Category Name must be unique
+- Prevent duplicate entry during Create and Edit
+
+Validation message:
+"Category Name already exists."
+
+----------------------------------------
+4. Excel Export Only Exporting First 10 Records
+----------------------------------------
+
+Fix export pagination issue.
+
+Expected behavior:
+- Export ALL filtered records
+- Not just currently visible records
+
+Update backend export query to fetch complete dataset before generating Excel file.
+
+----------------------------------------
+5. Excel Export Status Column Issue
+----------------------------------------
+
+Replace boolean values:
+
+True  → Active
+False → Inactive
+
+Apply change in BOTH modules.
+
+----------------------------------------
+6. Missing "Updated By" and "Updated At" in Excel Export
+----------------------------------------
+
+Add following columns to export:
+
+- Created By
+- Created At
+- Updated By
+- Updated At
+
+Date format:
+
+DD-MM-YYYY HH:mm:ss
+
+If Updated fields are empty:
+leave blank (do not show null)
+
+----------------------------------------
+7. Backend Validation (Required)
+----------------------------------------
+
+Ensure server-side validation includes:
+
+- alphabet-only category name
+- no numbers allowed
+- no special characters
+- no emojis
+- max length enforcement (100)
+- uniqueness validation
+
+Return structured validation errors in JSON format.
+
+----------------------------------------
+8. UI Improvements
+----------------------------------------
+
+Apply to both modules:
+
+- Trim input before submission
+- Show inline validation message under field
+- Disable Save button until validation passes
+- Show success message after save/update:
+
+"Category saved successfully."
+
+Ensure validation works in:
+
+- Create mode
+- Edit mode
+- Bulk import (if applicable)

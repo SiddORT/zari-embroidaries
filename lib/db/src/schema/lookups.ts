@@ -71,8 +71,15 @@ export type FabricType = typeof fabricTypesTable.$inferSelect;
 export type Department = typeof departmentsTable.$inferSelect;
 export type SwatchCategory = typeof swatchCategoriesTable.$inferSelect;
 
+const CATEGORY_NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+
 export const insertSwatchCategorySchema = z.object({
-  name: z.string().min(1, "Category Name is required"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Category Name is required.")
+    .max(100, "Category Name must be 100 characters or fewer.")
+    .regex(CATEGORY_NAME_REGEX, "Category Name must contain only letters and spaces (max 100 characters)."),
   isActive: z.boolean().default(true),
 });
 

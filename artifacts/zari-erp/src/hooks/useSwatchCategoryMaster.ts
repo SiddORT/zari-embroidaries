@@ -9,6 +9,12 @@ export type SwatchCategoryRecord = {
 export type SwatchCategoryFormData = { name: string; isActive: boolean };
 export type StatusFilter = "all" | "active" | "inactive";
 
+export interface CategoryImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; name: string; error: string }[];
+}
+
 const BASE = "/api/swatch-categories";
 const QK = "swatch-categories-master";
 
@@ -19,6 +25,12 @@ export function useSwatchCategoryMasterList(p: { search: string; status: StatusF
       `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
     placeholderData: (prev) => prev,
   });
+}
+
+export async function fetchAllSwatchCategoriesForExport(search: string, status: StatusFilter): Promise<SwatchCategoryRecord[]> {
+  const qs = new URLSearchParams({ search, status }).toString();
+  const result = await customFetch<{ data: SwatchCategoryRecord[] }>(`${BASE}/export-all?${qs}`);
+  return result.data;
 }
 
 export function useCreateSwatchCategoryMaster() {
@@ -50,6 +62,15 @@ export function useDeleteSwatchCategoryMaster() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [QK] }); qc.invalidateQueries({ queryKey: ["lookups", "swatch-categories"] }); },
+  });
+}
+
+export function useImportSwatchCategories() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: { name: string }[]) =>
+      customFetch<CategoryImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify(rows) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: [QK] }); qc.invalidateQueries({ queryKey: ["lookups", "swatch-categories"] }); },
   });
 }
