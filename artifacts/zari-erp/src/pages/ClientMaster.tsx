@@ -158,6 +158,13 @@ export default function ClientMaster() {
         "Alternate Contact No": "",
         "Country": "India",
         "Invoice Currency": "INR",
+        "Address Type": "Billing Address",
+        "Address Line 1": "12 MG Road",
+        "Address Line 2": "Bandra West",
+        "Pincode": "400050",
+        "City": "Mumbai",
+        "State": "Maharashtra",
+        "Address Country": "India",
       },
       {
         "Brand / Client Name": "Global Threads",
@@ -168,12 +175,21 @@ export default function ClientMaster() {
         "Alternate Contact No": "",
         "Country": "United States",
         "Invoice Currency": "USD",
+        "Address Type": "Billing Address",
+        "Address Line 1": "500 Fashion Ave",
+        "Address Line 2": "Suite 12",
+        "Pincode": "10018",
+        "City": "New York",
+        "State": "New York",
+        "Address Country": "United States",
       },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleData);
     ws["!cols"] = [
       { wch: 25 }, { wch: 20 }, { wch: 30 }, { wch: 30 },
       { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 16 },
+      { wch: 18 }, { wch: 28 }, { wch: 22 }, { wch: 10 },
+      { wch: 16 }, { wch: 16 }, { wch: 18 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Clients_Sample");
@@ -191,16 +207,47 @@ export default function ClientMaster() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
 
-      const mapped = rows.map((row) => ({
-        brandName: String(row["Brand / Client Name"] ?? row["brandName"] ?? "").trim(),
-        contactName: String(row["Contact Name"] ?? row["contactName"] ?? "").trim(),
-        email: String(row["Email"] ?? row["email"] ?? "").trim(),
-        altEmail: String(row["Alternate Email"] ?? row["altEmail"] ?? "").trim() || undefined,
-        contactNo: String(row["Contact No"] ?? row["contactNo"] ?? "").trim(),
-        altContactNo: String(row["Alternate Contact No"] ?? row["altContactNo"] ?? "").trim() || undefined,
-        country: String(row["Country"] ?? row["country"] ?? "").trim() || undefined,
-        invoiceCurrency: String(row["Invoice Currency"] ?? row["invoiceCurrency"] ?? "").trim() || undefined,
-      }));
+      const mapped = rows.map((row) => {
+        const contactName = String(row["Contact Name"] ?? row["contactName"] ?? "").trim();
+        const contactNo = String(row["Contact No"] ?? row["contactNo"] ?? "").trim();
+        const country = String(row["Country"] ?? row["country"] ?? "").trim() || undefined;
+
+        const addrType = String(row["Address Type"] ?? "").trim();
+        const addr1 = String(row["Address Line 1"] ?? "").trim();
+        const addr2 = String(row["Address Line 2"] ?? "").trim();
+        const pincode = String(row["Pincode"] ?? "").trim();
+        const city = String(row["City"] ?? "").trim();
+        const state = String(row["State"] ?? "").trim();
+        const addrCountry = String(row["Address Country"] ?? "").trim() || country || "";
+
+        const hasAddr = !!(addr1 || addr2 || city || state || pincode);
+        const validTypes = ["Billing Address", "Delivery Address", "Other"];
+        const addresses = hasAddr ? [{
+          id: Math.random().toString(36).slice(2, 10),
+          type: validTypes.includes(addrType) ? addrType : "Billing Address",
+          name: contactName,
+          contactNo,
+          address1: addr1,
+          address2: addr2,
+          city,
+          state,
+          pincode,
+          country: addrCountry,
+          isBillingDefault: true,
+        }] : undefined;
+
+        return {
+          brandName: String(row["Brand / Client Name"] ?? row["brandName"] ?? "").trim(),
+          contactName,
+          email: String(row["Email"] ?? row["email"] ?? "").trim(),
+          altEmail: String(row["Alternate Email"] ?? row["altEmail"] ?? "").trim() || undefined,
+          contactNo,
+          altContactNo: String(row["Alternate Contact No"] ?? row["altContactNo"] ?? "").trim() || undefined,
+          country,
+          invoiceCurrency: String(row["Invoice Currency"] ?? row["invoiceCurrency"] ?? "").trim() || undefined,
+          addresses,
+        };
+      });
 
       const result = await importMutation.mutateAsync(mapped);
       toast({

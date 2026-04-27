@@ -47,6 +47,19 @@ export interface ClientImportRow {
   altContactNo?: string;
   country?: string;
   invoiceCurrency?: string;
+  addresses?: {
+    id: string;
+    type: string;
+    name: string;
+    contactNo: string;
+    address1: string;
+    address2: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+    isBillingDefault: boolean;
+  }[];
 }
 
 export interface ClientImportResult {

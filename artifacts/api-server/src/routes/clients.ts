@@ -173,6 +173,8 @@ router.post("/clients/import", requireAuth, async (req: AuthRequest, res): Promi
       .where(and(eq(clientsTable.isDeleted, false), ilike(clientsTable.brandName, brandName)));
     if (existing.length > 0) { errors.push({ row: rowNum, name: brandName, error: "Client already exists." }); skipped++; continue; }
 
+    const addresses = Array.isArray(row.addresses) && row.addresses.length > 0 ? row.addresses : undefined;
+
     const parsed = insertClientSchema.safeParse({
       brandName,
       contactName,
@@ -183,6 +185,7 @@ router.post("/clients/import", requireAuth, async (req: AuthRequest, res): Promi
       country: String(row.country ?? "").trim() || undefined,
       countryOfOrigin: String(row.country ?? "").trim() || undefined,
       invoiceCurrency: String(row.invoiceCurrency ?? "").trim() || undefined,
+      addresses,
       isActive: true,
     });
 
