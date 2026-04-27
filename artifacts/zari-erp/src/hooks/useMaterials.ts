@@ -8,6 +8,11 @@ export interface MasterImage {
   size: number;
 }
 
+export interface LocationStock {
+  location: string;
+  stock: string;
+}
+
 export interface MaterialRecord {
   id: number;
   materialCode: string;
@@ -22,6 +27,7 @@ export interface MaterialRecord {
   unitPrice: string;
   unitType: string;
   currentStock: string;
+  locationStocks: LocationStock[];
   hsnCode: string;
   gstPercent: string;
   vendor: string | null;
@@ -57,6 +63,7 @@ export interface MaterialFormData {
   unitPrice: string;
   unitType: string;
   currentStock: string;
+  locationStocks: LocationStock[];
   hsnCode: string;
   gstPercent: string;
   vendor?: string;
@@ -66,6 +73,19 @@ export interface MaterialFormData {
   reorderLevel?: string;
   minimumLevel?: string;
   maximumLevel?: string;
+}
+
+export interface MaterialImportRow {
+  row: number;
+  status: "success" | "error";
+  materialCode?: string;
+  errors?: string[];
+}
+
+export interface MaterialImportResult {
+  succeeded: number;
+  failed: number;
+  results: MaterialImportRow[];
 }
 
 export type StatusFilter = "all" | "active" | "inactive";
@@ -109,6 +129,23 @@ export function useAllMaterials() {
   });
 }
 
+export async function fetchAllMaterialsForExport(filters: {
+  search: string;
+  status: string;
+  hsnCode: string;
+  type: string;
+  vendor: string;
+}): Promise<MaterialRecord[]> {
+  const qs = new URLSearchParams({
+    search: filters.search,
+    status: filters.status,
+    hsnCode: filters.hsnCode,
+    type: filters.type,
+    vendor: filters.vendor,
+  }).toString();
+  return customFetch<MaterialRecord[]>(`/api/materials/export-all?${qs}`);
+}
+
 export function useCreateMaterial() {
   const qc = useQueryClient();
   return useMutation({
@@ -141,6 +178,18 @@ export function useDeleteMaterial() {
   return useMutation({
     mutationFn: (id: number) =>
       customFetch<{ message: string; record: MaterialRecord }>(`/api/materials/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["materials"] }),
+  });
+}
+
+export function useImportMaterials() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) =>
+      customFetch<MaterialImportResult>("/api/materials/import", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["materials"] }),
   });
 }

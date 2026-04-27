@@ -1,0 +1,294 @@
+Update the Materials Master module with proper validation rules, numeric restrictions, dropdown fixes, UI visibility corrections, vendor display fixes, code formatting standardization, and Excel export improvements.
+
+MODULE: MATERIALS MASTER
+
+--------------------------------------------------
+1. Item Type Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Reject blank-space-only input
+- Trim leading and trailing spaces
+- Prevent multiple consecutive spaces
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Item Type must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+2. Global Text Limit Enforcement (All Text Fields)
+--------------------------------------------------
+
+Apply max length limits:
+
+Item Type → 100 characters
+Quality → 100 characters
+Type → 100 characters
+Color Name → 100 characters
+Unit Type → 50 characters
+
+Show live character counter:
+
+Example:
+
+"32 / 100 characters used"
+
+--------------------------------------------------
+3. Quality Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Quality must contain only letters and spaces."
+
+--------------------------------------------------
+4. Type Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Type must contain only letters and spaces."
+
+--------------------------------------------------
+5. Color Name Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Color Name must contain only letters and spaces."
+
+--------------------------------------------------
+6. Size Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimals if applicable
+- Max length: 6 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Size must be a positive numeric value."
+
+--------------------------------------------------
+7. Unit Price Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimal values up to 2 places
+- Max length: 10 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Unit Price must be a positive numeric value."
+
+--------------------------------------------------
+8. Unit Type Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Reject blank-space-only input
+- Max length: 50 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Unit Type must contain only letters."
+
+--------------------------------------------------
+9. Current Stock Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimals if applicable
+- Max length: 10 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Current Stock must be a positive numeric value."
+
+--------------------------------------------------
+10. Vendor Dropdown Text Overflow Issue
+--------------------------------------------------
+
+Fix UI issue where Vendor name appears outside dropdown box.
+
+Expected behavior:
+
+- Vendor text stays inside dropdown
+- Apply text wrapping or ellipsis
+- Tooltip shows full vendor name on hover
+
+--------------------------------------------------
+11. Vendor & Location Search Text Visibility Issue
+--------------------------------------------------
+
+Improve dropdown search text visibility:
+
+- Increase contrast
+- Ensure readable placeholder text
+- Ensure typed search text visible
+- Works correctly in light and dark themes
+
+--------------------------------------------------
+12. Vendor Name Missing in List View
+--------------------------------------------------
+
+Fix list grid configuration:
+
+Ensure Vendor Name column:
+
+- properly mapped
+- visible in list view
+- fetched from backend response correctly
+
+Expected behavior:
+
+Vendor Name always visible in materials list.
+
+--------------------------------------------------
+13. Material Code Format Standardization
+--------------------------------------------------
+
+Material Code must:
+
+- Follow consistent format example:
+  MAT001, MAT002, MAT003
+- Be auto-generated sequentially
+- Be uppercase only
+- Not editable manually
+
+Prevent mixed formats such as:
+
+mat-01
+Material1
+M001A
+
+Tooltip:
+
+"Material Code is auto-generated."
+
+--------------------------------------------------
+14. Excel Export Only Exporting First 10 Records
+--------------------------------------------------
+
+Fix pagination export issue.
+
+Expected behavior:
+
+Export ALL filtered records
+Not only visible page records
+
+Update backend export query accordingly.
+
+--------------------------------------------------
+15. Excel Export Status Column Issue
+--------------------------------------------------
+
+Replace boolean values:
+
+True → Active
+False → Inactive
+
+--------------------------------------------------
+16. Backend Validation (Required)
+--------------------------------------------------
+
+Ensure server-side validation includes:
+
+- alphabet-only validation (Item Type, Quality, Type, Color Name, Unit Type)
+- numeric-only validation (Size, Unit Price, Current Stock)
+- rejection of negative values
+- rejection of scientific notation ("e")
+- rejection of blank-space-only input
+- max length enforcement
+- dropdown value validation
+- vendor mapping validation
+
+Return structured validation errors in JSON format.
+
+--------------------------------------------------
+17. UI Improvements
+--------------------------------------------------
+
+Apply across Materials Master module:
+
+- Inline validation messages below fields
+- Disable Save button until validation passes
+- Trim all inputs before submission
+- Show success message after save:
+
+"Material created successfully."
+
+Show success message after update:
+
+"Material updated successfully."
