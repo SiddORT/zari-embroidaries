@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save } from "lucide-react";
+import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, FileDown, FileUp, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,7 +12,6 @@ import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
 import StatusToggle from "@/components/master/StatusToggle";
-import ExportExcelButton, { type ExportColumn } from "@/components/master/ExportExcelButton";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AddableSelect from "@/components/ui/AddableSelect";
@@ -23,8 +23,12 @@ import {
   useUpdateFabric,
   useToggleFabricStatus,
   useDeleteFabric,
+  useImportFabrics,
+  fetchAllFabricsForExport,
   type FabricRecord,
   type FabricFormData,
+  type FabricImportRow,
+  type FabricImportResult,
   type MasterImage,
   type StatusFilter,
 } from "@/hooks/useFabrics";
@@ -143,6 +147,7 @@ export default function FabricMaster() {
   const updateMutation = useUpdateFabric();
   const toggleMutation = useToggleFabricStatus();
   const deleteMutation = useDeleteFabric();
+  const importMutation = useImportFabrics();
 
   const { data: fabricTypes = [] } = useFabricTypes();
   const { data: widthUnitTypes = [] } = useWidthUnitTypes();
@@ -165,8 +170,24 @@ export default function FabricMaster() {
   const [form, setForm] = useState<FabricFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<FabricRecord | null>(null);
+  const [confirmToggleTarget, setConfirmToggleTarget] = useState<FabricRecord | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const imgInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) {
+        setImportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const [addFabricTypeOpen, setAddFabricTypeOpen] = useState(false);
   const [newFabricTypeName, setNewFabricTypeName] = useState("");
@@ -230,15 +251,29 @@ export default function FabricMaster() {
   };
   const totalStock = form.locationStocks.reduce((sum, ls) => sum + (parseFloat(ls.stock) || 0), 0);
 
+  const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+  const NUMERIC_REGEX = /^[0-9]+(\.[0-9]{1,2})?$/;
+
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!form.fabricType.trim()) e.fabricType = "Fabric Type is required";
-    if (!form.quality.trim()) e.quality = "Quality is required";
-    if (!form.colorName.trim()) e.colorName = "Color Name is required";
-    if (!form.width.trim()) e.width = "Width is required";
-    if (!form.widthUnitType) e.widthUnitType = "Width Unit Type is required";
-    if (!form.pricePerMeter.trim()) e.pricePerMeter = "Price Per Meter is required";
-    if (!form.hsnCode) e.hsnCode = "HSN Code is required";
+    const ft = form.fabricType.trim();
+    const q = form.quality.trim();
+    const cn = form.colorName.trim();
+    const w = form.width.trim();
+    const pm = form.pricePerMeter.trim();
+
+    if (!ft) e.fabricType = "Fabric Type is required.";
+    else if (!NAME_REGEX.test(ft) || ft.length > 100) e.fabricType = "Fabric Type must contain only letters and spaces (max 100 characters).";
+    if (!q) e.quality = "Quality is required.";
+    else if (!NAME_REGEX.test(q) || q.length > 100) e.quality = "Quality must contain only letters and spaces (max 100 characters).";
+    if (!cn) e.colorName = "Color Name is required.";
+    else if (!NAME_REGEX.test(cn) || cn.length > 100) e.colorName = "Color Name must contain only letters and spaces (max 100 characters).";
+    if (!w) e.width = "Width is required.";
+    else if (!NUMERIC_REGEX.test(w) || parseFloat(w) <= 0) e.width = "Width must be a positive numeric value.";
+    if (!form.widthUnitType) e.widthUnitType = "Width Unit Type is required.";
+    if (!pm) e.pricePerMeter = "Price Per Meter is required.";
+    else if (!NUMERIC_REGEX.test(pm) || parseFloat(pm) <= 0) e.pricePerMeter = "Price must be a positive numeric value.";
+    if (!form.hsnCode) e.hsnCode = "HSN Code is required.";
     const rl = form.reorderLevel ? parseFloat(form.reorderLevel) : null;
     const mn = form.minimumLevel ? parseFloat(form.minimumLevel) : null;
     const mx = form.maximumLevel ? parseFloat(form.maximumLevel) : null;
@@ -260,16 +295,21 @@ export default function FabricMaster() {
     const computedLocation = form.locationStocks.map(ls => ls.location).filter(Boolean).join(", ") || undefined;
     const submitData: FabricFormData = {
       ...form,
+      fabricType: form.fabricType.trim(),
+      quality: form.quality.trim(),
+      colorName: form.colorName.trim(),
+      width: form.width.trim(),
+      pricePerMeter: form.pricePerMeter.trim(),
       currentStock: computedStock || "0",
       location: computedLocation,
     };
     try {
       if (editRecord) {
         await updateMutation.mutateAsync({ id: editRecord.id, data: submitData });
-        toast({ title: "Updated", description: `Fabric ${editRecord.fabricCode} updated.` });
+        toast({ title: "Updated", description: `Fabric ${editRecord.fabricCode} updated successfully.` });
       } else {
         await createMutation.mutateAsync(submitData);
-        toast({ title: "Created", description: "New fabric created successfully." });
+        toast({ title: "Created", description: "Fabric created successfully." });
       }
       setViewMode("list");
     } catch (err: unknown) {
@@ -278,10 +318,12 @@ export default function FabricMaster() {
     }
   };
 
-  const handleToggle = async (r: FabricRecord) => {
+  const handleToggleConfirmed = async () => {
+    if (!confirmToggleTarget) return;
     try {
-      await toggleMutation.mutateAsync(r.id);
-      toast({ title: "Status Updated", description: `${r.fabricCode} is now ${r.isActive ? "Inactive" : "Active"}.` });
+      await toggleMutation.mutateAsync(confirmToggleTarget.id);
+      toast({ title: "Status Updated", description: `${confirmToggleTarget.fabricCode} is now ${confirmToggleTarget.isActive ? "Inactive" : "Active"}.` });
+      setConfirmToggleTarget(null);
     } catch { toast({ title: "Error", description: "Failed to update status.", variant: "destructive" }); }
   };
 
@@ -295,21 +337,108 @@ export default function FabricMaster() {
   };
 
   const handleAddFabricType = async () => {
-    if (!newFabricTypeName.trim()) return;
+    const val = newFabricTypeName.trim();
+    if (!val) { toast({ title: "Validation Error", description: "Fabric Type cannot be empty.", variant: "destructive" }); return; }
+    if (!NAME_REGEX.test(val) || val.length > 100) { toast({ title: "Validation Error", description: "Fabric Type must contain only letters and spaces (max 100 characters).", variant: "destructive" }); return; }
     try {
-      await createFabricType.mutateAsync({ name: newFabricTypeName.trim(), isActive: true });
-      setForm((f) => ({ ...f, fabricType: newFabricTypeName.trim() }));
+      await createFabricType.mutateAsync({ name: val, isActive: true });
+      setForm((f) => ({ ...f, fabricType: val }));
       setNewFabricTypeName(""); setAddFabricTypeOpen(false);
     } catch { toast({ title: "Error", description: "Failed to add fabric type.", variant: "destructive" }); }
   };
 
   const handleAddWidthUnitType = async () => {
-    if (!newWidthUnitTypeName.trim()) return;
+    const val = newWidthUnitTypeName.trim();
+    if (!val) { toast({ title: "Validation Error", description: "Width Unit Type cannot be empty.", variant: "destructive" }); return; }
+    if (!NAME_REGEX.test(val) || val.length > 50) { toast({ title: "Validation Error", description: "Width Unit Type must contain only letters (max 50 characters).", variant: "destructive" }); return; }
     try {
-      await createWidthUnitType.mutateAsync({ name: newWidthUnitTypeName.trim(), isActive: true });
-      setForm((f) => ({ ...f, widthUnitType: newWidthUnitTypeName.trim() }));
+      await createWidthUnitType.mutateAsync({ name: val, isActive: true });
+      setForm((f) => ({ ...f, widthUnitType: val }));
       setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(false);
     } catch { toast({ title: "Error", description: "Failed to add width unit type.", variant: "destructive" }); }
+  };
+
+  const downloadSample = () => {
+    const sampleRows = [
+      { "Fabric Type": "Cotton", "Quality": "Super Fine", "Color Name": "Ivory White", "Color Hex": "#FFFFF0", "Width": "44", "Height": "", "Width Unit Type": "Inch", "Unit Type": "Meter", "Price Per Meter": "180.00", "HSN Code": "52081100", "GST %": "5", "Vendor": "" },
+      { "Fabric Type": "Silk", "Quality": "Premium", "Color Name": "Royal Blue", "Color Hex": "#4169E1", "Width": "36", "Height": "", "Width Unit Type": "Inch", "Unit Type": "Meter", "Price Per Meter": "650.00", "HSN Code": "50072000", "GST %": "5", "Vendor": "" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Fabrics");
+    XLSX.writeFile(wb, "Fabric_Import_Sample.xlsx");
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImportLoading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+      const rows: FabricImportRow[] = raw.map((r) => ({
+        fabricType: String(r["Fabric Type"] ?? "").trim(),
+        quality: String(r["Quality"] ?? "").trim(),
+        colorName: String(r["Color Name"] ?? "").trim(),
+        hexCode: String(r["Color Hex"] ?? "").trim() || undefined,
+        width: String(r["Width"] ?? "").trim(),
+        height: String(r["Height"] ?? "").trim() || undefined,
+        widthUnitType: String(r["Width Unit Type"] ?? "").trim(),
+        unitType: String(r["Unit Type"] ?? "").trim() || undefined,
+        pricePerMeter: String(r["Price Per Meter"] ?? "").trim(),
+        hsnCode: String(r["HSN Code"] ?? "").trim(),
+        gstPercent: String(r["GST %"] ?? "").trim() || undefined,
+        vendor: String(r["Vendor"] ?? "").trim() || undefined,
+      }));
+      if (rows.length === 0) { toast({ title: "Empty File", description: "No data rows found in the file.", variant: "destructive" }); return; }
+      const importRaw = await importMutation.mutateAsync(rows);
+      const result = (importRaw as unknown) as FabricImportResult;
+      const hasErrors = result.errors.length > 0;
+      toast({
+        title: hasErrors ? `Imported with errors` : "Import Successful",
+        description: `${result.imported} imported, ${result.skipped} skipped.${hasErrors ? " Check console for row errors." : ""}`,
+        variant: hasErrors ? "destructive" : "default",
+      });
+      if (hasErrors) console.warn("Import row errors:", result.errors);
+    } catch (err: unknown) {
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? "Import failed.";
+      toast({ title: "Import Error", description: msg, variant: "destructive" });
+    } finally {
+      setImportLoading(false);
+      setImportMenuOpen(false);
+    }
+  };
+
+  const handleExportAll = async () => {
+    setExportLoading(true);
+    try {
+      const result = await fetchAllFabricsForExport({
+        search: debouncedSearch, status: statusFilter,
+        fabricType: fabricTypeFilter, vendor: vendorFilter, hsnCode: hsnCodeFilter,
+      });
+      const exRows = result.data.map((r) => ({
+        Code: r.fabricCode, Type: r.fabricType, Quality: r.quality,
+        "Color Name": r.colorName, "Hex Code": r.hexCode ?? "",
+        Width: r.width, "Width Unit": r.widthUnitType,
+        "Price/Meter": r.pricePerMeter, "Unit Type": r.unitType,
+        "Current Stock": r.currentStock, "HSN Code": r.hsnCode,
+        "GST %": r.gstPercent, Vendor: r.vendor ?? "", Location: r.location ?? "",
+        Status: r.isActive ? "Active" : "Inactive",
+        "Created By": r.createdBy, "Created At": formatDate(r.createdAt),
+        "Updated By": r.updatedBy ?? "", "Updated At": formatDate(r.updatedAt),
+      }));
+      const ws = XLSX.utils.json_to_sheet(exRows);
+      const wb2 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb2, ws, "Fabrics");
+      XLSX.writeFile(wb2, "Fabric_Master.xlsx");
+    } catch {
+      toast({ title: "Export Error", description: "Failed to export fabrics.", variant: "destructive" });
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const validateHSN = (): boolean => {
@@ -389,7 +518,7 @@ export default function FabricMaster() {
     { key: "currentStock", label: "Current Stock", render: (r) => <span className="font-medium">{asFab(r).currentStock}</span> },
     {
       key: "isActive", label: "Status",
-      render: (r) => <StatusToggle isActive={asFab(r).isActive} onToggle={() => handleToggle(asFab(r))} loading={toggleMutation.isPending} />,
+      render: (r) => <StatusToggle isActive={asFab(r).isActive} onToggle={() => setConfirmToggleTarget(asFab(r))} loading={toggleMutation.isPending && confirmToggleTarget?.id === asFab(r).id} />,
     },
     { key: "createdBy", label: "Created By", render: (r) => <span className="text-gray-500">{asFab(r).createdBy}</span> },
     { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDate(asFab(r).createdAt)}</span> },
@@ -410,16 +539,6 @@ export default function FabricMaster() {
     },
   ];
 
-  const exportColumns: ExportColumn[] = [
-    { key: "fabricCode", label: "Code" }, { key: "fabricType", label: "Type" }, { key: "quality", label: "Quality" },
-    { key: "colorName", label: "Color Name" }, { key: "hexCode", label: "Hex Code" },
-    { key: "width", label: "Width" }, { key: "widthUnitType", label: "Width Unit" },
-    { key: "pricePerMeter", label: "Price/Meter" }, { key: "unitType", label: "Unit Type" },
-    { key: "currentStock", label: "Current Stock" }, { key: "hsnCode", label: "HSN Code" },
-    { key: "gstPercent", label: "GST %" }, { key: "vendor", label: "Vendor" }, { key: "location", label: "Location" },
-    { key: "isActive", label: "Status" }, { key: "createdBy", label: "Created By" }, { key: "createdAt", label: "Created At" },
-    { key: "updatedBy", label: "Updated By" }, { key: "updatedAt", label: "Updated At" },
-  ];
 
   const submitting = createMutation.isPending || updateMutation.isPending;
   if (!user) return null;
@@ -444,7 +563,46 @@ export default function FabricMaster() {
               <div className="flex-1">
                 <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
               </div>
-              <ExportExcelButton data={rows as Record<string, unknown>[]} filename="Fabric_Master" columns={exportColumns} disabled={isLoading} />
+              {/* Export All */}
+              <button
+                onClick={handleExportAll}
+                disabled={exportLoading || isLoading}
+                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                title="Export all matching records to Excel"
+              >
+                <FileDown className="h-4 w-4 text-[#C9B45C]" />
+                {exportLoading ? "Exporting…" : "Export"}
+              </button>
+              {/* Import dropdown */}
+              <div className="relative" ref={importMenuRef}>
+                <button
+                  onClick={() => setImportMenuOpen((v) => !v)}
+                  disabled={importLoading}
+                  className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
+                  {importLoading ? "Importing…" : "Import"}
+                </button>
+                {importMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                    <button
+                      onClick={() => { downloadSample(); setImportMenuOpen(false); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileDown className="h-4 w-4 text-gray-400" />
+                      Download Sample
+                    </button>
+                    <button
+                      onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileUp className="h-4 w-4 text-gray-400" />
+                      Upload Excel
+                    </button>
+                  </div>
+                )}
+                <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2 items-center">
               <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
@@ -826,6 +984,21 @@ export default function FabricMaster() {
           </div>
         </div>
       )}
+
+      {/* ══ Status Toggle Confirm ══ */}
+      <ConfirmModal
+        open={!!confirmToggleTarget}
+        title="Change Status"
+        message={confirmToggleTarget
+          ? `Are you sure you want to set fabric "${confirmToggleTarget.fabricCode}" to ${confirmToggleTarget.isActive ? "Inactive" : "Active"}?`
+          : ""}
+        confirmLabel="Yes, Change"
+        cancelLabel="Cancel"
+        danger={false}
+        onConfirm={handleToggleConfirmed}
+        onCancel={() => setConfirmToggleTarget(null)}
+        loading={toggleMutation.isPending}
+      />
 
       {/* ══ Delete Confirm ══ */}
       <ConfirmModal

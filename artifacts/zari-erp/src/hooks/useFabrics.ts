@@ -138,3 +138,50 @@ export function useDeleteFabric() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fabrics"] }),
   });
 }
+
+export interface FabricImportRow {
+  fabricType: string;
+  quality: string;
+  colorName: string;
+  hexCode?: string;
+  width: string;
+  height?: string;
+  widthUnitType: string;
+  unitType?: string;
+  pricePerMeter: string;
+  hsnCode: string;
+  gstPercent?: string;
+  vendor?: string;
+}
+
+export interface FabricImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; name: string; error: string }[];
+}
+
+export function useImportFabrics() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: FabricImportRow[]) =>
+      customFetch<FabricImportResult>("/api/fabrics/import", { method: "POST", body: JSON.stringify(rows) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fabrics"] }),
+  });
+}
+
+export async function fetchAllFabricsForExport(params: {
+  search: string;
+  status: StatusFilter;
+  fabricType: string;
+  vendor: string;
+  hsnCode: string;
+}): Promise<{ data: FabricRecord[] }> {
+  const qs = new URLSearchParams({
+    search: params.search,
+    status: params.status,
+    fabricType: params.fabricType,
+    vendor: params.vendor,
+    hsnCode: params.hsnCode,
+  }).toString();
+  return customFetch<{ data: FabricRecord[] }>(`/api/fabrics/export-all?${qs}`);
+}

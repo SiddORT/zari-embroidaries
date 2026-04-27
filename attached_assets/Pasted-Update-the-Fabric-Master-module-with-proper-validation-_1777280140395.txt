@@ -1,0 +1,274 @@
+Update the Fabric Master module with proper validation rules, numeric restrictions, whitespace handling, dropdown fixes, edit-mode data binding corrections, and Excel export improvements.
+
+MODULE: FABRIC MASTER
+
+--------------------------------------------------
+1. Fabric Type Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Trim leading and trailing spaces
+- Prevent multiple consecutive spaces
+- Prevent submission if only spaces entered
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Fabric Type must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+2. Fabric Type Blank Space Handling
+--------------------------------------------------
+
+If user enters only spaces and clicks Add:
+
+Show validation message:
+
+"Fabric Type cannot be empty."
+
+Prevent submission.
+
+--------------------------------------------------
+3. Quality Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Quality must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+4. Color Name Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Color Name must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+5. Width Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject special characters
+- Reject scientific notation ("e")
+- Max length: 6 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Width must be a positive numeric value."
+
+--------------------------------------------------
+6. Width Unit Type Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Reject blank spaces
+- Prevent submission if only spaces entered
+- Max length: 50 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Width Unit Type must contain only letters."
+
+--------------------------------------------------
+7. Price Per Meter (₹) Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative numbers
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimal values up to 2 places
+- Max length: 10 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Price must be a positive numeric value."
+
+--------------------------------------------------
+8. Current Stock (meters) Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimals if applicable
+- Max length: 10 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Stock must be a positive numeric value."
+
+--------------------------------------------------
+9. Fix 'Validation Failed' Error on Create
+--------------------------------------------------
+
+Issue:
+
+Form shows "Validation Failed" even when valid data entered.
+
+Fix:
+
+- Ensure all mandatory fields correctly mapped
+- Ensure dropdown selected values properly bound
+- Ensure trimmed values sent to backend
+- Ensure backend validation matches frontend rules
+- Display exact failing field message instead of generic error
+
+Example:
+
+"Width is required"
+instead of:
+
+"Validation Failed"
+
+--------------------------------------------------
+10. Excel Export Only Exporting First 10 Records
+--------------------------------------------------
+
+Fix pagination export issue.
+
+Expected behavior:
+
+Export ALL filtered records
+Not only visible records on current page
+
+Update backend export query.
+
+--------------------------------------------------
+11. Excel Export Status Column Issue
+--------------------------------------------------
+
+Replace:
+
+True → Active
+False → Inactive
+
+--------------------------------------------------
+12. Edit Mode Dropdown Fetch Issue
+--------------------------------------------------
+
+Issue:
+
+On edit fabric:
+
+- Fabric Type not loading
+- Width Unit Type not loading
+- HSN Code not loading
+
+Fix:
+
+Ensure:
+
+- correct ID binding
+- correct dropdown value mapping
+- selected option auto-populates in edit mode
+
+Expected behavior:
+
+Previously saved values appear correctly when editing.
+
+--------------------------------------------------
+13. Prevent Space-Only Submission (Global Rule)
+--------------------------------------------------
+
+Apply across Fabric Master fields:
+
+Reject entries containing only spaces.
+
+Example:
+
+"     "
+
+Show message:
+
+"Field cannot be empty."
+
+--------------------------------------------------
+14. Backend Validation (Required)
+--------------------------------------------------
+
+Ensure server-side validation includes:
+
+- alphabet-only validation (Fabric Type, Quality, Color Name, Width Unit Type)
+- positive numeric validation (Width, Price, Stock)
+- rejection of scientific notation ("e")
+- rejection of negative values
+- rejection of blank-space-only input
+- max length enforcement
+- dropdown binding validation
+
+Return structured validation errors in JSON format.
+
+--------------------------------------------------
+15. UI Improvements
+--------------------------------------------------
+
+Apply across Fabric Master module:
+
+- Inline validation messages below fields
+- Disable Create button until validation passes
+- Trim inputs before submission
+- Show success message after save:
+
+"Fabric created successfully."
+
+Show success message after update:
+
+"Fabric updated successfully."

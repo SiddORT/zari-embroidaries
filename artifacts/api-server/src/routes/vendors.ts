@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, and, desc, count } from "drizzle-orm";
+import { eq, ilike, or, and, desc, count, asc } from "drizzle-orm";
 import { db, vendorsTable } from "@workspace/db";
 import { insertVendorSchema, updateVendorSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -33,7 +33,7 @@ router.get("/vendors", requireAuth, async (req: AuthRequest, res): Promise<void>
 
   const whereClause = buildWhere(search, status);
   const [rows, countRows] = await Promise.all([
-    db.select().from(vendorsTable).where(whereClause).orderBy(desc(vendorsTable.createdAt)).limit(limit).offset(offset),
+    db.select().from(vendorsTable).where(whereClause).orderBy(desc(vendorsTable.createdAt), desc(vendorsTable.id)).limit(limit).offset(offset),
     db.select({ id: vendorsTable.id }).from(vendorsTable).where(whereClause),
   ]);
   res.json({ data: rows, total: countRows.length, page, limit });
@@ -43,7 +43,7 @@ router.get("/vendors/export-all", requireAuth, async (req: AuthRequest, res): Pr
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
-  const rows = await db.select().from(vendorsTable).where(whereClause).orderBy(desc(vendorsTable.createdAt));
+  const rows = await db.select().from(vendorsTable).where(whereClause).orderBy(desc(vendorsTable.createdAt), desc(vendorsTable.id));
   res.json({ data: rows });
 });
 
