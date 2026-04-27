@@ -116,6 +116,14 @@ function validateSwatchBody(body: Record<string, unknown>): string[] {
   return errs;
 }
 
+router.get("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
+  if (!record) { res.status(404).json({ error: "Swatch not found" }); return; }
+  res.json(record);
+});
+
 router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const validationErrs = validateSwatchBody(req.body as Record<string, unknown>);
   if (validationErrs.length > 0) { res.status(400).json({ error: validationErrs[0], details: validationErrs }); return; }

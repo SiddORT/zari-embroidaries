@@ -82,6 +82,14 @@ export function useSwatchesForReference() {
   });
 }
 
+export function useSwatch(id: number | null) {
+  return useQuery({
+    queryKey: [QK, "detail", id],
+    queryFn: () => customFetch<SwatchRecord>(`${BASE}/${id}`),
+    enabled: id !== null,
+  });
+}
+
 export async function fetchAllSwatchesForExport(params: {
   search: string; status: string; client: string; location: string; swatchCategory: string;
 }): Promise<SwatchRecord[]> {
