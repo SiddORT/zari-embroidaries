@@ -391,6 +391,7 @@ export default function ProductsTab({
         department: nn(p.department),
         refDocs: [],
         refImages: [],
+        videos: [],
       });
       toast({ title: "Product duplicated" });
     } catch {
@@ -976,7 +977,7 @@ function ProductCard({
       </div>
 
       {/* Row 2: meta strip */}
-      {(p.fabricName || p.issuedTo || p.department || (p.refImages?.length ?? 0) > 0) && (
+      {(p.fabricName || p.issuedTo || p.department || (p.refImages?.length ?? 0) > 0 || (p.videos?.length ?? 0) > 0) && (
         <div className="flex items-start gap-4 px-4 pb-3 border-t border-gray-100 pt-2">
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500 flex-1">
             {p.fabricName  && <span>🧵 {p.fabricName}</span>}
@@ -984,6 +985,9 @@ function ProductCard({
             {p.department  && <span>🏢 {p.department}</span>}
             {(p.refImages?.length ?? 0) + (p.refDocs?.length ?? 0) > 0 && (
               <span>📎 {(p.refImages?.length ?? 0) + (p.refDocs?.length ?? 0)} attachment{((p.refImages?.length ?? 0) + (p.refDocs?.length ?? 0)) !== 1 ? "s" : ""}</span>
+            )}
+            {(p.videos?.length ?? 0) > 0 && (
+              <span>🎥 {p.videos.length} video{p.videos.length !== 1 ? "s" : ""}</span>
             )}
           </div>
           {/* Image thumbnails */}
