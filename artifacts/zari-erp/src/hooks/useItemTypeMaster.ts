@@ -15,6 +15,12 @@ export type ItemTypeMasterRecord = {
 export type ItemTypeMasterFormData = { name: string; isActive: boolean };
 export type StatusFilter = "all" | "active" | "inactive";
 
+export interface ItemTypeImportResult {
+  succeeded: number;
+  failed: number;
+  results: { row: number; status: "success" | "error"; name?: string; errors?: string[] }[];
+}
+
 const BASE = "/api/item-types";
 const QK = "item-types-master";
 
@@ -25,6 +31,11 @@ export function useItemTypeMasterList(p: { search: string; status: StatusFilter;
       `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
     placeholderData: (prev) => prev,
   });
+}
+
+export async function fetchAllItemTypesForExport(params: { search: string; status: string }): Promise<ItemTypeMasterRecord[]> {
+  const qs = new URLSearchParams({ search: params.search, status: params.status }).toString();
+  return customFetch<ItemTypeMasterRecord[]>(`${BASE}/export-all?${qs}`);
 }
 
 export function useCreateItemType() {
@@ -65,6 +76,18 @@ export function useDeleteItemType() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ["lookups", "item-types"] });
+    },
+  });
+}
+
+export function useImportItemTypes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) =>
+      customFetch<ItemTypeImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify({ rows }) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QK] });
       qc.invalidateQueries({ queryKey: ["lookups", "item-types"] });
