@@ -4,7 +4,7 @@ import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Plus, X, Upload, FileText, Building2,
-  MapPin, Star, Loader2, CheckCircle2, Save,
+  MapPin, Star, Loader2, CheckCircle2, Save, Lock, Info,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,20 @@ import {
 import { COUNTRY_NAMES } from "@/data/countries";
 
 const G = "#C6AF4B";
+const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const NAME_MAX = 100;
+const CONTACT_DIGITS_REGEX = /^[0-9]{10}$/;
+const ALLOWED_ATTACHMENT_TYPES = [
+  "application/pdf", "image/jpeg", "image/jpg", "image/png",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".xls", ".xlsx"];
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+
+function getContactDigits(val: string): string {
+  return val.replace(/^\+\d+\s*/, "").replace(/\D/g, "");
+}
 
 const ADDR_TYPES: VendorAddress["type"][] = ["Home", "Warehouse", "Office", "Factory", "Other"];
 
@@ -93,6 +107,7 @@ export default function VendorForm() {
   const [form, setForm] = useState<VendorFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [pincodeLoading, setPincodeLoading] = useState<Record<string, boolean>>({});
+  const [pincodeAutoFilled, setPincodeAutoFilled] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const savedFormRef = useRef<VendorFormData>(EMPTY_FORM);
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
@@ -142,13 +157,50 @@ export default function VendorForm() {
     }
   }, [existingVendor, isNew]);
 
-  function validate() {
+  function validateBrandName(val: string): string | undefined {
+    const t = val.trim().replace(/  +/g, " ");
+    if (!t) return "Brand / Vendor Name is required.";
+    if (t.length > NAME_MAX) return `Vendor Name must be ${NAME_MAX} characters or fewer.`;
+    if (!NAME_REGEX.test(t)) return "Vendor Name must contain only letters and spaces (max 100 characters).";
+    return undefined;
+  }
+
+  function validateContactName(val: string): string | undefined {
+    const t = val.trim().replace(/  +/g, " ");
+    if (!t) return "Contact Name is required.";
+    if (t.length > NAME_MAX) return `Contact Name must be ${NAME_MAX} characters or fewer.`;
+    if (!NAME_REGEX.test(t)) return "Contact Name must contain only letters and spaces (max 100 characters).";
+    return undefined;
+  }
+
+  function validateContactNo(val: string): string | undefined {
+    const digits = getContactDigits(val);
+    if (!digits) return undefined;
+    if (!CONTACT_DIGITS_REGEX.test(digits)) return "Contact Number must be exactly 10 digits.";
+    return undefined;
+  }
+
+  function isFormValid(): boolean {
+    if (validateBrandName(form.brandName)) return false;
+    if (validateContactName(form.contactName)) return false;
+    if (validateContactNo(form.contactNo)) return false;
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return false;
+    if (form.altEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.altEmail)) return false;
+    if (form.hasGst && !form.gstNo.trim()) return false;
+    return true;
+  }
+
+  function validate(): boolean {
     const e: FormErrors = {};
-    if (!form.brandName.trim()) e.brandName = "Brand Name is required";
-    if (!form.contactName.trim()) e.contactName = "Contact Name is required";
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Valid email required";
-    if (form.altEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.altEmail)) e.altEmail = "Valid email required";
-    if (form.hasGst && !form.gstNo.trim()) e.gstNo = "GST Number is required";
+    const bnErr = validateBrandName(form.brandName);
+    if (bnErr) e.brandName = bnErr;
+    const cnErr = validateContactName(form.contactName);
+    if (cnErr) e.contactName = cnErr;
+    const noErr = validateContactNo(form.contactNo);
+    if (noErr) e.contactNo = noErr;
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Valid email required.";
+    if (form.altEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.altEmail)) e.altEmail = "Valid email required.";
+    if (form.hasGst && !form.gstNo.trim()) e.gstNo = "GST Number is required.";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -157,17 +209,23 @@ export default function VendorForm() {
     if (!validate()) return;
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        brandName: form.brandName.trim().replace(/  +/g, " "),
+        contactName: form.contactName.trim().replace(/  +/g, " "),
+      };
       if (isNew) {
-        await createMutation.mutateAsync(form);
-        toast({ title: "Vendor created successfully" });
+        await createMutation.mutateAsync(payload);
+        toast({ title: "Vendor saved successfully." });
       } else {
-        await updateMutation.mutateAsync({ id: numId!, data: form });
-        toast({ title: "Vendor updated successfully" });
+        await updateMutation.mutateAsync({ id: numId!, data: payload });
+        toast({ title: "Vendor saved successfully." });
       }
-      savedFormRef.current = form;
+      savedFormRef.current = payload;
       setLocation("/masters/vendors");
-    } catch (err) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "An error occurred", variant: "destructive" });
+    } catch (err: unknown) {
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? (err instanceof Error ? err.message : "An error occurred.");
+      toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -216,6 +274,7 @@ export default function VendorForm() {
       if (json[0]?.Status === "Success" && json[0].PostOffice?.length) {
         const po = json[0].PostOffice[0];
         updateAddress(addrId, { state: po.State, city: po.District });
+        setPincodeAutoFilled(prev => ({ ...prev, [addrId]: true }));
       }
     } catch { /* ignore */ }
     finally { setPincodeLoading(prev => ({ ...prev, [addrId]: false })); }
@@ -238,6 +297,16 @@ export default function VendorForm() {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach((file) => {
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      const isTypeOk = ALLOWED_ATTACHMENT_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(ext);
+      if (!isTypeOk) {
+        toast({ title: "Invalid File Type", description: `"${file.name}" is not allowed. Only PDF, JPG, PNG, XLS, XLSX files up to 5MB are allowed.`, variant: "destructive" });
+        return;
+      }
+      if (file.size > MAX_ATTACHMENT_SIZE) {
+        toast({ title: "File Too Large", description: `"${file.name}" exceeds the 5MB limit.`, variant: "destructive" });
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (ev) => {
         const raw = ev.target?.result as string;
@@ -282,8 +351,9 @@ export default function VendorForm() {
               {isNew ? "Add Vendor" : `Edit Vendor — ${existingVendor?.vendorCode ?? ""}`}
             </h1>
           </div>
-          <button onClick={() => void handleSave()} disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+          <button onClick={() => void handleSave()} disabled={saving || !isFormValid()}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            title={!isFormValid() ? "Please fix validation errors before saving." : undefined}
             style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? "Saving…" : isNew ? "Create Vendor" : "Save Changes"}
@@ -294,20 +364,55 @@ export default function VendorForm() {
         <div className={`${card} p-5`}>
           <p className={sectionLabel}>Contact Information</p>
           <div className="grid grid-cols-2 gap-4">
-            <InputField label="Brand / Vendor Name" value={form.brandName}
-              onChange={e => setForm(f => ({ ...f, brandName: e.target.value }))}
-              error={errors.brandName} required placeholder="Brand or vendor name" />
-            <InputField label="Contact Name" value={form.contactName}
-              onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))}
-              error={errors.contactName} required placeholder="Primary contact person" />
+            {/* Brand Name */}
+            <div className="flex flex-col gap-1">
+              <InputField label="Brand / Vendor Name" value={form.brandName}
+                maxLength={NAME_MAX} required placeholder="Brand or vendor name"
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(f => ({ ...f, brandName: val }));
+                  setErrors(prev => ({ ...prev, brandName: validateBrandName(val) }));
+                }}
+                error={errors.brandName} />
+              <p className={`text-xs text-right -mt-1 ${form.brandName.length > NAME_MAX ? "text-red-500" : "text-gray-400"}`}>
+                {form.brandName.length} / {NAME_MAX} characters used
+              </p>
+            </div>
+            {/* Contact Name */}
+            <div className="flex flex-col gap-1">
+              <InputField label="Contact Name" value={form.contactName}
+                maxLength={NAME_MAX} required placeholder="Primary contact person"
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(f => ({ ...f, contactName: val }));
+                  setErrors(prev => ({ ...prev, contactName: validateContactName(val) }));
+                }}
+                error={errors.contactName} />
+              <p className={`text-xs text-right -mt-1 ${form.contactName.length > NAME_MAX ? "text-red-500" : "text-gray-400"}`}>
+                {form.contactName.length} / {NAME_MAX} characters used
+              </p>
+            </div>
             <InputField label="Email Address" value={form.email}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              onChange={e => {
+                const val = e.target.value;
+                setForm(f => ({ ...f, email: val }));
+                const err = val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? "Valid email required." : undefined;
+                setErrors(prev => ({ ...prev, email: err }));
+              }}
               error={errors.email} placeholder="email@example.com" type="email" />
             <InputField label="Alternate Email" value={form.altEmail}
-              onChange={e => setForm(f => ({ ...f, altEmail: e.target.value }))}
+              onChange={e => {
+                const val = e.target.value;
+                setForm(f => ({ ...f, altEmail: val }));
+                const err = val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? "Valid email required." : undefined;
+                setErrors(prev => ({ ...prev, altEmail: err }));
+              }}
               error={errors.altEmail} placeholder="alt@example.com" type="email" />
             <PhoneInput label="Contact No" value={form.contactNo}
-              onChange={v => setForm(f => ({ ...f, contactNo: v }))} placeholder="Phone number" />
+              onChange={v => {
+                setForm(f => ({ ...f, contactNo: v }));
+                setErrors(prev => ({ ...prev, contactNo: validateContactNo(v) }));
+              }} placeholder="10-digit number" error={errors.contactNo} />
             <PhoneInput label="Alternate Contact No" value={form.altContactNo}
               onChange={v => setForm(f => ({ ...f, altContactNo: v }))} placeholder="Alternate phone" />
             <div className="col-span-2">
@@ -438,7 +543,8 @@ export default function VendorForm() {
                     <input value={addr.pincode}
                       onChange={e => {
                         const val = e.target.value;
-                        updateAddress(addr.id, { pincode: val });
+                        updateAddress(addr.id, { pincode: val, state: "", city: "" });
+                        setPincodeAutoFilled(prev => ({ ...prev, [addr.id]: false }));
                         void lookupPincodeForAddress(addr.id, val);
                       }}
                       placeholder="6-digit pincode" className={inputCls} />
@@ -446,23 +552,38 @@ export default function VendorForm() {
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Country</label>
                     <select value={addr.country}
-                      onChange={e => updateAddress(addr.id, { country: e.target.value })}
-                      className={inputCls}>
-                      <option value="">Select country</option>
+                      onChange={e => {
+                        updateAddress(addr.id, { country: e.target.value, pincode: "", state: "", city: "" });
+                        setPincodeAutoFilled(prev => ({ ...prev, [addr.id]: false }));
+                      }}
+                      className={`${inputCls} text-gray-900`}>
+                      <option value="" className="text-gray-500">Select country</option>
                       {COUNTRY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                      State
+                      {pincodeAutoFilled[addr.id] && <span title="Auto-filled from Pincode"><Lock size={10} className="text-amber-400" /></span>}
+                    </label>
                     <input value={addr.state}
-                      onChange={e => updateAddress(addr.id, { state: e.target.value })}
-                      placeholder="State" className={inputCls} />
+                      readOnly={pincodeAutoFilled[addr.id]}
+                      onChange={e => !pincodeAutoFilled[addr.id] && updateAddress(addr.id, { state: e.target.value })}
+                      placeholder="State"
+                      title={pincodeAutoFilled[addr.id] ? "State and City are auto-filled from Pincode." : undefined}
+                      className={`${inputCls} ${pincodeAutoFilled[addr.id] ? "bg-gray-50 text-gray-500 cursor-not-allowed" : ""}`} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">City / District</label>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                      City / District
+                      {pincodeAutoFilled[addr.id] && <span title="Auto-filled from Pincode"><Lock size={10} className="text-amber-400" /></span>}
+                    </label>
                     <input value={addr.city}
-                      onChange={e => updateAddress(addr.id, { city: e.target.value })}
-                      placeholder="City or district" className={inputCls} />
+                      readOnly={pincodeAutoFilled[addr.id]}
+                      onChange={e => !pincodeAutoFilled[addr.id] && updateAddress(addr.id, { city: e.target.value })}
+                      placeholder="City or district"
+                      title={pincodeAutoFilled[addr.id] ? "State and City are auto-filled from Pincode." : undefined}
+                      className={`${inputCls} ${pincodeAutoFilled[addr.id] ? "bg-gray-50 text-gray-500 cursor-not-allowed" : ""}`} />
                   </div>
                 </div>
               </div>
@@ -557,8 +678,9 @@ export default function VendorForm() {
               className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               Cancel
             </button>
-            <button type="button" onClick={() => void handleSave()} disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+            <button type="button" onClick={() => void handleSave()} disabled={saving || !isFormValid()}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!isFormValid() ? "Please fix validation errors before saving." : undefined}
               style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {saving ? "Saving…" : isNew ? "Create Vendor" : "Save Changes"}

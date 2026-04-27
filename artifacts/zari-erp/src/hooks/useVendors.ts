@@ -64,6 +64,12 @@ export type VendorFormData = {
   isActive: boolean;
 };
 
+export interface VendorImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; name: string; error: string }[];
+}
+
 export type StatusFilter = "all" | "active" | "inactive";
 
 const BASE = "/api/vendors";
@@ -76,6 +82,12 @@ export function useVendorList(p: { search: string; status: StatusFilter; page: n
       `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
     placeholderData: (prev) => prev,
   });
+}
+
+export async function fetchAllVendorsForExport(search: string, status: StatusFilter): Promise<VendorRecord[]> {
+  const qs = new URLSearchParams({ search, status }).toString();
+  const result = await customFetch<{ data: VendorRecord[] }>(`${BASE}/export-all?${qs}`);
+  return result.data;
 }
 
 export function useAllVendors() {
@@ -119,6 +131,15 @@ export function useDeleteVendor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useImportVendors() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: { brandName: string; contactName: string; email?: string; contactNo?: string; country?: string }[]) =>
+      customFetch<VendorImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify(rows) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

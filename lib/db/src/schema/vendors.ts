@@ -88,12 +88,31 @@ const vendorAddressSchema = z.object({
   isBillingDefault: z.boolean(),
 });
 
+const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const CONTACT_NO_REGEX = /^[0-9]{10}$/;
+const ALLOWED_ATTACHMENT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+
 export const insertVendorSchema = z.object({
-  brandName: z.string().min(1, "Brand Name is required"),
-  contactName: z.string().min(1, "Contact Name is required"),
-  email: z.email("Valid email").optional().or(z.literal("")),
-  altEmail: z.email("Valid email").optional().or(z.literal("")),
-  contactNo: z.string().optional(),
+  brandName: z
+    .string()
+    .trim()
+    .min(1, "Brand / Vendor Name is required.")
+    .max(100, "Vendor Name must be 100 characters or fewer.")
+    .regex(NAME_REGEX, "Vendor Name must contain only letters and spaces (max 100 characters)."),
+  contactName: z
+    .string()
+    .trim()
+    .min(1, "Contact Name is required.")
+    .max(100, "Contact Name must be 100 characters or fewer.")
+    .regex(NAME_REGEX, "Contact Name must contain only letters and spaces (max 100 characters)."),
+  email: z.string().email("Valid email required.").optional().or(z.literal("")),
+  altEmail: z.string().email("Valid email required.").optional().or(z.literal("")),
+  contactNo: z.string().optional().refine(
+    val => !val || val === "" || CONTACT_NO_REGEX.test(val.replace(/^\+\d+\s*/, "").replace(/\D/g, "")),
+    { message: "Contact Number must be exactly 10 digits." }
+  ),
   altContactNo: z.string().optional(),
   country: z.string().optional(),
   hasGst: z.boolean().default(false),
@@ -108,7 +127,15 @@ export const insertVendorSchema = z.object({
   state: z.string().optional(),
   city: z.string().optional(),
   addresses: z.array(vendorAddressSchema).optional(),
-  paymentAttachments: z.array(paymentAttachmentSchema).optional(),
+  paymentAttachments: z.array(
+    paymentAttachmentSchema.refine(
+      att => ALLOWED_ATTACHMENT_TYPES.includes(att.type),
+      { message: "Only PDF, JPG, PNG, XLS, XLSX files are allowed." }
+    ).refine(
+      att => att.size <= MAX_ATTACHMENT_SIZE,
+      { message: "File must be 5 MB or smaller." }
+    )
+  ).optional(),
   isActive: z.boolean().default(true),
 });
 

@@ -1,0 +1,254 @@
+Update the Vendor Master (Brand / Vendor) module with the following validation rules, UI fixes, attachment restrictions, and Excel export corrections.
+
+MODULE: VENDOR MASTER
+
+--------------------------------------------------
+1. Brand / Vendor Name Validation
+--------------------------------------------------
+
+Validation Rules:
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Trim leading and trailing spaces
+- Prevent multiple consecutive spaces
+- Max length: 100 characters
+
+Apply regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+"Vendor Name must contain only letters and spaces (max 100 characters)."
+
+Disable Save button if invalid.
+
+--------------------------------------------------
+2. Contact Name Validation
+--------------------------------------------------
+
+Validation Rules:
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+"Contact Name must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+3. Vendor Code Format Standardization
+--------------------------------------------------
+
+Vendor Code should:
+
+- Follow consistent format example:
+  VEN001, VEN002, VEN003
+- Auto-generate sequentially
+- Be uppercase only
+- Not editable manually
+
+Validation:
+Prevent mixed formats like:
+ven-01
+Vendor1
+V001A
+
+Tooltip:
+"Vendor Code is auto-generated."
+
+--------------------------------------------------
+4. Contact Number Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY numeric input
+- Must be exactly 10 digits
+- Reject alphabets
+- Reject special characters
+- Reject spaces
+- Reject numbers < 10 digits
+- Reject numbers > 10 digits
+
+Regex:
+/^[0-9]{10}$/
+
+Validation message:
+"Contact Number must be exactly 10 digits."
+
+--------------------------------------------------
+5. Dropdown Text Visibility Issue
+--------------------------------------------------
+
+Fix dropdown UI styling:
+
+- Improve text contrast
+- Ensure readability in both light & dark themes
+- Use accessible font color
+- Ensure placeholder text is visible
+
+Apply accessibility-compliant color contrast.
+
+--------------------------------------------------
+6. Pincode Logic Fix (Country Change)
+--------------------------------------------------
+
+After auto-fetch via pincode:
+
+If Country changes:
+
+Clear automatically:
+
+- Pincode
+- State
+- City
+
+Expected behavior:
+Country change resets location fields.
+
+--------------------------------------------------
+7. Prevent Editing State & City After Auto-Fetch
+--------------------------------------------------
+
+Once pincode fetches:
+
+- State becomes locked
+- City becomes locked
+
+Until user changes pincode again.
+
+Tooltip:
+"State and City are auto-filled from Pincode."
+
+--------------------------------------------------
+8. Payment Attachments File Restrictions
+--------------------------------------------------
+
+Restrict allowed file types:
+
+Allowed:
+
+- PDF
+- JPG
+- JPEG
+- PNG
+- XLS
+- XLSX
+
+Reject:
+
+- EXE
+- ZIP
+- JS
+- BAT
+- Any unsupported formats
+
+Max file size:
+
+5 MB per file
+
+Validation message:
+"Only PDF, JPG, PNG, XLS, XLSX files up to 5MB are allowed."
+
+--------------------------------------------------
+9. Status Change Confirmation Popup
+--------------------------------------------------
+
+When changing Vendor status:
+
+Show confirmation dialog:
+
+"Are you sure you want to change the status?"
+
+Buttons:
+
+YES → Update status
+NO → Cancel action
+
+--------------------------------------------------
+10. Status Change Success Message
+--------------------------------------------------
+
+After successful change:
+
+Show message:
+
+"Vendor status updated successfully."
+
+--------------------------------------------------
+11. Excel Export Only Exporting First 10 Records
+--------------------------------------------------
+
+Fix pagination export issue.
+
+Expected behavior:
+
+Export ALL filtered records
+Not just visible page records
+
+Update backend export query accordingly.
+
+--------------------------------------------------
+12. Excel Export Status Column Issue
+--------------------------------------------------
+
+Replace:
+
+True → Active
+False → Inactive
+
+--------------------------------------------------
+13. Missing Updated By & Updated At in Excel Export
+--------------------------------------------------
+
+Add columns:
+
+- Created By
+- Created At
+- Updated By
+- Updated At
+
+Date format:
+
+DD-MM-YYYY HH:mm:ss
+
+If not updated:
+
+Leave blank
+
+Do NOT display null
+
+--------------------------------------------------
+14. Backend Validation (Required)
+--------------------------------------------------
+
+Ensure server-side validation includes:
+
+- Vendor name alphabet-only validation
+- Contact name alphabet-only validation
+- Contact number exact 10-digit validation
+- Vendor code format enforcement
+- attachment file type validation
+- attachment file size validation
+- location reset logic after country change
+- uniqueness validation for vendor name
+
+Return structured validation errors in JSON format.
+
+--------------------------------------------------
+15. UI Improvements
+--------------------------------------------------
+
+Apply across Vendor module:
+
+- Inline validation messages below fields
+- Disable Save button until all validations pass
+- Trim all inputs before submission
+- Show success message after save/update:
+
+"Vendor saved successfully."
