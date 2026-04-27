@@ -30,6 +30,20 @@ export interface HsnFormData {
   isActive: boolean;
 }
 
+export interface HsnImportRow {
+  hsnCode: string;
+  gstPercentage: string;
+  govtDescription: string;
+  remarks?: string;
+  isActive?: boolean;
+}
+
+export interface HsnImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; hsnCode: string; error: string }[];
+}
+
 export type StatusFilter = "all" | "active" | "inactive";
 
 function hsnKey(params: { search: string; status: StatusFilter; page: number; limit: number }) {
@@ -55,6 +69,12 @@ export function useHSNList(params: {
     },
     placeholderData: (prev) => prev,
   });
+}
+
+export async function fetchAllHSNForExport(search: string, status: StatusFilter): Promise<HsnRecord[]> {
+  const qs = new URLSearchParams({ search, status }).toString();
+  const result = await customFetch<{ data: HsnRecord[] }>(`/api/hsn/export-all?${qs}`);
+  return result.data;
 }
 
 export function useCreateHSN() {
@@ -96,6 +116,18 @@ export function useDeleteHSN() {
     mutationFn: (id: number) =>
       customFetch<{ message: string; record: HsnRecord }>(`/api/hsn/${id}`, {
         method: "DELETE",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hsn"] }),
+  });
+}
+
+export function useImportHSN() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: HsnImportRow[]) =>
+      customFetch<HsnImportResult>("/api/hsn/import", {
+        method: "POST",
+        body: JSON.stringify(rows),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hsn"] }),
   });

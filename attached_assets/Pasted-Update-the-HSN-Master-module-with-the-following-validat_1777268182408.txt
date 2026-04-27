@@ -1,0 +1,89 @@
+Update the HSN Master module with the following validation rules, UI fixes, and backend corrections.
+
+MODULE: HSN MASTER
+
+1. HSN Code Field Validation
+- Accept ONLY numeric values (0–9).
+- Reject alphabets, special characters, emojis, and spaces.
+- Length must be strictly 4, 6, or 8 digits only.
+- Show validation message:
+  "HSN Code must contain only 4, 6, or 8 numeric digits."
+- Prevent form submission if invalid.
+- Add maxLength validation on input field.
+
+2. Prevent Emoji and Character Input
+- Apply regex validation:
+  /^[0-9]{4}$|^[0-9]{6}$|^[0-9]{8}$/
+- Block paste input if it contains invalid characters.
+
+3. Remove Space Acceptance in HSN Code
+- Trim whitespace automatically.
+- Reject input containing spaces.
+
+4. GST Percentage Search Visibility Issue
+- Fix placeholder / label contrast.
+- Ensure search text is clearly visible in both light and dark UI modes.
+- Use proper CSS color contrast (minimum accessibility ratio).
+
+5. Government Description Field Limit
+- Add max length: 255 characters.
+- Show live character counter.
+Example:
+  "120 / 255 characters used"
+
+6. Remarks Field Limit
+- Add max length: 500 characters.
+- Show live character counter.
+
+7. Edit Mode HSN Code Not Editable
+- Enable HSN Code field during edit ONLY if record is not used in transactions.
+- If already used:
+  disable editing and show tooltip:
+  "HSN Code cannot be changed because it is already used."
+
+8. Status Toggle Confirmation
+- When clicking status toggle in list view:
+  show confirmation popup:
+
+  "Are you sure you want to change the status?"
+
+Buttons:
+  YES → update status
+  NO → cancel action
+
+9. Excel Export Status Column Issue
+- Replace boolean values:
+  True → Active
+  False → Inactive
+
+10. Excel Export Only Exporting First 10 Records
+- Fix pagination issue.
+- Export ALL filtered records instead of only visible page records.
+- Backend query should fetch complete dataset before export.
+
+11. General UI Improvements
+- Add inline validation messages below fields.
+- Disable Save button until all validations pass.
+- Trim all input values before submission.
+- Prevent duplicate HSN Code entries.
+
+12. Backend Validation (Required)
+Ensure server-side validation also checks:
+- numeric-only HSN
+- correct length
+- uniqueness
+- description length limits
+- remarks length limits
+
+Return structured validation errors in JSON format.
+
+13. Add Unit Tests
+Create tests for:
+- invalid HSN formats
+- emoji input rejection
+- space rejection
+- description max length
+- remarks max length
+- status toggle confirmation logic
+- export includes all records
+- export status formatting fix

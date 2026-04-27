@@ -9,6 +9,7 @@ interface MasterFormModalProps {
   onSubmit: () => void;
   submitting?: boolean;
   submitLabel?: string;
+  submitDisabled?: boolean;
   size?: "md" | "xl" | "2xl";
   children: ReactNode;
 }
@@ -20,6 +21,7 @@ export default function MasterFormModal({
   onSubmit,
   submitting = false,
   submitLabel = "Save",
+  submitDisabled = false,
   size = "md",
   children,
 }: MasterFormModalProps) {
@@ -65,7 +67,7 @@ export default function MasterFormModal({
           <ZariButton variant="secondary" onClick={onClose} disabled={submitting}>
             Cancel
           </ZariButton>
-          <ZariButton onClick={onSubmit} loading={submitting}>
+          <ZariButton onClick={onSubmit} loading={submitting} disabled={submitting || submitDisabled}>
             {submitting ? "Saving..." : submitLabel}
           </ZariButton>
         </div>

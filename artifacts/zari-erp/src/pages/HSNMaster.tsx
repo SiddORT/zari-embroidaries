@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Upload, Download, FileSpreadsheet, ChevronDown } from "lucide-react";
+import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,7 +12,6 @@ import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
 import StatusToggle from "@/components/master/StatusToggle";
-import ExportExcelButton, { type ExportColumn } from "@/components/master/ExportExcelButton";
 import InputField from "@/components/ui/InputField";
 import TextareaField from "@/components/ui/TextareaField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -23,8 +23,11 @@ import {
   useUpdateHSN,
   useToggleHSNStatus,
   useDeleteHSN,
+  useImportHSN,
+  fetchAllHSNForExport,
   type HsnRecord,
   type HsnFormData,
+  type HsnImportResult,
   type StatusFilter,
 } from "@/hooks/useHSN";
 
@@ -49,6 +52,11 @@ const EMPTY_FORM: HsnFormData = {
   remarks: "",
   isActive: true,
 };
+
+const HSN_REGEX = /^[0-9]{4}$|^[0-9]{6}$|^[0-9]{8}$/;
+const NUMERIC_ONLY = /^[0-9]*$/;
+const GOVT_DESC_MAX = 255;
+const REMARKS_MAX = 500;
 
 type FormErrors = Partial<Record<keyof HsnFormData, string>>;
 
@@ -114,6 +122,7 @@ export default function HSNMaster() {
   const updateMutation = useUpdateHSN();
   const toggleMutation = useToggleHSNStatus();
   const deleteMutation = useDeleteHSN();
+  const importMutation = useImportHSN();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<HsnRecord | null>(null);
@@ -121,6 +130,26 @@ export default function HSNMaster() {
   const [errors, setErrors] = useState<FormErrors>({});
 
   const [deleteTarget, setDeleteTarget] = useState<HsnRecord | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<HsnRecord | null>(null);
+
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<HsnImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
+
+  const [exportLoading, setExportLoading] = useState(false);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) {
+        setImportMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const openAdd = () => {
     setEditRecord(null);
@@ -144,22 +173,50 @@ export default function HSNMaster() {
 
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!form.hsnCode.trim()) e.hsnCode = "HSN Code is required";
-    if (!form.gstPercentage) e.gstPercentage = "GST Percentage is required";
-    if (!form.govtDescription.trim()) e.govtDescription = "Government Description is required";
+    const code = form.hsnCode.trim();
+    if (!code) {
+      e.hsnCode = "HSN Code is required.";
+    } else if (!HSN_REGEX.test(code)) {
+      e.hsnCode = "HSN Code must contain only 4, 6, or 8 numeric digits.";
+    }
+    if (!form.gstPercentage) e.gstPercentage = "GST Percentage is required.";
+    const desc = form.govtDescription.trim();
+    if (!desc) {
+      e.govtDescription = "Government Description is required.";
+    } else if (desc.length > GOVT_DESC_MAX) {
+      e.govtDescription = `Government Description must be ${GOVT_DESC_MAX} characters or fewer.`;
+    }
+    if ((form.remarks ?? "").length > REMARKS_MAX) {
+      e.remarks = `Remarks must be ${REMARKS_MAX} characters or fewer.`;
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const isFormValid = (): boolean => {
+    const code = form.hsnCode.trim();
+    if (!code || !HSN_REGEX.test(code)) return false;
+    if (!form.gstPercentage) return false;
+    if (!form.govtDescription.trim() || form.govtDescription.length > GOVT_DESC_MAX) return false;
+    if ((form.remarks ?? "").length > REMARKS_MAX) return false;
+    return true;
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
     try {
+      const payload: HsnFormData = {
+        ...form,
+        hsnCode: form.hsnCode.trim(),
+        govtDescription: form.govtDescription.trim(),
+        remarks: form.remarks?.trim() ?? "",
+      };
       if (editRecord) {
-        await updateMutation.mutateAsync({ id: editRecord.id, data: form });
-        toast({ title: "Updated", description: `HSN ${form.hsnCode} updated successfully.` });
+        await updateMutation.mutateAsync({ id: editRecord.id, data: payload });
+        toast({ title: "Updated", description: `HSN ${payload.hsnCode} updated successfully.` });
       } else {
-        await createMutation.mutateAsync(form);
-        toast({ title: "Created", description: `HSN ${form.hsnCode} created successfully.` });
+        await createMutation.mutateAsync(payload);
+        toast({ title: "Created", description: `HSN ${payload.hsnCode} created successfully.` });
       }
       setModalOpen(false);
     } catch (err: unknown) {
@@ -169,15 +226,18 @@ export default function HSNMaster() {
     }
   };
 
-  const handleToggle = async (record: HsnRecord) => {
+  const handleToggleConfirm = async () => {
+    if (!toggleTarget) return;
     try {
-      await toggleMutation.mutateAsync(record.id);
+      await toggleMutation.mutateAsync(toggleTarget.id);
       toast({
         title: "Status Updated",
-        description: `HSN ${record.hsnCode} is now ${record.isActive ? "Inactive" : "Active"}.`,
+        description: `HSN ${toggleTarget.hsnCode} is now ${toggleTarget.isActive ? "Inactive" : "Active"}.`,
       });
     } catch {
       toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+    } finally {
+      setToggleTarget(null);
     }
   };
 
@@ -191,6 +251,121 @@ export default function HSNMaster() {
       toast({ title: "Error", description: "Failed to delete record.", variant: "destructive" });
     }
   };
+
+  function downloadSample() {
+    setImportMenuOpen(false);
+    const sampleData = [
+      {
+        "HSN Code": "1001",
+        "GST Percentage": "18",
+        "Government Description": "Durum wheat",
+        "Remarks": "Sample remark",
+      },
+      {
+        "HSN Code": "100110",
+        "GST Percentage": "5",
+        "Government Description": "Durum wheat for sowing",
+        "Remarks": "",
+      },
+      {
+        "HSN Code": "10011000",
+        "GST Percentage": "0",
+        "Government Description": "Durum wheat for sowing (8-digit)",
+        "Remarks": "",
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    ws["!cols"] = [{ wch: 14 }, { wch: 16 }, { wch: 50 }, { wch: 30 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "HSN Import Template");
+    XLSX.writeFile(wb, "HSN_Import_Sample.xlsx");
+    toast({ title: "Sample Downloaded", description: "Fill in the template and upload it to import records." });
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImportMenuOpen(false);
+    setImportLoading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonRows = XLSX.utils.sheet_to_json<Record<string, string>>(ws);
+
+      if (jsonRows.length === 0) {
+        toast({ title: "Empty File", description: "The uploaded file has no data rows.", variant: "destructive" });
+        return;
+      }
+
+      const records = jsonRows.map((row) => ({
+        hsnCode: String(row["HSN Code"] ?? "").trim(),
+        gstPercentage: String(row["GST Percentage"] ?? "").trim(),
+        govtDescription: String(row["Government Description"] ?? "").trim(),
+        remarks: String(row["Remarks"] ?? "").trim() || undefined,
+        isActive: true as const,
+      }));
+
+      const result = await importMutation.mutateAsync(records);
+      setImportResult(result);
+      setImportResultOpen(true);
+    } catch (err: unknown) {
+      const msg =
+        (err as { data?: { error?: string } })?.data?.error ?? "Failed to parse or upload the Excel file.";
+      toast({ title: "Import Failed", description: msg, variant: "destructive" });
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  async function handleExportAll() {
+    setExportLoading(true);
+    try {
+      const allRows = await fetchAllHSNForExport(debouncedSearch, statusFilter);
+      const exportData = allRows.map((r) => ({
+        "HSN Code": r.hsnCode,
+        "GST %": `${r.gstPercentage}%`,
+        "Government Description": r.govtDescription,
+        "Remarks": r.remarks ?? "",
+        "Status": r.isActive ? "Active" : "Inactive",
+        "Created By": r.createdBy,
+        "Created At": formatDate(r.createdAt),
+        "Updated By": r.updatedBy ?? "—",
+        "Updated At": formatDate(r.updatedAt),
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws["!cols"] = [
+        { wch: 14 }, { wch: 8 }, { wch: 50 }, { wch: 30 },
+        { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "HSN Master");
+      XLSX.writeFile(wb, "HSN_Master.xlsx");
+      toast({ title: "Export Complete", description: `${allRows.length} record(s) exported.` });
+    } catch {
+      toast({ title: "Export Failed", description: "Could not fetch records for export.", variant: "destructive" });
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  function handleHsnCodeKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const allowed = [
+      "Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End",
+    ];
+    if (allowed.includes(e.key)) return;
+    if (e.ctrlKey || e.metaKey) return;
+    if (!/^[0-9]$/.test(e.key)) e.preventDefault();
+  }
+
+  function handleHsnCodePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const text = e.clipboardData.getData("text");
+    if (!NUMERIC_ONLY.test(text)) {
+      e.preventDefault();
+      setErrors((prev) => ({ ...prev, hsnCode: "HSN Code must contain only 4, 6, or 8 numeric digits." }));
+    }
+  }
 
   const asHsn = (r: TableRow) => r as unknown as HsnRecord;
 
@@ -232,8 +407,8 @@ export default function HSNMaster() {
       render: (r) => (
         <StatusToggle
           isActive={asHsn(r).isActive}
-          onToggle={() => handleToggle(asHsn(r))}
-          loading={toggleMutation.isPending}
+          onToggle={() => setToggleTarget(asHsn(r))}
+          loading={toggleMutation.isPending && toggleTarget?.id === asHsn(r).id}
         />
       ),
     },
@@ -286,19 +461,8 @@ export default function HSNMaster() {
     },
   ];
 
-  const exportColumns: ExportColumn[] = [
-    { key: "hsnCode", label: "HSN Code" },
-    { key: "gstPercentage", label: "GST %" },
-    { key: "govtDescription", label: "Government Description" },
-    { key: "remarks", label: "Remarks" },
-    { key: "isActive", label: "Status" },
-    { key: "createdBy", label: "Created By" },
-    { key: "createdAt", label: "Created At" },
-    { key: "updatedBy", label: "Updated By" },
-    { key: "updatedAt", label: "Updated At" },
-  ];
-
   const submitting = createMutation.isPending || updateMutation.isPending;
+  const formValid = isFormValid();
 
   if (!user) return null;
 
@@ -315,7 +479,6 @@ export default function HSNMaster() {
 
         {/* Filters row */}
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
           <div className="flex-1">
             <SearchBar
               value={search}
@@ -324,7 +487,6 @@ export default function HSNMaster() {
             />
           </div>
 
-          {/* Status filter */}
           <div className="sm:w-44">
             <select
               value={statusFilter}
@@ -337,13 +499,60 @@ export default function HSNMaster() {
             </select>
           </div>
 
-          {/* Export */}
-          <ExportExcelButton
-            data={rows as Record<string, unknown>[]}
-            filename="HSN_Master"
-            columns={exportColumns}
-            disabled={isLoading}
-          />
+          {/* Export — fetches all filtered records */}
+          <button
+            onClick={handleExportAll}
+            disabled={exportLoading || isLoading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="h-4 w-4" />
+            {exportLoading ? "Exporting…" : "Export to Excel"}
+          </button>
+
+          {/* Import button with dropdown */}
+          <div className="relative" ref={importMenuRef}>
+            <button
+              onClick={() => setImportMenuOpen((v) => !v)}
+              disabled={importLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 text-[#C9B45C] text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload className="h-4 w-4" />
+              {importLoading ? "Importing…" : "Import Data"}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
+            </button>
+            {importMenuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+                <button
+                  onClick={downloadSample}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-medium">Download Sample</p>
+                    <p className="text-xs text-gray-400">Get the Excel template</p>
+                  </div>
+                </button>
+                <div className="border-t border-gray-100" />
+                <button
+                  onClick={() => { setImportMenuOpen(false); importFileRef.current?.click(); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <Upload className="h-4 w-4 text-blue-600 shrink-0" />
+                  <div>
+                    <p className="font-medium">Upload Excel File</p>
+                    <p className="text-xs text-gray-400">Import records from file</p>
+                  </div>
+                </button>
+              </div>
+            )}
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+          </div>
         </div>
 
         {/* Data table */}
@@ -371,17 +580,38 @@ export default function HSNMaster() {
         onSubmit={handleSubmit}
         submitting={submitting}
         submitLabel={editRecord ? "Update" : "Create"}
+        submitDisabled={!formValid}
       >
+        {/* HSN Code */}
         <InputField
           label="HSN Code"
           required
-          placeholder="e.g. 63019090"
+          placeholder="e.g. 6301, 630190, 63019090"
           value={form.hsnCode}
-          onChange={(e) => setForm((f) => ({ ...f, hsnCode: e.target.value }))}
+          maxLength={8}
+          onChange={(e) => {
+            const val = e.target.value.replace(/[^0-9]/g, "");
+            setForm((f) => ({ ...f, hsnCode: val }));
+            if (val && !HSN_REGEX.test(val)) {
+              setErrors((prev) => ({ ...prev, hsnCode: "HSN Code must contain only 4, 6, or 8 numeric digits." }));
+            } else {
+              setErrors((prev) => ({ ...prev, hsnCode: undefined }));
+            }
+          }}
+          onKeyDown={handleHsnCodeKeyDown}
+          onPaste={handleHsnCodePaste}
           error={errors.hsnCode}
           disabled={!!editRecord}
+          inputMode="numeric"
+          pattern="[0-9]*"
         />
+        {!!editRecord && (
+          <p className="text-xs text-amber-600 -mt-1 flex items-center gap-1">
+            HSN Code cannot be changed in edit mode.
+          </p>
+        )}
 
+        {/* GST Percentage */}
         <SearchableSelect
           label="GST Percentage"
           required
@@ -391,28 +621,63 @@ export default function HSNMaster() {
           onChange={(label) => {
             const opt = GST_OPTIONS.find((o) => o.label === label);
             setForm((f) => ({ ...f, gstPercentage: opt ? opt.value : "" }));
+            setErrors((prev) => ({ ...prev, gstPercentage: undefined }));
           }}
           error={errors.gstPercentage}
         />
 
-        <TextareaField
-          label="Government Description"
-          required
-          placeholder="Official government description of the HSN code..."
-          value={form.govtDescription}
-          onChange={(e) => setForm((f) => ({ ...f, govtDescription: e.target.value }))}
-          error={errors.govtDescription}
-          rows={3}
-        />
+        {/* Government Description */}
+        <div className="flex flex-col gap-1.5">
+          <TextareaField
+            label="Government Description"
+            required
+            placeholder="Official government description of the HSN code..."
+            value={form.govtDescription}
+            maxLength={GOVT_DESC_MAX}
+            onChange={(e) => {
+              const val = e.target.value;
+              setForm((f) => ({ ...f, govtDescription: val }));
+              if (val.length > GOVT_DESC_MAX) {
+                setErrors((prev) => ({ ...prev, govtDescription: `Max ${GOVT_DESC_MAX} characters.` }));
+              } else if (!val.trim()) {
+                setErrors((prev) => ({ ...prev, govtDescription: "Government Description is required." }));
+              } else {
+                setErrors((prev) => ({ ...prev, govtDescription: undefined }));
+              }
+            }}
+            error={errors.govtDescription}
+            rows={3}
+          />
+          <p className={`text-xs text-right -mt-1 ${form.govtDescription.length > GOVT_DESC_MAX ? "text-red-500" : "text-gray-400"}`}>
+            {form.govtDescription.length} / {GOVT_DESC_MAX} characters used
+          </p>
+        </div>
 
-        <TextareaField
-          label="Remarks"
-          placeholder="Optional internal notes..."
-          value={form.remarks ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
-          rows={2}
-        />
+        {/* Remarks */}
+        <div className="flex flex-col gap-1.5">
+          <TextareaField
+            label="Remarks"
+            placeholder="Optional internal notes..."
+            value={form.remarks ?? ""}
+            maxLength={REMARKS_MAX}
+            onChange={(e) => {
+              const val = e.target.value;
+              setForm((f) => ({ ...f, remarks: val }));
+              if (val.length > REMARKS_MAX) {
+                setErrors((prev) => ({ ...prev, remarks: `Max ${REMARKS_MAX} characters.` }));
+              } else {
+                setErrors((prev) => ({ ...prev, remarks: undefined }));
+              }
+            }}
+            error={errors.remarks}
+            rows={2}
+          />
+          <p className={`text-xs text-right -mt-1 ${(form.remarks ?? "").length > REMARKS_MAX ? "text-red-500" : "text-gray-400"}`}>
+            {(form.remarks ?? "").length} / {REMARKS_MAX} characters used
+          </p>
+        </div>
 
+        {/* Status toggle */}
         <div className="flex items-center gap-3 pt-1">
           <label className="text-sm font-medium text-gray-700">Status</label>
           <button
@@ -430,15 +695,29 @@ export default function HSNMaster() {
               }`}
             />
           </button>
-          <span
-            className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}
-          >
+          <span className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}>
             {form.isActive ? "Active" : "Inactive"}
           </span>
         </div>
       </MasterFormModal>
 
-      {/* Delete confirmation modal */}
+      {/* Status toggle confirmation */}
+      <ConfirmModal
+        open={!!toggleTarget}
+        title="Change Status"
+        message={
+          toggleTarget
+            ? `Are you sure you want to change the status of HSN "${toggleTarget.hsnCode}" to ${toggleTarget.isActive ? "Inactive" : "Active"}?`
+            : ""
+        }
+        confirmLabel="Yes, Change"
+        cancelLabel="No, Cancel"
+        onConfirm={handleToggleConfirm}
+        onCancel={() => setToggleTarget(null)}
+        loading={toggleMutation.isPending}
+      />
+
+      {/* Delete confirmation */}
       <ConfirmModal
         open={!!deleteTarget}
         title="Delete HSN Record"
@@ -452,6 +731,48 @@ export default function HSNMaster() {
         onCancel={() => setDeleteTarget(null)}
         loading={deleteMutation.isPending}
       />
+
+      {/* Import result modal */}
+      {importResultOpen && importResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">Import Complete</h2>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{importResult.imported}</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Imported</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
+                <p className="text-2xl font-bold text-amber-600">{importResult.skipped}</p>
+                <p className="text-xs text-amber-600 mt-0.5">Skipped (duplicate)</p>
+              </div>
+              <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">{importResult.errors.length}</p>
+                <p className="text-xs text-red-600 mt-0.5">Errors</p>
+              </div>
+            </div>
+            {importResult.errors.length > 0 && (
+              <div className="max-h-48 overflow-y-auto space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Error Details</p>
+                {importResult.errors.map((e, i) => (
+                  <div key={i} className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                    <p className="text-xs font-medium text-red-700">
+                      Row {e.row}{e.hsnCode ? ` — "${e.hsnCode}"` : ""}
+                    </p>
+                    <p className="text-xs text-red-500 mt-0.5">{e.error}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setImportResultOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-semibold hover:bg-gray-800 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

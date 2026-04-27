@@ -17,13 +17,22 @@ export const hsnTable = pgTable("hsn_master", {
 
 export type HsnRecord = typeof hsnTable.$inferSelect;
 
+const HSN_CODE_REGEX = /^[0-9]{4}$|^[0-9]{6}$|^[0-9]{8}$/;
+
 export const insertHsnSchema = z.object({
-  hsnCode: z.string().min(1, "HSN Code is required"),
+  hsnCode: z
+    .string()
+    .trim()
+    .regex(HSN_CODE_REGEX, "HSN Code must contain only 4, 6, or 8 numeric digits."),
   gstPercentage: z.enum(["0", "5", "12", "18", "28"], {
-    error: "GST Percentage is required",
+    error: "GST Percentage must be one of 0, 5, 12, 18, or 28.",
   }),
-  govtDescription: z.string().min(1, "Government Description is required"),
-  remarks: z.string().optional(),
+  govtDescription: z
+    .string()
+    .trim()
+    .min(1, "Government Description is required.")
+    .max(255, "Government Description must be 255 characters or fewer."),
+  remarks: z.string().trim().max(500, "Remarks must be 500 characters or fewer.").optional(),
   isActive: z.boolean().default(true),
 });
 
