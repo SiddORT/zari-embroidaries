@@ -84,6 +84,7 @@ export default function StyleCategoryMaster() {
   const [form, setForm] = useState<StyleCategoryFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<StyleCategoryRecord | null>(null);
 
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const importMenuRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,18 @@ export default function StyleCategoryMaster() {
     } catch (err: unknown) {
       const msg = (err as { data?: { error?: string } })?.data?.error ?? "An error occurred.";
       toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  }
+
+  async function handleToggleConfirm() {
+    if (!toggleTarget) return;
+    try {
+      await toggleStatus.mutateAsync(toggleTarget.id);
+      toast({ description: `"${toggleTarget.categoryName}" is now ${toggleTarget.isActive ? "Inactive" : "Active"}.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+    } finally {
+      setToggleTarget(null);
     }
   }
 
@@ -232,7 +245,7 @@ export default function StyleCategoryMaster() {
   const columns: Column[] = [
     { key: "_srNo", label: "Sr No", className: "w-16 text-center" },
     { key: "categoryName", label: "Category Name", render: (r) => <span className="font-medium text-gray-900">{asCat(r).categoryName}</span> },
-    { key: "isActive", label: "Status", render: (r) => <StatusToggle isActive={asCat(r).isActive} onToggle={() => toggleStatus.mutate(asCat(r).id)} /> },
+    { key: "isActive", label: "Status", render: (r) => <StatusToggle isActive={asCat(r).isActive} onToggle={() => setToggleTarget(asCat(r))} loading={toggleStatus.isPending && toggleTarget?.id === asCat(r).id} /> },
     { key: "createdBy", label: "Created By", render: (r) => <span className="text-gray-500">{asCat(r).createdBy}</span> },
     { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDateTable(asCat(r).createdAt)}</span> },
     { key: "updatedBy", label: "Updated By", render: (r) => <span className="text-gray-500">{asCat(r).updatedBy || "—"}</span> },
@@ -337,6 +350,20 @@ export default function StyleCategoryMaster() {
           </span>
         </div>
       </MasterFormModal>
+
+      <ConfirmModal
+        open={!!toggleTarget}
+        title="Change Status"
+        message={
+          toggleTarget
+            ? `Are you sure you want to change the status of "${toggleTarget.categoryName}" to ${toggleTarget.isActive ? "Inactive" : "Active"}?`
+            : ""
+        }
+        confirmLabel="Yes, Change"
+        onConfirm={() => { void handleToggleConfirm(); }}
+        onCancel={() => setToggleTarget(null)}
+        loading={toggleStatus.isPending}
+      />
 
       <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}
         title="Delete Category" message="Are you sure you want to delete this style category?" loading={deleteMutation.isPending} />
