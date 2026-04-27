@@ -151,12 +151,76 @@ export default function VendorMaster() {
   function downloadSample() {
     setImportMenuOpen(false);
     const sampleData = [
-      { "Brand / Vendor Name": "Sunrise Textiles", "Contact Name": "Raj Kumar", "Email": "raj@sunrise.com", "Contact No": "9876543210", "Country": "India" },
-      { "Brand / Vendor Name": "Golden Thread", "Contact Name": "Priya Sharma", "Email": "priya@golden.com", "Contact No": "9123456780", "Country": "India" },
-      { "Brand / Vendor Name": "Royal Fabrics", "Contact Name": "Amit Singh", "Email": "", "Contact No": "9000011122", "Country": "India" },
+      {
+        "Brand / Vendor Name": "Sunrise Textiles",
+        "Contact Name": "Raj Kumar",
+        "Email": "raj@sunrise.com",
+        "Alternate Email": "",
+        "Contact No": "9876543210",
+        "Alternate Contact No": "",
+        "Country (General)": "India",
+        "Has GST (Yes/No)": "Yes",
+        "GST No": "27AABCS1234A1Z5",
+        "Address Type": "Warehouse",
+        "Address Line 1": "Shop 12, Surat Textile Market",
+        "Address Line 2": "Ring Road",
+        "Pincode": "395002",
+        "City": "Surat",
+        "State": "Gujarat",
+        "Address Country": "India",
+        "Bank Name": "HDFC Bank",
+        "Account No": "50100123456789",
+        "IFSC Code": "HDFC0001234",
+      },
+      {
+        "Brand / Vendor Name": "Golden Thread Co",
+        "Contact Name": "Priya Sharma",
+        "Email": "priya@goldenthread.com",
+        "Alternate Email": "",
+        "Contact No": "9123456780",
+        "Alternate Contact No": "",
+        "Country (General)": "India",
+        "Has GST (Yes/No)": "Yes",
+        "GST No": "09AABCG5678B2Z3",
+        "Address Type": "Office",
+        "Address Line 1": "Plot 44, Embroidery Zone",
+        "Address Line 2": "",
+        "Pincode": "110006",
+        "City": "Delhi",
+        "State": "Delhi",
+        "Address Country": "India",
+        "Bank Name": "SBI",
+        "Account No": "30218765432100",
+        "IFSC Code": "SBIN0001234",
+      },
+      {
+        "Brand / Vendor Name": "Royal Fabrics",
+        "Contact Name": "Amit Singh",
+        "Email": "",
+        "Alternate Email": "",
+        "Contact No": "9000011122",
+        "Alternate Contact No": "",
+        "Country (General)": "India",
+        "Has GST (Yes/No)": "No",
+        "GST No": "",
+        "Address Type": "Factory",
+        "Address Line 1": "Industrial Area, Sector 5",
+        "Address Line 2": "",
+        "Pincode": "302020",
+        "City": "Jaipur",
+        "State": "Rajasthan",
+        "Address Country": "India",
+        "Bank Name": "ICICI Bank",
+        "Account No": "123456789012",
+        "IFSC Code": "ICIC0001234",
+      },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleData);
-    ws["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 15 }];
+    ws["!cols"] = [
+      { wch: 28 }, { wch: 22 }, { wch: 28 }, { wch: 24 }, { wch: 14 }, { wch: 18 },
+      { wch: 16 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 34 }, { wch: 22 },
+      { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Vendor Import Template");
     XLSX.writeFile(wb, "Vendor_Import_Sample.xlsx");
@@ -178,13 +242,35 @@ export default function VendorMaster() {
         toast({ title: "Empty File", description: "No data rows found.", variant: "destructive" });
         return;
       }
-      const records = jsonRows.map((row) => ({
-        brandName: String(row["Brand / Vendor Name"] ?? "").trim(),
-        contactName: String(row["Contact Name"] ?? "").trim(),
-        email: String(row["Email"] ?? "").trim() || undefined,
-        contactNo: String(row["Contact No"] ?? "").trim() || undefined,
-        country: String(row["Country"] ?? "").trim() || undefined,
-      }));
+      const records = jsonRows.map((row) => {
+        const hasGstRaw = String(row["Has GST (Yes/No)"] ?? "").trim().toLowerCase();
+        const hasGst = hasGstRaw === "yes" || hasGstRaw === "y" || hasGstRaw === "true";
+        const addrLine1 = String(row["Address Line 1"] ?? "").trim();
+        const addrLine2 = String(row["Address Line 2"] ?? "").trim();
+        const addrPincode = String(row["Pincode"] ?? "").trim();
+        const addrCity = String(row["City"] ?? "").trim();
+        const addrState = String(row["State"] ?? "").trim();
+        const addrCountry = String(row["Address Country"] ?? "").trim();
+        const addrType = String(row["Address Type"] ?? "").trim() || "Office";
+        const hasAddr = addrLine1 || addrPincode || addrCity || addrState;
+        const bankName = String(row["Bank Name"] ?? "").trim();
+        const accountNo = String(row["Account No"] ?? "").trim();
+        const ifscCode = String(row["IFSC Code"] ?? "").trim();
+        const hasBank = bankName || accountNo || ifscCode;
+        return {
+          brandName: String(row["Brand / Vendor Name"] ?? "").trim(),
+          contactName: String(row["Contact Name"] ?? "").trim(),
+          email: String(row["Email"] ?? "").trim() || undefined,
+          altEmail: String(row["Alternate Email"] ?? "").trim() || undefined,
+          contactNo: String(row["Contact No"] ?? "").trim() || undefined,
+          altContactNo: String(row["Alternate Contact No"] ?? "").trim() || undefined,
+          country: String(row["Country (General)"] ?? "").trim() || undefined,
+          hasGst,
+          gstNo: hasGst ? (String(row["GST No"] ?? "").trim() || undefined) : undefined,
+          addresses: hasAddr ? [{ id: Math.random().toString(36).slice(2, 10), type: addrType, address1: addrLine1, address2: addrLine2, pincode: addrPincode, city: addrCity, state: addrState, country: addrCountry, isBillingDefault: true }] : undefined,
+          bankAccounts: hasBank ? [{ bankName, accountNo, ifscCode }] : undefined,
+        };
+      });
       const result = await importMutation.mutateAsync(records);
       setImportResult(result);
       setImportResultOpen(true);

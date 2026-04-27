@@ -3,8 +3,8 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Plus, X, Upload, FileText, Building2,
-  MapPin, Star, Loader2, CheckCircle2, Save, Lock, Info,
+  ArrowLeft, Plus, X, Building2,
+  MapPin, Star, Loader2, CheckCircle2, Save, Lock,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ import PhoneInput from "@/components/ui/PhoneInput";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import {
   useVendor, useCreateVendor, useUpdateVendor,
-  type VendorFormData, type VendorAddress, type BankAccount, type PaymentAttachment,
+  type VendorFormData, type VendorAddress, type BankAccount,
 } from "@/hooks/useVendors";
 import { COUNTRY_NAMES } from "@/data/countries";
 
@@ -22,14 +22,6 @@ const G = "#C6AF4B";
 const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
 const NAME_MAX = 100;
 const CONTACT_DIGITS_REGEX = /^[0-9]{10}$/;
-const ALLOWED_ATTACHMENT_TYPES = [
-  "application/pdf", "image/jpeg", "image/jpg", "image/png",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-];
-const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".xls", ".xlsx"];
-const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
-
 function getContactDigits(val: string): string {
   return val.replace(/^\+\d+\s*/, "").replace(/\D/g, "");
 }
@@ -69,11 +61,6 @@ const EMPTY_FORM: VendorFormData = {
 
 type FormErrors = Partial<Record<string, string>>;
 
-function formatFileSize(bytes: number) {
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / 1024 / 1024).toFixed(1) + " MB";
-}
-
 const card = "bg-white rounded-2xl border border-gray-100 shadow-sm";
 const sectionLabel = "text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3";
 const inputCls = "w-full px-2.5 py-1.5 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30";
@@ -83,7 +70,6 @@ export default function VendorForm() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isNew = params.id === "new";
   const numId = isNew ? null : parseInt(params.id ?? "", 10);
@@ -291,36 +277,6 @@ export default function VendorForm() {
       ...f,
       bankAccounts: f.bankAccounts.map((acc, i) => i === idx ? { ...acc, [field]: value } : acc),
     }));
-  }
-
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      const ext = "." + file.name.split(".").pop()?.toLowerCase();
-      const isTypeOk = ALLOWED_ATTACHMENT_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(ext);
-      if (!isTypeOk) {
-        toast({ title: "Invalid File Type", description: `"${file.name}" is not allowed. Only PDF, JPG, PNG, XLS, XLSX files up to 5MB are allowed.`, variant: "destructive" });
-        return;
-      }
-      if (file.size > MAX_ATTACHMENT_SIZE) {
-        toast({ title: "File Too Large", description: `"${file.name}" exceeds the 5MB limit.`, variant: "destructive" });
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const raw = ev.target?.result as string;
-        const data = raw.split(",")[1] ?? "";
-        const att: PaymentAttachment = { name: file.name, type: file.type, data, size: file.size };
-        setForm(f => ({ ...f, paymentAttachments: [...f.paymentAttachments, att] }));
-      };
-      reader.readAsDataURL(file);
-    });
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  function removeAttachment(idx: number) {
-    setForm(f => ({ ...f, paymentAttachments: f.paymentAttachments.filter((_, i) => i !== idx) }));
   }
 
   if (!user) return null;
@@ -622,39 +578,6 @@ export default function VendorForm() {
                 <InputField label="IFSC Code" value={acc.ifscCode}
                   onChange={e => updateBankAccount(idx, "ifscCode", e.target.value)}
                   placeholder="HDFC0001234" />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Payment Attachments */}
-        <div className={`${card} p-5`}>
-          <div className="flex items-center justify-between mb-4">
-            <p className={sectionLabel + " mb-0"}>Payment Attachments</p>
-            <button type="button" onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors">
-              <Upload size={13} /> Upload Files
-            </button>
-            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
-          </div>
-          {form.paymentAttachments.length === 0 && (
-            <div className="flex items-center gap-2 text-sm text-gray-400 py-3 px-4 rounded-lg bg-gray-50 border border-dashed border-gray-200">
-              <FileText size={16} className="text-gray-300" />
-              No attachments uploaded yet
-            </div>
-          )}
-          <div className="space-y-1.5">
-            {form.paymentAttachments.map((att, idx) => (
-              <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 border border-gray-200">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText size={14} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 truncate">{att.name}</span>
-                  <span className="text-xs text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
-                </div>
-                <button type="button" onClick={() => removeAttachment(idx)}
-                  className="text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0">
-                  <X size={14} />
-                </button>
               </div>
             ))}
           </div>

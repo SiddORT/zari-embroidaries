@@ -135,10 +135,24 @@ export function useDeleteVendor() {
   });
 }
 
+export interface VendorImportRow {
+  brandName: string;
+  contactName: string;
+  email?: string;
+  altEmail?: string;
+  contactNo?: string;
+  altContactNo?: string;
+  country?: string;
+  hasGst?: boolean;
+  gstNo?: string;
+  addresses?: Array<{ id: string; type: string; address1: string; address2: string; pincode: string; city: string; state: string; country: string; isBillingDefault: boolean }>;
+  bankAccounts?: Array<{ bankName: string; accountNo: string; ifscCode: string }>;
+}
+
 export function useImportVendors() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (rows: { brandName: string; contactName: string; email?: string; contactNo?: string; country?: string }[]) =>
+    mutationFn: (rows: VendorImportRow[]) =>
       customFetch<VendorImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify(rows) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });

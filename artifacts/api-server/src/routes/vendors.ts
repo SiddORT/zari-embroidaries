@@ -96,13 +96,19 @@ router.post("/vendors/import", requireAuth, async (req: AuthRequest, res): Promi
     const rowNum = i + 2;
     const brandName = String(row.brandName ?? "").trim();
 
+    const hasGst = row.hasGst === true || row.hasGst === "true" || row.hasGst === "Yes";
     const parsed = insertVendorSchema.safeParse({
       brandName,
       contactName: String(row.contactName ?? "").trim(),
       email: String(row.email ?? "").trim() || undefined,
+      altEmail: String(row.altEmail ?? "").trim() || undefined,
       contactNo: String(row.contactNo ?? "").trim() || undefined,
+      altContactNo: String(row.altContactNo ?? "").trim() || undefined,
       country: String(row.country ?? "").trim() || undefined,
-      hasGst: false,
+      hasGst,
+      gstNo: hasGst ? (String(row.gstNo ?? "").trim() || undefined) : undefined,
+      addresses: Array.isArray(row.addresses) && row.addresses.length > 0 ? row.addresses : undefined,
+      bankAccounts: Array.isArray(row.bankAccounts) && row.bankAccounts.length > 0 ? row.bankAccounts : undefined,
       isActive: true,
     });
 
