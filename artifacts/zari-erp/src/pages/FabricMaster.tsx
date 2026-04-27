@@ -15,7 +15,6 @@ import StatusToggle from "@/components/master/StatusToggle";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AddableSelect from "@/components/ui/AddableSelect";
-import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
   useFabricList,
@@ -175,14 +174,21 @@ export default function FabricMaster() {
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [vendorPickerOpen, setVendorPickerOpen] = useState(false);
+  const [vendorPickerSearch, setVendorPickerSearch] = useState("");
   const imgInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const importMenuRef = useRef<HTMLDivElement>(null);
+  const vendorPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) {
         setImportMenuOpen(false);
+      }
+      if (vendorPickerRef.current && !vendorPickerRef.current.contains(e.target as Node)) {
+        setVendorPickerOpen(false);
+        setVendorPickerSearch("");
       }
     };
     document.addEventListener("mousedown", handler);
@@ -813,12 +819,94 @@ export default function FabricMaster() {
               {/* Sourcing */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 {sectionLabel("Sourcing")}
-                <div className="grid grid-cols-2 gap-4">
-                  <SearchableSelect label="Vendor" value={form.vendor ?? ""}
-                    onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
-                    options={allVendors.map(v => v.brandName)}
-                    placeholder="Select vendor" clearable />
-                </div>
+                {(() => {
+                  const selectedVendors = (form.vendor ?? "").split(",").map(v => v.trim()).filter(Boolean);
+                  const availableVendors: string[] = (allVendors.map(v => v.brandName) as string[])
+                    .filter((n: string) => !selectedVendors.includes(n))
+                    .filter((n: string) => !vendorPickerSearch || n.toLowerCase().includes(vendorPickerSearch.toLowerCase()));
+                  const addVendor = (name: string) => {
+                    const next = [...selectedVendors, name].join(", ");
+                    setForm(f => ({ ...f, vendor: next }));
+                  };
+                  const removeVendor = (name: string) => {
+                    const next = selectedVendors.filter(v => v !== name).join(", ");
+                    setForm(f => ({ ...f, vendor: next || undefined }));
+                  };
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium text-gray-700">Vendors</label>
+
+                      {/* Selected chips */}
+                      {selectedVendors.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-1">
+                          {selectedVendors.map(name => (
+                            <span key={name} className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-[#C9B45C]/40 px-2.5 py-1 text-xs font-medium text-gray-700">
+                              {name}
+                              <button type="button" onClick={() => removeVendor(name)}
+                                className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors leading-none">
+                                <XIcon className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Dropdown trigger */}
+                      <div className="relative" ref={vendorPickerRef}>
+                        <button type="button"
+                          onClick={() => { setVendorPickerOpen(v => !v); setVendorPickerSearch(""); }}
+                          className="w-full flex items-center justify-between rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-500 shadow-sm outline-none transition hover:border-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                        >
+                          <span>{selectedVendors.length === 0 ? "Select vendors…" : `${selectedVendors.length} selected`}</span>
+                          <svg className={`h-4 w-4 text-gray-400 transition-transform ${vendorPickerOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+
+                        {vendorPickerOpen && (
+                          <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl border border-gray-100 bg-white shadow-lg overflow-hidden">
+                            {/* Search */}
+                            <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
+                              <input
+                                autoFocus
+                                value={vendorPickerSearch}
+                                onChange={e => setVendorPickerSearch(e.target.value)}
+                                placeholder="Search vendors…"
+                                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm outline-none focus:border-gray-400"
+                              />
+                            </div>
+                            {/* List */}
+                            <div className="max-h-48 overflow-y-auto py-1">
+                              {availableVendors.length === 0 ? (
+                                <p className="px-4 py-3 text-sm text-gray-400 text-center">
+                                  {vendorPickerSearch ? "No vendors match your search" : "All vendors selected"}
+                                </p>
+                              ) : (
+                                availableVendors.map(name => (
+                                  <button key={name} type="button"
+                                    onClick={() => { addVendor(name); setVendorPickerSearch(""); }}
+                                    className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-amber-50/60 hover:text-gray-900 transition-colors text-left"
+                                  >
+                                    {name}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                            {/* Clear all */}
+                            {selectedVendors.length > 0 && (
+                              <div className="border-t border-gray-100 px-3 py-2">
+                                <button type="button" onClick={() => { setForm(f => ({ ...f, vendor: undefined })); setVendorPickerOpen(false); }}
+                                  className="text-xs text-red-400 hover:text-red-600 transition-colors">
+                                  Clear all
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Stock by Location */}
