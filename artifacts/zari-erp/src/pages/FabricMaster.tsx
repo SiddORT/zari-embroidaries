@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn } from "lucide-react";
+import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -160,7 +160,7 @@ export default function FabricMaster() {
     ...warehouseLocations.filter(w => w.isActive).map(w => w.name),
   ];
 
-  const [modalOpen, setModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "form">("list");
   const [editRecord, setEditRecord] = useState<FabricRecord | null>(null);
   const [form, setForm] = useState<FabricFormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -176,7 +176,7 @@ export default function FabricMaster() {
   const [hsnForm, setHsnForm] = useState<HsnFormData>(EMPTY_HSN_FORM);
   const [hsnErrors, setHsnErrors] = useState<HsnErrors>({});
 
-  const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); };
+  const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setViewMode("form"); };
   const openEdit = (r: FabricRecord) => {
     setEditRecord(r);
     const existingStocks = r.locationStocks?.length
@@ -190,7 +190,7 @@ export default function FabricMaster() {
       isActive: r.isActive, images: r.images ?? [],
       reorderLevel: r.reorderLevel ?? "", minimumLevel: r.minimumLevel ?? "", maximumLevel: r.maximumLevel ?? "" });
     setErrors({});
-    setModalOpen(true);
+    setViewMode("form");
   };
 
   const handleImageFiles = (files: FileList | null) => {
@@ -271,7 +271,7 @@ export default function FabricMaster() {
         await createMutation.mutateAsync(submitData);
         toast({ title: "Created", description: "New fabric created successfully." });
       }
-      setModalOpen(false);
+      setViewMode("list");
     } catch (err: unknown) {
       const msg = (err as { data?: { error?: string } })?.data?.error ?? "An error occurred.";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -424,386 +424,410 @@ export default function FabricMaster() {
   const submitting = createMutation.isPending || updateMutation.isPending;
   if (!user) return null;
 
+  const sectionLabel = (title: string) => (
+    <div className="flex items-center gap-2 mb-4">
+      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">{title}</span>
+      <div className="h-px flex-1 bg-gray-100" />
+    </div>
+  );
+
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
-      <div className="max-w-screen-xl mx-auto space-y-5">
-        <MasterHeader title="Fabric Master" onAdd={openAdd} addLabel="Add Fabric" />
 
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
+      {/* ══════════════ LIST VIEW ══════════════ */}
+      {viewMode === "list" && (
+        <div className="max-w-screen-xl mx-auto space-y-5">
+          <MasterHeader title="Fabric Master" onAdd={openAdd} addLabel="Add Fabric" />
+
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
+              </div>
+              <ExportExcelButton data={rows as Record<string, unknown>[]} filename="Fabric_Master" columns={exportColumns} disabled={isLoading} />
             </div>
-            <ExportExcelButton data={rows as Record<string, unknown>[]} filename="Fabric_Master" columns={exportColumns} disabled={isLoading} />
+            <div className="flex flex-wrap gap-2 items-center">
+              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+                {STATUS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <select value={fabricTypeFilter} onChange={(e) => { setFabricTypeFilter(e.target.value); setPage(1); }}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+                <option value="">All Fabric Types</option>
+                {fabricTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+              <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+                <option value="">All HSN Codes</option>
+                {hsnOptions.map((h) => <option key={h.hsnCode} value={h.hsnCode}>{h.hsnCode}</option>)}
+              </select>
+              <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+                <option value="">All Vendors</option>
+                {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
+              </select>
+              {hasFilters && (
+                <button onClick={() => { setStatusFilter("all"); setFabricTypeFilter(""); setVendorFilter(""); setHsnCodeFilter(""); setPage(1); }}
+                  className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors">
+                  Clear Filters
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              {STATUS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <select value={fabricTypeFilter} onChange={(e) => { setFabricTypeFilter(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              <option value="">All Fabric Types</option>
-              {fabricTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
-            <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              <option value="">All HSN Codes</option>
-              {hsnOptions.map((h) => <option key={h.hsnCode} value={h.hsnCode}>{h.hsnCode}</option>)}
-            </select>
-            <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-              <option value="">All Vendors</option>
-              {allVendors.map((v) => <option key={v.id} value={v.brandName}>{v.brandName}</option>)}
-            </select>
-            {hasFilters && (
-              <button onClick={() => { setStatusFilter("all"); setFabricTypeFilter(""); setVendorFilter(""); setHsnCodeFilter(""); setPage(1); }}
-                className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors">
-                Clear Filters
-              </button>
-            )}
-          </div>
+
+          <MasterTable
+            columns={columns}
+            rows={rows as unknown as TableRow[]}
+            loading={isLoading}
+            rowKey={(r) => asFab(r).id}
+            emptyText="No fabric records found. Click 'Add Fabric' to create one."
+            pagination={{ page, limit, total, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }}
+          />
         </div>
+      )}
 
-        <MasterTable
-          columns={columns}
-          rows={rows as unknown as TableRow[]}
-          loading={isLoading}
-          rowKey={(r) => asFab(r).id}
-          emptyText="No fabric records found. Click 'Add Fabric' to create one."
-          pagination={{ page, limit, total, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }}
-        />
-      </div>
+      {/* ══════════════ FORM VIEW ══════════════ */}
+      {viewMode === "form" && (
+        <div className="max-w-screen-xl mx-auto pb-12">
 
-      {/* Add / Edit Modal */}
-      <MasterFormModal
-        open={modalOpen}
-        title={editRecord ? `Edit Fabric — ${editRecord.fabricCode}` : "Add Fabric"}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSubmit}
-        submitting={submitting}
-        submitLabel={editRecord ? "Update" : "Create"}
-        size="xl"
-      >
-        <div className="space-y-5">
-
-          {/* ── Basic Info ─────────────────────────────────────── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Basic Info</span>
-              <div className="h-px flex-1 bg-gray-100" />
+          {/* Page header bar */}
+          <div className="flex items-center justify-between py-4 mb-6 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode("list")}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors group"
+              >
+                <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+                Fabric Master
+              </button>
+              <span className="text-gray-300 select-none">/</span>
+              <h1 className="text-base font-semibold text-gray-900">
+                {editRecord ? `Edit Fabric — ${editRecord.fabricCode}` : "Add Fabric"}
+              </h1>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <AddableSelect
-                label="Fabric Type" required value={form.fabricType}
-                onChange={(v) => setForm((f) => ({ ...f, fabricType: v }))}
-                onAdd={() => { setNewFabricTypeName(""); setAddFabricTypeOpen(true); }}
-                addLabel="+ Add Type"
-                options={fabricTypeOptions} placeholder="Select Fabric Type" error={errors.fabricType}
-              />
-              <InputField label="Quality" required placeholder="e.g. Premium, Standard" value={form.quality}
-                onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))} error={errors.quality} />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setViewMode("list")}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                style={{ backgroundColor: "#C6AF4B" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#b89d3e")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#C6AF4B")}
+              >
+                <Save className="h-4 w-4" />
+                {submitting ? "Saving…" : editRecord ? "Update Fabric" : "Create Fabric"}
+              </button>
             </div>
           </div>
 
-          {/* ── Color ─────────────────────────────────────────────── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Color</span>
-              <div className="h-px flex-1 bg-gray-100" />
-            </div>
-            <div className="flex gap-4 items-start">
-              {/* Picker + swatch */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <label className="text-sm font-medium text-gray-700">Color Picker</label>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="color"
-                    value={form.hexCode || "#c9b45c"}
-                    onChange={(e) => setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: hexToColorName(e.target.value) }))}
-                    className="h-[42px] w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+          {/* Two-column layout */}
+          <div className="grid grid-cols-3 gap-6">
+
+            {/* ── Left column: main fields ── */}
+            <div className="col-span-2 space-y-5">
+
+              {/* Basic Info */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                {sectionLabel("Basic Info")}
+                <div className="grid grid-cols-2 gap-4">
+                  <AddableSelect
+                    label="Fabric Type" required value={form.fabricType}
+                    onChange={(v) => setForm((f) => ({ ...f, fabricType: v }))}
+                    onAdd={() => { setNewFabricTypeName(""); setAddFabricTypeOpen(true); }}
+                    addLabel="+ Add Type"
+                    options={fabricTypeOptions} placeholder="Select Fabric Type" error={errors.fabricType}
                   />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Hex</span>
-                    <span className="font-mono text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2 py-1 min-w-[80px]">
-                      {form.hexCode || "#c9b45c"}
-                    </span>
+                  <InputField label="Quality" required placeholder="e.g. Premium, Standard" value={form.quality}
+                    onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))} error={errors.quality} />
+                </div>
+              </div>
+
+              {/* Color */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                {sectionLabel("Color")}
+                <div className="flex gap-5 items-start">
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <label className="text-sm font-medium text-gray-700">Color Picker</label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="color"
+                        value={form.hexCode || "#c9b45c"}
+                        onChange={(e) => setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: hexToColorName(e.target.value) }))}
+                        className="h-[42px] w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Hex</span>
+                        <span className="font-mono text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-1 min-w-[88px]">
+                          {form.hexCode || "#c9b45c"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">
+                      Color Name <span className="text-red-500">*</span>
+                      <span className="text-[10px] text-gray-400 font-normal ml-1">(auto-filled — edit to customise)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ivory White, Dark Red"
+                      value={form.colorName}
+                      onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
+                      className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
+                    />
+                    {errors.colorName && <p className="text-xs text-red-500">{errors.colorName}</p>}
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <label className="text-sm font-medium text-gray-700 invisible">Preview</label>
+                    <div className="flex items-center gap-2">
+                      <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm" style={{ backgroundColor: form.hexCode || "#c9b45c" }} />
+                      <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm opacity-60" style={{ backgroundColor: form.hexCode || "#c9b45c", filter: "brightness(1.35)" }} />
+                      <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm opacity-40" style={{ backgroundColor: form.hexCode || "#c9b45c", filter: "brightness(1.7)" }} />
+                    </div>
                   </div>
                 </div>
               </div>
-              {/* Color name */}
-              <div className="flex-1 flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
-                  Color Name <span className="text-red-500">*</span>
-                  <span className="text-[10px] text-gray-400 font-normal ml-1">(auto-filled — edit to customise)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ivory White, Dark Red"
-                  value={form.colorName}
-                  onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
-                  className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
-                />
-                {errors.colorName && <p className="text-xs text-red-500">{errors.colorName}</p>}
-              </div>
-              {/* Live swatch preview */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <label className="text-sm font-medium text-gray-700 invisible">Preview</label>
-                <div className="flex items-center gap-2">
-                  <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm"
-                    style={{ backgroundColor: form.hexCode || "#c9b45c" }} />
-                  <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm opacity-60"
-                    style={{ backgroundColor: form.hexCode || "#c9b45c", filter: "brightness(1.35)" }} />
-                  <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm opacity-40"
-                    style={{ backgroundColor: form.hexCode || "#c9b45c", filter: "brightness(1.7)" }} />
-                </div>
-              </div>
-            </div>
-          </div>
 
-          {/* ── Dimensions & Unit ─────────────────────────────────── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Dimensions & Unit</span>
-              <div className="h-px flex-1 bg-gray-100" />
-            </div>
-            <div className="grid grid-cols-4 gap-4">
-              <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
-                onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
-              <InputField label="Height" placeholder="e.g. 2.0" type="number" value={form.height ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
-              <AddableSelect
-                label="Width Unit Type" required value={form.widthUnitType}
-                onChange={(v) => setForm((f) => ({ ...f, widthUnitType: v }))}
-                onAdd={() => { setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(true); }}
-                addLabel="+ Add Unit"
-                options={widthUnitTypeOptions} placeholder="Select Unit" error={errors.widthUnitType}
-              />
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Unit Type</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Meters, Yards"
-                  value={form.unitType ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, unitType: e.target.value }))}
-                  className="rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Pricing & Tax ─────────────────────────────────────── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Pricing & Tax</span>
-              <div className="h-px flex-1 bg-gray-100" />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
-                onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
-              <AddableSelect
-                label="HSN Code" required value={form.hsnCode}
-                onChange={(v) => {
-                  const hsn = hsnOptions.find((h) => h.hsnCode === v);
-                  setForm((f) => ({ ...f, hsnCode: v, gstPercent: hsn?.gstPercentage ?? f.gstPercent }));
-                }}
-                onAdd={() => { setHsnForm(EMPTY_HSN_FORM); setHsnErrors({}); setAddHSNOpen(true); }}
-                addLabel="+ Add HSN"
-                options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
-              />
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">GST %</label>
-                <div className="relative">
-                  <input
-                    type="text" readOnly
-                    value={form.gstPercent ? `${form.gstPercent}%` : ""}
-                    placeholder="Auto-filled from HSN"
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500 outline-none cursor-default"
+              {/* Dimensions & Unit */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                {sectionLabel("Dimensions & Unit")}
+                <div className="grid grid-cols-4 gap-4">
+                  <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
+                    onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
+                  <InputField label="Height" placeholder="e.g. 2.0" type="number" value={form.height ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
+                  <AddableSelect
+                    label="Width Unit Type" required value={form.widthUnitType}
+                    onChange={(v) => setForm((f) => ({ ...f, widthUnitType: v }))}
+                    onAdd={() => { setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(true); }}
+                    addLabel="+ Add Unit"
+                    options={widthUnitTypeOptions} placeholder="Select Unit" error={errors.widthUnitType}
                   />
-                  {form.gstPercent && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
-                      AUTO
-                    </span>
-                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">Unit Type</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Meters, Yards"
+                      value={form.unitType ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, unitType: e.target.value }))}
+                      className="rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* ── Sourcing ──────────────────────────────────────────── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Sourcing</span>
-              <div className="h-px flex-1 bg-gray-100" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <SearchableSelect label="Vendor" value={form.vendor ?? ""}
-                onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
-                options={allVendors.map(v => v.brandName)}
-                placeholder="Select vendor" clearable />
-            </div>
-          </div>
+              {/* Pricing & Tax */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                {sectionLabel("Pricing & Tax")}
+                <div className="grid grid-cols-3 gap-4">
+                  <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
+                    onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
+                  <AddableSelect
+                    label="HSN Code" required value={form.hsnCode}
+                    onChange={(v) => {
+                      const hsn = hsnOptions.find((h) => h.hsnCode === v);
+                      setForm((f) => ({ ...f, hsnCode: v, gstPercent: hsn?.gstPercentage ?? f.gstPercent }));
+                    }}
+                    onAdd={() => { setHsnForm(EMPTY_HSN_FORM); setHsnErrors({}); setAddHSNOpen(true); }}
+                    addLabel="+ Add HSN"
+                    options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
+                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">GST %</label>
+                    <div className="relative">
+                      <input type="text" readOnly value={form.gstPercent ? `${form.gstPercent}%` : ""}
+                        placeholder="Auto-filled from HSN"
+                        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500 outline-none cursor-default" />
+                      {form.gstPercent && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">AUTO</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-          {/* ── Stock by Location ──────────────────────────────────── */}
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Stock by Location</p>
-                {form.locationStocks.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Total: <span className="font-semibold text-gray-800">{totalStock} {form.widthUnitType || "units"}</span>
-                  </p>
+              {/* Sourcing */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                {sectionLabel("Sourcing")}
+                <div className="grid grid-cols-2 gap-4">
+                  <SearchableSelect label="Vendor" value={form.vendor ?? ""}
+                    onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
+                    options={allVendors.map(v => v.brandName)}
+                    placeholder="Select vendor" clearable />
+                </div>
+              </div>
+
+              {/* Stock by Location */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Stock by Location</span>
+                    {form.locationStocks.length > 0 && (
+                      <span className="text-xs text-gray-500">
+                        · Total: <span className="font-semibold text-gray-800">{totalStock} {form.widthUnitType || "units"}</span>
+                      </span>
+                    )}
+                  </div>
+                  <button type="button" onClick={addLocationStock}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors">
+                    + Add Location
+                  </button>
+                </div>
+                {form.locationStocks.length === 0 ? (
+                  <div className="border-2 border-dashed border-indigo-100 rounded-xl py-7 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
+                    <p className="text-xs text-gray-400">No locations added yet. Click "+ Add Location" to track stock per warehouse.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {form.locationStocks.map((ls, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          list={`loc-list-${idx}`}
+                          value={ls.location}
+                          onChange={e => updateLocationStock(idx, "location", e.target.value)}
+                          placeholder="Type or select location"
+                          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                        />
+                        <datalist id={`loc-list-${idx}`}>
+                          {locationOptions.map(l => <option key={l} value={l} />)}
+                        </datalist>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
+                          <input type="number" min="0" placeholder="0" value={ls.stock}
+                            onChange={e => updateLocationStock(idx, "stock", e.target.value)}
+                            className="w-28 rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                        </div>
+                        <button type="button" onClick={() => removeLocationStock(idx)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                          <XIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="border-t border-indigo-100 pt-2 flex justify-end">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Total Stock: <span className="text-indigo-700">{totalStock} {form.widthUnitType || "units"}</span>
+                      </span>
+                    </div>
+                  </div>
                 )}
               </div>
-              <button type="button" onClick={addLocationStock}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors">
-                + Add Location
-              </button>
             </div>
-            {form.locationStocks.length === 0 ? (
-              <div className="border-2 border-dashed border-indigo-100 rounded-lg py-5 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
-                <p className="text-xs text-gray-400">No locations added. Click "+ Add Location" to track stock per warehouse.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {form.locationStocks.map((ls, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <input
-                      list={`loc-list-${idx}`}
-                      value={ls.location}
-                      onChange={e => updateLocationStock(idx, "location", e.target.value)}
-                      placeholder="Type or select location"
-                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    />
-                    <datalist id={`loc-list-${idx}`}>
-                      {locationOptions.map(l => <option key={l} value={l} />)}
-                    </datalist>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
-                      <input
-                        type="number" min="0" placeholder="0"
-                        value={ls.stock}
-                        onChange={e => updateLocationStock(idx, "stock", e.target.value)}
-                        className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                    <button type="button" onClick={() => removeLocationStock(idx)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                      <XIcon className="h-4 w-4" />
-                    </button>
+
+            {/* ── Right column: images · controls · status ── */}
+            <div className="space-y-5">
+
+              {/* Item Images */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Item Images</span>
+                    <span className="text-[10px] text-gray-400">{form.images.length}/5</span>
                   </div>
-                ))}
-                <div className="border-t border-indigo-100 pt-2 flex justify-end">
-                  <span className="text-sm font-semibold text-gray-700">
-                    Total Stock: <span className="text-indigo-700">{totalStock} {form.widthUnitType || "units"}</span>
+                  {form.images.length < 5 && (
+                    <button type="button" onClick={() => imgInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-dashed border-[#C6AF4B] text-[#8a7a2e] hover:bg-[#C6AF4B]/10 transition-colors">
+                      <ImagePlus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  )}
+                  <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden"
+                    onChange={e => handleImageFiles(e.target.files)} />
+                </div>
+                {form.images.length === 0 ? (
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-10 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
+                    onClick={() => imgInputRef.current?.click()}>
+                    <ImagePlus className="h-8 w-8 text-gray-300" />
+                    <p className="text-xs text-gray-400 text-center">Click to add images<br />(JPG, PNG, WebP · max 3 MB)</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {form.images.map(img => (
+                      <div key={img.id} className="relative group aspect-square rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                        <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                          <button type="button" onClick={() => setLightboxUrl(img.data)}
+                            className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors">
+                            <ZoomIn className="h-3 w-3 text-gray-700" />
+                          </button>
+                          <button type="button" onClick={() => removeImage(img.id)}
+                            className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors">
+                            <XIcon className="h-3 w-3 text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {form.images.length < 5 && (
+                      <button type="button" onClick={() => imgInputRef.current?.click()}
+                        className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center hover:border-[#C6AF4B]/50 transition-colors">
+                        <ImagePlus className="h-5 w-5 text-gray-300" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <p className="text-[10px] text-gray-400 mt-2">Max 3 MB per image</p>
+              </div>
+
+              {/* Stock Control Thresholds */}
+              <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#B8A240" }}>Stock Control</p>
+                  <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">(Optional)</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-gray-700">Minimum Level</label>
+                    <input type="number" min="0" placeholder="0" value={form.minimumLevel ?? ""}
+                      onChange={(e) => setForm(f => ({ ...f, minimumLevel: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
+                    {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-gray-700">Reorder Level</label>
+                    <input type="number" min="0" placeholder="0" value={form.reorderLevel ?? ""}
+                      onChange={(e) => setForm(f => ({ ...f, reorderLevel: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
+                    {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-gray-700">Maximum Level</label>
+                    <input type="number" min="0" placeholder="0" value={form.maximumLevel ?? ""}
+                      onChange={(e) => setForm(f => ({ ...f, maximumLevel: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
+                    {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-3">Low Stock alert triggers when stock ≤ Reorder Level.</p>
+              </div>
+
+              {/* Status */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-700">Status</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{form.isActive ? "Visible and active in the system" : "Hidden from active lists"}</p>
+                  </div>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
+                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
+                    role="switch" aria-checked={form.isActive}>
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                  <span className={`text-sm font-medium min-w-[48px] ${form.isActive ? "text-emerald-600" : "text-gray-400"}`}>
+                    {form.isActive ? "Active" : "Inactive"}
                   </span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* ── Item Images ───────────────────────────────────────── */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Item Images</span>
-                <span className="text-[10px] text-gray-400 font-normal">{form.images.length}/5 · max 3 MB each</span>
-              </div>
-              {form.images.length < 5 && (
-                <button type="button" onClick={() => imgInputRef.current?.click()}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-dashed border-[#C6AF4B] text-[#8a7a2e] hover:bg-[#C6AF4B]/10 transition-colors">
-                  <ImagePlus className="h-3.5 w-3.5" /> Add Image
-                </button>
-              )}
-              <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden"
-                onChange={e => handleImageFiles(e.target.files)} />
             </div>
-            {form.images.length === 0 ? (
-              <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-8 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
-                onClick={() => imgInputRef.current?.click()}>
-                <ImagePlus className="h-7 w-7 text-gray-300" />
-                <p className="text-xs text-gray-400">Click to add item images (JPG, PNG, WebP)</p>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {form.images.map(img => (
-                  <div key={img.id} className="relative group w-20 h-20 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-                    <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-                      <button type="button" onClick={() => setLightboxUrl(img.data)}
-                        className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors">
-                        <ZoomIn className="h-3 w-3 text-gray-700" />
-                      </button>
-                      <button type="button" onClick={() => removeImage(img.id)}
-                        className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors">
-                        <XIcon className="h-3 w-3 text-red-500" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {form.images.length < 5 && (
-                  <button type="button" onClick={() => imgInputRef.current?.click()}
-                    className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center hover:border-[#C6AF4B]/50 transition-colors">
-                    <ImagePlus className="h-5 w-5 text-gray-300" />
-                  </button>
-                )}
-              </div>
-            )}
           </div>
-
-          {/* ── Stock Control Settings ───────────────────────────── */}
-          <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#B8A240" }}>
-                Stock Control Thresholds
-              </p>
-              <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">(Optional)</span>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-700">Minimum Level</label>
-                <input type="number" min="0" placeholder="0" value={form.minimumLevel ?? ""}
-                  onChange={(e) => setForm(f => ({ ...f, minimumLevel: e.target.value }))}
-                  className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
-                {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-700">Reorder Level</label>
-                <input type="number" min="0" placeholder="0" value={form.reorderLevel ?? ""}
-                  onChange={(e) => setForm(f => ({ ...f, reorderLevel: e.target.value }))}
-                  className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
-                {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-700">Maximum Level</label>
-                <input type="number" min="0" placeholder="0" value={form.maximumLevel ?? ""}
-                  onChange={(e) => setForm(f => ({ ...f, maximumLevel: e.target.value }))}
-                  className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
-                {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
-              </div>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-2.5">
-              A Low Stock alert fires when current stock falls at or below the Reorder Level.
-            </p>
-          </div>
-
-          {/* ── Status ───────────────────────────────────────────── */}
-          <div className="flex items-center gap-3 pt-1 pb-1 border-t border-gray-100">
-            <label className="text-sm font-medium text-gray-700">Status</label>
-            <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
-              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
-              role="switch" aria-checked={form.isActive}>
-              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-4" : "translate-x-0"}`} />
-            </button>
-            <span className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}>
-              {form.isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
-
         </div>
-      </MasterFormModal>
+      )}
 
-      {/* Delete Confirm */}
+      {/* ══ Delete Confirm ══ */}
       <ConfirmModal
         open={!!deleteTarget}
         title="Delete Fabric"
@@ -814,21 +838,21 @@ export default function FabricMaster() {
         loading={deleteMutation.isPending}
       />
 
-      {/* Add Fabric Type mini-modal */}
+      {/* ══ Add Fabric Type mini-modal ══ */}
       <MasterFormModal open={addFabricTypeOpen} title="Add Fabric Type" onClose={() => setAddFabricTypeOpen(false)}
         onSubmit={handleAddFabricType} submitting={createFabricType.isPending} submitLabel="Add">
         <InputField label="Fabric Type Name" required placeholder="e.g. Cotton, Silk, Velvet" value={newFabricTypeName}
           onChange={(e) => setNewFabricTypeName(e.target.value)} />
       </MasterFormModal>
 
-      {/* Add Width Unit Type mini-modal */}
+      {/* ══ Add Width Unit Type mini-modal ══ */}
       <MasterFormModal open={addWidthUnitTypeOpen} title="Add Width Unit Type" onClose={() => setAddWidthUnitTypeOpen(false)}
         onSubmit={handleAddWidthUnitType} submitting={createWidthUnitType.isPending} submitLabel="Add">
         <InputField label="Width Unit Type Name" required placeholder="e.g. cm, inches" value={newWidthUnitTypeName}
           onChange={(e) => setNewWidthUnitTypeName(e.target.value)} />
       </MasterFormModal>
 
-      {/* Add HSN mini-modal */}
+      {/* ══ Add HSN mini-modal ══ */}
       <MasterFormModal open={addHSNOpen} title="Add HSN Code" onClose={() => setAddHSNOpen(false)}
         onSubmit={handleAddHSN} submitting={createHSN.isPending} submitLabel="Add">
         <InputField label="HSN Code" required placeholder="e.g. 63019090" value={hsnForm.hsnCode}
@@ -846,7 +870,7 @@ export default function FabricMaster() {
           onChange={(e) => setHsnForm((f) => ({ ...f, govtDescription: e.target.value }))} error={hsnErrors.govtDescription} />
       </MasterFormModal>
 
-      {/* Lightbox */}
+      {/* ══ Lightbox ══ */}
       {lightboxUrl && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4"
           onClick={() => setLightboxUrl(null)}>
