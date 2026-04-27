@@ -514,11 +514,11 @@ export default function HSNMaster() {
             <button
               onClick={() => setImportMenuOpen((v) => !v)}
               disabled={importLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 text-[#C9B45C] text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Upload className="h-4 w-4" />
+              <Upload className="h-4 w-4 text-[#C6AF4B]" />
               {importLoading ? "Importing…" : "Import Data"}
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
             </button>
             {importMenuOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
