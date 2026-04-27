@@ -485,78 +485,167 @@ export default function FabricMaster() {
         submitLabel={editRecord ? "Update" : "Create"}
         size="xl"
       >
-        <div className="grid grid-cols-2 gap-4">
-          <AddableSelect
-            label="Fabric Type" required value={form.fabricType}
-            onChange={(v) => setForm((f) => ({ ...f, fabricType: v }))}
-            onAdd={() => { setNewFabricTypeName(""); setAddFabricTypeOpen(true); }}
-            addLabel="+ Add Type"
-            options={fabricTypeOptions} placeholder="Select Fabric Type" error={errors.fabricType}
-          />
-          <InputField label="Quality" required placeholder="e.g. Premium" value={form.quality}
-            onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))} error={errors.quality} />
+        <div className="space-y-5">
 
-          {/* Color picker */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Color</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="color"
-                value={form.hexCode || "#c9b45c"}
-                onChange={(e) => setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: hexToColorName(e.target.value) }))}
-                className="h-10 w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+          {/* ── Basic Info ─────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Basic Info</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <AddableSelect
+                label="Fabric Type" required value={form.fabricType}
+                onChange={(v) => setForm((f) => ({ ...f, fabricType: v }))}
+                onAdd={() => { setNewFabricTypeName(""); setAddFabricTypeOpen(true); }}
+                addLabel="+ Add Type"
+                options={fabricTypeOptions} placeholder="Select Fabric Type" error={errors.fabricType}
               />
-              <input type="text" value={form.hexCode || ""} readOnly
-                className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500"
-                placeholder="#000000" />
+              <InputField label="Quality" required placeholder="e.g. Premium, Standard" value={form.quality}
+                onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))} error={errors.quality} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Color Name <span className="text-red-500">*</span> <span className="text-[10px] text-gray-400 font-normal">(auto-filled from color picker)</span></label>
-            <input
-              type="text"
-              placeholder="e.g. Ivory White"
-              value={form.colorName}
-              onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
-              className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
-            />
-            {errors.colorName && <p className="text-xs text-red-500">{errors.colorName}</p>}
+          {/* ── Color ─────────────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Color</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            <div className="flex gap-4 items-start">
+              {/* Picker + swatch */}
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <label className="text-sm font-medium text-gray-700">Color Picker</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={form.hexCode || "#c9b45c"}
+                    onChange={(e) => setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: hexToColorName(e.target.value) }))}
+                    className="h-[42px] w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0"
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Hex</span>
+                    <span className="font-mono text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2 py-1 min-w-[80px]">
+                      {form.hexCode || "#c9b45c"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {/* Color name */}
+              <div className="flex-1 flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  Color Name <span className="text-red-500">*</span>
+                  <span className="text-[10px] text-gray-400 font-normal ml-1">(auto-filled — edit to customise)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ivory White, Dark Red"
+                  value={form.colorName}
+                  onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
+                  className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 focus:border-red-400" : "border-gray-300 focus:border-gray-900"}`}
+                />
+                {errors.colorName && <p className="text-xs text-red-500">{errors.colorName}</p>}
+              </div>
+              {/* Live swatch preview */}
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <label className="text-sm font-medium text-gray-700 invisible">Preview</label>
+                <div className="flex items-center gap-2">
+                  <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm"
+                    style={{ backgroundColor: form.hexCode || "#c9b45c" }} />
+                  <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm opacity-60"
+                    style={{ backgroundColor: form.hexCode || "#c9b45c", filter: "brightness(1.35)" }} />
+                  <div className="h-[42px] w-[42px] rounded-xl border border-gray-200 shadow-sm opacity-40"
+                    style={{ backgroundColor: form.hexCode || "#c9b45c", filter: "brightness(1.7)" }} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
-            onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
-          <InputField label="Height" placeholder="e.g. 2.0" type="number" value={form.height ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
-          <AddableSelect
-            label="Width Unit Type" required value={form.widthUnitType}
-            onChange={(v) => setForm((f) => ({ ...f, widthUnitType: v }))}
-            onAdd={() => { setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(true); }}
-            addLabel="+ Add Width Unit"
-            options={widthUnitTypeOptions} placeholder="Select Width Unit" error={errors.widthUnitType}
-          />
+          {/* ── Dimensions & Unit ─────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Dimensions & Unit</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
+                onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
+              <InputField label="Height" placeholder="e.g. 2.0" type="number" value={form.height ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
+              <AddableSelect
+                label="Width Unit Type" required value={form.widthUnitType}
+                onChange={(v) => setForm((f) => ({ ...f, widthUnitType: v }))}
+                onAdd={() => { setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(true); }}
+                addLabel="+ Add Unit"
+                options={widthUnitTypeOptions} placeholder="Select Unit" error={errors.widthUnitType}
+              />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Unit Type</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Meters, Yards"
+                  value={form.unitType ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, unitType: e.target.value }))}
+                  className="rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                />
+              </div>
+            </div>
+          </div>
 
-          <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
-            onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
+          {/* ── Pricing & Tax ─────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Pricing & Tax</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
+                onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
+              <AddableSelect
+                label="HSN Code" required value={form.hsnCode}
+                onChange={(v) => {
+                  const hsn = hsnOptions.find((h) => h.hsnCode === v);
+                  setForm((f) => ({ ...f, hsnCode: v, gstPercent: hsn?.gstPercentage ?? f.gstPercent }));
+                }}
+                onAdd={() => { setHsnForm(EMPTY_HSN_FORM); setHsnErrors({}); setAddHSNOpen(true); }}
+                addLabel="+ Add HSN"
+                options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
+              />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">GST %</label>
+                <div className="relative">
+                  <input
+                    type="text" readOnly
+                    value={form.gstPercent ? `${form.gstPercent}%` : ""}
+                    placeholder="Auto-filled from HSN"
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500 outline-none cursor-default"
+                  />
+                  {form.gstPercent && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">
+                      AUTO
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <AddableSelect
-            label="HSN Code" required value={form.hsnCode}
-            onChange={(v) => {
-              const hsn = hsnOptions.find((h) => h.hsnCode === v);
-              setForm((f) => ({ ...f, hsnCode: v, gstPercent: hsn?.gstPercentage ?? f.gstPercent }));
-            }}
-            onAdd={() => { setHsnForm(EMPTY_HSN_FORM); setHsnErrors({}); setAddHSNOpen(true); }}
-            addLabel="+ Add HSN"
-            options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
-          />
+          {/* ── Sourcing ──────────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Sourcing</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <SearchableSelect label="Vendor" value={form.vendor ?? ""}
+                onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
+                options={allVendors.map(v => v.brandName)}
+                placeholder="Select vendor" clearable />
+            </div>
+          </div>
 
-          <SearchableSelect label="Vendor" value={form.vendor ?? ""}
-            onChange={(v) => setForm((f) => ({ ...f, vendor: v }))}
-            options={allVendors.map(v => v.brandName)}
-            placeholder="Select vendor" clearable />
-
-          {/* Per-Warehouse Stock Section */}
-          <div className="col-span-2 rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
+          {/* ── Stock by Location ──────────────────────────────────── */}
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Stock by Location</p>
@@ -573,7 +662,7 @@ export default function FabricMaster() {
             </div>
             {form.locationStocks.length === 0 ? (
               <div className="border-2 border-dashed border-indigo-100 rounded-lg py-5 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
-                <p className="text-xs text-gray-400">No locations added. Click "Add Location" to track stock per warehouse.</p>
+                <p className="text-xs text-gray-400">No locations added. Click "+ Add Location" to track stock per warehouse.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -613,12 +702,13 @@ export default function FabricMaster() {
             )}
           </div>
 
-          {/* Images */}
-          <div className="col-span-2 pt-1">
+          {/* ── Item Images ───────────────────────────────────────── */}
+          <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">
-                Item Images <span className="text-xs font-normal text-gray-400">({form.images.length}/5, max 3 MB each)</span>
-              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Item Images</span>
+                <span className="text-[10px] text-gray-400 font-normal">{form.images.length}/5 · max 3 MB each</span>
+              </div>
               {form.images.length < 5 && (
                 <button type="button" onClick={() => imgInputRef.current?.click()}
                   className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-dashed border-[#C6AF4B] text-[#8a7a2e] hover:bg-[#C6AF4B]/10 transition-colors">
@@ -629,7 +719,7 @@ export default function FabricMaster() {
                 onChange={e => handleImageFiles(e.target.files)} />
             </div>
             {form.images.length === 0 ? (
-              <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-6 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
+              <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-8 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
                 onClick={() => imgInputRef.current?.click()}>
                 <ImagePlus className="h-7 w-7 text-gray-300" />
                 <p className="text-xs text-gray-400">Click to add item images (JPG, PNG, WebP)</p>
@@ -661,10 +751,11 @@ export default function FabricMaster() {
             )}
           </div>
 
-          <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+          {/* ── Stock Control Settings ───────────────────────────── */}
+          <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
             <div className="flex items-center gap-2 mb-3">
               <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#B8A240" }}>
-                Stock Control Settings
+                Stock Control Thresholds
               </p>
               <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">(Optional)</span>
             </div>
@@ -673,38 +764,42 @@ export default function FabricMaster() {
                 <label className="text-sm font-medium text-gray-700">Minimum Level</label>
                 <input type="number" min="0" placeholder="0" value={form.minimumLevel ?? ""}
                   onChange={(e) => setForm(f => ({ ...f, minimumLevel: e.target.value }))}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                  className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
                 {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700">Reorder Level</label>
                 <input type="number" min="0" placeholder="0" value={form.reorderLevel ?? ""}
                   onChange={(e) => setForm(f => ({ ...f, reorderLevel: e.target.value }))}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                  className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
                 {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700">Maximum Level</label>
                 <input type="number" min="0" placeholder="0" value={form.maximumLevel ?? ""}
                   onChange={(e) => setForm(f => ({ ...f, maximumLevel: e.target.value }))}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                  className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
                 {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
               </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-2">
-              When stock falls at or below the reorder level, a Low Stock alert will be triggered.
+            <p className="text-[10px] text-gray-400 mt-2.5">
+              A Low Stock alert fires when current stock falls at or below the Reorder Level.
             </p>
           </div>
 
-          <div className="col-span-2 flex items-center gap-3 pt-3">
+          {/* ── Status ───────────────────────────────────────────── */}
+          <div className="flex items-center gap-3 pt-1 pb-1 border-t border-gray-100">
             <label className="text-sm font-medium text-gray-700">Status</label>
             <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
               className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
               role="switch" aria-checked={form.isActive}>
               <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-4" : "translate-x-0"}`} />
             </button>
-            <span className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}>{form.isActive ? "Active" : "Inactive"}</span>
+            <span className={`text-sm ${form.isActive ? "text-emerald-600 font-medium" : "text-gray-400"}`}>
+              {form.isActive ? "Active" : "Inactive"}
+            </span>
           </div>
+
         </div>
       </MasterFormModal>
 
