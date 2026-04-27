@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, Upload, Download, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -281,14 +281,14 @@ export default function SwatchCategoryMaster() {
 
           <button onClick={handleExportAll} disabled={exportLoading || isLoading}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            <Download className="h-4 w-4" />
+            <FileDown className="h-4 w-4" />
             {exportLoading ? "Exporting…" : "Export to Excel"}
           </button>
 
           <div className="relative" ref={importMenuRef}>
             <button onClick={() => setImportMenuOpen(v => !v)} disabled={importLoading}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <Upload className="h-4 w-4 text-[#C6AF4B]" />
+              <FileInput className="h-4 w-4 text-[#C6AF4B]" />
               {importLoading ? "Importing…" : "Import Data"}
               <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
             </button>
@@ -301,7 +301,7 @@ export default function SwatchCategoryMaster() {
                 <div className="border-t border-gray-100" />
                 <button onClick={() => { setImportMenuOpen(false); importFileRef.current?.click(); }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                  <Upload className="h-4 w-4 text-blue-600 shrink-0" />
+                  <FileUp className="h-4 w-4 text-blue-600 shrink-0" />
                   <div><p className="font-medium">Upload Excel File</p><p className="text-xs text-gray-400">Import records from file</p></div>
                 </button>
               </div>
