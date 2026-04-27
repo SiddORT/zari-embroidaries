@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ChevronDown, Upload, Download } from "lucide-react";
+import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, FileDown, FileUp, FileSpreadsheet } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
@@ -128,8 +128,10 @@ export default function MaterialsMaster() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const [importDropOpen, setImportDropOpen] = useState(false);
-  const importDropRef = useRef<HTMLDivElement>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
   const [newUnitTypeName, setNewUnitTypeName] = useState("");
@@ -143,11 +145,9 @@ export default function MaterialsMaster() {
   const [vendorPickerSearch, setVendorPickerSearch] = useState("");
   const vendorPickerRef = useRef<HTMLDivElement>(null);
 
-  const [exporting, setExporting] = useState(false);
-
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (importDropRef.current && !importDropRef.current.contains(e.target as Node)) setImportDropOpen(false);
+      if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) setImportMenuOpen(false);
       if (vendorPickerRef.current && !vendorPickerRef.current.contains(e.target as Node)) setVendorPickerOpen(false);
     };
     document.addEventListener("mousedown", handleClick);
@@ -384,7 +384,7 @@ export default function MaterialsMaster() {
   };
 
   const handleExportAll = async () => {
-    setExporting(true);
+    setExportLoading(true);
     try {
       const allRows = await fetchAllMaterialsForExport({ search: debouncedSearch, status: statusFilter, hsnCode: hsnCodeFilter, type: typeFilter, vendor: vendorFilter });
       const wsData = allRows.map((r) => ({
@@ -412,7 +412,7 @@ export default function MaterialsMaster() {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wsData), "Materials");
       XLSX.writeFile(wb, "Materials_Export.xlsx");
     } catch { toast({ title: "Export Failed", description: "Could not export materials.", variant: "destructive" }); }
-    finally { setExporting(false); }
+    finally { setExportLoading(false); }
   };
 
   const handleDownloadSample = () => {
@@ -427,10 +427,11 @@ export default function MaterialsMaster() {
     XLSX.writeFile(wb, "Materials_Import_Template.xlsx");
   };
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    setImportLoading(true);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
@@ -440,15 +441,19 @@ export default function MaterialsMaster() {
         if (!jsonRows.length) { toast({ title: "Empty File", description: "No data rows found.", variant: "destructive" }); return; }
         const importRaw = await importMutation.mutateAsync(jsonRows);
         const result = (importRaw as unknown) as MaterialImportResult;
-        if (result.failed === 0) {
-          toast({ title: "Import Complete", description: `${result.succeeded} material(s) imported successfully.` });
-        } else {
-          toast({ title: "Import Partial", description: `${result.succeeded} succeeded, ${result.failed} failed. Check console for details.`, variant: "destructive" });
-          console.warn("Import errors:", result.results.filter((r) => r.status === "error"));
-        }
+        const hasErrors = result.failed > 0;
+        toast({
+          title: hasErrors ? "Imported with errors" : "Import Successful",
+          description: `${result.succeeded} succeeded${hasErrors ? `, ${result.failed} failed` : ""}.`,
+          variant: hasErrors ? "destructive" : "default",
+        });
+        if (hasErrors) console.warn("Import row errors:", result.results.filter((r) => r.status === "error"));
       } catch (err: unknown) {
         const msg = (err as { data?: { error?: string } })?.data?.error ?? "Import failed.";
-        toast({ title: "Import Failed", description: msg, variant: "destructive" });
+        toast({ title: "Import Error", description: msg, variant: "destructive" });
+      } finally {
+        setImportLoading(false);
+        setImportMenuOpen(false);
       }
     };
     reader.readAsBinaryString(file);
@@ -550,47 +555,50 @@ export default function MaterialsMaster() {
           <MasterHeader title="Materials Master" onAdd={openAdd} addLabel="Add Material" />
 
           <div className="space-y-3">
-            <div className="flex gap-3 flex-wrap">
-              <div className="flex-1 min-w-[200px]">
+            <div className="flex gap-3">
+              <div className="flex-1">
                 <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN, vendor..." />
               </div>
+              {/* Export All */}
+              <button
+                onClick={handleExportAll}
+                disabled={exportLoading || isLoading}
+                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                title="Export all matching records to Excel"
+              >
+                <FileDown className="h-4 w-4 text-[#C9B45C]" />
+                {exportLoading ? "Exporting…" : "Export"}
+              </button>
               {/* Import dropdown */}
-              <div className="relative" ref={importDropRef}>
+              <div className="relative" ref={importMenuRef}>
                 <button
-                  type="button"
-                  onClick={() => setImportDropOpen((v) => !v)}
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium border border-[#C9B45C]/50 bg-white hover:border-[#C9B45C] hover:bg-amber-50/40 text-gray-700 transition-colors shadow-sm"
+                  onClick={() => setImportMenuOpen((v) => !v)}
+                  disabled={importLoading}
+                  className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
                 >
-                  <Upload className="h-4 w-4 text-[#C6AF4B]" />
-                  Import
-                  <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importDropOpen ? "rotate-180" : ""}`} />
+                  <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
+                  {importLoading ? "Importing…" : "Import"}
                 </button>
-                {importDropOpen && (
-                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg overflow-hidden">
-                    <button type="button" onClick={() => { handleDownloadSample(); setImportDropOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50/60 hover:text-gray-900 transition-colors text-left">
-                      <Download className="h-4 w-4 text-[#C6AF4B]" />
+                {importMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                    <button
+                      onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileDown className="h-4 w-4 text-gray-400" />
                       Download Sample
                     </button>
-                    <button type="button" onClick={() => { setImportDropOpen(false); importInputRef.current?.click(); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-amber-50/60 hover:text-gray-900 transition-colors text-left">
-                      <Upload className="h-4 w-4 text-[#C6AF4B]" />
+                    <button
+                      onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileUp className="h-4 w-4 text-gray-400" />
                       Upload Excel
                     </button>
                   </div>
                 )}
                 <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
               </div>
-              {/* Export All */}
-              <button
-                type="button"
-                onClick={handleExportAll}
-                disabled={exporting || isLoading}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium border border-[#C9B45C]/50 bg-white hover:border-[#C9B45C] hover:bg-amber-50/40 text-gray-700 transition-colors shadow-sm disabled:opacity-50"
-              >
-                <Download className="h-4 w-4 text-[#C6AF4B]" />
-                {exporting ? "Exporting…" : "Export All"}
-              </button>
             </div>
 
             <div className="flex flex-wrap gap-2 items-center">
