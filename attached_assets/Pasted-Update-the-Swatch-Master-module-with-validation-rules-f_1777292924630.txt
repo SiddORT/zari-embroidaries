@@ -1,0 +1,256 @@
+Update the Swatch Master module with validation rules, filter improvements, dropdown visibility fixes, numeric field corrections, status confirmation logic, list view corrections, and Excel export enhancements.
+
+MODULE: SWATCH MASTER
+
+--------------------------------------------------
+1. Add Clear Filter Option
+--------------------------------------------------
+
+Add "Clear Filters" button near filter section.
+
+Expected behavior:
+
+When clicked:
+
+- Reset all filter fields
+- Reset dropdown selections
+- Reset date filters
+- Reload full dataset
+
+Button label:
+
+"Clear Filters"
+
+--------------------------------------------------
+2. Dropdown Search Text Visibility Issue
+--------------------------------------------------
+
+Fix dropdown UI styling:
+
+- Improve placeholder visibility
+- Improve typed search text visibility
+- Ensure readable contrast in light mode
+- Ensure readable contrast in dark mode
+
+Expected result:
+
+Search text clearly visible inside dropdown.
+
+--------------------------------------------------
+3. Swatch Name Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Reject blank-space-only input
+- Trim leading/trailing spaces
+- Prevent multiple consecutive spaces
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Swatch Name must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+4. Swatch Date Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Future dates NOT allowed
+- Only today or past dates allowed
+
+Validation message:
+
+"Future date is not allowed."
+
+--------------------------------------------------
+5. Length Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject special characters
+- Reject scientific notation ("e")
+- Allow decimal values if required
+- Max length: 10 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Length must be a positive numeric value."
+
+--------------------------------------------------
+6. Width Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimal values if required
+- Max length: 10 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Width must be a positive numeric value."
+
+--------------------------------------------------
+7. Hours Field Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY positive numeric values
+- Reject negative values
+- Reject alphabets
+- Reject scientific notation ("e")
+- Allow decimal values if required
+- Max length: 6 digits
+
+Regex:
+/^[0-9]+(\.[0-9]{1,2})?$/
+
+Validation message:
+
+"Hours must be a positive numeric value."
+
+--------------------------------------------------
+8. Status Change Confirmation Popup
+--------------------------------------------------
+
+When changing Swatch status:
+
+Show confirmation dialog:
+
+"Are you sure you want to change the status?"
+
+Buttons:
+
+YES → Update status
+NO → Cancel action
+
+--------------------------------------------------
+9. Status Change Success Message
+--------------------------------------------------
+
+After successful change:
+
+Show message:
+
+"Swatch status updated successfully."
+
+--------------------------------------------------
+10. Length & Unit Not Showing in List View
+--------------------------------------------------
+
+Fix list grid configuration:
+
+Ensure columns visible:
+
+- Length
+- Unit
+
+Ensure:
+
+- Correct backend mapping
+- Correct column binding
+- Data loads properly in grid
+
+Expected behavior:
+
+Length and Unit values visible in list view.
+
+--------------------------------------------------
+11. Excel Export Status Column Missing
+--------------------------------------------------
+
+Fix Excel export configuration:
+
+Ensure column included:
+
+Status
+
+Replace boolean values:
+
+True → Active
+False → Inactive
+
+--------------------------------------------------
+12. Excel Export Only Exporting First 10 Records
+--------------------------------------------------
+
+Fix pagination export issue.
+
+Expected behavior:
+
+Export ALL filtered records
+Not only visible page records
+
+Update backend export query accordingly.
+
+--------------------------------------------------
+13. Prevent Space-Only Submission (Global Rule)
+--------------------------------------------------
+
+Apply across Swatch Master:
+
+Reject entries containing only spaces
+
+Example:
+
+"     "
+
+Validation message:
+
+"Field cannot be empty."
+
+--------------------------------------------------
+14. Backend Validation (Required)
+--------------------------------------------------
+
+Ensure server-side validation includes:
+
+- alphabet-only swatch name validation
+- positive numeric validation (Length, Width, Hours)
+- rejection of negative values
+- rejection of scientific notation ("e")
+- rejection of blank-space-only input
+- future-date restriction
+- dropdown binding validation
+
+Return structured validation errors in JSON format.
+
+--------------------------------------------------
+15. UI Improvements
+--------------------------------------------------
+
+Apply across Swatch Master module:
+
+- Inline validation messages below fields
+- Disable Create button until validation passes
+- Trim all inputs before submission
+- Show success message after save:
+
+"Swatch created successfully."
+
+Show success message after update:
+
+"Swatch updated successfully."

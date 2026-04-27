@@ -32,6 +32,12 @@ export type SwatchFormData = {
   isActive: boolean;
 };
 
+export type SwatchImportResult = {
+  succeeded: number;
+  failed: number;
+  results: { row: number; status: "success" | "error"; swatchCode?: string; errors?: string[] }[];
+};
+
 export type StatusFilter = "all" | "active" | "inactive";
 
 const BASE = "/api/swatches";
@@ -61,9 +67,9 @@ export function useAllSwatches() {
 }
 
 export type SwatchRefOption = {
-  id: string;       // plain numeric string for masters; "swo:<n>" for swatch orders
-  code: string;     // swatchCode or orderCode
-  name: string;     // swatchName
+  id: string;
+  code: string;
+  name: string;
   client: string;
   source: "master" | "order";
 };
@@ -74,6 +80,13 @@ export function useSwatchesForReference() {
     queryFn: () => customFetch<SwatchRefOption[]>(`${BASE}/for-reference`),
     staleTime: 30_000,
   });
+}
+
+export async function fetchAllSwatchesForExport(params: {
+  search: string; status: string; client: string; location: string; swatchCategory: string;
+}): Promise<SwatchRecord[]> {
+  const qs = new URLSearchParams(params).toString();
+  return customFetch<SwatchRecord[]>(`${BASE}/export-all?${qs}`);
 }
 
 export function useCreateSwatch() {
@@ -105,6 +118,15 @@ export function useDeleteSwatch() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useImportSwatches() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) =>
+      customFetch<SwatchImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify(rows) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

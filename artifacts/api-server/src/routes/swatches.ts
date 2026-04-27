@@ -10,15 +10,15 @@ import type { Request } from "express";
 const router: IRouter = Router();
 type AuthRequest = Request & { user?: { userId: number; email: string; role: string } };
 
-router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const NUMERIC_REGEX = /^[0-9]+(\.[0-9]{1,2})?$/;
+
+function buildConditions(req: Request) {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const clientFilter = (req.query.client as string) ?? "";
   const locationFilter = (req.query.location as string) ?? "";
   const swatchCategoryFilter = (req.query.swatchCategory as string) ?? "";
-  const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
-  const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
-  const offset = (page - 1) * limit;
 
   const conditions = [eq(swatchesTable.isDeleted, false)];
   if (status === "active") conditions.push(eq(swatchesTable.isActive, true));
@@ -34,7 +34,15 @@ router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void
       ilike(swatchesTable.fabric, `%${search}%`),
     )!);
   }
+  return conditions;
+}
 
+router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
+  const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
+  const offset = (page - 1) * limit;
+
+  const conditions = buildConditions(req);
   const whereClause = and(...conditions);
   const [rows, countRows] = await Promise.all([
     db.select().from(swatchesTable).where(whereClause).orderBy(desc(swatchesTable.createdAt)).limit(limit).offset(offset),
@@ -43,12 +51,18 @@ router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
+router.get("/swatches/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const conditions = buildConditions(req);
+  const whereClause = and(...conditions);
+  const rows = await db.select().from(swatchesTable).where(whereClause).orderBy(desc(swatchesTable.createdAt));
+  res.json(rows);
+});
+
 router.get("/swatches/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(swatchesTable).where(and(eq(swatchesTable.isDeleted, false), eq(swatchesTable.isActive, true))).orderBy(swatchesTable.swatchName);
   res.json(rows);
 });
 
-// Combined reference list: active master swatches + non-cancelled swatch orders
 router.get("/swatches/for-reference", requireAuth, async (_req, res): Promise<void> => {
   const { rows } = await (pool as any).query(`
     SELECT
@@ -76,7 +90,36 @@ router.get("/swatches/for-reference", requireAuth, async (_req, res): Promise<vo
   res.json(rows);
 });
 
+function validateSwatchBody(body: Record<string, unknown>): string[] {
+  const errs: string[] = [];
+  const name = typeof body.swatchName === "string" ? body.swatchName.trim() : "";
+  if (!name) errs.push("Swatch Name is required.");
+  else if (!NAME_REGEX.test(name)) errs.push("Swatch Name must contain only letters and spaces (max 100 characters).");
+  else if (name.length > 100) errs.push("Swatch Name must contain only letters and spaces (max 100 characters).");
+
+  const swatchDate = typeof body.swatchDate === "string" ? body.swatchDate.trim() : "";
+  if (swatchDate) {
+    const d = new Date(swatchDate);
+    const today = new Date(); today.setHours(23, 59, 59, 999);
+    if (d > today) errs.push("Future date is not allowed.");
+  }
+
+  const length = typeof body.length === "string" ? body.length.trim() : "";
+  if (length && !NUMERIC_REGEX.test(length)) errs.push("Length must be a positive numeric value.");
+
+  const width = typeof body.width === "string" ? body.width.trim() : "";
+  if (width && !NUMERIC_REGEX.test(width)) errs.push("Width must be a positive numeric value.");
+
+  const hours = typeof body.hours === "string" ? body.hours.trim() : "";
+  if (hours && !NUMERIC_REGEX.test(hours)) errs.push("Hours must be a positive numeric value.");
+
+  return errs;
+}
+
 router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const validationErrs = validateSwatchBody(req.body as Record<string, unknown>);
+  if (validationErrs.length > 0) { res.status(400).json({ error: validationErrs[0], details: validationErrs }); return; }
+
   const parsed = insertSwatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -100,6 +143,10 @@ router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<voi
 router.put("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const validationErrs = validateSwatchBody(req.body as Record<string, unknown>);
+  if (validationErrs.length > 0) { res.status(400).json({ error: validationErrs[0], details: validationErrs }); return; }
+
   const parsed = updateSwatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
   const updatedBy = req.user?.email ?? "system";
@@ -127,6 +174,64 @@ router.delete("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promi
     .where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false))).returning();
   if (!record) { res.status(404).json({ error: "Swatch not found" }); return; }
   res.json({ message: "Swatch deleted" });
+});
+
+router.post("/swatches/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const rows = req.body as Record<string, unknown>[];
+  if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "No data provided" }); return; }
+
+  const createdBy = req.user?.email ?? "system";
+  const prefix = "SW-";
+
+  const results: { row: number; status: "success" | "error"; swatchCode?: string; errors?: string[] }[] = [];
+  let succeeded = 0; let failed = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const raw = rows[i];
+    const body = {
+      swatchName: String(raw["Swatch Name"] ?? raw["swatchName"] ?? "").trim(),
+      client: String(raw["Client"] ?? raw["client"] ?? "").trim() || undefined,
+      swatchCategory: String(raw["Category"] ?? raw["swatchCategory"] ?? "").trim() || undefined,
+      fabric: String(raw["Base Fabric"] ?? raw["fabric"] ?? "").trim() || undefined,
+      location: String(raw["Location"] ?? raw["location"] ?? "").trim() || undefined,
+      swatchDate: String(raw["Date"] ?? raw["swatchDate"] ?? "").trim() || undefined,
+      length: String(raw["Length"] ?? raw["length"] ?? "").trim() || undefined,
+      width: String(raw["Width"] ?? raw["width"] ?? "").trim() || undefined,
+      unitType: String(raw["Unit Type"] ?? raw["unitType"] ?? "").trim() || undefined,
+      hours: String(raw["Hours"] ?? raw["hours"] ?? "").trim() || undefined,
+      isActive: true,
+    };
+
+    const errs = validateSwatchBody(body as Record<string, unknown>);
+    if (errs.length > 0) { results.push({ row: i + 2, status: "error", errors: errs }); failed++; continue; }
+
+    try {
+      const parsed = insertSwatchSchema.safeParse(body);
+      if (!parsed.success) {
+        results.push({ row: i + 2, status: "error", errors: parsed.error.issues.map(e => e.message) });
+        failed++; continue;
+      }
+
+      const [latest] = await db
+        .select({ swatchCode: swatchesTable.swatchCode })
+        .from(swatchesTable)
+        .where(ilike(swatchesTable.swatchCode, `${prefix}%`))
+        .orderBy(desc(swatchesTable.swatchCode))
+        .limit(1);
+      const swatchCode = !latest
+        ? `${prefix}0001`
+        : `${prefix}${String(parseInt(latest.swatchCode.replace(prefix, ""), 10) + 1).padStart(4, "0")}`;
+
+      const [record] = await db.insert(swatchesTable).values({ ...parsed.data, swatchCode, createdBy }).returning();
+      results.push({ row: i + 2, status: "success", swatchCode: record.swatchCode });
+      succeeded++;
+    } catch (err) {
+      results.push({ row: i + 2, status: "error", errors: [err instanceof Error ? err.message : "Unknown error"] });
+      failed++;
+    }
+  }
+
+  res.json({ succeeded, failed, results });
 });
 
 // ─── Media upload ──────────────────────────────────────────────────────────────
