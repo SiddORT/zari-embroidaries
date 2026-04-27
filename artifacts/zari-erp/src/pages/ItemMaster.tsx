@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn,
-  FileDown, FileUp, FileSpreadsheet, Plus, Minus,
+  FileDown, FileUp, FileSpreadsheet,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -601,71 +601,68 @@ export default function ItemMaster() {
                 <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageFiles(e.target.files)} />
               </div>
 
-              {/* Location-wise Stock */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className={sectionTitle}>Location-wise Stock</p>
-                  {form.locationStocks.length > 0 && (
-                    <span className="text-xs font-semibold text-gray-700 bg-gray-100 rounded-lg px-2.5 py-1">
-                      Total: {totalStock.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-
-                {form.locationStocks.length === 0 && (
-                  <div>
-                    <InputField label="Current Stock" value={form.currentStock}
-                      onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))}
-                      error={errors.currentStock} placeholder="0" />
-                    <p className="text-xs text-gray-400 mt-1">Add locations below to maintain location-wise stock.</p>
+              {/* Stock by Location */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Stock by Location</span>
+                    {form.locationStocks.length > 0 && (
+                      <span className="text-xs text-gray-500">
+                        · Total: <span className="font-semibold text-gray-800">{totalStock} {form.unitType || "units"}</span>
+                      </span>
+                    )}
                   </div>
-                )}
-
-                <div className="space-y-2.5">
-                  {form.locationStocks.map((ls, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-500 mb-1">Location</label>
-                        <input
-                          list={`loc-list-${idx}`}
-                          value={ls.location}
+                  <button type="button" onClick={addLocationStock}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors">
+                    + Add Location
+                  </button>
+                </div>
+                {form.locationStocks.length === 0 ? (
+                  <div className="border-2 border-dashed border-indigo-100 rounded-xl py-7 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
+                    <p className="text-xs text-gray-400">No locations added yet. Click "+ Add Location" to track stock per warehouse.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {form.locationStocks.map((ls, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input list={`item-loc-list-${idx}`} value={ls.location}
                           onChange={(e) => updateLocationStock(idx, "location", e.target.value)}
-                          placeholder="Warehouse / location…"
-                          className={`${inputCls} ${errors[`locationStocks_${idx}_location` as keyof FormErrors] ? inputErrCls : ""}`}
-                        />
-                        <datalist id={`loc-list-${idx}`}>
+                          placeholder="Type or select location"
+                          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                        <datalist id={`item-loc-list-${idx}`}>
                           {locationOptions.map((l) => <option key={l} value={l} />)}
                         </datalist>
-                        {errors[`locationStocks_${idx}_location` as keyof FormErrors] && (
-                          <p className="text-xs text-red-500 mt-0.5">{errors[`locationStocks_${idx}_location` as keyof FormErrors]}</p>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
+                          <input type="number" min="0" placeholder="0" value={ls.stock}
+                            onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-") e.preventDefault(); }}
+                            onChange={(e) => updateLocationStock(idx, "stock", e.target.value)}
+                            className="w-28 rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                        </div>
+                        <button type="button" onClick={() => removeLocationStock(idx)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                          <XIcon className="h-4 w-4" />
+                        </button>
                       </div>
-                      <div className="w-28">
-                        <label className="block text-xs text-gray-500 mb-1">Stock</label>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={ls.stock}
-                          onChange={(e) => updateLocationStock(idx, "stock", e.target.value)}
-                          placeholder="0"
-                          className={`${inputCls} ${errors[`locationStocks_${idx}_stock` as keyof FormErrors] ? inputErrCls : ""}`}
-                        />
-                        {errors[`locationStocks_${idx}_stock` as keyof FormErrors] && (
-                          <p className="text-xs text-red-500 mt-0.5">{errors[`locationStocks_${idx}_stock` as keyof FormErrors]}</p>
-                        )}
-                      </div>
-                      <button type="button" onClick={() => removeLocationStock(idx)}
-                        className="mt-6 p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                        <Minus className="h-4 w-4" />
-                      </button>
+                    ))}
+                    <div className="border-t border-indigo-100 pt-2 flex justify-end">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Total Stock: <span className="text-indigo-700">{totalStock} {form.unitType || "units"}</span>
+                      </span>
                     </div>
-                  ))}
-                </div>
-
-                <button type="button" onClick={addLocationStock}
-                  className="flex items-center gap-2 text-sm text-[#C9B45C] hover:text-[#B89D40] font-medium transition-colors mt-1">
-                  <Plus className="h-4 w-4" />
-                  Add Location
-                </button>
+                  </div>
+                )}
+                {form.locationStocks.length === 0 && (
+                  <div className="mt-3">
+                    <label className="text-sm font-medium text-gray-700">Current Stock</label>
+                    <input value={form.currentStock} maxLength={10}
+                      onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
+                      onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))}
+                      placeholder="e.g. 100"
+                      className={`mt-1 w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.currentStock ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                    {errors.currentStock && <p className="text-xs text-red-500 mt-1">{errors.currentStock}</p>}
+                  </div>
+                )}
               </div>
             </div>
           </div>
