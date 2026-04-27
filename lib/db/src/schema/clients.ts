@@ -59,9 +59,11 @@ const clientAddressSchema = z.object({
   isBillingDefault: z.boolean(),
 });
 
+const NAME_PATTERN = /^[A-Za-z]+( [A-Za-z]+)*$/;
+
 export const insertClientSchema = z.object({
-  brandName: z.string().min(1, "Brand Name is required"),
-  contactName: z.string().min(1, "Contact Name is required"),
+  brandName: z.string().min(1, "Brand Name is required").max(100).regex(NAME_PATTERN, "Client Name must contain only letters and spaces (max 100 characters)."),
+  contactName: z.string().min(1, "Contact Name is required").max(100).regex(NAME_PATTERN, "Contact Name must contain only letters and spaces (max 100 characters)."),
   email: z.email("Valid email required"),
   altEmail: z.email("Valid email").optional().or(z.literal("")),
   contactNo: z.string().min(1, "Contact No is required"),

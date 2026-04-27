@@ -82,7 +82,7 @@ export default function SearchableSelect({
       className="rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden">
       <div className="p-2 border-b border-gray-100">
         <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search..." className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-gray-400" />
+          placeholder="Search..." className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-400" />
       </div>
       <div className="max-h-52 overflow-y-auto">
         {filtered.length === 0 && <div className="px-3 py-4 text-sm text-gray-400 text-center">No results</div>}

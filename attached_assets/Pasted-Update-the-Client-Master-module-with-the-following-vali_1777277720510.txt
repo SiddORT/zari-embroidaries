@@ -1,0 +1,199 @@
+Update the Client Master module with the following validation rules, UI fixes, status confirmation logic, and Excel export corrections.
+
+MODULE: CLIENT MASTER
+
+--------------------------------------------------
+1. Brand / Client Name Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Trim leading and trailing spaces
+- Prevent multiple consecutive spaces
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Client Name must contain only letters and spaces (max 100 characters)."
+
+Disable Save button if invalid.
+
+--------------------------------------------------
+2. Contact Name Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY alphabetic characters and spaces
+- Reject numbers
+- Reject special characters
+- Reject emojis
+- Trim extra spaces
+- Max length: 100 characters
+
+Regex:
+/^[A-Za-z]+( [A-Za-z]+)*$/
+
+Validation message:
+
+"Contact Name must contain only letters and spaces (max 100 characters)."
+
+--------------------------------------------------
+3. Dropdown Search Text Visibility Issue
+--------------------------------------------------
+
+Fix dropdown UI styling:
+
+- Improve placeholder visibility
+- Improve typed search text visibility
+- Ensure contrast works in light and dark themes
+- Ensure accessibility-compliant font color
+
+Expected result:
+
+Dropdown search text clearly readable at all times.
+
+--------------------------------------------------
+4. Contact Number Validation
+--------------------------------------------------
+
+Validation Rules:
+
+- Accept ONLY numeric input
+- Must be exactly 10 digits
+- Reject alphabets
+- Reject special characters
+- Reject spaces
+- Reject < 10 digits
+- Reject > 10 digits
+
+Regex:
+/^[0-9]{10}$/
+
+Validation message:
+
+"Contact Number must be exactly 10 digits."
+
+--------------------------------------------------
+5. Client Code Format Standardization
+--------------------------------------------------
+
+Client Code must:
+
+- Follow consistent format example:
+  CLI001, CLI002, CLI003
+- Be auto-generated sequentially
+- Be uppercase only
+- Not editable manually
+
+Prevent mixed formats such as:
+
+cli-01
+Client1
+C001A
+
+Tooltip:
+
+"Client Code is auto-generated."
+
+--------------------------------------------------
+6. Status Change Confirmation Popup
+--------------------------------------------------
+
+When changing Client status:
+
+Show confirmation dialog:
+
+"Are you sure you want to change the status?"
+
+Buttons:
+
+YES → Update status
+NO → Cancel action
+
+--------------------------------------------------
+7. Status Change Success Message
+--------------------------------------------------
+
+After successful status change:
+
+Show message:
+
+"Client status updated successfully."
+
+--------------------------------------------------
+8. Excel Export Only Exporting First 10 Records
+--------------------------------------------------
+
+Fix pagination export issue.
+
+Expected behavior:
+
+Export ALL filtered records
+Not only visible page records
+
+Update backend export query accordingly.
+
+--------------------------------------------------
+9. Excel Export Missing Columns
+--------------------------------------------------
+
+Ensure Excel export includes:
+
+- Status
+- Created By
+- Created At
+- Updated By
+- Updated At
+
+Date format:
+
+DD-MM-YYYY HH:mm:ss
+
+If Updated fields empty:
+
+Leave blank
+Do NOT display null
+
+--------------------------------------------------
+10. Excel Export Status Column Formatting
+--------------------------------------------------
+
+Replace boolean values:
+
+True → Active
+False → Inactive
+
+--------------------------------------------------
+11. Backend Validation (Required)
+--------------------------------------------------
+
+Ensure server-side validation includes:
+
+- alphabet-only client name validation
+- alphabet-only contact name validation
+- exact 10-digit contact number validation
+- client code format enforcement
+- uniqueness validation for client name
+
+Return structured validation errors in JSON format.
+
+--------------------------------------------------
+12. UI Improvements
+--------------------------------------------------
+
+Apply across Client module:
+
+- Inline validation messages below fields
+- Trim inputs before submission
+- Disable Save button until validation passes
+- Show success message after save/update:
+
+"Client saved successfully."

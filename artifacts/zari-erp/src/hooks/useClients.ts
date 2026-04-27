@@ -38,6 +38,23 @@ export type ClientFormData = {
   isActive: boolean;
 };
 
+export interface ClientImportRow {
+  brandName: string;
+  contactName: string;
+  email: string;
+  altEmail?: string;
+  contactNo: string;
+  altContactNo?: string;
+  country?: string;
+  invoiceCurrency?: string;
+}
+
+export interface ClientImportResult {
+  imported: number;
+  skipped: number;
+  errors: { row: number; name: string; error: string }[];
+}
+
 export type StatusFilter = "all" | "active" | "inactive";
 
 const BASE = "/api/clients";
@@ -50,6 +67,12 @@ export function useClientList(p: { search: string; status: StatusFilter; page: n
       `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&page=${p.page}&limit=${p.limit}`),
     placeholderData: (prev) => prev,
   });
+}
+
+export async function fetchAllClientsForExport(search: string, status: StatusFilter): Promise<ClientRecord[]> {
+  const qs = new URLSearchParams({ search, status }).toString();
+  const result = await customFetch<{ data: ClientRecord[] }>(`${BASE}/export-all?${qs}`);
+  return result.data;
 }
 
 export function useAllClients() {
@@ -99,6 +122,18 @@ export function useDeleteClient() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => customFetch<{ message: string }>(`${BASE}/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useImportClients() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: ClientImportRow[]) =>
+      customFetch<ClientImportResult>(`${BASE}/import`, {
+        method: "POST",
+        body: JSON.stringify(rows),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

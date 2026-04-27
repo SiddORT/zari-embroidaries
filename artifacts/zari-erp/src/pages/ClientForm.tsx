@@ -20,6 +20,15 @@ import { COUNTRY_NAMES } from "@/data/countries";
 
 const G = "#C6AF4B";
 
+const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const CONTACT_DIGITS_REGEX = /^[0-9]{10}$/;
+
+function getContactDigits(val: string): string {
+  const parts = val.split(" ");
+  if (parts.length < 2) return "";
+  return parts.slice(1).join("").replace(/\D/g, "");
+}
+
 const ADDR_TYPES: ClientAddress["type"][] = ["Billing Address", "Delivery Address", "Other"];
 
 const CURRENCY_OPTIONS = [
@@ -151,16 +160,34 @@ export default function ClientForm() {
 
   function validate() {
     const e: FormErrors = {};
-    if (!form.brandName.trim()) e.brandName = "Brand Name is required";
-    if (!form.contactName.trim()) e.contactName = "Contact Name is required";
+    const bn = form.brandName.trim();
+    const cn = form.contactName.trim();
+    if (!bn) e.brandName = "Client Name is required.";
+    else if (!NAME_REGEX.test(bn)) e.brandName = "Client Name must contain only letters and spaces (max 100 characters).";
+    if (!cn) e.contactName = "Contact Name is required.";
+    else if (!NAME_REGEX.test(cn)) e.contactName = "Contact Name must contain only letters and spaces (max 100 characters).";
     if (!form.email.trim()) e.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Valid email required";
     if (form.altEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.altEmail)) e.altEmail = "Valid email required";
-    const phoneNum = form.contactNo.split(" ").slice(1).join("").trim();
-    if (!phoneNum) e.contactNo = "Contact No is required";
+    const digits = getContactDigits(form.contactNo);
+    if (!CONTACT_DIGITS_REGEX.test(digits)) e.contactNo = "Contact Number must be exactly 10 digits.";
     if (!form.country) e.country = "Country is required";
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  function isFormValid(): boolean {
+    const bn = form.brandName.trim();
+    const cn = form.contactName.trim();
+    const digits = getContactDigits(form.contactNo);
+    return (
+      bn.length > 0 && NAME_REGEX.test(bn) && bn.length <= 100 &&
+      cn.length > 0 && NAME_REGEX.test(cn) && cn.length <= 100 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) &&
+      (!form.altEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.altEmail)) &&
+      CONTACT_DIGITS_REGEX.test(digits) &&
+      !!form.country
+    );
   }
 
   async function handleSave() {
@@ -261,7 +288,7 @@ export default function ClientForm() {
               {isNew ? "Add Client" : `Edit Client — ${existingClient?.clientCode ?? ""}`}
             </h1>
           </div>
-          <button onClick={() => void handleSave()} disabled={saving}
+          <button onClick={() => void handleSave()} disabled={saving || !isFormValid()}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
             style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -273,12 +300,56 @@ export default function ClientForm() {
         <div className={`${card} p-5`}>
           <p className={sectionLabel}>Contact Information</p>
           <div className="grid grid-cols-2 gap-4">
-            <InputField label="Brand / Client Name" value={form.brandName}
-              onChange={e => setForm(f => ({ ...f, brandName: e.target.value }))}
-              error={errors.brandName} required placeholder="Brand or client name" />
-            <InputField label="Contact Name" value={form.contactName}
-              onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))}
-              error={errors.contactName} required placeholder="Primary contact person" />
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Brand / Client Name<span className="text-red-500 ml-0.5">*</span></label>
+                <span className={`text-xs ${form.brandName.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.brandName.length}/100</span>
+              </div>
+              <input
+                value={form.brandName}
+                maxLength={100}
+                placeholder="Brand or client name"
+                onChange={e => {
+                  const val = e.target.value.replace(/  +/g, " ");
+                  if (val.length <= 100) {
+                    setForm(f => ({ ...f, brandName: val }));
+                    const t = val.trim();
+                    if (t && !NAME_REGEX.test(t)) {
+                      setErrors(prev => ({ ...prev, brandName: "Client Name must contain only letters and spaces (max 100 characters)." }));
+                    } else {
+                      setErrors(prev => ({ ...prev, brandName: undefined }));
+                    }
+                  }
+                }}
+                className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.brandName ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
+              />
+              {errors.brandName && <p className="text-xs text-red-500">{errors.brandName}</p>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Contact Name<span className="text-red-500 ml-0.5">*</span></label>
+                <span className={`text-xs ${form.contactName.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.contactName.length}/100</span>
+              </div>
+              <input
+                value={form.contactName}
+                maxLength={100}
+                placeholder="Primary contact person"
+                onChange={e => {
+                  const val = e.target.value.replace(/  +/g, " ");
+                  if (val.length <= 100) {
+                    setForm(f => ({ ...f, contactName: val }));
+                    const t = val.trim();
+                    if (t && !NAME_REGEX.test(t)) {
+                      setErrors(prev => ({ ...prev, contactName: "Contact Name must contain only letters and spaces (max 100 characters)." }));
+                    } else {
+                      setErrors(prev => ({ ...prev, contactName: undefined }));
+                    }
+                  }
+                }}
+                className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.contactName ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
+              />
+              {errors.contactName && <p className="text-xs text-red-500">{errors.contactName}</p>}
+            </div>
             <InputField label="Email Address" value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               error={errors.email} required placeholder="email@example.com" type="email" />
@@ -286,7 +357,15 @@ export default function ClientForm() {
               onChange={e => setForm(f => ({ ...f, altEmail: e.target.value }))}
               error={errors.altEmail} placeholder="alt@example.com" type="email" />
             <PhoneInput label="Contact No" value={form.contactNo}
-              onChange={v => setForm(f => ({ ...f, contactNo: v }))}
+              onChange={v => {
+                setForm(f => ({ ...f, contactNo: v }));
+                const digits = getContactDigits(v);
+                if (digits && !CONTACT_DIGITS_REGEX.test(digits)) {
+                  setErrors(prev => ({ ...prev, contactNo: "Contact Number must be exactly 10 digits." }));
+                } else {
+                  setErrors(prev => ({ ...prev, contactNo: undefined }));
+                }
+              }}
               error={errors.contactNo} required placeholder="Phone number" />
             <PhoneInput label="Alternate Contact No" value={form.altContactNo}
               onChange={v => setForm(f => ({ ...f, altContactNo: v }))} placeholder="Alternate phone" />
@@ -510,7 +589,7 @@ export default function ClientForm() {
               className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               Cancel
             </button>
-            <button type="button" onClick={() => void handleSave()} disabled={saving}
+            <button type="button" onClick={() => void handleSave()} disabled={saving || !isFormValid()}
               className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
