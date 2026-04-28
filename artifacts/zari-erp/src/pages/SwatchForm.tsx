@@ -137,12 +137,13 @@ function InlineAddModal({ title, open, onClose, onAdd, adding }: {
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export default function SwatchForm() {
-  const [, setLocation] = useLocation();
+  const [currentPath, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const isNew = params.id === "new";
+  // Detect create mode: either explicit /new route (params.id undefined) or path ends with /new
+  const isNew = !params.id || currentPath.endsWith("/new");
   const numId = isNew ? null : parseInt(params.id ?? "", 10);
 
   const token = localStorage.getItem("zarierp_token");

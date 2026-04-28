@@ -207,17 +207,17 @@ export default function PackagingMaterialsMaster() {
     try {
       if (editRecord) {
         await updateMutation.mutateAsync({ id: editRecord.id, data: form });
-        toast({ title: "Stock control settings saved successfully" });
+        toast({ title: "Packaging material updated successfully" });
       } else {
         await createMutation.mutateAsync(form);
-        toast({ title: "Item created successfully" });
+        toast({ title: "Packaging material created successfully" });
       }
       setModalOpen(false);
     } catch (err: unknown) { toast({ title: "Error", description: err instanceof Error ? err.message : "Error", variant: "destructive" }); }
   }
   async function handleDelete() {
     if (!deleteId) return;
-    await deleteMutation.mutateAsync(deleteId); setDeleteId(null); toast({ title: "Item deleted" });
+    await deleteMutation.mutateAsync(deleteId); setDeleteId(null); toast({ title: "Packaging material deleted" });
   }
   async function handleAddDept(name: string) {
     await addDeptMutation.mutateAsync(name);
@@ -291,7 +291,7 @@ export default function PackagingMaterialsMaster() {
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="max-w-screen-xl mx-auto space-y-5">
-        <MasterHeader title="Item Master" onAdd={openCreate} addLabel="Add Item" />
+        <MasterHeader title="Packaging Materials" onAdd={openCreate} addLabel="Add Packaging Material" />
 
         {/* Row 1: search + export */}
         <div className="flex items-center gap-3">
@@ -327,7 +327,7 @@ export default function PackagingMaterialsMaster() {
           pagination={{ page, limit, total: data?.total ?? 0, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }} />
 
         <MasterFormModal open={modalOpen} onClose={() => setModalOpen(false)} size="xl"
-          title={editRecord ? "Edit Item" : "Add Item"}
+          title={editRecord ? "Edit Packaging Material" : "Add Packaging Material"}
           onSubmit={handleSubmit} submitting={createMutation.isPending || updateMutation.isPending}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0">
             {/* Item Code — read only */}
@@ -417,7 +417,7 @@ export default function PackagingMaterialsMaster() {
         </MasterFormModal>
 
         <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}
-          title="Delete Item" message="Are you sure you want to delete this item?" />
+          title="Delete Packaging Material" message="Are you sure you want to delete this packaging material?" />
 
         <AddDeptModal open={addDeptOpen} onClose={() => setAddDeptOpen(false)}
           onAdd={handleAddDept} adding={addDeptMutation.isPending} />
