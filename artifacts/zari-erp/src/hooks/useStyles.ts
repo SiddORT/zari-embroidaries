@@ -15,9 +15,16 @@ export type StyleRecord = {
 
 export type StyleFormData = {
   client: string; styleNo: string; invoiceNo: string; description: string;
+  styleCategory: string;
   attachLink: string; placeOfIssue: string; vendorPoNo: string; shippingDate: string;
   referenceSwatchId: string;
   isActive: boolean;
+};
+
+export type StyleImportResult = {
+  succeeded: number;
+  failed: number;
+  results: { row: number; status: "success" | "error"; styleNo?: string; errors?: string[] }[];
 };
 
 export type StatusFilter = "all" | "active" | "inactive";
@@ -31,6 +38,28 @@ export function useStyleList(p: { search: string; status: StatusFilter; client: 
     queryFn: () => customFetch<{ data: StyleRecord[]; total: number; page: number; limit: number }>(
       `${BASE}?search=${encodeURIComponent(p.search)}&status=${p.status}&client=${encodeURIComponent(p.client)}&location=${encodeURIComponent(p.location)}&page=${p.page}&limit=${p.limit}`),
     placeholderData: (prev) => prev,
+  });
+}
+
+export function useStyle(id: number | null) {
+  return useQuery({
+    queryKey: [QK, "single", id],
+    queryFn: () => customFetch<StyleRecord>(`${BASE}/${id}`),
+    enabled: id !== null && !isNaN(id as number),
+  });
+}
+
+export async function fetchAllStylesForExport(params: { search: string; status: string; client: string }): Promise<StyleRecord[]> {
+  const qs = new URLSearchParams({ search: params.search, status: params.status, client: params.client }).toString();
+  return customFetch<StyleRecord[]>(`${BASE}/export-all?${qs}`);
+}
+
+export function useImportStyles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) =>
+      customFetch<StyleImportResult>(`${BASE}/import`, { method: "POST", body: JSON.stringify({ rows }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
 

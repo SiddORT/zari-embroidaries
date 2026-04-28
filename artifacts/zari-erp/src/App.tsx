@@ -26,6 +26,7 @@ import SwatchCategoryMaster from "@/pages/SwatchCategoryMaster";
 import SwatchMaster from "@/pages/SwatchMaster";
 import SwatchForm from "@/pages/SwatchForm";
 import StyleMaster from "@/pages/StyleMaster";
+import StyleForm from "@/pages/StyleForm";
 import PackagingMaterialsMaster from "@/pages/PackagingMaterialsMaster";
 import UserManagement from "@/pages/UserManagement";
 import AcceptInvite from "@/pages/AcceptInvite";
@@ -116,6 +117,8 @@ function Router() {
       <Route path="/masters/swatches/new" component={SwatchForm} />
       <Route path="/masters/swatches/:id/edit" component={SwatchForm} />
       <Route path="/masters/swatches" component={SwatchMaster} />
+      <Route path="/masters/styles/new" component={StyleForm} />
+      <Route path="/masters/styles/:id/edit" component={StyleForm} />
       <Route path="/masters/styles" component={StyleMaster} />
       <Route path="/masters/packaging-materials" component={PackagingMaterialsMaster} />
       <Route path="/orders" component={Orders} />

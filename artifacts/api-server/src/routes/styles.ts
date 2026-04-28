@@ -23,6 +23,84 @@ async function generateStyleNo(): Promise<string> {
   return `${prefix}${String(isNaN(num) ? 1 : num + 1).padStart(4, "0")}`;
 }
 
+// ─── Export All ────────────────────────────────────────────────────────────────
+router.get("/styles/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const search = (req.query.search as string) ?? "";
+  const status = (req.query.status as string) ?? "all";
+  const clientFilter = (req.query.client as string) ?? "";
+
+  const conditions = [eq(stylesTable.isDeleted, false)];
+  if (status === "active") conditions.push(eq(stylesTable.isActive, true));
+  else if (status === "inactive") conditions.push(eq(stylesTable.isActive, false));
+  if (clientFilter) conditions.push(ilike(stylesTable.client, `%${clientFilter}%`));
+  if (search) conditions.push(or(ilike(stylesTable.styleNo, `%${search}%`), ilike(stylesTable.client, `%${search}%`), ilike(stylesTable.description, `%${search}%`))!);
+
+  const rows = await db.select().from(stylesTable).where(and(...conditions)).orderBy(desc(stylesTable.createdAt));
+  res.json(rows);
+});
+
+// ─── Import ────────────────────────────────────────────────────────────────────
+const PLACE_OPTIONS_BE = ["In-house", "Out-house"];
+const URL_REGEX = /^https?:\/\/.+/i;
+
+router.post("/styles/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { rows: rawRows } = req.body as { rows: Record<string, unknown>[] };
+  if (!Array.isArray(rawRows) || rawRows.length === 0) {
+    res.status(400).json({ error: "No rows provided." }); return;
+  }
+  const createdBy = req.user?.email ?? "system";
+  const results: { row: number; status: "success" | "error"; styleNo?: string; errors?: string[] }[] = [];
+
+  for (let i = 0; i < rawRows.length; i++) {
+    const raw = rawRows[i];
+    const rowNum = i + 2;
+    const rowErrors: string[] = [];
+
+    const client = String(raw["Client"] ?? "").trim();
+    const styleCategory = String(raw["Style Category"] ?? "").trim();
+    const description = String(raw["Description"] ?? "").trim();
+    const placeOfIssue = String(raw["Place of Issue"] ?? "").trim();
+    const invoiceNo = String(raw["Invoice No"] ?? "").trim();
+    const vendorPoNo = String(raw["Vendor PO No"] ?? "").trim();
+    const shippingDate = String(raw["Shipping Date"] ?? "").trim();
+    const attachLink = String(raw["Attach Link"] ?? "").trim();
+    const isActiveRaw = String(raw["Is Active"] ?? "Active").trim().toLowerCase();
+    const isActive = isActiveRaw !== "inactive";
+
+    if (!client) rowErrors.push("Client is required.");
+    if (!styleCategory) rowErrors.push("Style Category is required.");
+    if (!description) rowErrors.push("Description is required.");
+    if (placeOfIssue && !PLACE_OPTIONS_BE.includes(placeOfIssue)) rowErrors.push(`Place of Issue must be one of: ${PLACE_OPTIONS_BE.join(", ")}.`);
+    if (attachLink && !URL_REGEX.test(attachLink)) rowErrors.push("Attach Link must be a valid URL starting with http:// or https://.");
+    if (shippingDate) {
+      const d = new Date(shippingDate);
+      if (isNaN(d.getTime())) rowErrors.push("Shipping Date must be a valid date (YYYY-MM-DD).");
+    }
+
+    if (rowErrors.length > 0) { results.push({ row: rowNum, status: "error", errors: rowErrors }); continue; }
+
+    try {
+      const styleNo = await generateStyleNo();
+      await db.insert(stylesTable).values({
+        client, styleCategory, description,
+        placeOfIssue: placeOfIssue || null as unknown as string,
+        invoiceNo: invoiceNo || null as unknown as string,
+        vendorPoNo: vendorPoNo || null as unknown as string,
+        shippingDate: shippingDate || null as unknown as string,
+        attachLink: attachLink || null as unknown as string,
+        isActive, styleNo, createdBy,
+      });
+      results.push({ row: rowNum, status: "success", styleNo });
+    } catch (err: unknown) {
+      results.push({ row: rowNum, status: "error", errors: [err instanceof Error ? err.message : "Insert failed"] });
+    }
+  }
+
+  const succeeded = results.filter(r => r.status === "success").length;
+  const failed = results.filter(r => r.status === "error").length;
+  res.json({ succeeded, failed, results });
+});
+
 router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
@@ -79,6 +157,15 @@ router.get("/styles/for-reference", requireAuth, async (_req, res): Promise<void
     ORDER BY code
   `);
   res.json(rows);
+});
+
+// ─── Single style ──────────────────────────────────────────────────────────────
+router.get("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
+  if (!record) { res.status(404).json({ error: "Style not found" }); return; }
+  res.json(record);
 });
 
 router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
