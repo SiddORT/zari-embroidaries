@@ -20,9 +20,10 @@ import AddableSelect from "@/components/ui/AddableSelect";
 import {
   usePackagingMaterialList, useCreatePackagingMaterial, useUpdatePackagingMaterial,
   useTogglePackagingMaterialStatus, useDeletePackagingMaterial,
-  useDepartments, useAddDepartment, useItemTypes, useAddItemType,
+  useDepartments, useAddDepartment,
   type PackagingMaterialRecord, type PackagingMaterialFormData, type StatusFilter,
 } from "@/hooks/usePackagingMaterials";
+import { useAllItemTypes, useCreateItemType } from "@/hooks/useItemTypeMaster";
 import { useUnitTypes } from "@/hooks/useLookups";
 import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 
@@ -166,7 +167,7 @@ export default function PackagingMaterialsMaster() {
     search, status, itemType: filterItemType, department: filterDept, vendor: filterVendor, location: filterLocation, page, limit,
   });
   const { data: deptData } = useDepartments();
-  const { data: itemTypesData } = useItemTypes();
+  const { data: itemTypesData } = useAllItemTypes();
   const { data: unitTypesData } = useUnitTypes();
   const { data: vendorsData } = useAllVendors();
 
@@ -175,7 +176,7 @@ export default function PackagingMaterialsMaster() {
   const toggleStatus = useTogglePackagingMaterialStatus();
   const deleteMutation = useDeletePackagingMaterial();
   const addDeptMutation = useAddDepartment();
-  const addItemTypeMutation = useAddItemType();
+  const addItemTypeMutation = useCreateItemType();
 
   function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
   function openEdit(r: PackagingMaterialRecord) {
@@ -224,7 +225,7 @@ export default function PackagingMaterialsMaster() {
     setForm(f => ({ ...f, department: name }));
   }
   async function handleAddItemType(name: string) {
-    await addItemTypeMutation.mutateAsync(name);
+    await addItemTypeMutation.mutateAsync({ name, isActive: true });
     setForm(f => ({ ...f, itemType: name }));
   }
 

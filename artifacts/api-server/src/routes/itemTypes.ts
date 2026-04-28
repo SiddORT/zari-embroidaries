@@ -79,6 +79,15 @@ router.post("/item-types/import", requireAuth, async (req: AuthRequest, res): Pr
   res.json({ succeeded, failed, results });
 });
 
+router.get("/item-types/all", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ id: itemTypesTable.id, name: itemTypesTable.name })
+    .from(itemTypesTable)
+    .where(and(eq(itemTypesTable.isDeleted, false), eq(itemTypesTable.isActive, true)))
+    .orderBy(itemTypesTable.name);
+  res.json(rows);
+});
+
 router.get("/item-types", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";

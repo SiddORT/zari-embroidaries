@@ -33,6 +33,14 @@ export function useItemTypeMasterList(p: { search: string; status: StatusFilter;
   });
 }
 
+export function useAllItemTypes() {
+  return useQuery({
+    queryKey: [QK, "all"],
+    queryFn: () => customFetch<{ id: number; name: string }[]>(`${BASE}/all`),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
 export async function fetchAllItemTypesForExport(params: { search: string; status: string }): Promise<ItemTypeMasterRecord[]> {
   const qs = new URLSearchParams({ search: params.search, status: params.status }).toString();
   return customFetch<ItemTypeMasterRecord[]>(`${BASE}/export-all?${qs}`);
