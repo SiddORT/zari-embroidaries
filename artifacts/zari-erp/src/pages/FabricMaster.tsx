@@ -781,8 +781,14 @@ export default function FabricMaster() {
                 {sectionLabel("Pricing & Tax")}
                 <div className="grid grid-cols-3 gap-4">
                   <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="text" value={form.pricePerMeter}
-                    maxLength={12}
-                    onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
+                    maxLength={10}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9.]/g, "");
+                      const parts = raw.split(".");
+                      const integer = parts[0].slice(0, 7);
+                      const decimal = parts.length > 1 ? "." + parts[1].slice(0, 2) : "";
+                      setForm((f) => ({ ...f, pricePerMeter: integer + decimal }));
+                    }} error={errors.pricePerMeter} />
                   <AddableSelect
                     label="HSN Code" required value={form.hsnCode}
                     onChange={(v) => {
