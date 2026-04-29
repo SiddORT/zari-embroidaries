@@ -790,7 +790,8 @@ export default function FabricMaster() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 {sectionLabel("Pricing & Tax")}
                 <div className="grid grid-cols-3 gap-4">
-                  <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="number" value={form.pricePerMeter}
+                  <InputField label="Price Per Meter (₹)" required placeholder="e.g. 350" type="text" value={form.pricePerMeter}
+                    maxLength={12}
                     onChange={(e) => setForm((f) => ({ ...f, pricePerMeter: e.target.value }))} error={errors.pricePerMeter} />
                   <AddableSelect
                     label="HSN Code" required value={form.hsnCode}
@@ -1110,7 +1111,8 @@ export default function FabricMaster() {
       <MasterFormModal open={addWidthUnitTypeOpen} title="Add Width Unit Type" onClose={() => setAddWidthUnitTypeOpen(false)}
         onSubmit={handleAddWidthUnitType} submitting={createWidthUnitType.isPending} submitLabel="Add">
         <InputField label="Width Unit Type Name" required placeholder="e.g. cm, inches" value={newWidthUnitTypeName}
-          onChange={(e) => setNewWidthUnitTypeName(e.target.value)} />
+          maxLength={50}
+          onChange={(e) => setNewWidthUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
       </MasterFormModal>
 
       {/* ══ Add HSN mini-modal ══ */}
