@@ -276,7 +276,7 @@ export default function FabricMaster() {
     else if (!NAME_REGEX.test(cn) || cn.length > 100) e.colorName = "Color Name must contain only letters and spaces (max 100 characters).";
     if (!w) e.width = "Width is required.";
     else if (!NUMERIC_REGEX.test(w) || parseFloat(w) <= 0) e.width = "Width must be a positive numeric value.";
-    if (!form.widthUnitType) e.widthUnitType = "Width Unit Type is required.";
+    if (!form.widthUnitType) e.widthUnitType = "Unit Type is required.";
     if (!pm) e.pricePerMeter = "Price Per Meter is required.";
     else if (!NUMERIC_REGEX.test(pm) || parseFloat(pm) <= 0) e.pricePerMeter = "Price must be a positive numeric value.";
     if (!form.hsnCode) e.hsnCode = "HSN Code is required.";
@@ -355,8 +355,8 @@ export default function FabricMaster() {
 
   const handleAddWidthUnitType = async () => {
     const val = newWidthUnitTypeName.trim();
-    if (!val) { toast({ title: "Validation Error", description: "Width Unit Type cannot be empty.", variant: "destructive" }); return; }
-    if (!NAME_REGEX.test(val) || val.length > 50) { toast({ title: "Validation Error", description: "Width Unit Type must contain only letters (max 50 characters).", variant: "destructive" }); return; }
+    if (!val) { toast({ title: "Validation Error", description: "Unit Type cannot be empty.", variant: "destructive" }); return; }
+    if (!NAME_REGEX.test(val) || val.length > 50) { toast({ title: "Validation Error", description: "Unit Type must contain only letters (max 50 characters).", variant: "destructive" }); return; }
     try {
       await createWidthUnitType.mutateAsync({ name: val, isActive: true });
       setForm((f) => ({ ...f, widthUnitType: val }));
@@ -761,28 +761,18 @@ export default function FabricMaster() {
               {/* Dimensions & Unit */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 {sectionLabel("Dimensions & Unit")}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <InputField label="Width" required placeholder="e.g. 1.5" type="number" value={form.width}
                     onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} error={errors.width} />
                   <InputField label="Height" placeholder="e.g. 2.0" type="number" value={form.height ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
                   <AddableSelect
-                    label="Width Unit Type" required value={form.widthUnitType}
+                    label="Unit Type" required value={form.widthUnitType}
                     onChange={(v) => setForm((f) => ({ ...f, widthUnitType: v }))}
                     onAdd={() => { setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(true); }}
                     addLabel="+ Add Unit"
                     options={widthUnitTypeOptions} placeholder="Select Unit" error={errors.widthUnitType}
                   />
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-gray-700">Unit Type</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Meters, Yards"
-                      value={form.unitType ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, unitType: e.target.value }))}
-                      className="rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -1107,10 +1097,10 @@ export default function FabricMaster() {
           onChange={(e) => setNewFabricTypeName(e.target.value)} />
       </MasterFormModal>
 
-      {/* ══ Add Width Unit Type mini-modal ══ */}
-      <MasterFormModal open={addWidthUnitTypeOpen} title="Add Width Unit Type" onClose={() => setAddWidthUnitTypeOpen(false)}
+      {/* ══ Add Unit Type mini-modal ══ */}
+      <MasterFormModal open={addWidthUnitTypeOpen} title="Add Unit Type" onClose={() => setAddWidthUnitTypeOpen(false)}
         onSubmit={handleAddWidthUnitType} submitting={createWidthUnitType.isPending} submitLabel="Add">
-        <InputField label="Width Unit Type Name" required placeholder="e.g. cm, inches" value={newWidthUnitTypeName}
+        <InputField label="Unit Type Name" required placeholder="e.g. cm, inches" value={newWidthUnitTypeName}
           maxLength={50}
           onChange={(e) => setNewWidthUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
       </MasterFormModal>
