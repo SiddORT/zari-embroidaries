@@ -159,9 +159,11 @@ export default function StyleMaster() {
         "Shipping Date": r.shippingDate ?? "",
         "Attach Link": r.attachLink ?? "",
         "Linked Swatch": r.referenceSwatchId ?? "",
-        "Status": r.isActive ? "Active" : "Inactive",
+        "Status": (r.isActive === true || (r.isActive as unknown) === "true") ? "Active" : "Inactive",
         "Created By": r.createdBy,
         "Created At": formatDate(r.createdAt),
+        "Updated By": r.updatedBy ?? "—",
+        "Updated At": r.updatedAt ? formatDate(r.updatedAt) : "—",
       }));
       const ws = XLSX.utils.json_to_sheet(sheet);
       const wb = XLSX.utils.book_new();
