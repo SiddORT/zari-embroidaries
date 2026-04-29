@@ -677,6 +677,7 @@ export default function MaterialsMaster() {
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Basic Information</p>
                 <div className="grid grid-cols-2 gap-4">
                   <InputField label="Material Name" placeholder="e.g. Silk Thread"
+                    maxLength={100}
                     value={form.materialName ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, materialName: e.target.value }))} />
                   <AddableSelect
@@ -688,19 +689,19 @@ export default function MaterialsMaster() {
                   />
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-700">Quality<span className="text-red-500 ml-0.5">*</span></label>
-                    <input value={form.quality} maxLength={100}
-                      onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value }))}
+                    <input value={form.quality} maxLength={50}
+                      onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
                       placeholder="e.g. Premium"
                       className={`rounded-lg border px-3.5 py-2.5 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.quality ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.quality ? <p className="text-xs text-red-500">{errors.quality}</p> : <p className="text-[10px] text-gray-400">{form.quality.length} / 100 characters used</p>}
+                    {errors.quality ? <p className="text-xs text-red-500">{errors.quality}</p> : <p className="text-[10px] text-gray-400">{form.quality.length} / 50 characters used</p>}
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-700">Type</label>
-                    <input value={form.type ?? ""} maxLength={100}
-                      onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+                    <input value={form.type ?? ""} maxLength={50}
+                      onChange={(e) => setForm((f) => ({ ...f, type: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
                       placeholder="e.g. Natural"
                       className={`rounded-lg border px-3.5 py-2.5 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.type ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.type ? <p className="text-xs text-red-500">{errors.type}</p> : <p className="text-[10px] text-gray-400">{(form.type ?? "").length} / 100 characters used</p>}
+                    {errors.type ? <p className="text-xs text-red-500">{errors.type}</p> : <p className="text-[10px] text-gray-400">{(form.type ?? "").length} / 50 characters used</p>}
                   </div>
                 </div>
               </div>
@@ -721,11 +722,11 @@ export default function MaterialsMaster() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-700">Color Name<span className="text-red-500 ml-0.5">*</span></label>
-                    <input value={form.colorName} maxLength={100}
-                      onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value }))}
+                    <input value={form.colorName} maxLength={50}
+                      onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
                       placeholder="e.g. Royal Blue"
                       className={`rounded-lg border px-3.5 py-2.5 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.colorName ? <p className="text-xs text-red-500">{errors.colorName}</p> : <p className="text-[10px] text-gray-400">{form.colorName.length} / 100 characters used</p>}
+                    {errors.colorName ? <p className="text-xs text-red-500">{errors.colorName}</p> : <p className="text-[10px] text-gray-400">{form.colorName.length} / 50 characters used</p>}
                   </div>
                 </div>
               </div>
@@ -1056,7 +1057,9 @@ export default function MaterialsMaster() {
       <MasterFormModal open={addItemTypeOpen} title="Add Item Type" onClose={() => setAddItemTypeOpen(false)}
         onSubmit={handleAddItemType} submitting={createItemType.isPending} submitLabel="Add">
         <InputField label="Item Type Name" required placeholder="e.g. Thread, Fabric, Button"
-          value={newItemTypeName} onChange={(e) => setNewItemTypeName(e.target.value)} />
+          maxLength={50}
+          value={newItemTypeName}
+          onChange={(e) => setNewItemTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
       </MasterFormModal>
 
       {/* ══ Add Unit Type mini-modal ══ */}
