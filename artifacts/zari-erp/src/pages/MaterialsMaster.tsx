@@ -1063,7 +1063,9 @@ export default function MaterialsMaster() {
       <MasterFormModal open={addUnitTypeOpen} title="Add Unit Type" onClose={() => setAddUnitTypeOpen(false)}
         onSubmit={handleAddUnitType} submitting={createUnitType.isPending} submitLabel="Add">
         <InputField label="Unit Type Name" required placeholder="e.g. Meter, Kg, Piece"
-          value={newUnitTypeName} onChange={(e) => setNewUnitTypeName(e.target.value)} />
+          maxLength={50}
+          value={newUnitTypeName}
+          onChange={(e) => setNewUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
       </MasterFormModal>
 
       {/* ══ Add HSN mini-modal ══ */}
