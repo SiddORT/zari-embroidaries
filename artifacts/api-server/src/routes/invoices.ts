@@ -77,7 +77,7 @@ router.get("/invoices", requireAuth, async (req, res) => {
 
 // GET /invoices/:id — single
 router.get("/invoices/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [row] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -86,7 +86,7 @@ router.get("/invoices/:id", requireAuth, async (req, res) => {
 
 // GET /invoices/swatch/:swatchOrderId
 router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.swatchOrderId);
+  const id = parseInt(String(req.params.swatchOrderId));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const codeRes = await pool.query(`SELECT order_code FROM swatch_orders WHERE id = $1`, [id]);
   const orderCode: string | undefined = codeRes.rows[0]?.order_code;
@@ -102,7 +102,7 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
 
 // GET /invoices/style/:styleOrderId
 router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.styleOrderId);
+  const id = parseInt(String(req.params.styleOrderId));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const codeRes = await pool.query(`SELECT order_code FROM style_orders WHERE id = $1`, [id]);
   const orderCode: string | undefined = codeRes.rows[0]?.order_code;
@@ -189,7 +189,7 @@ router.post("/invoices", requireAuth, async (req, res) => {
 
 // PUT /invoices/:id — update
 router.put("/invoices/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
     const b = req.body;
@@ -259,7 +259,7 @@ router.put("/invoices/:id", requireAuth, async (req, res) => {
 
 // PATCH /invoices/:id/status — quick status update
 router.patch("/invoices/:id/status", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { invoiceStatus } = req.body;
   if (!INVOICE_STATUSES.includes(invoiceStatus)) return res.status(400).json({ error: "Invalid status" });
@@ -273,7 +273,7 @@ router.patch("/invoices/:id/status", requireAuth, async (req, res) => {
 
 // PATCH /invoices/:id/payment — record payment
 router.patch("/invoices/:id/payment", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [existing] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
   if (!existing) return res.status(404).json({ error: "Not found" });
@@ -292,7 +292,7 @@ router.patch("/invoices/:id/payment", requireAuth, async (req, res) => {
 
 // DELETE /invoices/:id
 router.delete("/invoices/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
   res.json({ success: true });

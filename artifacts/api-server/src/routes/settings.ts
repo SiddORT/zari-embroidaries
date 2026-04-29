@@ -386,7 +386,7 @@ router.post("/settings/bank-accounts", requireAuth, async (req: AuthRequest, res
 
 // PUT /api/settings/bank-accounts/:id
 router.put("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { bank_name, account_no, ifsc_code, branch, account_name, bank_upi } = req.body;
   try {
@@ -402,7 +402,7 @@ router.put("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, 
 
 // PATCH /api/settings/bank-accounts/:id/default
 router.patch("/settings/bank-accounts/:id/default", requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
     await pool.query(`UPDATE bank_accounts SET is_default = FALSE`);
@@ -416,7 +416,7 @@ router.patch("/settings/bank-accounts/:id/default", requireAuth, async (req: Aut
 
 // DELETE /api/settings/bank-accounts/:id
 router.delete("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
     await pool.query(`DELETE FROM bank_accounts WHERE id = $1`, [id]);
@@ -542,7 +542,7 @@ router.post("/settings/warehouses", requireAuth, async (req: AuthRequest, res) =
 // PUT /api/settings/warehouses/:id
 router.put("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { name, code, address_line1, address_line2, city, state, pincode, country, contact_name, contact_phone, contact_email, is_active, notes } = req.body;
   try {
@@ -564,7 +564,7 @@ router.put("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res
 // DELETE /api/settings/warehouses/:id
 router.delete("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
     await pool.query(`DELETE FROM warehouse_locations WHERE id = $1`, [id]);
@@ -661,7 +661,7 @@ router.get("/settings/invoice-templates", requireAuth, async (_req, res) => {
 
 // PATCH /api/settings/invoice-templates/:id  (update payment_terms & notes)
 router.patch("/settings/invoice-templates/:id", requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const { payment_terms, notes } = req.body;
   try {
     const { rows } = await pool.query(
@@ -675,7 +675,7 @@ router.patch("/settings/invoice-templates/:id", requireAuth, async (req: AuthReq
 
 // POST /api/settings/invoice-templates/:id/set-default
 router.post("/settings/invoice-templates/:id/set-default", requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   try {
     await pool.query(`UPDATE invoice_templates SET is_default = FALSE, updated_at=NOW()`);
     const { rows } = await pool.query(

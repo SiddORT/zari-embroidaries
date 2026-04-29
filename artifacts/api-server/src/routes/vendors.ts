@@ -55,7 +55,7 @@ router.get("/vendors/all", requireAuth, async (_req, res): Promise<void> => {
 });
 
 router.get("/vendors/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(vendorsTable).where(and(eq(vendorsTable.id, id), eq(vendorsTable.isDeleted, false)));
   if (!record) { res.status(404).json({ error: "Vendor not found" }); return; }
@@ -137,7 +137,7 @@ router.post("/vendors/import", requireAuth, async (req: AuthRequest, res): Promi
 });
 
 router.put("/vendors/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateVendorSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
@@ -158,7 +158,7 @@ router.put("/vendors/:id", requireAuth, async (req: AuthRequest, res): Promise<v
 });
 
 router.patch("/vendors/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(vendorsTable).where(and(eq(vendorsTable.id, id), eq(vendorsTable.isDeleted, false)));
   if (!existing) { res.status(404).json({ error: "Vendor not found" }); return; }
@@ -170,7 +170,7 @@ router.patch("/vendors/:id/status", requireAuth, async (req: AuthRequest, res): 
 });
 
 router.delete("/vendors/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(vendorsTable).set({ isDeleted: true, updatedBy, updatedAt: new Date() })

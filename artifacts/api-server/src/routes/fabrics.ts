@@ -192,7 +192,7 @@ router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void
 });
 
 router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const fieldError = validateFabricFields(req.body);
@@ -224,7 +224,7 @@ router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<v
 });
 
 router.patch("/fabrics/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const [existing] = await db.select().from(fabricsTable).where(and(eq(fabricsTable.id, id), eq(fabricsTable.isDeleted, false)));
@@ -242,7 +242,7 @@ router.patch("/fabrics/:id/status", requireAuth, async (req: AuthRequest, res): 
 });
 
 router.delete("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const updatedBy = req.user?.email ?? "system";

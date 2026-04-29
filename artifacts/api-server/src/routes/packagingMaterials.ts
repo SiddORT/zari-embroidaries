@@ -82,7 +82,7 @@ router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): 
 });
 
 router.put("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updatePackagingMaterialSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
@@ -97,7 +97,7 @@ router.put("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res
 });
 
 router.patch("/packaging-materials/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [current] = await db.select().from(packagingMaterialsTable).where(and(eq(packagingMaterialsTable.id, id), eq(packagingMaterialsTable.isDeleted, false)));
   if (!current) { res.status(404).json({ error: "Record not found" }); return; }
@@ -109,7 +109,7 @@ router.patch("/packaging-materials/:id/status", requireAuth, async (req: AuthReq
 });
 
 router.delete("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   await db.update(packagingMaterialsTable)

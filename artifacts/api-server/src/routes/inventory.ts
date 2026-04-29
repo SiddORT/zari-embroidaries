@@ -141,7 +141,7 @@ router.get("/inventory/items", requireAuth, async (req, res) => {
 
 router.get("/inventory/items/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const r = await pool.query(
       `SELECT ii.*,
          CASE ii.source_type
@@ -166,7 +166,7 @@ router.get("/inventory/items/:id", requireAuth, async (req, res) => {
 
 router.get("/inventory/items/:id/logs", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const r = await pool.query(
       `SELECT * FROM inventory_stock_logs
        WHERE inventory_item_id = $1
@@ -183,7 +183,7 @@ router.get("/inventory/items/:id/logs", requireAuth, async (req, res) => {
 
 router.get("/inventory/items/:id/reservations", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const itemRes = await pool.query(
       `SELECT source_type, source_id, item_name, style_reserved_qty, swatch_reserved_qty FROM inventory_items WHERE id = $1`,
       [id]
@@ -392,7 +392,7 @@ router.post("/inventory/ledger/wastage", requireAuth, async (req: AuthRequest, r
 router.delete("/inventory/ledger/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
     if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const r = await pool.query(`DELETE FROM stock_ledger WHERE id = $1 RETURNING id`, [id]);
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
     res.json({ deleted: true });
@@ -409,7 +409,7 @@ router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, r
     if (req.user?.role !== "admin") {
       return res.status(403).json({ error: "Admin only" });
     }
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const {
       warehouseLocation,
       currentStock,

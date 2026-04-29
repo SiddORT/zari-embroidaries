@@ -314,10 +314,11 @@ export default function PurchaseReceiptForm() {
       receivedSoFar: item.po_received_qty,
       quantity: parseFloat(item.quantity).toFixed(2),
       unitPrice: parseFloat(item.unit_price).toFixed(2),
+      targetPrice: "",
       warehouseLocation: item.warehouse_location ?? "",
       remarks: "",
       itemImage: "",
-    })));
+    })) as ReceiptLine[]);
     setEditMode(true);
   };
 

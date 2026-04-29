@@ -45,7 +45,7 @@ export default function ShippingList() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isError } = useGetMe({ enabled: !!token });
+  const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
 
   const [records, setRecords] = useState<ShippingRecord[]>([]);
@@ -125,7 +125,7 @@ export default function ShippingList() {
   const startIdx = (page - 1) * LIMIT;
 
   return (
-    <AppLayout username={user?.name ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+    <AppLayout username={user?.username ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="py-6 px-6 max-w-screen-2xl mx-auto space-y-5">
         {/* Header */}
         <div className="flex items-center gap-3">

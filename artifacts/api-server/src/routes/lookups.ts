@@ -17,14 +17,14 @@ function lookupTable(type: string) {
 }
 
 router.get("/lookups/:type", requireAuth, async (req, res): Promise<void> => {
-  const table = lookupTable(req.params.type);
+  const table = lookupTable(String(req.params.type));
   if (!table) { res.status(404).json({ error: "Unknown lookup type" }); return; }
   const rows = await db.select().from(table).orderBy(table.name);
   res.json(rows);
 });
 
 router.post("/lookups/:type", requireAuth, async (req, res): Promise<void> => {
-  const table = lookupTable(req.params.type);
+  const table = lookupTable(String(req.params.type));
   if (!table) { res.status(404).json({ error: "Unknown lookup type" }); return; }
 
   const { name, isActive = true } = req.body as { name: string; isActive?: boolean };

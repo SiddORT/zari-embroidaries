@@ -108,7 +108,7 @@ function QuickAddMaterialModal({ onClose, onCreated }: {
   const [f, setF] = useState<MaterialFormData>({
     itemType: "", quality: "", type: "", colorName: "", size: "",
     unitPrice: "", unitType: "", currentStock: "0", hsnCode: "", gstPercent: "0",
-    vendor: "", location: "", isActive: true, images: [],
+    vendor: "", location: "", locationStocks: [], isActive: true, images: [],
   });
 
   async function handleSave() {
@@ -1707,11 +1707,9 @@ function PoSection({ swatchOrderId, orderCode, swatchName, clientName }: {
     return { ordered, alreadyReceived, remaining: Math.max(0, ordered - alreadyReceived), unitType: item.unitType };
   })();
 
-  function handleCreatePO(payload: Record<string, unknown>) {
-    createPO.mutate(payload, {
-      onSuccess: () => toast({ title: "Purchase Order created" }),
-      onError: (err: any) => toast({ title: err?.message ?? "Failed to create PO", variant: "destructive" }),
-    });
+  async function handleCreatePO(payload: Record<string, unknown>): Promise<void> {
+    await createPO.mutateAsync(payload);
+    toast({ title: "Purchase Order created" });
   }
 
   function handleCreatePR() {

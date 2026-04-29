@@ -226,7 +226,7 @@ router.get("/purchase-receipts", requireAuth, async (req, res) => {
 
 router.get("/purchase-receipts/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [prRes, itemsRes] = await Promise.all([
       pool.query(`SELECT * FROM inv_receipts WHERE id = $1 AND is_deleted = false`, [id]),
       pool.query(
@@ -316,7 +316,7 @@ router.put("/purchase-receipts/:id", requireAuth, async (req: AuthRequest, res) 
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const prRes = await client.query(`SELECT * FROM inv_receipts WHERE id = $1 AND is_deleted = false`, [id]);
     if (!prRes.rows.length) return res.status(404).json({ error: "Not found" });
 
@@ -362,7 +362,7 @@ router.post("/purchase-receipts/:id/confirm", requireAuth, async (req: AuthReque
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const prRes = await client.query(`SELECT * FROM inv_receipts WHERE id = $1 AND is_deleted = false`, [id]);
     if (!prRes.rows.length) return res.status(404).json({ error: "Not found" });
 
@@ -407,7 +407,7 @@ router.post("/purchase-receipts/:id/cancel", requireAuth, async (req: AuthReques
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const prRes = await client.query(`SELECT * FROM inv_receipts WHERE id = $1 AND is_deleted = false`, [id]);
     if (!prRes.rows.length) return res.status(404).json({ error: "Not found" });
 
@@ -441,7 +441,7 @@ router.delete("/purchase-receipts/:id", requireAuth, async (req: AuthRequest, re
   try {
     if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const prRes = await client.query(`SELECT * FROM inv_receipts WHERE id = $1 AND is_deleted = false`, [id]);
     if (!prRes.rows.length) return res.status(404).json({ error: "Not found" });
 

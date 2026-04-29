@@ -95,12 +95,12 @@ export const insertSwatchOrderSchema = z.object({
   description: z.string().optional(),
   internalNotes: z.string().optional(),
   clientInstructions: z.string().optional(),
-  refDocs: z.array(z.record(z.unknown())).optional().default([]),
-  refImages: z.array(z.record(z.unknown())).optional().default([]),
-  wipImages: z.array(z.record(z.unknown())).optional().default([]),
-  finalImages: z.array(z.record(z.unknown())).optional().default([]),
-  wipVideos: z.array(z.record(z.unknown())).optional().default([]),
-  finalVideos: z.array(z.record(z.unknown())).optional().default([]),
+  refDocs: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  refImages: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  wipImages: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  finalImages: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  wipVideos: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  finalVideos: z.array(z.record(z.string(), z.unknown())).optional().default([]),
   actualStartDate: z.string().optional(),
   actualStartTime: z.string().optional(),
   tentativeDeliveryDate: z.string().optional(),
@@ -109,7 +109,7 @@ export const insertSwatchOrderSchema = z.object({
   delayReason: z.string().optional(),
   approvalDate: z.string().optional(),
   revisionCount: z.number().default(0),
-  estimate: z.array(z.record(z.unknown())).optional().default([]),
+  estimate: z.array(z.record(z.string(), z.unknown())).optional().default([]),
 });
 
 export const updateSwatchOrderSchema = insertSwatchOrderSchema.partial().extend({

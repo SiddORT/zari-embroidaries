@@ -43,7 +43,7 @@ export default function Settings() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isError } = useGetMe({ enabled: !!token });
+  const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
 
   const [tab, setTab] = useState<Tab>(() => {
@@ -77,7 +77,7 @@ export default function Settings() {
   const label = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
 
   return (
-    <AppLayout username={user?.name ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
+    <AppLayout username={user?.username ?? user?.email ?? ""} role={user?.role ?? ""} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="py-6 px-6 max-w-screen-xl mx-auto">
         {/* Header */}
         <div className="mb-6">

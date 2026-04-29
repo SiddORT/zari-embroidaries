@@ -22,7 +22,7 @@ router.get("/style-order-products", requireAuth, async (req, res) => {
 
 // Get one
 router.get("/style-order-products/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(styleOrderProductsTable).where(eq(styleOrderProductsTable.id, id));
   if (!row || row.isDeleted) { res.status(404).json({ error: "Not found" }); return; }
@@ -43,7 +43,7 @@ router.post("/style-order-products", requireAuth, async (req, res) => {
 
 // Update
 router.put("/style-order-products/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = updateStyleOrderProductSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.issues }); return; }
@@ -59,7 +59,7 @@ router.put("/style-order-products/:id", requireAuth, async (req, res) => {
 
 // Soft delete
 router.delete("/style-order-products/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.update(styleOrderProductsTable).set({ isDeleted: true }).where(eq(styleOrderProductsTable.id, id));
   res.json({ message: "Deleted" });

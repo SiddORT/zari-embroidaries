@@ -104,7 +104,7 @@ router.post("/swatch-categories/import", requireAuth, async (req: AuthRequest, r
 });
 
 router.put("/swatch-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateSwatchCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
@@ -125,7 +125,7 @@ router.put("/swatch-categories/:id", requireAuth, async (req: AuthRequest, res):
 });
 
 router.patch("/swatch-categories/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(swatchCategoriesTable)
     .where(and(eq(swatchCategoriesTable.id, id), eq(swatchCategoriesTable.isDeleted, false)));
@@ -138,7 +138,7 @@ router.patch("/swatch-categories/:id/status", requireAuth, async (req: AuthReque
 });
 
 router.delete("/swatch-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(swatchCategoriesTable)

@@ -310,7 +310,7 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
 
   function handleRegenerate() {
     if (!link) return;
-    regenLink.mutate({ id: link.id, swatchOrderId: link.swatchOrderId }, {
+    regenLink.mutate({ id: link.id, swatchOrderId: link.swatchOrderId! }, {
       onSuccess: () => { setConfirmRegen(false); toast({ title: "Link regenerated" }); },
       onError: () => toast({ title: "Failed", variant: "destructive" }),
     });

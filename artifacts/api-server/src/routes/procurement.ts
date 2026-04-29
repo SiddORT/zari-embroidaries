@@ -115,7 +115,7 @@ router.get("/procurement/purchase-orders", requireAuth, async (req, res) => {
 // GET SINGLE
 router.get("/procurement/purchase-orders/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [poRes, itemsRes, prsRes] = await Promise.all([
       pool.query(`SELECT * FROM purchase_orders WHERE id = $1`, [id]),
       pool.query(
@@ -218,7 +218,7 @@ router.post("/procurement/purchase-orders", requireAuth, async (req: AuthRequest
 // UPDATE PO STATUS
 router.patch("/procurement/purchase-orders/:id/status", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
     const { status, notes } = req.body as { status: string; notes?: string };
 
@@ -252,7 +252,7 @@ router.patch("/procurement/purchase-orders/:id/status", requireAuth, async (req:
 // DELETE PO (admin, draft only)
 router.delete("/procurement/purchase-orders/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const po = await pool.query(`SELECT status FROM purchase_orders WHERE id = $1`, [id]);
     if (!po.rows.length) { res.status(404).json({ error: "PO not found" }); return; }
     if (po.rows[0].status !== "Draft") { res.status(400).json({ error: "Only Draft POs can be deleted" }); return; }
@@ -331,7 +331,7 @@ router.get("/procurement/purchase-receipts", requireAuth, async (req, res) => {
 // GET SINGLE PR
 router.get("/procurement/purchase-receipts/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const [prRes, itemsRes] = await Promise.all([
       pool.query(
         `SELECT pr.*, po.po_number, po.reference_type, po.vendor_name AS po_vendor_name
@@ -471,7 +471,7 @@ router.post("/procurement/purchase-receipts/:id/confirm", requireAuth, async (re
   try {
     await client.query("BEGIN");
     const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     const prRes = await client.query(`SELECT * FROM purchase_receipts WHERE id = $1`, [id]);
     if (!prRes.rows.length) { res.status(404).json({ error: "PR not found" }); return; }
@@ -528,7 +528,7 @@ router.put("/procurement/purchase-receipts/:id", requireAuth, async (req: AuthRe
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { receivedDate, items = [] } = req.body as {
       receivedDate?: string;
       items: { poItemId: number; inventoryItemId: number; itemName: string; itemCode: string; quantity: number; unitPrice: number; warehouseLocation?: string; remarks?: string }[];
@@ -609,7 +609,7 @@ router.post("/procurement/purchase-receipts/:id/cancel", requireAuth, async (req
   try {
     await client.query("BEGIN");
     const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     const prRes = await client.query(`SELECT * FROM purchase_receipts WHERE id = $1`, [id]);
     if (!prRes.rows.length) { res.status(404).json({ error: "PR not found" }); return; }
@@ -684,7 +684,7 @@ router.delete("/procurement/purchase-receipts/:id", requireAuth, async (req, res
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const prRes = await client.query(`SELECT * FROM purchase_receipts WHERE id = $1`, [id]);
     if (!prRes.rows.length) { res.status(404).json({ error: "PR not found" }); return; }
     const pr = prRes.rows[0];
@@ -879,7 +879,7 @@ router.post(
   requireAuth,
   uploadMiddleware.single("invoice_file"),
   async (req: AuthRequest, res) => {
-    const prId = parseInt(req.params.id);
+    const prId = parseInt(String(req.params.id));
     if (isNaN(prId)) { res.status(400).json({ error: "Invalid PR id" }); return; }
 
     const { invoice_number, invoice_date, invoice_amount } = req.body as Record<string, string>;
@@ -959,7 +959,7 @@ router.delete(
   requireAuth,
   async (req: AuthRequest, res) => {
     if ((req.user as any)?.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
-    const prId = parseInt(req.params.id);
+    const prId = parseInt(String(req.params.id));
 
     const client = await (pool as any).connect();
     try {

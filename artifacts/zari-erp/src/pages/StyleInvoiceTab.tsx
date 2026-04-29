@@ -51,7 +51,7 @@ function buildItemsFromStyleCosting(
     const consumedQty = pf(r.consumedQty);
     if (consumedQty <= 0) return;
     const avgPrice = pf(r.avgUnitPrice);
-    const posWithRow = (pos ?? []).filter(po => (po.bomItems ?? []).some((i: Record<string, unknown>) => i.bomRowId === r.id));
+    const posWithRow = (pos ?? []).filter(po => (po.bomItems ?? []).some((i: any) => i.bomRowId === r.id));
     const prsForRow = (prs ?? []).filter(pr => {
       if (pr.bomRowId != null) return pr.bomRowId === r.id;
       return posWithRow.some(po => po.id === pr.poId);

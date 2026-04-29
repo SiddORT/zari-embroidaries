@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 import AppLayout from "@/components/layout/AppLayout";
 import InputField from "@/components/ui/InputField";
-import { useOrder, useUpdateOrder, usePatchOrderStatus, type OrderRecord } from "@/hooks/useOrders";
+import { useOrder, useUpdateOrder, usePatchOrderStatus, type OrderRecord, type OrderFormData } from "@/hooks/useOrders";
 
 const STATUS_OPTIONS = ["Pending", "In Progress", "Completed", "Cancelled"];
 const COST_STATUS_OPTIONS = ["Pending", "Quoted", "Approved", "Revised"];
@@ -160,12 +160,12 @@ export default function OrderDetails() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   useEffect(() => { if (!token || (!loadingUser && !user)) setLocation("/login"); }, [token, user, loadingUser, setLocation]);
 
   const logoutMutation = useLogout();
   const handleLogout = async () => {
-    try { await logoutMutation.mutateAsync({}); } finally {
+    try { await logoutMutation.mutateAsync(); } finally {
       localStorage.removeItem("zarierp_token");
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       setLocation("/login");

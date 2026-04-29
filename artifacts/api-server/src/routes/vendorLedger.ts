@@ -139,7 +139,7 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
 
 router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => {
   try {
-    const vendorId = parseInt(req.params.vendorId);
+    const vendorId = parseInt(String(req.params.vendorId));
     const { orderType = "all", startDate, endDate } = req.query as Record<string, string>;
 
     const params: (string | number)[] = [vendorId];
@@ -378,7 +378,7 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
 
 router.get("/vendor-ledger/:vendorId/info", requireAuth, async (req, res) => {
   try {
-    const vendorId = parseInt(req.params.vendorId);
+    const vendorId = parseInt(String(req.params.vendorId));
     const rows = await db
       .select()
       .from(vendorsTable)
@@ -392,7 +392,7 @@ router.get("/vendor-ledger/:vendorId/info", requireAuth, async (req, res) => {
 
 router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
   try {
-    const vendorId = parseInt(req.params.vendorId);
+    const vendorId = parseInt(String(req.params.vendorId));
     const user = (req as { user?: { username?: string } }).user;
     const parsed = insertVendorPaymentSchema.safeParse({ ...req.body, vendorId });
     if (!parsed.success)
@@ -427,7 +427,7 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
 
 router.post("/vendor-ledger/:vendorId/charge", requireAuth, async (req, res) => {
   try {
-    const vendorId = parseInt(req.params.vendorId);
+    const vendorId = parseInt(String(req.params.vendorId));
     const user = (req as { user?: { username?: string } }).user;
     const parsed = insertVendorLedgerChargeSchema.safeParse({ ...req.body, vendorId });
     if (!parsed.success)
@@ -461,7 +461,7 @@ router.post("/vendor-ledger/:vendorId/charge", requireAuth, async (req, res) => 
 
 router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     await db.delete(vendorPaymentsTable).where(eq(vendorPaymentsTable.id, id));
     res.json({ success: true });
   } catch (err) {
@@ -471,7 +471,7 @@ router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
 
 router.delete("/vendor-ledger/charges/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     await db.delete(vendorLedgerChargesTable).where(eq(vendorLedgerChargesTable.id, id));
     res.json({ success: true });
   } catch (err) {

@@ -53,12 +53,12 @@ export default function VendorMaster() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   useEffect(() => { if (!token || (!loadingUser && !user)) setLocation("/login"); }, [token, user, loadingUser, setLocation]);
 
   const logoutMutation = useLogout();
   const handleLogout = async () => {
-    try { await logoutMutation.mutateAsync({}); } finally {
+    try { await logoutMutation.mutateAsync(); } finally {
       localStorage.removeItem("zarierp_token");
       qc.invalidateQueries({ queryKey: getGetMeQueryKey() });
       setLocation("/login");

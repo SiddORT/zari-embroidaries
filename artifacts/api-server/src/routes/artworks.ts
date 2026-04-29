@@ -38,7 +38,7 @@ router.get("/artworks", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(artworksTable).where(
     and(eq(artworksTable.id, id), eq(artworksTable.isDeleted, false))
@@ -85,7 +85,7 @@ router.post("/artworks", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
@@ -160,7 +160,7 @@ router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.delete("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   await db.update(artworksTable).set({

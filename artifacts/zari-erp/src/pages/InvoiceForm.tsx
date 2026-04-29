@@ -52,6 +52,7 @@ interface LineItem {
   id: string; description: string; category: string;
   quantity: number; unitPrice: number; total: number;
   hsnCode: string; hsnGstPct: string; showHsn: boolean;
+  unit?: string;
 }
 interface HsnItem { id: number; hsnCode: string; govtDescription: string; gstPercentage: string }
 interface FabricMaster { id: number; fabricCode: string; fabricType: string; quality: string; colorName: string; hsnCode: string }
@@ -842,9 +843,10 @@ export default function InvoiceForm() {
                           customFetch<any>(`/api/clients/${id}`).then(j => {
                             const c: Client = j.data ?? j;
                             if (!c) return;
-                            const addr = [c.address1, c.address2, c.city, c.state, c.pincode].filter(Boolean).join(", ");
-                            const deliveryAddr = Array.isArray(c.addresses)
-                              ? c.addresses.find((a: any) => a.type === "Delivery Address")
+                            const ca = c as any;
+                            const addr = [ca.address1, ca.address2, c.city, c.state, c.pincode].filter(Boolean).join(", ");
+                            const deliveryAddr = Array.isArray(ca.addresses)
+                              ? ca.addresses.find((a: any) => a.type === "Delivery Address")
                               : null;
                             const shipAddr = deliveryAddr
                               ? [deliveryAddr.name, deliveryAddr.address1, deliveryAddr.address2, deliveryAddr.city, deliveryAddr.state, deliveryAddr.pincode, deliveryAddr.country].filter(Boolean).join(", ")

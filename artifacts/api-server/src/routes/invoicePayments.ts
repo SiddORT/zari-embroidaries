@@ -174,7 +174,7 @@ router.post("/invoice-payments", requireAuth, async (req: any, res) => {
 
 // ── DELETE /api/invoice-payments/:id ────────────────────────────────────────
 router.delete("/invoice-payments/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
   const client = await pool.connect();

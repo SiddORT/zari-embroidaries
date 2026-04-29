@@ -179,7 +179,7 @@ router.post("/items", requireAuth, async (req: AuthRequest, res): Promise<void> 
 
 /* ─── Update ─────────────────────────────────────────────────────── */
 router.put("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const bodyErr = validateItemPayload(req.body as Record<string, unknown>);
@@ -220,7 +220,7 @@ router.put("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<voi
 
 /* ─── Toggle Status ──────────────────────────────────────────────── */
 router.patch("/items/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(itemsTable)
     .where(and(eq(itemsTable.id, id), eq(itemsTable.isDeleted, false)));
@@ -234,7 +234,7 @@ router.patch("/items/:id/status", requireAuth, async (req: AuthRequest, res): Pr
 
 /* ─── Delete ─────────────────────────────────────────────────────── */
 router.delete("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(itemsTable)

@@ -403,7 +403,7 @@ router.get("/material-search", requireAuth, async (req, res) => {
 
 // ─── BOM ─────────────────────────────────────────────────────────────────────
 router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
-  const swatchOrderId = Number(req.params.swatchOrderId);
+  const swatchOrderId = Number(String(req.params.swatchOrderId));
   const rows = await db.select().from(swatchBomTable)
     .where(eq(swatchBomTable.swatchOrderId, swatchOrderId))
     .orderBy(swatchBomTable.createdAt);
@@ -486,7 +486,7 @@ router.patch("/bom/:id", requireAuth, async (req, res) => {
   const { consumedQty } = req.body as { consumedQty?: string };
   const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
   if (consumedQty !== undefined) updates.consumedQty = consumedQty;
-  const [row] = await db.update(swatchBomTable).set(updates).where(eq(swatchBomTable.id, Number(req.params.id))).returning();
+  const [row] = await db.update(swatchBomTable).set(updates).where(eq(swatchBomTable.id, Number(String(req.params.id)))).returning();
   res.json({ data: row });
 });
 
@@ -621,7 +621,7 @@ router.patch("/bom/:id/qty", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
     const actor = user?.name || user?.email || "System";
-    const bomId = Number(req.params.id);
+    const bomId = Number(String(req.params.id));
     const { requiredQty, notes } = req.body as { requiredQty: string; notes?: string };
 
     const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, bomId)).limit(1);
@@ -667,7 +667,7 @@ router.get("/bom/:id/log", requireAuth, async (req, res) => {
   try {
     const rows = await pool.query(
       `SELECT * FROM bom_change_log WHERE bom_row_id = $1 ORDER BY changed_at DESC`,
-      [Number(req.params.id)]
+      [Number(String(req.params.id))]
     );
     res.json({ data: rows.rows });
   } catch (err: any) {
@@ -676,7 +676,7 @@ router.get("/bom/:id/log", requireAuth, async (req, res) => {
 });
 
 router.delete("/bom/:id", requireAuth, async (req, res) => {
-  const bomId = Number(req.params.id);
+  const bomId = Number(String(req.params.id));
   const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, bomId)).limit(1);
   await db.delete(swatchBomTable).where(eq(swatchBomTable.id, bomId));
 
@@ -719,7 +719,7 @@ async function nextPrNumber(): Promise<string> {
 // ─── PO ──────────────────────────────────────────────────────────────────────
 router.get("/po/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseOrdersTable)
-    .where(eq(purchaseOrdersTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(purchaseOrdersTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(purchaseOrdersTable.createdAt);
   res.json({ data: rows });
 });
@@ -778,19 +778,19 @@ router.patch("/po/:id", requireAuth, async (req, res) => {
     updates.bomItems = bomItems;
     updates.bomRowIds = bomItems.map((i: any) => i.bomRowId);
   }
-  const [row] = await db.update(purchaseOrdersTable).set(updates).where(eq(purchaseOrdersTable.id, Number(req.params.id))).returning();
+  const [row] = await db.update(purchaseOrdersTable).set(updates).where(eq(purchaseOrdersTable.id, Number(String(req.params.id)))).returning();
   res.json({ data: row });
 });
 
 router.delete("/po/:id", requireAuth, async (req, res) => {
-  await db.delete(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(req.params.id)));
+  await db.delete(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(String(req.params.id))));
   res.json({ success: true });
 });
 
 // ─── PR ──────────────────────────────────────────────────────────────────────
 router.get("/pr/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseReceiptsTable)
-    .where(eq(purchaseReceiptsTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(purchaseReceiptsTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(purchaseReceiptsTable.createdAt);
   res.json({ data: rows });
 });
@@ -878,19 +878,19 @@ router.patch("/pr/:id", requireAuth, async (req, res) => {
   const { status } = req.body as { status?: string };
   const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
   if (status !== undefined) updates.status = status;
-  const [row] = await db.update(purchaseReceiptsTable).set(updates).where(eq(purchaseReceiptsTable.id, Number(req.params.id))).returning();
+  const [row] = await db.update(purchaseReceiptsTable).set(updates).where(eq(purchaseReceiptsTable.id, Number(String(req.params.id)))).returning();
   res.json({ data: row });
 });
 
 router.delete("/pr/:id", requireAuth, async (req, res) => {
-  await db.delete(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.id, Number(req.params.id)));
+  await db.delete(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.id, Number(String(req.params.id))));
   res.json({ success: true });
 });
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 router.get("/payments/:prId", requireAuth, async (req, res) => {
   const rows = await db.select().from(prPaymentsTable)
-    .where(eq(prPaymentsTable.prId, Number(req.params.prId)))
+    .where(eq(prPaymentsTable.prId, Number(String(req.params.prId))))
     .orderBy(prPaymentsTable.createdAt);
   res.json({ data: rows });
 });
@@ -913,14 +913,14 @@ router.post("/payments", requireAuth, async (req, res) => {
 });
 
 router.delete("/payments/:id", requireAuth, async (req, res) => {
-  await db.delete(prPaymentsTable).where(eq(prPaymentsTable.id, Number(req.params.id)));
+  await db.delete(prPaymentsTable).where(eq(prPaymentsTable.id, Number(String(req.params.id))));
   res.json({ success: true });
 });
 
 // ─── Consumption Log ───────────────────────────────────────────────────────────
 router.get("/consumption/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(consumptionLogTable)
-    .where(eq(consumptionLogTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(consumptionLogTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(consumptionLogTable.consumedAt);
   res.json({ data: rows });
 });
@@ -1001,13 +1001,13 @@ router.post("/consumption", requireAuth, async (req, res) => {
 
 router.delete("/consumption/:id", requireAuth, async (req, res) => {
   const user = (req as any).user;
-  const [entry] = await db.select().from(consumptionLogTable).where(eq(consumptionLogTable.id, Number(req.params.id)));
+  const [entry] = await db.select().from(consumptionLogTable).where(eq(consumptionLogTable.id, Number(String(req.params.id))));
   if (!entry) { res.status(404).json({ error: "Not found" }); return; }
 
   // Load BOM row before deletion so we have materialType + materialId for reversal
   const [bomRow] = await db.select().from(swatchBomTable).where(eq(swatchBomTable.id, entry.bomRowId)).limit(1);
 
-  await db.delete(consumptionLogTable).where(eq(consumptionLogTable.id, Number(req.params.id)));
+  await db.delete(consumptionLogTable).where(eq(consumptionLogTable.id, Number(String(req.params.id))));
 
   // Recompute and update BOM consumed qty
   const remaining = await db.select().from(consumptionLogTable).where(eq(consumptionLogTable.bomRowId, entry.bomRowId));
@@ -1063,7 +1063,7 @@ router.get("/hsn-search", requireAuth, async (req, res) => {
 // ─── Artisan Timesheets ───────────────────────────────────────────────────────
 router.get("/artisan-timesheets/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(artisanTimesheetsTable)
-    .where(eq(artisanTimesheetsTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(artisanTimesheetsTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(desc(artisanTimesheetsTable.createdAt));
   res.json({ data: rows });
 });
@@ -1094,14 +1094,14 @@ router.post("/artisan-timesheets", requireAuth, async (req, res) => {
 });
 
 router.delete("/artisan-timesheets/:id", requireAuth, async (req, res) => {
-  await db.delete(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.id, Number(req.params.id)));
+  await db.delete(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.id, Number(String(req.params.id))));
   res.json({ success: true });
 });
 
 // ─── Outsource Jobs ───────────────────────────────────────────────────────────
 router.get("/outsource-jobs/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(outsourceJobsTable)
-    .where(eq(outsourceJobsTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(outsourceJobsTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(desc(outsourceJobsTable.createdAt));
   res.json({ data: rows });
 });
@@ -1130,14 +1130,14 @@ router.post("/outsource-jobs", requireAuth, async (req, res) => {
 });
 
 router.delete("/outsource-jobs/:id", requireAuth, async (req, res) => {
-  await db.delete(outsourceJobsTable).where(eq(outsourceJobsTable.id, Number(req.params.id)));
+  await db.delete(outsourceJobsTable).where(eq(outsourceJobsTable.id, Number(String(req.params.id))));
   res.json({ success: true });
 });
 
 // ─── Custom Charges ───────────────────────────────────────────────────────────
 router.get("/custom-charges/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(customChargesTable)
-    .where(eq(customChargesTable.swatchOrderId, Number(req.params.swatchOrderId)))
+    .where(eq(customChargesTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(desc(customChargesTable.createdAt));
   res.json({ data: rows });
 });
@@ -1168,7 +1168,7 @@ router.post("/custom-charges", requireAuth, async (req, res) => {
 });
 
 router.delete("/custom-charges/:id", requireAuth, async (req, res) => {
-  await db.delete(customChargesTable).where(eq(customChargesTable.id, Number(req.params.id)));
+  await db.delete(customChargesTable).where(eq(customChargesTable.id, Number(String(req.params.id))));
   res.json({ success: true });
 });
 
@@ -1178,7 +1178,7 @@ router.delete("/custom-charges/:id", requireAuth, async (req, res) => {
 
 // ─── Style BOM ───────────────────────────────────────────────────────────────
 router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
-  const styleOrderId = Number(req.params.styleOrderId);
+  const styleOrderId = Number(String(req.params.styleOrderId));
   const rows = await db.select().from(swatchBomTable)
     .where(eq(swatchBomTable.styleOrderId, styleOrderId))
     .orderBy(swatchBomTable.createdAt);
@@ -1259,7 +1259,7 @@ router.post("/style-bom", requireAuth, async (req, res) => {
 // ─── Style PO ─────────────────────────────────────────────────────────────────
 router.get("/style-po/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseOrdersTable)
-    .where(eq(purchaseOrdersTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(purchaseOrdersTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(purchaseOrdersTable.createdAt);
   res.json({ data: rows });
 });
@@ -1285,8 +1285,8 @@ router.post("/style-po", requireAuth, async (req, res) => {
     styleOrderId: Number(styleOrderId),
     referenceType: "Style",
     referenceId: Number(styleOrderId),
-    vendorId: vendorId ?? null,
-    vendorName: vendor?.brandName ?? null,
+    vendorId: (vendorId ?? null) as unknown as number,
+    vendorName: (vendor?.brandName ?? null) as unknown as string,
     status: "Draft",
     notes: notes ?? null,
     bomRowIds: items.map(i => i.bomRowId),
@@ -1314,7 +1314,7 @@ router.post("/style-po", requireAuth, async (req, res) => {
 // ─── Style PR ─────────────────────────────────────────────────────────────────
 router.get("/style-pr/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseReceiptsTable)
-    .where(eq(purchaseReceiptsTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(purchaseReceiptsTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(purchaseReceiptsTable.createdAt);
   res.json({ data: rows });
 });
@@ -1396,7 +1396,7 @@ router.post("/style-pr", requireAuth, async (req, res) => {
 // ─── Style Consumption ────────────────────────────────────────────────────────
 router.get("/style-consumption/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(consumptionLogTable)
-    .where(eq(consumptionLogTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(consumptionLogTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(consumptionLogTable.consumedAt);
   res.json({ data: rows });
 });
@@ -1478,7 +1478,7 @@ router.post("/style-consumption", requireAuth, async (req, res) => {
 // ─── Style Artisan Timesheets ─────────────────────────────────────────────────
 router.get("/style-artisan-timesheets/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(artisanTimesheetsTable)
-    .where(eq(artisanTimesheetsTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(artisanTimesheetsTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(desc(artisanTimesheetsTable.createdAt));
   res.json({ data: rows });
 });
@@ -1513,7 +1513,7 @@ router.post("/style-artisan-timesheets", requireAuth, async (req, res) => {
 // ─── Style Outsource Jobs ─────────────────────────────────────────────────────
 router.get("/style-outsource-jobs/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(outsourceJobsTable)
-    .where(eq(outsourceJobsTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(outsourceJobsTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(desc(outsourceJobsTable.createdAt));
   res.json({ data: rows });
 });
@@ -1546,7 +1546,7 @@ router.post("/style-outsource-jobs", requireAuth, async (req, res) => {
 // ─── Style Custom Charges ─────────────────────────────────────────────────────
 router.get("/style-custom-charges/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(customChargesTable)
-    .where(eq(customChargesTable.styleOrderId, Number(req.params.styleOrderId)))
+    .where(eq(customChargesTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(desc(customChargesTable.createdAt));
   res.json({ data: rows });
 });
@@ -1921,7 +1921,7 @@ router.post("/costing-payments", requireAuth, async (req, res) => {
 // PATCH /costing/costing-payments/:id — update payment fields
 router.patch("/costing-payments/:id", requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks } = req.body;
     const { rows } = await pool.query(
       `UPDATE costing_payments SET
@@ -1958,7 +1958,7 @@ router.delete("/costing-payments/:id", requireAuth, async (req, res) => {
     if (user?.role !== "admin") {
       return res.status(403).json({ error: "Admin only" });
     }
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     await pool.query("DELETE FROM costing_payments WHERE id = $1", [id]);
     res.json({ success: true });
   } catch (err: any) {

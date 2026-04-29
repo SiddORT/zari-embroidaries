@@ -7,7 +7,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 const router: IRouter = Router();
 
 router.get("/client-links/swatch/:swatchOrderId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.swatchOrderId);
+  const id = parseInt(String(req.params.swatchOrderId));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   let [link] = await db.select().from(clientLinksTable).where(eq(clientLinksTable.swatchOrderId, id));
@@ -20,7 +20,7 @@ router.get("/client-links/swatch/:swatchOrderId", requireAuth, async (req, res):
 });
 
 router.get("/client-links/style/:styleOrderId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.styleOrderId);
+  const id = parseInt(String(req.params.styleOrderId));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   let [link] = await db.select().from(clientLinksTable).where(eq(clientLinksTable.styleOrderId, id));
@@ -33,7 +33,7 @@ router.get("/client-links/style/:styleOrderId", requireAuth, async (req, res): P
 });
 
 router.patch("/client-links/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { isPublished, hiddenImages, portalTitle, closedThreads } = req.body as {
@@ -60,7 +60,7 @@ router.patch("/client-links/:id", requireAuth, async (req, res): Promise<void> =
 });
 
 router.post("/client-links/:id/regenerate", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const token = randomBytes(16).toString("hex");
@@ -75,7 +75,7 @@ router.post("/client-links/:id/regenerate", requireAuth, async (req, res): Promi
 });
 
 router.get("/client-links/:id/feedback", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const rows = await db
@@ -87,7 +87,7 @@ router.get("/client-links/:id/feedback", requireAuth, async (req, res): Promise<
 });
 
 router.patch("/client-links/feedback/:feedbackId", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.feedbackId);
+  const id = parseInt(String(req.params.feedbackId));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { isResolved, internalNote } = req.body as { isResolved?: boolean; internalNote?: string };
@@ -113,7 +113,7 @@ router.patch("/client-links/feedback/:feedbackId", requireAuth, async (req, res)
 /* ── Chat messages ── */
 
 router.get("/client-links/:id/messages", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const rows = await db
@@ -126,7 +126,7 @@ router.get("/client-links/:id/messages", requireAuth, async (req, res): Promise<
 });
 
 router.post("/client-links/:id/messages", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { artworkId, artworkName, message, attachment } = req.body as {
@@ -150,7 +150,7 @@ router.post("/client-links/:id/messages", requireAuth, async (req, res): Promise
 });
 
 router.patch("/client-links/:id/threads/toggle", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { artworkId, closed } = req.body as { artworkId: number; closed: boolean };

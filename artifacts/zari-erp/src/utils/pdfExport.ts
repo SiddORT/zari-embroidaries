@@ -530,7 +530,7 @@ export function downloadBomPdf(data: BomPdfData) {
 
   const filename = `BOM_${data.orderCode ?? data.referenceId}_${today.replace(/\s/g, "-")}.pdf`;
   doc.save(filename);
-  logDownload({ file_type: "PDF", file_name: filename, module: "Bill of Materials", reference: data.orderCode ?? data.referenceId ?? "" });
+  logDownload({ file_type: "PDF", file_name: filename, module: "Bill of Materials", reference: String(data.orderCode ?? data.referenceId ?? "") });
 }
 
 // ─── PO PDF ───────────────────────────────────────────────────────────────────

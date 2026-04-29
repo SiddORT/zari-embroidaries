@@ -93,7 +93,7 @@ router.get("/other-expenses/:id", requireAuth, async (req, res) => {
        FROM other_expenses oe
        LEFT JOIN vendors v ON v.id = oe.vendor_id
        WHERE oe.expense_id = $1`,
-      [parseInt(req.params.id)]
+      [parseInt(String(req.params.id))]
     );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
     res.json(rows[0]);
@@ -184,7 +184,7 @@ router.post("/other-expenses", requireAuth, uploadMiddleware.single("attachment"
 /* ── update ───────────────────────────────── */
 router.put("/other-expenses/:id", requireAuth, uploadMiddleware.single("attachment"), async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const {
       expense_category, vendor_id, vendor_name = "",
       reference_type = "Manual", reference_id = "",
@@ -235,7 +235,7 @@ router.delete("/other-expenses/:id", requireAuth, async (req: any, res) => {
     const user = (req as AuthRequest).user;
     if ((user as any)?.role !== "admin")
       return res.status(403).json({ error: "Admin only" });
-    await pool.query(`DELETE FROM other_expenses WHERE expense_id = $1`, [parseInt(req.params.id)]);
+    await pool.query(`DELETE FROM other_expenses WHERE expense_id = $1`, [parseInt(String(req.params.id))]);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

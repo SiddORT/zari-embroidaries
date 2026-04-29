@@ -245,7 +245,7 @@ export default function ArtworkDetail() {
 
   async function handleAddUnitType() {
     if (!newUnitTypeName.trim()) return;
-    await createUnitType.mutateAsync({ name: newUnitTypeName.trim() });
+    await createUnitType.mutateAsync({ name: newUnitTypeName.trim(), isActive: true });
     set("unitType", newUnitTypeName.trim());
     setAddUnitTypeOpen(false);
   }

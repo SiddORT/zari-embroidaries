@@ -505,7 +505,7 @@ router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, a
 
 router.get("/packing-lists/item-images/:filename", async (req, res) => {
   try {
-    const filename = path.basename(req.params.filename);
+    const filename = path.basename(String(req.params.filename));
     const filePath = path.join(process.cwd(), "uploads", "packing-list-items", filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Image not found" });
     res.sendFile(filePath);

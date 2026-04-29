@@ -1064,7 +1064,7 @@ export default function UserManagement() {
   const [tab, setTab] = useState<"users" | "roles">("users");
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
   const { data: rolesData } = useRoles();
 

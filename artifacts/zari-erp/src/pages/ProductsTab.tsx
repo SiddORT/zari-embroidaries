@@ -422,7 +422,7 @@ export default function ProductsTab({
     if (!newDeptName.trim()) { setDeptError("Name is required"); return; }
     try {
       const r = await createDept.mutateAsync({ name: newDeptName.trim(), isActive: true });
-      set("department", String((r as Record<string, unknown>).id));
+      set("department", String((r as unknown as Record<string, unknown>).id));
       setAddDeptOpen(false); setNewDeptName(""); setDeptError("");
     } catch { setDeptError("Already exists or failed"); }
   }

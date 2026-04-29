@@ -47,7 +47,7 @@ router.get("/style-order-artworks", requireAuth, async (req, res): Promise<void>
 
 // GET single artwork
 router.get("/style-order-artworks/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(styleOrderArtworksTable).where(
     and(eq(styleOrderArtworksTable.id, id), eq(styleOrderArtworksTable.isDeleted, false))
@@ -106,7 +106,7 @@ router.post("/style-order-artworks", requireAuth, async (req, res): Promise<void
 
 // PUT update
 router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
@@ -254,7 +254,7 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
 
 // DELETE (soft)
 router.delete("/style-order-artworks/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   await db.update(styleOrderArtworksTable).set({

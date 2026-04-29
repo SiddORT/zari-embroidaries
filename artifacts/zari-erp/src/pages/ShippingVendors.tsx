@@ -185,7 +185,7 @@ export default function ShippingVendors() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isError } = useGetMe({ enabled: !!token });
+  const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
   const isAdmin = user?.role === "admin";
 
@@ -421,7 +421,7 @@ export default function ShippingVendors() {
 
   return (
     <AppLayout
-      username={user?.name ?? user?.email ?? ""}
+      username={user?.username ?? user?.email ?? ""}
       role={user?.role ?? ""}
       onLogout={handleLogout}
       isLoggingOut={logoutMutation.isPending}

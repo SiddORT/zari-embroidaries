@@ -90,11 +90,11 @@ export default function ClientForm() {
   const numId = isNew ? null : parseInt(params.id ?? "", 10);
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   useEffect(() => { if (!token || (!loadingUser && !user)) setLocation("/login"); }, [token, user, loadingUser, setLocation]);
   const logoutMutation = useLogout();
   const handleLogout = async () => {
-    try { await logoutMutation.mutateAsync({}); } finally {
+    try { await logoutMutation.mutateAsync(); } finally {
       localStorage.removeItem("zarierp_token");
       qc.invalidateQueries({ queryKey: getGetMeQueryKey() });
       setLocation("/login");
@@ -115,7 +115,7 @@ export default function ClientForm() {
   useEffect(() => {
     if (existingClient && !isNew) {
       const legacyAddr: ClientAddress[] = [];
-      if (existingClient.address1 && (!existingClient.addresses || existingClient.addresses.length === 0)) {
+      if ((existingClient as any).address1 && (!(existingClient as any).addresses || (existingClient as any).addresses.length === 0)) {
         legacyAddr.push({
           id: makeAddrId(),
           type: "Billing Address",

@@ -79,7 +79,7 @@ export default function HSNMaster() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
 
   useEffect(() => {
     if (!token || (!loadingUser && !user)) {
@@ -90,7 +90,7 @@ export default function HSNMaster() {
   const logoutMutation = useLogout();
   const handleLogout = async () => {
     try {
-      await logoutMutation.mutateAsync({});
+      await logoutMutation.mutateAsync();
     } finally {
       localStorage.removeItem("zarierp_token");
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });

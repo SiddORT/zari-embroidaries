@@ -1,18 +1,18 @@
 import TopNavbar from "./TopNavbar";
 
 interface AppLayoutProps {
-  username: string;
-  role: string;
-  onLogout: () => void;
-  isLoggingOut: boolean;
+  username?: string;
+  role?: string;
+  onLogout?: () => void;
+  isLoggingOut?: boolean;
   children: React.ReactNode;
 }
 
 export default function AppLayout({
-  username,
-  role,
-  onLogout,
-  isLoggingOut,
+  username = "",
+  role = "",
+  onLogout = () => {},
+  isLoggingOut = false,
   children,
 }: AppLayoutProps) {
   return (

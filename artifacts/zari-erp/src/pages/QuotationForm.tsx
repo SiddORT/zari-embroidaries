@@ -50,7 +50,7 @@ export default function QuotationForm() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
 
   // ── Master Data ────────────────────────────────────────────────────────────
@@ -298,7 +298,7 @@ export default function QuotationForm() {
                       ? "bg-blue-100 text-blue-700"
                       : "bg-indigo-100 text-indigo-700"
                   }`}>
-                    {gstType}
+                    {gstTaxType}
                   </span>
                 )}
               </div>

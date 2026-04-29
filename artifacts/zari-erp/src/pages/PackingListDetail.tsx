@@ -78,7 +78,7 @@ export default function PackingListDetail() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isError } = useGetMe({ enabled: !!token });
+  const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
 
   const [pl, setPl] = useState<PLDetail | null>(null);
@@ -413,8 +413,8 @@ export default function PackingListDetail() {
 
   return (
     <AppLayout
-      username={user?.data?.username ?? ""}
-      role={user?.data?.role ?? ""}
+      username={user?.username ?? ""}
+      role={user?.role ?? ""}
       onLogout={handleLogout}
       isLoggingOut={logoutMutation.isPending}
     >

@@ -57,7 +57,7 @@ router.get("/clients/all", requireAuth, async (_req, res): Promise<void> => {
 });
 
 router.get("/clients/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, id), eq(clientsTable.isDeleted, false)));
   if (!record) { res.status(404).json({ error: "Client not found" }); return; }
@@ -94,7 +94,7 @@ router.post("/clients", requireAuth, async (req: AuthRequest, res): Promise<void
 });
 
 router.put("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateClientSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
@@ -122,7 +122,7 @@ router.put("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<v
 });
 
 router.patch("/clients/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, id), eq(clientsTable.isDeleted, false)));
   if (!existing) { res.status(404).json({ error: "Client not found" }); return; }
@@ -132,7 +132,7 @@ router.patch("/clients/:id/status", requireAuth, async (req: AuthRequest, res): 
 });
 
 router.delete("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(clientsTable).set({ isDeleted: true, updatedBy, updatedAt: new Date() })

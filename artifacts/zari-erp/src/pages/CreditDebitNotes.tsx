@@ -447,7 +447,7 @@ export default function CreditDebitNotes() {
                 </button>
               </>
             )}
-            {n.status === "Applied" && n.status !== "Cancelled" && (
+            {n.status === "Applied" && (
               <div className="px-3 py-2 text-xs text-gray-400">Note is applied</div>
             )}
           </div>,

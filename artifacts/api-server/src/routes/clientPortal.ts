@@ -13,6 +13,7 @@ router.get("/client-portal/:token", async (req, res): Promise<void> => {
   const [link] = await db.select().from(clientLinksTable).where(eq(clientLinksTable.token, token));
   if (!link) { res.status(404).json({ error: "Link not found" }); return; }
   if (!link.isPublished) { res.status(403).json({ error: "This link is not yet published" }); return; }
+  if (!link.swatchOrderId) { res.status(404).json({ error: "No swatch order linked" }); return; }
 
   const [order] = await db.select().from(swatchOrdersTable).where(eq(swatchOrdersTable.id, link.swatchOrderId));
   if (!order) { res.status(404).json({ error: "Order not found" }); return; }

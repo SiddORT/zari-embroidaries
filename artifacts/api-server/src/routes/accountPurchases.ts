@@ -84,7 +84,7 @@ router.post("/vendor-bills/:id/payment", requireAuth, async (req: AuthRequest, r
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { payment_amount, payment_date, payment_type, transaction_reference, remarks } = req.body as any;
     const amt = parseFloat(payment_amount ?? "0");
     if (amt <= 0) throw new Error("payment_amount must be > 0");

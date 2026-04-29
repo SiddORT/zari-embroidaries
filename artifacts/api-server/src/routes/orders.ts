@@ -42,7 +42,7 @@ router.get("/orders", requireAuth, async (req: AuthRequest, res): Promise<void> 
 });
 
 router.get("/orders/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const [record] = await db.select().from(ordersTable).where(and(eq(ordersTable.id, id), eq(ordersTable.isDeleted, false)));
@@ -67,7 +67,7 @@ router.post("/orders", requireAuth, async (req: AuthRequest, res): Promise<void>
 });
 
 router.put("/orders/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const parsed = updateOrderSchema.safeParse(req.body);
@@ -89,7 +89,7 @@ router.put("/orders/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
 });
 
 router.patch("/orders/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const parsed = updateOrderSchema.safeParse(req.body);
@@ -111,7 +111,7 @@ router.patch("/orders/:id/status", requireAuth, async (req: AuthRequest, res): P
 });
 
 router.delete("/orders/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const updatedBy = req.user?.email ?? "system";

@@ -67,7 +67,7 @@ export default function QuotationList() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
   const { data: allClients = [] } = useAllClients();
 
@@ -369,7 +369,7 @@ export default function QuotationList() {
                                 {row.quotation_number}
                               </button>
                               {row.has_approval && (
-                                <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0" title="Has an approved revision" />
+                                <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0" aria-label="Has an approved revision" />
                               )}
                             </div>
                           </td>
@@ -488,7 +488,7 @@ export default function QuotationList() {
                                                   {rev.status}
                                                 </span>
                                                 {isApproved && (
-                                                  <CheckCircle2 size={12} className="text-emerald-600" title="Client Approved" />
+                                                  <CheckCircle2 size={12} className="text-emerald-600" aria-label="Client Approved" />
                                                 )}
                                               </div>
                                             </td>

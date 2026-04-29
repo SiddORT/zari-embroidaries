@@ -3,10 +3,10 @@ import { Link, useLocation } from "wouter";
 import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings, BarChart2, BookOpen } from "lucide-react";
 
 interface TopNavbarProps {
-  username: string;
-  role: string;
-  onLogout: () => void;
-  isLoggingOut: boolean;
+  username?: string;
+  role?: string;
+  onLogout?: () => void;
+  isLoggingOut?: boolean;
 }
 
 const MASTERS_ITEMS = [
@@ -52,7 +52,7 @@ const OPERATIONS_SECTIONS = [
 
 const ALL_OPERATIONS_HREFS = OPERATIONS_SECTIONS.flatMap(s => s.items.map(i => i.href));
 
-export default function TopNavbar({ username, role, onLogout, isLoggingOut }: TopNavbarProps) {
+export default function TopNavbar({ username = "", role = "", onLogout = () => {}, isLoggingOut = false }: TopNavbarProps) {
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);

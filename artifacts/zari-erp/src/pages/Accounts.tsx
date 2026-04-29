@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { useLocation } from "wouter";
 import {
   Wallet, ChevronDown, ChevronRight, Plus, Trash2, Loader2,
@@ -42,7 +42,7 @@ const STATUS_PILL: Record<string, string> = {
   "Completed":     "bg-emerald-50 text-emerald-700",
 };
 
-const PMT_STATUS_ICON: Record<string, JSX.Element> = {
+const PMT_STATUS_ICON: Record<string, ReactElement> = {
   "Completed": <CheckCircle2 size={13} className="text-emerald-500" />,
   "Processing": <Clock size={13} className="text-sky-500" />,
   "Failed": <AlertCircle size={13} className="text-red-500" />,

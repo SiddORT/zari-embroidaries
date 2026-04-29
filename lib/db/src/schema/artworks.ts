@@ -60,10 +60,10 @@ export const insertArtworkSchema = z.object({
   outsourceTransactionId: z.string().optional().nullable(),
   outsourcePaymentStatus: z.string().optional().nullable(),
   feedbackStatus: z.string().default("Pending"),
-  files: z.array(z.record(z.unknown())).optional().default([]),
-  refImages: z.array(z.record(z.unknown())).optional().default([]),
-  wipImages: z.array(z.record(z.unknown())).optional().default([]),
-  finalImages: z.array(z.record(z.unknown())).optional().default([]),
+  files: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  refImages: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  wipImages: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  finalImages: z.array(z.record(z.string(), z.unknown())).optional().default([]),
 });
 
 export const updateArtworkSchema = insertArtworkSchema.partial().extend({

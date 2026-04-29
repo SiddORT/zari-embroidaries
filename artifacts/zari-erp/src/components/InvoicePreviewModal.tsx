@@ -362,7 +362,7 @@ function ModernTemplate({ inv, company, tpl }: { inv: PreviewInvoice; company: C
               inv.cgstRate > 0 ? [`CGST (${inv.cgstRate}%)`, `${sym}${fmt(t.cgstAmt)}`] : null,
               inv.sgstRate > 0 ? [`SGST (${inv.sgstRate}%)`, `${sym}${fmt(t.sgstAmt)}`] : null,
               inv.shippingAmount > 0 ? ["Shipping", `${sym}${fmt(inv.shippingAmount)}`] : null,
-            ].filter(Boolean).map(([label, val], i) => (
+            ].filter((x): x is string[] => x !== null).map(([label, val], i) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", color: "#555" }}>
                 <span>{label}</span><span>{val as string}</span>
               </div>

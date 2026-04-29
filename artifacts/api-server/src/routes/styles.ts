@@ -161,7 +161,7 @@ router.get("/styles/for-reference", requireAuth, async (_req, res): Promise<void
 
 // ─── Single style ──────────────────────────────────────────────────────────────
 router.get("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
   if (!record) { res.status(404).json({ error: "Style not found" }); return; }
@@ -180,7 +180,7 @@ router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void>
 });
 
 router.put("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateStyleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
@@ -193,7 +193,7 @@ router.put("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
 });
 
 router.patch("/styles/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
   if (!existing) { res.status(404).json({ error: "Style not found" }); return; }
@@ -203,7 +203,7 @@ router.patch("/styles/:id/status", requireAuth, async (req: AuthRequest, res): P
 });
 
 router.delete("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(stylesTable).set({ isDeleted: true, updatedBy, updatedAt: new Date() })
@@ -217,7 +217,7 @@ router.delete("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise
 interface MediaItem { url: string; type: "image" | "video"; name: string; }
 
 router.post("/styles/:id/media", requireAuth, mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
 
@@ -241,7 +241,7 @@ router.post("/styles/:id/media", requireAuth, mediaUploadMiddleware.single("file
 });
 
 router.delete("/styles/:id/media", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const { url, category } = req.body as { url: string; category: string };

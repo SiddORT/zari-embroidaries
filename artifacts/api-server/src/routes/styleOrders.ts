@@ -59,7 +59,7 @@ router.get("/style-orders", requireAuth, async (req, res) => {
 
 // Get one
 router.get("/style-orders/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [row] = await db.select().from(styleOrdersTable).where(eq(styleOrdersTable.id, id));
   if (!row || row.isDeleted) return res.status(404).json({ error: "Not found" });
@@ -85,7 +85,7 @@ router.post("/style-orders", requireAuth, async (req, res) => {
 
 // Update
 router.put("/style-orders/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
   const parsed = updateStyleOrderSchema.safeParse(req.body);
@@ -104,7 +104,7 @@ router.put("/style-orders/:id", requireAuth, async (req, res) => {
 
 // Delete (soft)
 router.delete("/style-orders/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.update(styleOrdersTable).set({ isDeleted: true }).where(eq(styleOrdersTable.id, id));
   res.json({ message: "Deleted" });

@@ -270,7 +270,7 @@ export default function StyleOrderDetail() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
   const isAdmin = user?.role === "admin";
 
@@ -354,7 +354,7 @@ export default function StyleOrderDetail() {
         wipVideos: (o.wipVideos as FileAttachment[]) ?? [],
         finalVideos: (o.finalVideos as FileAttachment[]) ?? [],
         estimate: (() => {
-          const saved = (o.estimate ?? []) as EstimateItem[];
+          const saved = (o.estimate ?? []) as unknown as EstimateItem[];
           const defaults = makeDefaultEstimate();
           const merged = defaults.map(def => {
             const found = saved.find(s => s.id === def.id && !s.isCustom);
@@ -428,12 +428,12 @@ export default function StyleOrderDetail() {
     setSaving(true);
     try {
       if (isNew) {
-        const res = await createOrder.mutateAsync(form);
+        const res = await createOrder.mutateAsync(form as any);
         toast({ title: "Style order created", description: res.data.orderCode });
         savedFormRef.current = form;
         setLocation(`/style-orders/${res.data.id}`);
       } else if (numId) {
-        await updateOrder.mutateAsync({ id: numId, data: form });
+        await updateOrder.mutateAsync({ id: numId, data: form as any });
         savedFormRef.current = form;
         toast({ title: "Changes saved" });
       }
@@ -1064,7 +1064,7 @@ export default function StyleOrderDetail() {
           {/* ══ TAB 6: Costing ═════════════════════════════════════════════ */}
           {activeTab === "Costing" && !isNew && (
             <StyleCostingTab
-              styleOrderId={numId}
+              styleOrderId={numId!}
               orderCode={orderData?.data?.orderCode}
               styleName={orderData?.data?.styleName}
               clientName={form.clientName}

@@ -105,7 +105,7 @@ router.post("/style-categories/import", requireAuth, async (req: AuthRequest, re
 });
 
 router.put("/style-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateStyleCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
@@ -126,7 +126,7 @@ router.put("/style-categories/:id", requireAuth, async (req: AuthRequest, res): 
 });
 
 router.patch("/style-categories/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(styleCategoriesTable)
     .where(and(eq(styleCategoriesTable.id, id), eq(styleCategoriesTable.isDeleted, false)));
@@ -139,7 +139,7 @@ router.patch("/style-categories/:id/status", requireAuth, async (req: AuthReques
 });
 
 router.delete("/style-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(styleCategoriesTable).set({ isDeleted: true, updatedBy, updatedAt: new Date() })

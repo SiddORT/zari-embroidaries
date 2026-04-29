@@ -348,7 +348,7 @@ export default function OtherExpenses() {
       if (fromDate) params.set("from_date", fromDate);
       if (toDate)   params.set("to_date",   toDate);
       params.set("limit", "200");
-      const data = await customFetch(`/api/other-expenses?${params}`);
+      const data = await customFetch(`/api/other-expenses?${params}`) as any;
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
     } catch (e: any) {

@@ -98,7 +98,7 @@ export default function QuotationDetail() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user } = useGetMe({ enabled: !!token });
+  const { data: user } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
 
   const isAdmin = user?.role === "admin";

@@ -262,7 +262,7 @@ export default function SwatchOrderDetail() {
   const { toast } = useToast();
 
   const token = localStorage.getItem("zarierp_token");
-  const { data: user, isLoading: loadingUser } = useGetMe({ enabled: !!token });
+  const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
   const isAdmin = user?.role === "admin";
 
@@ -352,7 +352,7 @@ export default function SwatchOrderDetail() {
         delayReason: o.delayReason ?? "", approvalDate: o.approvalDate ?? "",
         revisionCount: o.revisionCount ?? 0,
         estimate: (() => {
-          const saved = (o.estimate ?? []) as EstimateItem[];
+          const saved = ((o as any).estimate ?? []) as EstimateItem[];
           const defaults = makeDefaultEstimate();
           const merged = defaults.map(def => {
             const found = saved.find(s => s.id === def.id && !s.isCustom);
@@ -433,7 +433,7 @@ export default function SwatchOrderDetail() {
       return;
     }
     setUnitTypeError("");
-    createUnitType.mutate({ name: trimmed }, {
+    createUnitType.mutate({ name: trimmed, isActive: true }, {
       onSuccess: () => {
         set("unitType", trimmed);
         setAddUnitTypeOpen(false);
@@ -539,7 +539,7 @@ export default function SwatchOrderDetail() {
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
             </div>
             {/* Save — only on tabs with editable data (0=Basic Info, 1=References) */}
-            {activeTab <= 1 && (
+            {Number(activeTab) <= 1 && (
               <button onClick={() => { void handleSave(); }} disabled={saving}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

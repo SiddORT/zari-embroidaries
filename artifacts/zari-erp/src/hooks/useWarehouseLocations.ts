@@ -23,7 +23,7 @@ export function useWarehouseLocations() {
   return useQuery({
     queryKey: ["warehouse-locations"],
     queryFn: async () => {
-      const res = await customFetch("/api/settings/warehouses");
+      const res = await customFetch("/api/settings/warehouses") as any;
       return Array.isArray(res) ? res : (res?.data ?? []);
     },
     select: (rows: any[]): WarehouseLocation[] => rows.map(normalizeWarehouse),

@@ -117,7 +117,7 @@ function validateSwatchBody(body: Record<string, unknown>): string[] {
 }
 
 router.get("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
   if (!record) { res.status(404).json({ error: "Swatch not found" }); return; }
@@ -149,7 +149,7 @@ router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<voi
 });
 
 router.put("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const validationErrs = validateSwatchBody(req.body as Record<string, unknown>);
@@ -165,7 +165,7 @@ router.put("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<
 });
 
 router.patch("/swatches/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
   if (!existing) { res.status(404).json({ error: "Swatch not found" }); return; }
@@ -175,7 +175,7 @@ router.patch("/swatches/:id/status", requireAuth, async (req: AuthRequest, res):
 });
 
 router.delete("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(swatchesTable).set({ isDeleted: true, updatedBy, updatedAt: new Date() })
@@ -247,7 +247,7 @@ router.post("/swatches/import", requireAuth, async (req: AuthRequest, res): Prom
 interface MediaItem { url: string; type: "image" | "video"; name: string; }
 
 router.post("/swatches/:id/media", requireAuth, mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
 
@@ -271,7 +271,7 @@ router.post("/swatches/:id/media", requireAuth, mediaUploadMiddleware.single("fi
 });
 
 router.delete("/swatches/:id/media", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const { url, category } = req.body as { url: string; category: string };

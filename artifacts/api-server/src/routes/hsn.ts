@@ -140,7 +140,7 @@ router.post("/hsn/import", requireAuth, async (req: AuthRequest, res): Promise<v
 });
 
 router.put("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
     return;
@@ -181,7 +181,7 @@ router.put("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void>
 });
 
 router.patch("/hsn/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
     return;
@@ -209,7 +209,7 @@ router.patch("/hsn/:id/status", requireAuth, async (req: AuthRequest, res): Prom
 });
 
 router.delete("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
     return;

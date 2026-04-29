@@ -129,7 +129,7 @@ router.post("/item-types", requireAuth, async (req: AuthRequest, res): Promise<v
 });
 
 router.put("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const rawName = (req.body as Record<string, unknown>).name;
@@ -150,7 +150,7 @@ router.put("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promis
 });
 
 router.patch("/item-types/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(itemTypesTable).where(and(eq(itemTypesTable.id, id), eq(itemTypesTable.isDeleted, false)));
   if (!existing) { res.status(404).json({ error: "Item type not found" }); return; }
@@ -160,7 +160,7 @@ router.patch("/item-types/:id/status", requireAuth, async (req: AuthRequest, res
 });
 
 router.delete("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(itemTypesTable).set({ isDeleted: true, updatedBy, updatedAt: new Date() })

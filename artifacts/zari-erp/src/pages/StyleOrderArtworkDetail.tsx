@@ -284,7 +284,7 @@ export default function StyleOrderArtworkDetail() {
 
   async function handleAddUnitType() {
     if (!newUTName.trim()) return;
-    await createUnitType.mutateAsync({ name: newUTName.trim() });
+    await createUnitType.mutateAsync({ name: newUTName.trim(), isActive: true });
     set("unitType", newUTName.trim());
     setAddUTOpen(false);
   }

@@ -44,7 +44,7 @@ export const insertSwatchSchema = z.object({
   width: z.string().optional(),
   unitType: z.string().optional(),
   hours: z.string().optional(),
-  attachments: z.array(z.record(z.unknown())).optional().default([]),
+  attachments: z.array(z.record(z.string(), z.unknown())).optional().default([]),
   colorName: z.string().optional(),
   hexCode: z.string().optional(),
   finishType: z.string().optional(),

@@ -332,7 +332,7 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
 });
 
 router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const { username, email, role, isActive } = req.body as { username?: string; email?: string; role?: string; isActive?: boolean };
 
   const [target] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, id));
@@ -372,7 +372,7 @@ router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise
 });
 
 router.delete("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const authUser = (req as typeof req & { user?: { userId: number } }).user;
   if (authUser?.userId === id) {
     res.status(400).json({ error: "Cannot delete your own account" });
@@ -387,7 +387,7 @@ router.delete("/user-management/users/:id", requireAdmin, async (req, res): Prom
 });
 
 router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const inviteToken = crypto.randomBytes(32).toString("hex");
   const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -411,7 +411,7 @@ router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req
 });
 
 router.post("/user-management/users/:id/send-reset", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const authUser = (req as typeof req & { user?: { userId: number } }).user;
   if (authUser?.userId === id) {
     res.status(400).json({ error: "Use the Forgot Password flow to reset your own password" });
@@ -462,7 +462,7 @@ router.post("/user-management/roles", requireAdmin, async (req, res): Promise<vo
 });
 
 router.put("/user-management/roles/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const { name, description } = req.body as { name?: string; description?: string };
 
   const [existing] = await db.select().from(rolesTable).where(eq(rolesTable.id, id));
@@ -481,7 +481,7 @@ router.put("/user-management/roles/:id", requireAdmin, async (req, res): Promise
 });
 
 router.delete("/user-management/roles/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, id));
   if (!role) { res.status(404).json({ error: "Role not found" }); return; }
   if (role.isSystem) { res.status(400).json({ error: "Cannot delete a system role" }); return; }
@@ -490,7 +490,7 @@ router.delete("/user-management/roles/:id", requireAdmin, async (req, res): Prom
 });
 
 router.put("/user-management/roles/:id/permissions", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   const { permissions } = req.body as { permissions: string[] };
   if (!Array.isArray(permissions)) { res.status(400).json({ error: "permissions must be an array" }); return; }
 

@@ -45,7 +45,7 @@ router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(swatchOrdersTable).where(
     and(eq(swatchOrdersTable.id, id), eq(swatchOrdersTable.isDeleted, false))
@@ -114,7 +114,7 @@ router.post("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.put("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
@@ -172,7 +172,7 @@ router.put("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.patch("/swatch-orders/:id/status", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   const { orderStatus, priority } = req.body as { orderStatus?: string; priority?: string };
@@ -190,7 +190,7 @@ router.patch("/swatch-orders/:id/status", requireAuth, async (req, res): Promise
 });
 
 router.delete("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
   await db.update(swatchOrdersTable).set({ isDeleted: true, updatedBy: user?.email ?? "system", updatedAt: new Date() })

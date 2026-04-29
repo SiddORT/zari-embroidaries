@@ -106,7 +106,7 @@ function QuickAddMaterialModal({ onClose, onCreated }: {
   const [f, setF] = useState<MaterialFormData>({
     itemType: "", quality: "", type: "", colorName: "", size: "",
     unitPrice: "", unitType: "", currentStock: "0", hsnCode: "", gstPercent: "0",
-    vendor: "", location: "", isActive: true, images: [],
+    vendor: "", location: "", locationStocks: [], isActive: true, images: [],
   });
 
   async function handleSave() {
