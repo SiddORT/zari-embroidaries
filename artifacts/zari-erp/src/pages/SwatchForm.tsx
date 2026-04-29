@@ -249,8 +249,8 @@ export default function SwatchForm() {
     const e: FormErrors = {};
     const name = form.swatchName.trim();
     if (!name) e.swatchName = "Swatch Name is required.";
-    else if (!NAME_REGEX.test(name)) e.swatchName = "Swatch Name must contain only letters and spaces (max 100 characters).";
-    else if (name.length > 100) e.swatchName = "Swatch Name must contain only letters and spaces (max 100 characters).";
+    else if (name.length > 50) e.swatchName = "Swatch Name must be 50 characters or fewer.";
+    else if (!NAME_REGEX.test(name)) e.swatchName = "Swatch Name must contain only letters and spaces.";
 
     if (form.swatchDate) {
       const d = new Date(form.swatchDate);
@@ -380,8 +380,8 @@ export default function SwatchForm() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Swatch Name <span className="text-red-500">*</span></label>
-                      <input type="text" value={form.swatchName} maxLength={100}
-                        onChange={e => setField("swatchName", e.target.value)}
+                      <input type="text" value={form.swatchName} maxLength={50}
+                        onChange={e => setField("swatchName", e.target.value.slice(0, 50))}
                         placeholder="e.g. Silk Brocade"
                         className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 transition ${errors.swatchName ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-gray-900"}`} />
                       {errors.swatchName && <p className="text-xs text-red-500 mt-1">{errors.swatchName}</p>}

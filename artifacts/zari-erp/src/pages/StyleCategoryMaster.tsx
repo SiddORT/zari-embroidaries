@@ -177,11 +177,11 @@ export default function StyleCategoryMaster() {
       const allRows = await fetchAllStyleCategoriesForExport(search, status);
       const exportData = allRows.map((r) => ({
         "Category Name": r.categoryName,
-        "Status": r.isActive ? "Active" : "Inactive",
-        "Created By": r.createdBy,
+        "Status": r.isActive === true || (r.isActive as unknown as string) === "true" ? "Active" : "Inactive",
+        "Created By": r.createdBy ?? "—",
         "Created At": formatDateExport(r.createdAt),
-        "Updated By": r.updatedBy ?? "",
-        "Updated At": formatDateExport(r.updatedAt),
+        "Updated By": r.updatedBy ?? "—",
+        "Updated At": r.updatedAt ? formatDateExport(r.updatedAt) : "—",
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
       ws["!cols"] = [{ wch: 30 }, { wch: 10 }, { wch: 25 }, { wch: 22 }, { wch: 25 }, { wch: 22 }];
