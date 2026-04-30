@@ -132,10 +132,10 @@ export default function AddableSelect({
                 ${error ? "border-red-400" : "border-gray-300 hover:border-gray-400"}
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             >
-              <span className={selected ? "text-gray-900" : "text-gray-400"}>
-                {selected ? selected.label : placeholder}
+              <span className={selected || value ? "text-gray-900" : "text-gray-400"}>
+                {selected ? selected.label : (value || placeholder)}
               </span>
-              {selected && (
+              {(selected || value) && (
                 <span
                   onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleClear(); }}
                   className="ml-2 text-gray-400 hover:text-gray-600 text-xs leading-none cursor-pointer"
