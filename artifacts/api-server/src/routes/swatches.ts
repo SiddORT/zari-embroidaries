@@ -5,6 +5,7 @@ import { db, pool, swatchesTable } from "@workspace/db";
 import { insertSwatchSchema, updateSwatchSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -229,7 +230,7 @@ router.post("/swatches/import", requireAuth, async (req: AuthRequest, res): Prom
     try {
       const parsed = insertSwatchSchema.safeParse(body);
       if (!parsed.success) {
-        results.push({ row: i + 2, status: "error", errors: parsed.error.issues.map(e => e.message) });
+        results.push({ row: i + 2, status: "error", errors: [zodFieldErrorsToHuman(parsed.error.flatten().fieldErrors)] });
         failed++; continue;
       }
 
