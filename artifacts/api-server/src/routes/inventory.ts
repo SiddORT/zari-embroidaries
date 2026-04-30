@@ -26,10 +26,10 @@ router.get("/inventory/summary", requireAuth, async (_req, res) => {
       FROM inventory_items
       WHERE is_active = true
     `);
-    res.json(r.rows[0]);
+    return res.json(r.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load summary" });
+    return res.status(500).json({ error: "Failed to load summary" });
   }
 });
 
@@ -127,7 +127,7 @@ router.get("/inventory/items", requireAuth, async (req, res) => {
       pool.query(`SELECT COUNT(*) FROM inventory_items ii ${where}`, params),
     ]);
 
-    res.json({
+    return res.json({
       data: rows.rows,
       total: parseInt(totalRes.rows[0].count),
       page: pageNum,
@@ -135,7 +135,7 @@ router.get("/inventory/items", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load inventory items" });
+    return res.status(500).json({ error: "Failed to load inventory items" });
   }
 });
 
@@ -158,9 +158,9 @@ router.get("/inventory/items/:id", requireAuth, async (req, res) => {
       [id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json(r.rows[0]);
+    return res.json(r.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load item" });
+    return res.status(500).json({ error: "Failed to load item" });
   }
 });
 
@@ -174,10 +174,10 @@ router.get("/inventory/items/:id/logs", requireAuth, async (req, res) => {
        LIMIT 100`,
       [id]
     );
-    res.json(r.rows);
+    return res.json(r.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load stock logs" });
+    return res.status(500).json({ error: "Failed to load stock logs" });
   }
 });
 
@@ -216,7 +216,7 @@ router.get("/inventory/items/:id/reservations", requireAuth, async (req, res) =>
       styleOrders = st.rows;
     }
 
-    res.json({
+    return res.json({
       item_name: item.item_name,
       source_type: item.source_type,
       style_reserved_qty: item.style_reserved_qty,
@@ -226,7 +226,7 @@ router.get("/inventory/items/:id/reservations", requireAuth, async (req, res) =>
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load reservations" });
+    return res.status(500).json({ error: "Failed to load reservations" });
   }
 });
 
@@ -237,13 +237,13 @@ router.get("/inventory/filters", requireAuth, async (_req, res) => {
       pool.query(`SELECT DISTINCT department FROM inventory_items WHERE department IS NOT NULL AND is_active=true ORDER BY department`),
       pool.query(`SELECT DISTINCT warehouse_location FROM inventory_items WHERE warehouse_location IS NOT NULL AND is_active=true ORDER BY warehouse_location`),
     ]);
-    res.json({
+    return res.json({
       categories: cats.rows.map((r: { category: string }) => r.category),
       departments: depts.rows.map((r: { department: string }) => r.department),
       locations: locs.rows.map((r: { warehouse_location: string }) => r.warehouse_location),
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to load filters" });
+    return res.status(500).json({ error: "Failed to load filters" });
   }
 });
 
@@ -332,10 +332,10 @@ router.get("/inventory/ledger", requireAuth, async (req, res) => {
       ),
     ]);
 
-    res.json({ data: rows.rows, total: parseInt(totalRes.rows[0].count), page: pageNum, limit: limitNum });
+    return res.json({ data: rows.rows, total: parseInt(totalRes.rows[0].count), page: pageNum, limit: limitNum });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load ledger" });
+    return res.status(500).json({ error: "Failed to load ledger" });
   }
 });
 
@@ -382,10 +382,10 @@ router.post("/inventory/ledger/wastage", requireAuth, async (req: AuthRequest, r
       [itemId, parseFloat(item.current_stock), newStock, -qty, reason ?? null, userName]
     ).catch(e => console.error("[StockLog] wastage log failed:", e));
 
-    res.json(ledger.rows[0]);
+    return res.json(ledger.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to record wastage" });
+    return res.status(500).json({ error: "Failed to record wastage" });
   }
 });
 
@@ -395,10 +395,10 @@ router.delete("/inventory/ledger/:id", requireAuth, async (req: AuthRequest, res
     const id = parseInt(String(req.params.id));
     const r = await pool.query(`DELETE FROM stock_ledger WHERE id = $1 RETURNING id`, [id]);
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ deleted: true });
+    return res.json({ deleted: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete ledger entry" });
+    return res.status(500).json({ error: "Failed to delete ledger entry" });
   }
 });
 
@@ -480,10 +480,10 @@ router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, r
       [id, ledgerType, inQty, outQty, stock, notes ?? null, userName]
     ).catch(e => console.error("[Ledger] Failed to write ledger entry:", e));
 
-    res.json(r.rows[0]);
+    return res.json(r.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update stock" });
+    return res.status(500).json({ error: "Failed to update stock" });
   }
 });
 
@@ -493,13 +493,13 @@ router.post("/inventory/sync", requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: "Admin only" });
     }
     const result = await syncAllFromMasters();
-    res.json({
+    return res.json({
       message: `Synced ${result.synced} new item(s), updated stock for ${result.updated} existing item(s) from masters`,
       ...result,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Sync failed" });
+    return res.status(500).json({ error: "Sync failed" });
   }
 });
 
@@ -573,10 +573,10 @@ router.get("/inventory/reservations", requireAuth, async (req, res) => {
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     );
-    res.json({ rows: rows.rows, total });
+    return res.json({ rows: rows.rows, total });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load reservations" });
+    return res.status(500).json({ error: "Failed to load reservations" });
   }
 });
 
@@ -632,7 +632,7 @@ router.post("/inventory/reservations", requireAuth, async (req, res) => {
          auth.user?.name || auth.user?.email || "System"]
       );
       await client.query("COMMIT");
-      res.status(201).json(resv);
+      return res.status(201).json(resv);
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -641,7 +641,7 @@ router.post("/inventory/reservations", requireAuth, async (req, res) => {
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to create reservation" });
+    return res.status(500).json({ error: err.message || "Failed to create reservation" });
   }
 });
 
@@ -673,7 +673,7 @@ router.patch("/inventory/reservations/:id/release", requireAuth, async (req, res
          auth.user?.name || auth.user?.email || "System"]
       );
       await client.query("COMMIT");
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -682,7 +682,7 @@ router.patch("/inventory/reservations/:id/release", requireAuth, async (req, res
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to release reservation" });
+    return res.status(500).json({ error: err.message || "Failed to release reservation" });
   }
 });
 
@@ -706,7 +706,7 @@ router.patch("/inventory/reservations/:id/cancel", requireAuth, async (req, res)
       );
       await recalcAvailable(client, resv.inventory_id);
       await client.query("COMMIT");
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -715,7 +715,7 @@ router.patch("/inventory/reservations/:id/cancel", requireAuth, async (req, res)
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to cancel reservation" });
+    return res.status(500).json({ error: err.message || "Failed to cancel reservation" });
   }
 });
 
@@ -808,7 +808,7 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
       }
 
       await client.query("COMMIT");
-      res.json({ success: true, consumedQty, releasedQty, wastageQty });
+      return res.json({ success: true, consumedQty, releasedQty, wastageQty });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -817,7 +817,7 @@ router.patch("/inventory/reservations/:id/convert", requireAuth, async (req, res
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to convert reservation" });
+    return res.status(500).json({ error: err.message || "Failed to convert reservation" });
   }
 });
 
@@ -843,7 +843,7 @@ router.delete("/inventory/reservations/:id", requireAuth, async (req, res) => {
       }
       await client.query(`DELETE FROM material_reservations WHERE id = $1`, [id]);
       await client.query("COMMIT");
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -852,7 +852,7 @@ router.delete("/inventory/reservations/:id", requireAuth, async (req, res) => {
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to delete reservation" });
+    return res.status(500).json({ error: err.message || "Failed to delete reservation" });
   }
 });
 
@@ -874,10 +874,10 @@ router.get("/inventory/adjustments/summary", requireAuth, async (_req, res) => {
         COALESCE(SUM(revenue_loss_amount::numeric),0)::text AS total_revenue_loss
       FROM stock_adjustments
     `);
-    res.json({ data: r.rows[0] });
+    return res.json({ data: r.rows[0] });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load adjustment summary" });
+    return res.status(500).json({ error: "Failed to load adjustment summary" });
   }
 });
 
@@ -927,10 +927,10 @@ router.get("/inventory/adjustments", requireAuth, async (req, res) => {
       ),
     ]);
 
-    res.json({ data: rows.rows, total: parseInt(total.rows[0].count), page: pageNum, limit: limitNum });
+    return res.json({ data: rows.rows, total: parseInt(total.rows[0].count), page: pageNum, limit: limitNum });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load adjustments" });
+    return res.status(500).json({ error: "Failed to load adjustments" });
   }
 });
 
@@ -1011,7 +1011,7 @@ router.post("/inventory/adjustments", requireAuth, async (req: AuthRequest, res)
       );
 
       await client.query("COMMIT");
-      res.json({ data: { id: adjId, revenueLoss }, message: "Stock adjustment applied successfully and inventory updated" });
+      return res.json({ data: { id: adjId, revenueLoss }, message: "Stock adjustment applied successfully and inventory updated" });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -1020,7 +1020,7 @@ router.post("/inventory/adjustments", requireAuth, async (req: AuthRequest, res)
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to save adjustment" });
+    return res.status(500).json({ error: err.message || "Failed to save adjustment" });
   }
 });
 
@@ -1106,7 +1106,7 @@ router.put("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, r
       );
 
       await client.query("COMMIT");
-      res.json({ data: { revenueLoss }, message: "Adjustment updated successfully" });
+      return res.json({ data: { revenueLoss }, message: "Adjustment updated successfully" });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -1115,7 +1115,7 @@ router.put("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, r
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to update adjustment" });
+    return res.status(500).json({ error: err.message || "Failed to update adjustment" });
   }
 });
 
@@ -1149,7 +1149,7 @@ router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest
       await client.query(`DELETE FROM stock_ledger WHERE reference_number=$1 AND transaction_type='adjustment'`, [String(id)]);
       await client.query(`DELETE FROM stock_adjustments WHERE id=$1`, [id]);
       await client.query("COMMIT");
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -1158,7 +1158,7 @@ router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest
     }
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to delete adjustment" });
+    return res.status(500).json({ error: err.message || "Failed to delete adjustment" });
   }
 });
 
@@ -1174,10 +1174,10 @@ router.get("/inventory/item-categories", requireAuth, async (req, res) => {
       `SELECT DISTINCT category FROM inventory_items WHERE ${conds.join(" AND ")} ORDER BY category`,
       params
     );
-    res.json(r.rows.map((row: { category: string }) => row.category));
+    return res.json(r.rows.map((row: { category: string }) => row.category));
   } catch (err) {
     console.error("[item-categories]", err);
-    res.status(500).json({ error: "Failed to load item categories" });
+    return res.status(500).json({ error: "Failed to load item categories" });
   }
 });
 
@@ -1278,7 +1278,7 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
       `, ledgerParams),
     ]);
 
-    res.json({
+    return res.json({
       summary:       summary.rows[0],
       reservations:  reservations.rows[0],
       procurement:   procurement.rows[0],
@@ -1288,7 +1288,7 @@ router.get("/inventory/dashboard", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("[dashboard]", err);
-    res.status(500).json({ error: "Failed to load inventory dashboard" });
+    return res.status(500).json({ error: "Failed to load inventory dashboard" });
   }
 });
 
@@ -1309,10 +1309,10 @@ router.get("/inventory/low-stock-alerts", requireAuth, async (_req, res) => {
         item_name ASC
       LIMIT 20
     `);
-    res.json({ data: r.rows });
+    return res.json({ data: r.rows });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch low-stock alerts" });
+    return res.status(500).json({ error: "Failed to fetch low-stock alerts" });
   }
 });
 

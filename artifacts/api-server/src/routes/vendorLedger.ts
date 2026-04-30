@@ -130,10 +130,10 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
       WHERE v.is_deleted = false
       ORDER BY v.brand_name ASC
     `);
-    res.json(result.rows);
+    return res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load vendor ledger summary" });
+    return res.status(500).json({ error: "Failed to load vendor ledger summary" });
   }
 });
 
@@ -369,10 +369,10 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
       }
     );
 
-    res.json(withBalance);
+    return res.json(withBalance);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load ledger entries" });
+    return res.status(500).json({ error: "Failed to load ledger entries" });
   }
 });
 
@@ -384,9 +384,9 @@ router.get("/vendor-ledger/:vendorId/info", requireAuth, async (req, res) => {
       .from(vendorsTable)
       .where(and(eq(vendorsTable.id, vendorId), eq(vendorsTable.isDeleted, false)));
     if (!rows.length) return res.status(404).json({ error: "Vendor not found" });
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load vendor" });
+    return res.status(500).json({ error: "Failed to load vendor" });
   }
 });
 
@@ -418,10 +418,10 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
       })
       .returning();
 
-    res.status(201).json(rows[0]);
+    return res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to record payment" });
+    return res.status(500).json({ error: "Failed to record payment" });
   }
 });
 
@@ -452,10 +452,10 @@ router.post("/vendor-ledger/:vendorId/charge", requireAuth, async (req, res) => 
       })
       .returning();
 
-    res.status(201).json(rows[0]);
+    return res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to add charge" });
+    return res.status(500).json({ error: "Failed to add charge" });
   }
 });
 
@@ -463,9 +463,9 @@ router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     await db.delete(vendorPaymentsTable).where(eq(vendorPaymentsTable.id, id));
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete payment" });
+    return res.status(500).json({ error: "Failed to delete payment" });
   }
 });
 
@@ -473,9 +473,9 @@ router.delete("/vendor-ledger/charges/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     await db.delete(vendorLedgerChargesTable).where(eq(vendorLedgerChargesTable.id, id));
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete charge" });
+    return res.status(500).json({ error: "Failed to delete charge" });
   }
 });
 

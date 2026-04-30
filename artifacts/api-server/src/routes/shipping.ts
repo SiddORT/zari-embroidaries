@@ -75,9 +75,9 @@ router.get("/shipping/vendors", requireAuth, async (_req, res) => {
     const r = await pool.query(
       `SELECT * FROM shipping_vendors WHERE is_active = TRUE ORDER BY vendor_name`
     );
-    res.json({ data: r.rows });
+    return res.json({ data: r.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -97,9 +97,9 @@ router.get("/shipping/vendors/all", requireAuth, async (req, res) => {
       pool.query(`SELECT * FROM shipping_vendors ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, parseInt(limit), offset]),
       pool.query(`SELECT COUNT(*) FROM shipping_vendors ${where}`, params),
     ]);
-    res.json({ data: rows.rows, total: parseInt(count.rows[0].count), page: parseInt(page), limit: parseInt(limit) });
+    return res.json({ data: rows.rows, total: parseInt(count.rows[0].count), page: parseInt(page), limit: parseInt(limit) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -114,9 +114,9 @@ router.post("/shipping/vendors", requireAuth, async (req: AuthRequest, res) => {
       [vendor_name.trim(), contact_person || null, phone_number || null, email_address || null,
        parseFloat(weight_rate_per_kg) || 0, parseFloat(minimum_charge) || 0, remarks || null]
     );
-    res.status(201).json({ data: r.rows[0], message: "Shipping vendor created" });
+    return res.status(201).json({ data: r.rows[0], message: "Shipping vendor created" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -134,9 +134,9 @@ router.put("/shipping/vendors/:id", requireAuth, async (req: AuthRequest, res) =
        parseFloat(weight_rate_per_kg) || 0, parseFloat(minimum_charge) || 0, remarks || null, id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: r.rows[0], message: "Shipping vendor updated" });
+    return res.json({ data: r.rows[0], message: "Shipping vendor updated" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -149,9 +149,9 @@ router.patch("/shipping/vendors/:id/status", requireAuth, async (req: AuthReques
       [id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: r.rows[0], message: `Vendor ${r.rows[0].is_active ? "activated" : "deactivated"}` });
+    return res.json({ data: r.rows[0], message: `Vendor ${r.rows[0].is_active ? "activated" : "deactivated"}` });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -161,9 +161,9 @@ router.delete("/shipping/vendors/:id", requireAuth, async (req: AuthRequest, res
     const { id } = req.params;
     const r = await pool.query(`DELETE FROM shipping_vendors WHERE id=$1 RETURNING id`, [id]);
     if (!r.rows.length) return res.status(404).json({ error: "Vendor not found" });
-    res.json({ message: "Vendor deleted" });
+    return res.json({ message: "Vendor deleted" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -213,9 +213,9 @@ router.get("/shipping/details", requireAuth, async (req, res) => {
       pool.query(`SELECT COUNT(*) FROM order_shipping_details d ${where}`, params),
     ]);
 
-    res.json({ data: rows.rows, total: parseInt(count.rows[0].count), page: parseInt(page), limit: parseInt(limit) });
+    return res.json({ data: rows.rows, total: parseInt(count.rows[0].count), page: parseInt(page), limit: parseInt(limit) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -232,9 +232,9 @@ router.get("/shipping/details/by-reference", requireAuth, async (req, res) => {
        ORDER BY d.created_at DESC`,
       [referenceType, parseInt(referenceId)]
     );
-    res.json({ data: r.rows });
+    return res.json({ data: r.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -248,9 +248,9 @@ router.get("/shipping/details/:id", requireAuth, async (req, res) => {
       [req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: r.rows[0] });
+    return res.json({ data: r.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -298,9 +298,9 @@ router.post("/shipping/details", requireAuth, async (req: AuthRequest, res) => {
        shipment_date || null, expected_delivery_date || null, actual_delivery_date || null,
        remarks || null, actor]
     );
-    res.status(201).json({ data: r.rows[0], message: "Shipping details added successfully" });
+    return res.status(201).json({ data: r.rows[0], message: "Shipping details added successfully" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -349,9 +349,9 @@ router.put("/shipping/details/:id", requireAuth, async (req: AuthRequest, res) =
        shipment_date || null, expected_delivery_date || null, actual_delivery_date || null,
        remarks || null, id]
     );
-    res.json({ data: r.rows[0], message: "Shipping details updated successfully" });
+    return res.json({ data: r.rows[0], message: "Shipping details updated successfully" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -367,9 +367,9 @@ router.patch("/shipping/details/:id/status", requireAuth, async (req: AuthReques
       [shipment_status, id]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: r.rows[0], message: "Shipment status updated successfully" });
+    return res.json({ data: r.rows[0], message: "Shipment status updated successfully" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -379,9 +379,9 @@ router.delete("/shipping/details/:id", requireAuth, async (req: AuthRequest, res
     if ((req as any).user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
     const r = await pool.query(`DELETE FROM order_shipping_details WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ message: "Shipping record deleted" });
+    return res.json({ message: "Shipping record deleted" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

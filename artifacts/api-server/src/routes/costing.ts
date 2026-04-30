@@ -398,7 +398,7 @@ router.get("/material-search", requireAuth, async (req, res) => {
       warehouseLocation: f.location ?? "",
     })),
   ];
-  res.json({ data: results });
+  return res.json({ data: results });
 });
 
 // ─── BOM ─────────────────────────────────────────────────────────────────────
@@ -439,7 +439,7 @@ router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
     };
   }));
 
-  res.json({ data: enriched });
+  return res.json({ data: enriched });
 });
 
 router.post("/bom", requireAuth, async (req, res) => {
@@ -478,7 +478,7 @@ router.post("/bom", requireAuth, async (req, res) => {
     });
   }
 
-  res.status(201).json({ data: row, reservation });
+  return res.status(201).json({ data: row, reservation });
 });
 
 router.patch("/bom/:id", requireAuth, async (req, res) => {
@@ -487,7 +487,7 @@ router.patch("/bom/:id", requireAuth, async (req, res) => {
   const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
   if (consumedQty !== undefined) updates.consumedQty = consumedQty;
   const [row] = await db.update(swatchBomTable).set(updates).where(eq(swatchBomTable.id, Number(String(req.params.id)))).returning();
-  res.json({ data: row });
+  return res.json({ data: row });
 });
 
 // ─── Edit BOM Required Qty (with reservation cascade + audit log) ─────────────
@@ -656,10 +656,10 @@ router.patch("/bom/:id/qty", requireAuth, async (req, res) => {
       .where(eq(swatchBomTable.id, bomId))
       .returning();
 
-    res.json({ data: updated, changed: true });
+    return res.json({ data: updated, changed: true });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to update BOM qty" });
+    return res.status(500).json({ error: err.message || "Failed to update BOM qty" });
   }
 });
 
@@ -669,9 +669,9 @@ router.get("/bom/:id/log", requireAuth, async (req, res) => {
       `SELECT * FROM bom_change_log WHERE bom_row_id = $1 ORDER BY changed_at DESC`,
       [Number(String(req.params.id))]
     );
-    res.json({ data: rows.rows });
+    return res.json({ data: rows.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -696,7 +696,7 @@ router.delete("/bom/:id", requireAuth, async (req, res) => {
     }
   }
 
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ─── PO Number Generator ─────────────────────────────────────────────────────
@@ -721,7 +721,7 @@ router.get("/po/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseOrdersTable)
     .where(eq(purchaseOrdersTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(purchaseOrdersTable.createdAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/po", requireAuth, async (req, res) => {
@@ -749,7 +749,7 @@ router.post("/po", requireAuth, async (req, res) => {
     bomItems: items,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
   const adminUsers = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.role, "admin"));
   const adminEmails = adminUsers.map(u => u.email).filter(Boolean) as string[];
   if (adminEmails.length > 0) {
@@ -779,12 +779,12 @@ router.patch("/po/:id", requireAuth, async (req, res) => {
     updates.bomRowIds = bomItems.map((i: any) => i.bomRowId);
   }
   const [row] = await db.update(purchaseOrdersTable).set(updates).where(eq(purchaseOrdersTable.id, Number(String(req.params.id)))).returning();
-  res.json({ data: row });
+  return res.json({ data: row });
 });
 
 router.delete("/po/:id", requireAuth, async (req, res) => {
   await db.delete(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(String(req.params.id))));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ─── PR ──────────────────────────────────────────────────────────────────────
@@ -792,7 +792,7 @@ router.get("/pr/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseReceiptsTable)
     .where(eq(purchaseReceiptsTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(purchaseReceiptsTable.createdAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/pr", requireAuth, async (req, res) => {
@@ -801,7 +801,7 @@ router.post("/pr", requireAuth, async (req, res) => {
   const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
   if (!["Approved", "In Process"].includes(po.status)) {
-    res.status(403).json({ error: `Purchase Receipt cannot be created: PO is currently in "${po.status}" status. An admin must approve it first.` });
+    return res.status(403).json({ error: `Purchase Receipt cannot be created: PO is currently in "${po.status}" status. An admin must approve it first.` });
     return;
   }
 
@@ -828,12 +828,12 @@ router.post("/pr", requireAuth, async (req, res) => {
 
   if (orderedQty > 0) {
     if (alreadyReceived >= orderedQty) {
-      res.status(400).json({ error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.` });
+      return res.status(400).json({ error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.` });
       return;
     }
     const remaining = orderedQty - alreadyReceived;
     if (newQty > remaining) {
-      res.status(400).json({ error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}` });
+      return res.status(400).json({ error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}` });
       return;
     }
   }
@@ -870,7 +870,7 @@ router.post("/pr", requireAuth, async (req, res) => {
     }
   }
 
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 router.patch("/pr/:id", requireAuth, async (req, res) => {
@@ -879,12 +879,12 @@ router.patch("/pr/:id", requireAuth, async (req, res) => {
   const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
   if (status !== undefined) updates.status = status;
   const [row] = await db.update(purchaseReceiptsTable).set(updates).where(eq(purchaseReceiptsTable.id, Number(String(req.params.id)))).returning();
-  res.json({ data: row });
+  return res.json({ data: row });
 });
 
 router.delete("/pr/:id", requireAuth, async (req, res) => {
   await db.delete(purchaseReceiptsTable).where(eq(purchaseReceiptsTable.id, Number(String(req.params.id))));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
@@ -892,7 +892,7 @@ router.get("/payments/:prId", requireAuth, async (req, res) => {
   const rows = await db.select().from(prPaymentsTable)
     .where(eq(prPaymentsTable.prId, Number(String(req.params.prId))))
     .orderBy(prPaymentsTable.createdAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/payments", requireAuth, async (req, res) => {
@@ -909,12 +909,12 @@ router.post("/payments", requireAuth, async (req, res) => {
     attachment: (attachment ?? null) as any,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 router.delete("/payments/:id", requireAuth, async (req, res) => {
   await db.delete(prPaymentsTable).where(eq(prPaymentsTable.id, Number(String(req.params.id))));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ─── Consumption Log ───────────────────────────────────────────────────────────
@@ -922,7 +922,7 @@ router.get("/consumption/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(consumptionLogTable)
     .where(eq(consumptionLogTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(consumptionLogTable.consumedAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/consumption", requireAuth, async (req, res) => {
@@ -950,7 +950,7 @@ router.post("/consumption", requireAuth, async (req, res) => {
     if (resvR.rows.length > 0) {
       const reserved = parseFloat(resvR.rows[0].reserved_quantity);
       if (newConsumedQty > reserved) {
-        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${reserved.toFixed(4)} is reserved for this order. Consume within the reserved quantity.` });
+        return res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${reserved.toFixed(4)} is reserved for this order. Consume within the reserved quantity.` });
         return;
       }
     } else {
@@ -961,7 +961,7 @@ router.post("/consumption", requireAuth, async (req, res) => {
       const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
       const available = currentStock + totalPrReceived - existingConsumed;
       if (newConsumedQty > available) {
-        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available.` });
+        return res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available.` });
         return;
       }
     }
@@ -996,7 +996,7 @@ router.post("/consumption", requireAuth, async (req, res) => {
     actor: user.email,
   });
 
-  res.status(201).json({ data: entry, inventoryUpdated: true });
+  return res.status(201).json({ data: entry, inventoryUpdated: true });
 });
 
 router.delete("/consumption/:id", requireAuth, async (req, res) => {
@@ -1025,7 +1025,7 @@ router.delete("/consumption/:id", requireAuth, async (req, res) => {
     });
   }
 
-  res.json({ success: true, inventoryUpdated: true });
+  return res.json({ success: true, inventoryUpdated: true });
 });
 
 // ─── Vendor Search (for outsource jobs) ──────────────────────────────────────
@@ -1041,7 +1041,7 @@ router.get("/vendor-search", requireAuth, async (req, res) => {
       ? or(ilike(vendorsTable.brandName, `%${q}%`), ilike(vendorsTable.vendorCode, `%${q}%`))
       : undefined)
     .limit(30);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 // ─── HSN Search (for outsource jobs) ─────────────────────────────────────────
@@ -1057,7 +1057,7 @@ router.get("/hsn-search", requireAuth, async (req, res) => {
       ? or(ilike(hsnTable.hsnCode, `%${q}%`), ilike(hsnTable.govtDescription, `%${q}%`))
       : undefined)
     .limit(30);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 // ─── Artisan Timesheets ───────────────────────────────────────────────────────
@@ -1065,14 +1065,14 @@ router.get("/artisan-timesheets/:swatchOrderId", requireAuth, async (req, res) =
   const rows = await db.select().from(artisanTimesheetsTable)
     .where(eq(artisanTimesheetsTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(desc(artisanTimesheetsTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/artisan-timesheets", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, noOfArtisans, startDate, endDate, shiftType, totalHours, hourlyRate, notes } = req.body;
   if (!swatchOrderId || !startDate || !endDate || !shiftType) {
-    res.status(400).json({ error: "swatchOrderId, startDate, endDate and shiftType are required" }); return;
+    return res.status(400).json({ error: "swatchOrderId, startDate, endDate and shiftType are required" }); return;
   }
   const totalHoursNum = parseFloat(totalHours) || 0;
   const hourlyRateNum = parseFloat(hourlyRate) || 0;
@@ -1090,12 +1090,12 @@ router.post("/artisan-timesheets", requireAuth, async (req, res) => {
     notes: notes ? String(notes) : null,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 router.delete("/artisan-timesheets/:id", requireAuth, async (req, res) => {
   await db.delete(artisanTimesheetsTable).where(eq(artisanTimesheetsTable.id, Number(String(req.params.id))));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ─── Outsource Jobs ───────────────────────────────────────────────────────────
@@ -1103,14 +1103,14 @@ router.get("/outsource-jobs/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(outsourceJobsTable)
     .where(eq(outsourceJobsTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(desc(outsourceJobsTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/outsource-jobs", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, vendorId, vendorName, hsnId, hsnCode, gstPercentage, issueDate, targetDate, deliveryDate, totalCost, notes } = req.body;
   if (!swatchOrderId || !vendorId || !hsnId || !issueDate) {
-    res.status(400).json({ error: "swatchOrderId, vendorId, hsnId and issueDate are required" }); return;
+    return res.status(400).json({ error: "swatchOrderId, vendorId, hsnId and issueDate are required" }); return;
   }
   const [row] = await db.insert(outsourceJobsTable).values({
     swatchOrderId: Number(swatchOrderId),
@@ -1126,12 +1126,12 @@ router.post("/outsource-jobs", requireAuth, async (req, res) => {
     notes: notes ? String(notes) : null,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 router.delete("/outsource-jobs/:id", requireAuth, async (req, res) => {
   await db.delete(outsourceJobsTable).where(eq(outsourceJobsTable.id, Number(String(req.params.id))));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ─── Custom Charges ───────────────────────────────────────────────────────────
@@ -1139,14 +1139,14 @@ router.get("/custom-charges/:swatchOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(customChargesTable)
     .where(eq(customChargesTable.swatchOrderId, Number(String(req.params.swatchOrderId))))
     .orderBy(desc(customChargesTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/custom-charges", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, vendorId, vendorName, hsnId, hsnCode, gstPercentage, description, unitPrice, quantity } = req.body;
   if (!swatchOrderId || !vendorId || !hsnId || !description) {
-    res.status(400).json({ error: "swatchOrderId, vendorId, hsnId and description are required" }); return;
+    return res.status(400).json({ error: "swatchOrderId, vendorId, hsnId and description are required" }); return;
   }
   const unitPriceNum = parseFloat(unitPrice) || 0;
   const quantityNum = parseFloat(quantity) || 1;
@@ -1164,12 +1164,12 @@ router.post("/custom-charges", requireAuth, async (req, res) => {
     totalAmount,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 router.delete("/custom-charges/:id", requireAuth, async (req, res) => {
   await db.delete(customChargesTable).where(eq(customChargesTable.id, Number(String(req.params.id))));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1214,7 +1214,7 @@ router.get("/style-bom/:styleOrderId", requireAuth, async (req, res) => {
     };
   }));
 
-  res.json({ data: enriched });
+  return res.json({ data: enriched });
 });
 
 router.post("/style-bom", requireAuth, async (req, res) => {
@@ -1253,7 +1253,7 @@ router.post("/style-bom", requireAuth, async (req, res) => {
     });
   }
 
-  res.status(201).json({ data: row, reservation });
+  return res.status(201).json({ data: row, reservation });
 });
 
 // ─── Style PO ─────────────────────────────────────────────────────────────────
@@ -1261,7 +1261,7 @@ router.get("/style-po/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseOrdersTable)
     .where(eq(purchaseOrdersTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(purchaseOrdersTable.createdAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/style-po", requireAuth, async (req, res) => {
@@ -1293,7 +1293,7 @@ router.post("/style-po", requireAuth, async (req, res) => {
     bomItems: items,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
   const adminUsers = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.role, "admin"));
   const adminEmails = adminUsers.map(u => u.email).filter(Boolean) as string[];
   if (adminEmails.length > 0) {
@@ -1316,7 +1316,7 @@ router.get("/style-pr/:styleOrderId", requireAuth, async (req, res) => {
   const rows = await db.select().from(purchaseReceiptsTable)
     .where(eq(purchaseReceiptsTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(purchaseReceiptsTable.createdAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/style-pr", requireAuth, async (req, res) => {
@@ -1325,7 +1325,7 @@ router.post("/style-pr", requireAuth, async (req, res) => {
   const [po] = await db.select().from(purchaseOrdersTable).where(eq(purchaseOrdersTable.id, Number(poId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
   if (!["Approved", "In Process"].includes(po.status)) {
-    res.status(403).json({ error: `Purchase Receipt cannot be created: PO is currently in "${po.status}" status. An admin must approve it first.` });
+    return res.status(403).json({ error: `Purchase Receipt cannot be created: PO is currently in "${po.status}" status. An admin must approve it first.` });
     return;
   }
 
@@ -1350,12 +1350,12 @@ router.post("/style-pr", requireAuth, async (req, res) => {
 
   if (orderedQty > 0) {
     if (alreadyReceived >= orderedQty) {
-      res.status(400).json({ error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.` });
+      return res.status(400).json({ error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.` });
       return;
     }
     const remaining = orderedQty - alreadyReceived;
     if (newQty > remaining) {
-      res.status(400).json({ error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}` });
+      return res.status(400).json({ error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}` });
       return;
     }
   }
@@ -1390,7 +1390,7 @@ router.post("/style-pr", requireAuth, async (req, res) => {
     }
   }
 
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 // ─── Style Consumption ────────────────────────────────────────────────────────
@@ -1398,7 +1398,7 @@ router.get("/style-consumption/:styleOrderId", requireAuth, async (req, res) => 
   const rows = await db.select().from(consumptionLogTable)
     .where(eq(consumptionLogTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(consumptionLogTable.consumedAt);
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/style-consumption", requireAuth, async (req, res) => {
@@ -1426,7 +1426,7 @@ router.post("/style-consumption", requireAuth, async (req, res) => {
     if (resvRS.rows.length > 0) {
       const reserved = parseFloat(resvRS.rows[0].reserved_quantity);
       if (newConsumedQty > reserved) {
-        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${reserved.toFixed(4)} is reserved for this order. Consume within the reserved quantity.` });
+        return res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${reserved.toFixed(4)} is reserved for this order. Consume within the reserved quantity.` });
         return;
       }
     } else {
@@ -1436,7 +1436,7 @@ router.post("/style-consumption", requireAuth, async (req, res) => {
       const totalPrReceived = allPrsForRow.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0), 0);
       const available = currentStock + totalPrReceived - existingConsumed;
       if (newConsumedQty > available) {
-        res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available.` });
+        return res.status(400).json({ error: `Cannot consume ${newConsumedQty} — only ${available.toFixed(4)} available.` });
         return;
       }
     }
@@ -1472,7 +1472,7 @@ router.post("/style-consumption", requireAuth, async (req, res) => {
     actor: user.email,
   });
 
-  res.status(201).json({ data: entry, inventoryUpdated: true });
+  return res.status(201).json({ data: entry, inventoryUpdated: true });
 });
 
 // ─── Style Artisan Timesheets ─────────────────────────────────────────────────
@@ -1480,14 +1480,14 @@ router.get("/style-artisan-timesheets/:styleOrderId", requireAuth, async (req, r
   const rows = await db.select().from(artisanTimesheetsTable)
     .where(eq(artisanTimesheetsTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(desc(artisanTimesheetsTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/style-artisan-timesheets", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { styleOrderId, styleOrderProductId, styleOrderProductName, noOfArtisans, startDate, endDate, shiftType, totalHours, hourlyRate, notes } = req.body;
   if (!styleOrderId || !startDate || !endDate || !shiftType) {
-    res.status(400).json({ error: "styleOrderId, startDate, endDate and shiftType are required" }); return;
+    return res.status(400).json({ error: "styleOrderId, startDate, endDate and shiftType are required" }); return;
   }
   const totalHoursNum = parseFloat(totalHours) || 0;
   const hourlyRateNum = parseFloat(hourlyRate) || 0;
@@ -1507,7 +1507,7 @@ router.post("/style-artisan-timesheets", requireAuth, async (req, res) => {
     notes: notes ? String(notes) : null,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 // ─── Style Outsource Jobs ─────────────────────────────────────────────────────
@@ -1515,14 +1515,14 @@ router.get("/style-outsource-jobs/:styleOrderId", requireAuth, async (req, res) 
   const rows = await db.select().from(outsourceJobsTable)
     .where(eq(outsourceJobsTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(desc(outsourceJobsTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/style-outsource-jobs", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { styleOrderId, styleOrderProductId, styleOrderProductName, vendorId, vendorName, hsnId, hsnCode, gstPercentage, issueDate, targetDate, deliveryDate, totalCost, notes } = req.body;
   if (!styleOrderId || !vendorId || !hsnId || !issueDate) {
-    res.status(400).json({ error: "styleOrderId, vendorId, hsnId and issueDate are required" }); return;
+    return res.status(400).json({ error: "styleOrderId, vendorId, hsnId and issueDate are required" }); return;
   }
   const [row] = await db.insert(outsourceJobsTable).values({
     styleOrderId: Number(styleOrderId),
@@ -1540,7 +1540,7 @@ router.post("/style-outsource-jobs", requireAuth, async (req, res) => {
     notes: notes ? String(notes) : null,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 // ─── Style Custom Charges ─────────────────────────────────────────────────────
@@ -1548,14 +1548,14 @@ router.get("/style-custom-charges/:styleOrderId", requireAuth, async (req, res) 
   const rows = await db.select().from(customChargesTable)
     .where(eq(customChargesTable.styleOrderId, Number(String(req.params.styleOrderId))))
     .orderBy(desc(customChargesTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 router.post("/style-custom-charges", requireAuth, async (req, res) => {
   const user = (req as any).user;
   const { styleOrderId, styleOrderProductId, styleOrderProductName, vendorId, vendorName, hsnId, hsnCode, gstPercentage, description, unitPrice, quantity } = req.body;
   if (!styleOrderId || !vendorId || !hsnId || !description) {
-    res.status(400).json({ error: "styleOrderId, vendorId, hsnId and description are required" }); return;
+    return res.status(400).json({ error: "styleOrderId, vendorId, hsnId and description are required" }); return;
   }
   const unitPriceNum = parseFloat(unitPrice) || 0;
   const quantityNum = parseFloat(quantity) || 1;
@@ -1575,7 +1575,7 @@ router.post("/style-custom-charges", requireAuth, async (req, res) => {
     totalAmount,
     createdBy: user.email,
   }).returning();
-  res.status(201).json({ data: row });
+  return res.status(201).json({ data: row });
 });
 
 // ─── Invoice Items Aggregate ─────────────────────────────────────────────────
@@ -1586,7 +1586,7 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
   const type = String(req.query.type ?? "").trim();
   const orderId = Number(req.query.orderId);
   if (!orderId || (type !== "Swatch" && type !== "Style")) {
-    res.status(400).json({ error: "type (Swatch|Style) and orderId are required" }); return;
+    return res.status(400).json({ error: "type (Swatch|Style) and orderId are required" }); return;
   }
 
   const isSwatch = type === "Swatch";
@@ -1804,7 +1804,7 @@ router.get("/invoice-items", requireAuth, async (req, res) => {
     ? parseFloat(shippingR.rows[0].final_shipping_amount ?? "0") || 0
     : 0;
 
-  res.json({ data: items, shippingAmount, orderId, type });
+  return res.json({ data: items, shippingAmount, orderId, type });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1827,9 +1827,9 @@ router.get("/costing-payments-totals", requireAuth, async (req, res) => {
        GROUP BY reference_id`,
       params
     );
-    res.json({ data: rows.map(r => ({ referenceId: Number(r.reference_id), totalPaid: parseFloat(r.total_paid) })) });
+    return res.json({ data: rows.map(r => ({ referenceId: Number(r.reference_id), totalPaid: parseFloat(r.total_paid) })) });
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch payment totals" });
+    return res.status(500).json({ error: "Failed to fetch payment totals" });
   }
 });
 
@@ -1846,9 +1846,9 @@ router.get("/costing-payments", requireAuth, async (req, res) => {
        ORDER BY created_at ASC`,
       [referenceType, parseInt(referenceId)]
     );
-    res.json({ data: rows });
+    return res.json({ data: rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1912,9 +1912,9 @@ router.post("/costing-payments", requireAuth, async (req, res) => {
         user?.username ?? "system",
       ]
     );
-    res.status(201).json({ data: rows[0] });
+    return res.status(201).json({ data: rows[0] });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1945,9 +1945,9 @@ router.patch("/costing-payments/:id", requireAuth, async (req, res) => {
       ]
     );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: rows[0] });
+    return res.json({ data: rows[0] });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1960,9 +1960,9 @@ router.delete("/costing-payments/:id", requireAuth, async (req, res) => {
     }
     const id = parseInt(String(req.params.id));
     await pool.query("DELETE FROM costing_payments WHERE id = $1", [id]);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

@@ -215,10 +215,10 @@ router.get("/purchase-receipts", requireAuth, async (req, res) => {
       pool.query(`${cte} SELECT COUNT(*) FROM combined c ${outerWhere}`, params),
     ]);
 
-    res.json({ data: rows.rows, total: parseInt(totalRes.rows[0].count), page: pageNum, limit: limitNum });
+    return res.json({ data: rows.rows, total: parseInt(totalRes.rows[0].count), page: pageNum, limit: limitNum });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load purchase receipts" });
+    return res.status(500).json({ error: "Failed to load purchase receipts" });
   }
 });
 
@@ -238,10 +238,10 @@ router.get("/purchase-receipts/:id", requireAuth, async (req, res) => {
       ),
     ]);
     if (!prRes.rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ ...prRes.rows[0], items: itemsRes.rows });
+    return res.json({ ...prRes.rows[0], items: itemsRes.rows });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load purchase receipt" });
+    return res.status(500).json({ error: "Failed to load purchase receipt" });
   }
 });
 
@@ -300,11 +300,11 @@ router.post("/purchase-receipts", requireAuth, async (req: AuthRequest, res) => 
     }
 
     await client.query("COMMIT");
-    res.status(201).json({ ...pr, message: confirmNow ? "Purchase Receipt confirmed. Inventory updated successfully." : "Purchase Receipt saved as draft." });
+    return res.status(201).json({ ...pr, message: confirmNow ? "Purchase Receipt confirmed. Inventory updated successfully." : "Purchase Receipt saved as draft." });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: (err as Error).message ?? "Failed to create purchase receipt" });
+    return res.status(500).json({ error: (err as Error).message ?? "Failed to create purchase receipt" });
   } finally {
     client.release();
   }
@@ -346,11 +346,11 @@ router.put("/purchase-receipts/:id", requireAuth, async (req: AuthRequest, res) 
     }
 
     await client.query("COMMIT");
-    res.json({ message: "Purchase Receipt updated successfully." });
+    return res.json({ message: "Purchase Receipt updated successfully." });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: "Failed to update purchase receipt" });
+    return res.status(500).json({ error: "Failed to update purchase receipt" });
   } finally {
     client.release();
   }
@@ -391,11 +391,11 @@ router.post("/purchase-receipts/:id/confirm", requireAuth, async (req: AuthReque
     await client.query(`UPDATE inv_receipts SET status = 'confirmed', updated_at = NOW() WHERE id = $1`, [id]);
 
     await client.query("COMMIT");
-    res.json({ message: "Purchase Receipt confirmed. Inventory updated successfully." });
+    return res.json({ message: "Purchase Receipt confirmed. Inventory updated successfully." });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: (err as Error).message ?? "Failed to confirm purchase receipt" });
+    return res.status(500).json({ error: (err as Error).message ?? "Failed to confirm purchase receipt" });
   } finally {
     client.release();
   }
@@ -424,11 +424,11 @@ router.post("/purchase-receipts/:id/cancel", requireAuth, async (req: AuthReques
 
     await client.query(`UPDATE inv_receipts SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [id]);
     await client.query("COMMIT");
-    res.json({ message: pr.status === "confirmed" ? "PR cancelled. Inventory changes reversed." : "PR cancelled." });
+    return res.json({ message: pr.status === "confirmed" ? "PR cancelled. Inventory changes reversed." : "PR cancelled." });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: "Failed to cancel purchase receipt" });
+    return res.status(500).json({ error: "Failed to cancel purchase receipt" });
   } finally {
     client.release();
   }
@@ -456,11 +456,11 @@ router.delete("/purchase-receipts/:id", requireAuth, async (req: AuthRequest, re
 
     await client.query(`UPDATE inv_receipts SET is_deleted = true, updated_at = NOW() WHERE id = $1`, [id]);
     await client.query("COMMIT");
-    res.json({ deleted: true });
+    return res.json({ deleted: true });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: "Failed to delete purchase receipt" });
+    return res.status(500).json({ error: "Failed to delete purchase receipt" });
   } finally {
     client.release();
   }
@@ -475,9 +475,9 @@ router.get("/purchase-receipts/vendors/search", requireAuth, async (req, res) =>
       `SELECT id, vendor_code, brand_name FROM vendors WHERE (brand_name ILIKE $1 OR vendor_code ILIKE $1) AND is_deleted = false ORDER BY brand_name LIMIT 20`,
       [`%${q}%`]
     );
-    res.json(r.rows);
+    return res.json(r.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to search vendors" });
+    return res.status(500).json({ error: "Failed to search vendors" });
   }
 });
 

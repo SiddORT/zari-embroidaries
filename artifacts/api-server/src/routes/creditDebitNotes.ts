@@ -104,9 +104,9 @@ router.get("/", requireAuth, async (req, res) => {
        ORDER BY n.note_id DESC`,
       params
     );
-    res.json({ data: rows });
+    return res.json({ data: rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -123,9 +123,9 @@ router.get("/:id", requireAuth, async (req, res) => {
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: "Note not found" });
-    res.json({ data: rows[0] });
+    return res.json({ data: rows[0] });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -175,10 +175,10 @@ router.post("/", requireAuth, async (req, res) => {
     const note = rows[0];
     await applyNoteEffects(client, note);
     await client.query("COMMIT");
-    res.json({ data: note, message: "Credit / Debit note created and balances updated" });
+    return res.json({ data: note, message: "Credit / Debit note created and balances updated" });
   } catch (err: any) {
     await client.query("ROLLBACK");
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -203,10 +203,10 @@ router.put("/:id/apply", requireAuth, async (req, res) => {
     note.status = "Applied";
     await applyNoteEffects(client, note);
     await client.query("COMMIT");
-    res.json({ data: { ...note, status: "Applied" }, message: "Note applied and balances updated" });
+    return res.json({ data: { ...note, status: "Applied" }, message: "Note applied and balances updated" });
   } catch (err: any) {
     await client.query("ROLLBACK");
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -230,10 +230,10 @@ router.put("/:id/cancel", requireAuth, async (req, res) => {
       [note.note_id]
     );
     await client.query("COMMIT");
-    res.json({ data: { ...note, status: "Cancelled" }, message: "Note cancelled and balances reversed" });
+    return res.json({ data: { ...note, status: "Cancelled" }, message: "Note cancelled and balances reversed" });
   } catch (err: any) {
     await client.query("ROLLBACK");
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -248,9 +248,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: "Not found" });
     if (rows[0].status !== "Draft") return res.status(400).json({ error: "Only Draft notes can be deleted" });
     await pool.query("DELETE FROM credit_debit_notes WHERE note_id=$1", [req.params.id]);
-    res.json({ message: "Deleted" });
+    return res.json({ message: "Deleted" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

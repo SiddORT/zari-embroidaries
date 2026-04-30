@@ -37,7 +37,7 @@ async function getNextInvoiceNo(): Promise<string> {
 // GET /invoices/next-number
 router.get("/invoices/next-number", requireAuth, async (_req, res) => {
   const invoiceNo = await getNextInvoiceNo();
-  res.json({ data: invoiceNo });
+  return res.json({ data: invoiceNo });
 });
 
 // GET /invoices — list with filters
@@ -69,9 +69,9 @@ router.get("/invoices", requireAuth, async (req, res) => {
 
     const total = rows.length;
     const paged = rows.slice(offset, offset + parseInt(lim));
-    res.json({ data: paged, total });
+    return res.json({ data: paged, total });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -81,7 +81,7 @@ router.get("/invoices/:id", requireAuth, async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [row] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
   if (!row) return res.status(404).json({ error: "Not found" });
-  res.json({ data: row });
+  return res.json({ data: row });
 });
 
 // GET /invoices/swatch/:swatchOrderId
@@ -97,7 +97,7 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
       ...(orderCode ? [and(eq(invoicesTable.referenceType, "Swatch"), eq(invoicesTable.referenceId, orderCode))!] : [])
     )
   ).orderBy(desc(invoicesTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 // GET /invoices/style/:styleOrderId
@@ -113,7 +113,7 @@ router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
       ...(orderCode ? [and(eq(invoicesTable.referenceType, "Style"), eq(invoicesTable.referenceId, orderCode))!] : [])
     )
   ).orderBy(desc(invoicesTable.createdAt));
-  res.json({ data: rows });
+  return res.json({ data: rows });
 });
 
 // POST /invoices — create
@@ -181,9 +181,9 @@ router.post("/invoices", requireAuth, async (req, res) => {
       status: autoStatus,
     }).returning();
 
-    res.status(201).json({ data: row });
+    return res.status(201).json({ data: row });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -251,9 +251,9 @@ router.put("/invoices/:id", requireAuth, async (req, res) => {
     }).where(eq(invoicesTable.id, id)).returning();
 
     if (!row) return res.status(404).json({ error: "Not found" });
-    res.json({ data: row });
+    return res.json({ data: row });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -268,7 +268,7 @@ router.patch("/invoices/:id/status", requireAuth, async (req, res) => {
     .where(eq(invoicesTable.id, id))
     .returning();
   if (!row) return res.status(404).json({ error: "Not found" });
-  res.json({ data: row });
+  return res.json({ data: row });
 });
 
 // PATCH /invoices/:id/payment — record payment
@@ -287,7 +287,7 @@ router.patch("/invoices/:id/payment", requireAuth, async (req, res) => {
     .set({ receivedAmount: String(receivedAmt), pendingAmount: String(pendingAmt), invoiceStatus: newStatus, status: newStatus, updatedAt: new Date() })
     .where(eq(invoicesTable.id, id))
     .returning();
-  res.json({ data: row });
+  return res.json({ data: row });
 });
 
 // DELETE /invoices/:id
@@ -295,7 +295,7 @@ router.delete("/invoices/:id", requireAuth, async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 export { INVOICE_DIRECTIONS, INVOICE_TYPES, INVOICE_STATUSES, REFERENCE_TYPES };

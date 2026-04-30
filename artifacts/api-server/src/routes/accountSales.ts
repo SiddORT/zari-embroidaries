@@ -56,7 +56,7 @@ router.get("/unified-summary", requireAuth, async (req, res) => {
       `),
     ]);
 
-    res.json({
+    return res.json({
       total_invoice_amount: invoiceTotals.rows[0].total_invoice_amount,
       total_received:       invoiceTotals.rows[0].total_received,
       total_pending:        invoiceTotals.rows[0].total_pending,
@@ -66,7 +66,7 @@ router.get("/unified-summary", requireAuth, async (req, res) => {
     });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -89,10 +89,10 @@ router.get("/top-clients-pending", requireAuth, async (req, res) => {
       ORDER BY total_pending DESC
       LIMIT 10
     `);
-    res.json(rows);
+    return res.json(rows);
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -195,13 +195,13 @@ router.get("/unified-receivables", requireAuth, async (req, res) => {
     `);
 
     const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
-    res.json({
+    return res.json({
       data:  rows.map(r => ({ ...r, total_count: undefined })),
       total,
     });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -287,11 +287,11 @@ router.post("/record-payment", requireAuth, async (req, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }

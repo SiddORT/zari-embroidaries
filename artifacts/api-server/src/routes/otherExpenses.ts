@@ -30,9 +30,9 @@ router.get("/other-expenses/categories", requireAuth, async (_req, res) => {
     ];
     const fromDb = rows.map((r: any) => r.expense_category as string);
     const merged = Array.from(new Set([...defaults, ...fromDb])).sort();
-    res.json(merged);
+    return res.json(merged);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -79,9 +79,9 @@ router.get("/other-expenses", requireAuth, async (req, res) => {
       ),
     ]);
 
-    res.json({ rows: dataRes.rows, total: parseInt(countRes.rows[0].count) });
+    return res.json({ rows: dataRes.rows, total: parseInt(countRes.rows[0].count) });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -96,9 +96,9 @@ router.get("/other-expenses/:id", requireAuth, async (req, res) => {
       [parseInt(String(req.params.id))]
     );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -167,7 +167,7 @@ router.post("/other-expenses", requireAuth, uploadMiddleware.single("attachment"
     }
 
     await client.query("COMMIT");
-    res.status(201).json({
+    return res.status(201).json({
       ...expense,
       message: vendorIdNum
         ? "Expense recorded successfully and linked to vendor ledger"
@@ -175,7 +175,7 @@ router.post("/other-expenses", requireAuth, uploadMiddleware.single("attachment"
     });
   } catch (e: any) {
     await client.query("ROLLBACK");
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   } finally {
     client.release();
   }
@@ -223,9 +223,9 @@ router.put("/other-expenses/:id", requireAuth, uploadMiddleware.single("attachme
       ]
     );
 
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -236,9 +236,9 @@ router.delete("/other-expenses/:id", requireAuth, async (req: any, res) => {
     if ((user as any)?.role !== "admin")
       return res.status(403).json({ error: "Admin only" });
     await pool.query(`DELETE FROM other_expenses WHERE expense_id = $1`, [parseInt(String(req.params.id))]);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 

@@ -167,7 +167,7 @@ router.get("/settings/profile", requireAuth, async (req: AuthRequest, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: "User not found" });
     const u = rows[0];
-    res.json({
+    return res.json({
       data: {
         id: u.id,
         name: u.username,
@@ -178,7 +178,7 @@ router.get("/settings/profile", requireAuth, async (req: AuthRequest, res) => {
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -191,9 +191,9 @@ router.patch("/settings/profile", requireAuth, async (req: AuthRequest, res) => 
       `UPDATE users SET username=$1, phone_number=$2, profile_photo=$3 WHERE id=$4`,
       [name.trim(), phone_number?.trim() || null, profile_photo ?? null, req.user!.userId]
     );
-    res.json({ message: "Profile updated successfully" });
+    return res.json({ message: "Profile updated successfully" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -216,9 +216,9 @@ router.patch("/settings/password", requireAuth, async (req: AuthRequest, res) =>
 
     const hashed = hashPassword(new_password);
     await pool.query(`UPDATE users SET hashed_password=$1 WHERE id=$2`, [hashed, req.user!.userId]);
-    res.json({ message: "Password updated successfully" });
+    return res.json({ message: "Password updated successfully" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -228,7 +228,7 @@ router.patch("/settings/password", requireAuth, async (req: AuthRequest, res) =>
 
 function adminOnly(req: AuthRequest, res: any): boolean {
   if (req.user?.role !== "admin") {
-    res.status(403).json({ error: "Admin only" });
+    return res.status(403).json({ error: "Admin only" });
     return false;
   }
   return true;
@@ -238,9 +238,9 @@ function adminOnly(req: AuthRequest, res: any): boolean {
 router.get("/settings/currencies", requireAuth, async (_req, res) => {
   try {
     const { rows } = await pool.query(`SELECT * FROM currencies ORDER BY is_base DESC, is_active DESC, code ASC`);
-    res.json({ data: rows });
+    return res.json({ data: rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -254,9 +254,9 @@ router.patch("/settings/currencies/base", requireAuth, async (req: AuthRequest, 
     if (!rows.length) return res.status(404).json({ error: "Currency not found" });
     await pool.query(`UPDATE currencies SET is_base = FALSE, updated_at = NOW()`);
     await pool.query(`UPDATE currencies SET is_base = TRUE, is_active = TRUE, updated_at = NOW() WHERE code = $1`, [code]);
-    res.json({ message: `Base currency set to ${code}` });
+    return res.json({ message: `Base currency set to ${code}` });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -272,9 +272,9 @@ router.patch("/settings/currencies/:code/toggle", requireAuth, async (req: AuthR
       `UPDATE currencies SET is_active = NOT is_active, updated_at = NOW() WHERE code = $1`,
       [code]
     );
-    res.json({ message: "Currency status updated" });
+    return res.json({ message: "Currency status updated" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -294,9 +294,9 @@ router.get("/settings/exchange-rates", requireAuth, async (_req, res) => {
       WHERE c.is_active = TRUE
       ORDER BY er.currency_code, er.created_at DESC
     `);
-    res.json({ data: rows });
+    return res.json({ data: rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -328,9 +328,9 @@ router.post("/settings/exchange-rates/refresh", requireAuth, async (req: AuthReq
       updated++;
     }
 
-    res.json({ message: `Exchange rates updated successfully (${updated} currencies)` });
+    return res.json({ message: `Exchange rates updated successfully (${updated} currencies)` });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -348,9 +348,9 @@ router.patch("/settings/exchange-rates/:code", requireAuth, async (req: AuthRequ
       `INSERT INTO exchange_rates (currency_code, rate, source_type, is_manual_override) VALUES ($1,$2,'Manual',TRUE)`,
       [code, parseFloat(rate)]
     );
-    res.json({ message: `Exchange rate for ${code} updated manually` });
+    return res.json({ message: `Exchange rate for ${code} updated manually` });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -364,8 +364,8 @@ router.get("/settings/bank-accounts", requireAuth, async (_req, res) => {
     const { rows } = await pool.query(
       `SELECT * FROM bank_accounts ORDER BY is_default DESC, created_at ASC`
     );
-    res.json({ data: rows });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/settings/bank-accounts
@@ -380,8 +380,8 @@ router.post("/settings/bank-accounts", requireAuth, async (req: AuthRequest, res
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [bank_name.trim(), account_no.trim(), ifsc_code?.trim() ?? "", branch?.trim() ?? "", account_name?.trim() ?? "", bank_upi?.trim() ?? "", !!is_default, req.user?.email ?? ""]
     );
-    res.status(201).json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.status(201).json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // PUT /api/settings/bank-accounts/:id
@@ -396,8 +396,8 @@ router.put("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, 
       [bank_name?.trim(), account_no?.trim(), ifsc_code?.trim() ?? "", branch?.trim() ?? "", account_name?.trim() ?? "", bank_upi?.trim() ?? "", id]
     );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/settings/bank-accounts/:id/default
@@ -410,8 +410,8 @@ router.patch("/settings/bank-accounts/:id/default", requireAuth, async (req: Aut
       `UPDATE bank_accounts SET is_default = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`, [id]
     );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/settings/bank-accounts/:id
@@ -420,8 +420,8 @@ router.delete("/settings/bank-accounts/:id", requireAuth, async (req: AuthReques
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
     await pool.query(`DELETE FROM bank_accounts WHERE id = $1`, [id]);
-    res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -468,8 +468,8 @@ router.get("/settings/activity-logs", requireAuth, async (req: AuthRequest, res)
       `SELECT * FROM activity_logs ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
       [...params, parseInt(lim), offset]
     );
-    res.json({ data: rows, total: parseInt(countRes.rows[0].count) });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows, total: parseInt(countRes.rows[0].count) });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/settings/activity-logs/action — log client-side events (e.g. PDF downloads)
@@ -490,8 +490,8 @@ router.post("/settings/activity-logs/action", requireAuth, async (req: AuthReque
         (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "",
       ]
     );
-    res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/settings/activity-logs/users — list of users for admin filter
@@ -503,8 +503,8 @@ router.get("/settings/activity-logs/users", requireAuth, async (req: AuthRequest
        FROM activity_logs
        ORDER BY user_email, created_at DESC`
     );
-    res.json({ data: rows });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -516,8 +516,8 @@ router.get("/settings/warehouses", requireAuth, async (req: AuthRequest, res) =>
   if (!adminOnly(req, res)) return;
   try {
     const { rows } = await pool.query(`SELECT * FROM warehouse_locations ORDER BY name ASC`);
-    res.json({ data: rows });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/settings/warehouses
@@ -535,8 +535,8 @@ router.post("/settings/warehouses", requireAuth, async (req: AuthRequest, res) =
        contact_name?.trim() ?? "", contact_phone?.trim() ?? "", contact_email?.trim() ?? "",
        is_active !== false, notes?.trim() ?? "", req.user?.email ?? ""]
     );
-    res.status(201).json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.status(201).json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // PUT /api/settings/warehouses/:id
@@ -557,8 +557,8 @@ router.put("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res
        is_active !== false, notes?.trim() ?? "", id]
     );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/settings/warehouses/:id
@@ -568,8 +568,8 @@ router.delete("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, 
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
     await pool.query(`DELETE FROM warehouse_locations WHERE id = $1`, [id]);
-    res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -585,8 +585,8 @@ router.get("/settings/gst", requireAuth, async (_req, res) => {
     if (!rows.length) {
       return res.json({ data: null });
     }
-    res.json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // PUT /api/settings/gst
@@ -645,8 +645,8 @@ router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
       );
     }
 
-    res.json({ message: "GST settings updated successfully" });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ message: "GST settings updated successfully" });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // ── Invoice Templates ────────────────────────────────────────────────────────
@@ -655,8 +655,8 @@ router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
 router.get("/settings/invoice-templates", requireAuth, async (_req, res) => {
   try {
     const { rows } = await pool.query(`SELECT * FROM invoice_templates ORDER BY id ASC`);
-    res.json({ data: rows });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/settings/invoice-templates/:id  (update payment_terms & notes)
@@ -669,8 +669,8 @@ router.patch("/settings/invoice-templates/:id", requireAuth, async (req: AuthReq
       [payment_terms ?? "", notes ?? "", id]
     );
     if (!rows[0]) return res.status(404).json({ error: "Template not found" });
-    res.json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/settings/invoice-templates/:id/set-default
@@ -682,8 +682,8 @@ router.post("/settings/invoice-templates/:id/set-default", requireAuth, async (r
       `UPDATE invoice_templates SET is_default = TRUE, updated_at=NOW() WHERE id=$1 RETURNING *`, [id]
     );
     if (!rows[0]) return res.status(404).json({ error: "Template not found" });
-    res.json({ data: rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -700,8 +700,8 @@ router.get("/settings/my-permissions", requireAuth, async (req: AuthRequest, res
        WHERE u.id = $1`,
       [req.user?.userId]
     );
-    res.json({ data: rows.map((r: any) => r.permission) });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows.map((r: any) => r.permission) });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -730,8 +730,8 @@ router.post("/settings/download-logs", requireAuth, async (req: AuthRequest, res
         reference.trim(),
       ]
     );
-    res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ success: true });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/settings/download-logs — list downloads
@@ -768,8 +768,8 @@ router.get("/settings/download-logs", requireAuth, async (req: AuthRequest, res)
       `SELECT * FROM download_logs ${where} ORDER BY downloaded_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
       [...params, parseInt(lim), offset]
     );
-    res.json({ data: rows, total: parseInt(countRes.rows[0].count) });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows, total: parseInt(countRes.rows[0].count) });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/settings/download-logs/users — distinct users (admin only)
@@ -780,8 +780,8 @@ router.get("/settings/download-logs/users", requireAuth, async (req: AuthRequest
       `SELECT DISTINCT ON (user_email) user_email, user_name
        FROM download_logs ORDER BY user_email, downloaded_at DESC`
     );
-    res.json({ data: rows });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ data: rows });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 export default router;

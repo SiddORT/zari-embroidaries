@@ -63,9 +63,9 @@ router.get("/invoice-payments/accounts", requireAuth, async (req, res) => {
       LIMIT $${idx++} OFFSET $${idx++}
     `, [...params, parseInt(limit), off]);
 
-    res.json({ data: rows.rows, total: parseInt(countQ.rows[0].total), page: parseInt(page), limit: parseInt(limit) });
+    return res.json({ data: rows.rows, total: parseInt(countQ.rows[0].total), page: parseInt(page), limit: parseInt(limit) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -82,9 +82,9 @@ router.get("/invoice-payments", requireAuth, async (req, res) => {
       ORDER BY ip.payment_date DESC, ip.payment_id DESC
     `, [invoice_id]);
 
-    res.json({ data: rows.rows });
+    return res.json({ data: rows.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -163,10 +163,10 @@ router.post("/invoice-payments", requireAuth, async (req: any, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ data: pmtRes.rows[0], invoice_status: newStatus, received_amount: totalReceived, pending_amount: pendingAmt });
+    return res.json({ data: pmtRes.rows[0], invoice_status: newStatus, received_amount: totalReceived, pending_amount: pendingAmt });
   } catch (err: any) {
     await client.query("ROLLBACK");
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -207,10 +207,10 @@ router.delete("/invoice-payments/:id", requireAuth, async (req, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err: any) {
     await client.query("ROLLBACK");
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }

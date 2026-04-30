@@ -11,7 +11,7 @@ const router = Router();
 
 function err(res: Response, e: unknown, msg = "Server error") {
   console.error(`[packing-lists] ${msg}:`, e);
-  res.status(500).json({ error: msg });
+  return res.status(500).json({ error: msg });
 }
 
 async function nextPLNumber(): Promise<string> {
@@ -38,8 +38,8 @@ router.get("/delivery-addresses", requireAuth, async (req, res) => {
        ORDER BY da.is_default DESC, da.label`,
       params
     );
-    res.json({ data: r.rows });
-  } catch (e) { err(res, e, "Failed to fetch delivery addresses"); }
+    return res.json({ data: r.rows });
+  } catch (e) { return err(res, e, "Failed to fetch delivery addresses"); }
 });
 
 router.post("/delivery-addresses", requireAuth, async (req, res) => {
@@ -55,8 +55,8 @@ router.post("/delivery-addresses", requireAuth, async (req, res) => {
       [client_id, label || "Default", address_line1 || null, address_line2 || null,
        city || null, state || null, country || null, pincode || null, !!is_default]
     );
-    res.status(201).json({ data: r.rows[0] });
-  } catch (e) { err(res, e, "Failed to create delivery address"); }
+    return res.status(201).json({ data: r.rows[0] });
+  } catch (e) { return err(res, e, "Failed to create delivery address"); }
 });
 
 router.put("/delivery-addresses/:id", requireAuth, async (req, res) => {
@@ -78,8 +78,8 @@ router.put("/delivery-addresses/:id", requireAuth, async (req, res) => {
        pincode ?? existing.rows[0].pincode, is_default !== undefined ? !!is_default : existing.rows[0].is_default,
        req.params.id]
     );
-    res.json({ data: r.rows[0] });
-  } catch (e) { err(res, e, "Failed to update delivery address"); }
+    return res.json({ data: r.rows[0] });
+  } catch (e) { return err(res, e, "Failed to update delivery address"); }
 });
 
 router.delete("/delivery-addresses/:id", requireAuth, async (req, res) => {
@@ -87,8 +87,8 @@ router.delete("/delivery-addresses/:id", requireAuth, async (req, res) => {
     const inUse = await pool.query(`SELECT id FROM packing_lists WHERE delivery_address_id = $1 LIMIT 1`, [req.params.id]);
     if (inUse.rows.length) return res.status(400).json({ error: "Address is used by a packing list and cannot be deleted" });
     await pool.query(`DELETE FROM delivery_addresses WHERE id = $1`, [req.params.id]);
-    res.json({ success: true });
-  } catch (e) { err(res, e, "Failed to delete delivery address"); }
+    return res.json({ success: true });
+  } catch (e) { return err(res, e, "Failed to delete delivery address"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -123,8 +123,8 @@ router.get("/eligible-orders-for-packing", requireAuth, async (req, res) => {
       ),
     ]);
 
-    res.json({ swatches: swatches.rows, styles: styles.rows });
-  } catch (e) { err(res, e, "Failed to fetch eligible orders"); }
+    return res.json({ swatches: swatches.rows, styles: styles.rows });
+  } catch (e) { return err(res, e, "Failed to fetch eligible orders"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -173,8 +173,8 @@ router.get("/packing-lists", requireAuth, async (req, res) => {
       pool.query(`SELECT COUNT(*) FROM packing_lists pl ${where}`, params),
     ]);
 
-    res.json({ data: data.rows, total: parseInt(total.rows[0].count), page: parseInt(page as string) });
-  } catch (e) { err(res, e, "Failed to fetch packing lists"); }
+    return res.json({ data: data.rows, total: parseInt(total.rows[0].count), page: parseInt(page as string) });
+  } catch (e) { return err(res, e, "Failed to fetch packing lists"); }
 });
 
 // GET /api/packing-lists/:id
@@ -217,8 +217,8 @@ router.get("/packing-lists/:id", requireAuth, async (req, res) => {
       packagesWithItems.push({ ...pkg, items: items.rows });
     }
 
-    res.json({ data: { ...r.rows[0], packages: packagesWithItems } });
-  } catch (e) { err(res, e, "Failed to fetch packing list"); }
+    return res.json({ data: { ...r.rows[0], packages: packagesWithItems } });
+  } catch (e) { return err(res, e, "Failed to fetch packing list"); }
 });
 
 // POST /api/packing-lists
@@ -283,11 +283,11 @@ router.post("/packing-lists", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       data: pl.rows[0],
       message: "Packing list created successfully with package details",
     });
-  } catch (e) { err(res, e, "Failed to create packing list"); }
+  } catch (e) { return err(res, e, "Failed to create packing list"); }
 });
 
 // PUT /api/packing-lists/:id  (header + packages full replace)
@@ -348,8 +348,8 @@ router.put("/packing-lists/:id", requireAuth, async (req, res) => {
       }
     }
 
-    res.json({ data: r.rows[0] });
-  } catch (e) { err(res, e, "Failed to update packing list"); }
+    return res.json({ data: r.rows[0] });
+  } catch (e) { return err(res, e, "Failed to update packing list"); }
 });
 
 // DELETE /api/packing-lists/:id
@@ -358,8 +358,8 @@ router.delete("/packing-lists/:id", requireAuth, async (req, res) => {
     // Cascade via FK: packing_packages → packing_package_items
     await pool.query(`DELETE FROM packing_list_items WHERE packing_list_id = $1`, [req.params.id]);
     await pool.query(`DELETE FROM packing_lists WHERE id = $1`, [req.params.id]);
-    res.json({ success: true });
-  } catch (e) { err(res, e, "Failed to delete packing list"); }
+    return res.json({ success: true });
+  } catch (e) { return err(res, e, "Failed to delete packing list"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -386,8 +386,8 @@ router.post("/packing-lists/:id/packages", requireAuth, async (req, res) => {
       [req.params.id, nextNum, length || null, width || null, height || null,
        net_weight || null, gross_weight || null, shipment_id || pl.rows[0].shipment_id || null]
     );
-    res.status(201).json({ data: { ...r.rows[0], items: [] } });
-  } catch (e) { err(res, e, "Failed to create package"); }
+    return res.status(201).json({ data: { ...r.rows[0], items: [] } });
+  } catch (e) { return err(res, e, "Failed to create package"); }
 });
 
 // PUT /api/packing-lists/:id/packages/:pkgId
@@ -407,16 +407,16 @@ router.put("/packing-lists/:id/packages/:pkgId", requireAuth, async (req, res) =
 
     // Return with items
     const items = await pool.query(`SELECT * FROM packing_package_items WHERE package_id = $1 ORDER BY id`, [req.params.pkgId]);
-    res.json({ data: { ...r.rows[0], items: items.rows } });
-  } catch (e) { err(res, e, "Failed to update package"); }
+    return res.json({ data: { ...r.rows[0], items: items.rows } });
+  } catch (e) { return err(res, e, "Failed to update package"); }
 });
 
 // DELETE /api/packing-lists/:id/packages/:pkgId
 router.delete("/packing-lists/:id/packages/:pkgId", requireAuth, async (req, res) => {
   try {
     await pool.query(`DELETE FROM packing_packages WHERE id = $1 AND packing_list_id = $2`, [req.params.pkgId, req.params.id]);
-    res.json({ success: true });
-  } catch (e) { err(res, e, "Failed to delete package"); }
+    return res.json({ success: true });
+  } catch (e) { return err(res, e, "Failed to delete package"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -469,8 +469,8 @@ router.post("/packing-lists/:id/packages/:pkgId/items", requireAuth, async (req,
       [req.params.pkgId, order_type, order_id, order_code || null,
        description || null, quantity || null, unit || null, item_weight || null]
     );
-    res.status(201).json({ data: r.rows[0] });
-  } catch (e) { err(res, e, "Failed to add item to package"); }
+    return res.status(201).json({ data: r.rows[0] });
+  } catch (e) { return err(res, e, "Failed to add item to package"); }
 });
 
 // PATCH /api/packing-lists/:id/packages/:pkgId/items/:itemId
@@ -487,16 +487,16 @@ router.patch("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, as
       [quantity ?? null, unit ?? null, item_weight ?? null, description ?? null, req.params.itemId, req.params.pkgId]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
-    res.json({ data: r.rows[0] });
-  } catch (e) { err(res, e, "Failed to update package item"); }
+    return res.json({ data: r.rows[0] });
+  } catch (e) { return err(res, e, "Failed to update package item"); }
 });
 
 // DELETE /api/packing-lists/:id/packages/:pkgId/items/:itemId
 router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, async (req, res) => {
   try {
     await pool.query(`DELETE FROM packing_package_items WHERE id = $1 AND package_id = $2`, [req.params.itemId, req.params.pkgId]);
-    res.json({ success: true });
-  } catch (e) { err(res, e, "Failed to remove item from package"); }
+    return res.json({ success: true });
+  } catch (e) { return err(res, e, "Failed to remove item from package"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -508,8 +508,8 @@ router.get("/packing-lists/item-images/:filename", async (req, res) => {
     const filename = path.basename(String(req.params.filename));
     const filePath = path.join(process.cwd(), "uploads", "packing-list-items", filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Image not found" });
-    res.sendFile(filePath);
-  } catch (e) { err(res, e, "Failed to serve image"); }
+    return res.sendFile(filePath);
+  } catch (e) { return err(res, e, "Failed to serve image"); }
 });
 
 router.get("/packing-lists/order-artwork-image", requireAuth, async (req, res) => {
@@ -539,8 +539,8 @@ router.get("/packing-lists/order-artwork-image", requireAuth, async (req, res) =
     if (!rows.length) return res.json({ data: null });
     const images = rows[0].final_images;
     const first = Array.isArray(images) && images.length > 0 ? images[0] : null;
-    res.json({ data: first ?? null });
-  } catch (e) { err(res, e, "Failed to fetch order artwork image"); }
+    return res.json({ data: first ?? null });
+  } catch (e) { return err(res, e, "Failed to fetch order artwork image"); }
 });
 
 router.post(
@@ -567,8 +567,8 @@ router.post(
         [imageUrl, req.params.itemId, req.params.pkgId]
       );
       if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
-      res.json({ data: r.rows[0] });
-    } catch (e) { err(res, e, "Failed to upload image"); }
+      return res.json({ data: r.rows[0] });
+    } catch (e) { return err(res, e, "Failed to upload image"); }
   }
 );
 
@@ -583,8 +583,8 @@ router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId/image", requireA
       [req.params.itemId, req.params.pkgId]
     );
     if (!r.rows.length) return res.status(404).json({ error: "Item not found" });
-    res.json({ data: r.rows[0] });
-  } catch (e) { err(res, e, "Failed to remove image"); }
+    return res.json({ data: r.rows[0] });
+  } catch (e) { return err(res, e, "Failed to remove image"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -630,11 +630,11 @@ router.get("/packing-lists/:id/eligible-orders", requireAuth, async (req, res) =
       ),
     ]);
 
-    res.json({
+    return res.json({
       swatches: swatches.rows.map(r => ({ ...r, already_added: packedSwatch.has(r.id) })),
       styles:   styles.rows.map(r => ({ ...r, already_added: packedStyle.has(r.id) })),
     });
-  } catch (e) { err(res, e, "Failed to fetch eligible orders"); }
+  } catch (e) { return err(res, e, "Failed to fetch eligible orders"); }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -817,8 +817,8 @@ ${packagesHtml.join("\n") || '<p style="color:#aaa;text-align:center;padding:20p
 </html>`;
 
     res.setHeader("Content-Type", "text/html");
-    res.send(html);
-  } catch (e) { err(res, e, "Failed to generate PDF"); }
+    return res.send(html);
+  } catch (e) { return err(res, e, "Failed to generate PDF"); }
 });
 
 export default router;

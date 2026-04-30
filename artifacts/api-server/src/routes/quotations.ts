@@ -90,10 +90,10 @@ router.get("/quotations", requireAuth, async (req, res) => {
       ),
     ]);
 
-    res.json({ data: rows.rows, total: parseInt(total.rows[0].count), page: pg, limit: lim });
+    return res.json({ data: rows.rows, total: parseInt(total.rows[0].count), page: pg, limit: lim });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message || "Failed to load quotations" });
+    return res.status(500).json({ error: err.message || "Failed to load quotations" });
   }
 });
 
@@ -115,7 +115,7 @@ router.get("/quotations/:id", requireAuth, async (req, res) => {
       ),
     ]);
     if (!q.rows.length) return res.status(404).json({ error: "Quotation not found" });
-    res.json({
+    return res.json({
       data: {
         ...q.rows[0],
         designs: designs.rows,
@@ -126,7 +126,7 @@ router.get("/quotations/:id", requireAuth, async (req, res) => {
     });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -189,11 +189,11 @@ router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ data: { id: qId, quotationNumber: qNum }, message: "Quotation saved successfully" });
+    return res.json({ data: { id: qId, quotationNumber: qNum }, message: "Quotation saved successfully" });
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -261,11 +261,11 @@ router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ message: "Quotation saved successfully" });
+    return res.json({ message: "Quotation saved successfully" });
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -277,9 +277,9 @@ router.delete("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     await pool.query(`DELETE FROM quotations WHERE id = $1`, [id]);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -315,9 +315,9 @@ router.post("/quotations/:id/status", requireAuth, async (req: AuthRequest, res)
       `UPDATE quotations SET status=$1, updated_at=NOW() WHERE id=$2`,
       [newStatus, id]
     );
-    res.json({ message: `Status updated to ${newStatus}` });
+    return res.json({ message: `Status updated to ${newStatus}` });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -333,9 +333,9 @@ router.post("/quotations/:id/feedback", requireAuth, async (req: AuthRequest, re
        VALUES ($1,$2,$3,$4,$5)`,
       [id, feedbackText, actor, new Date().toISOString().split("T")[0], revisionReference || null]
     );
-    res.json({ message: "Feedback added" });
+    return res.json({ message: "Feedback added" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -391,11 +391,11 @@ router.post("/quotations/:id/revise", requireAuth, async (req: AuthRequest, res)
     await client.query(`UPDATE quotations SET status='Revised', updated_at=NOW() WHERE id=$1`, [id]);
 
     await client.query("COMMIT");
-    res.json({ data: { id: newId, quotationNumber: qNum, revisionNumber: newRev }, message: "Revision created" });
+    return res.json({ data: { id: newId, quotationNumber: qNum, revisionNumber: newRev }, message: "Revision created" });
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -440,11 +440,11 @@ router.post("/quotations/:id/convert-swatch", requireAuth, async (req: AuthReque
     );
 
     await client.query("COMMIT");
-    res.json({ data: { swatchOrderId: swId, orderCode: swCode }, message: "Quotation converted successfully" });
+    return res.json({ data: { swatchOrderId: swId, orderCode: swCode }, message: "Quotation converted successfully" });
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
@@ -490,11 +490,11 @@ router.post("/quotations/:id/convert-style", requireAuth, async (req: AuthReques
     );
 
     await client.query("COMMIT");
-    res.json({ data: { styleOrderId: stId, orderCode: stCode }, message: "Quotation converted successfully" });
+    return res.json({ data: { styleOrderId: stId, orderCode: stCode }, message: "Quotation converted successfully" });
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
