@@ -56,7 +56,7 @@ export interface FabricFormData {
   height?: string;
   widthUnitType: string;
   pricePerMeter: string;
-  unitType: string;
+  unitType?: string;
   currentStock: string;
   hsnCode: string;
   gstPercent: string;

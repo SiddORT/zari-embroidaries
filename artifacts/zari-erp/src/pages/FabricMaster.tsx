@@ -31,7 +31,7 @@ import {
   type MasterImage,
   type StatusFilter,
 } from "@/hooks/useFabrics";
-import { useWidthUnitTypes, useCreateWidthUnitType, useUnitTypes, useCreateUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
+import { useWidthUnitTypes, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
@@ -80,7 +80,7 @@ function hexToColorName(hex: string): string {
 const EMPTY_FORM: FabricFormData = {
   fabricType: "", quality: "", color: "#c9b45c", hexCode: "#c9b45c",
   colorName: "", width: "", height: "", widthUnitType: "", pricePerMeter: "",
-  unitType: "", currentStock: "", hsnCode: "", gstPercent: "",
+  currentStock: "", hsnCode: "", gstPercent: "",
   vendor: "", location: "", locationStocks: [], isActive: true, images: [],
   reorderLevel: "", minimumLevel: "", maximumLevel: "",
 };
@@ -150,10 +150,8 @@ export default function FabricMaster() {
 
   const { data: fabricTypes = [] } = useFabricTypes();
   const { data: widthUnitTypes = [] } = useWidthUnitTypes();
-  const { data: unitTypes = [] } = useUnitTypes();
   const createFabricType = useCreateFabricType();
   const createWidthUnitType = useCreateWidthUnitType();
-  const createUnitType = useCreateUnitType();
   const createHSN = useCreateHSN();
 
   const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
@@ -203,8 +201,6 @@ export default function FabricMaster() {
   const [newFabricTypeName, setNewFabricTypeName] = useState("");
   const [addWidthUnitTypeOpen, setAddWidthUnitTypeOpen] = useState(false);
   const [newWidthUnitTypeName, setNewWidthUnitTypeName] = useState("");
-  const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
-  const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [addHSNOpen, setAddHSNOpen] = useState(false);
   const [hsnForm, setHsnForm] = useState<HsnFormData>(EMPTY_HSN_FORM);
   const [hsnErrors, setHsnErrors] = useState<HsnErrors>({});
@@ -217,7 +213,7 @@ export default function FabricMaster() {
       : r.currentStock ? [{ location: r.location ?? "Out-house", stock: r.currentStock }] : [];
     setForm({ fabricType: r.fabricType, quality: r.quality, color: r.color ?? "#c9b45c",
       hexCode: r.hexCode ?? "#c9b45c", colorName: r.colorName, width: r.width, height: r.height ?? "",
-      widthUnitType: r.widthUnitType, pricePerMeter: r.pricePerMeter, unitType: r.unitType,
+      widthUnitType: r.widthUnitType, pricePerMeter: r.pricePerMeter,
       currentStock: r.currentStock, hsnCode: r.hsnCode, gstPercent: r.gstPercent,
       vendor: r.vendor ?? "", location: r.location ?? "", locationStocks: existingStocks,
       isActive: r.isActive, images: r.images ?? [],
@@ -283,7 +279,6 @@ export default function FabricMaster() {
     if (!w) e.width = "Width is required.";
     else if (!NUMERIC_REGEX.test(w) || parseFloat(w) <= 0) e.width = "Width must be a positive numeric value.";
     if (!form.widthUnitType) e.widthUnitType = "Unit Type is required.";
-    if (!form.unitType) e.unitType = "Pricing Unit is required.";
     if (!pm) e.pricePerMeter = "Price Per Meter is required.";
     else if (!NUMERIC_REGEX.test(pm) || parseFloat(pm) <= 0) e.pricePerMeter = "Price must be a positive numeric value.";
     if (!form.hsnCode) e.hsnCode = "HSN Code is required.";
@@ -371,21 +366,10 @@ export default function FabricMaster() {
     } catch { toast({ title: "Error", description: "Failed to add width unit type.", variant: "destructive" }); }
   };
 
-  const handleAddUnitType = async () => {
-    const val = newUnitTypeName.trim();
-    if (!val) { toast({ title: "Validation Error", description: "Pricing Unit cannot be empty.", variant: "destructive" }); return; }
-    if (!NAME_REGEX.test(val) || val.length > 50) { toast({ title: "Validation Error", description: "Pricing Unit must contain only letters (max 50 characters).", variant: "destructive" }); return; }
-    try {
-      await createUnitType.mutateAsync({ name: val, isActive: true });
-      setForm((f) => ({ ...f, unitType: val }));
-      setNewUnitTypeName(""); setAddUnitTypeOpen(false);
-    } catch { toast({ title: "Error", description: "Failed to add pricing unit.", variant: "destructive" }); }
-  };
-
   const downloadSample = () => {
     const sampleRows = [
-      { "Fabric Type": "Cotton", "Quality": "Super Fine", "Color Name": "Ivory White", "Color Hex": "#FFFFF0", "Width": "44", "Height": "", "Width Unit Type": "Inch", "Unit Type": "Meter", "Price Per Meter": "180.00", "HSN Code": "52081100", "GST %": "5", "Vendor": "" },
-      { "Fabric Type": "Silk", "Quality": "Premium", "Color Name": "Royal Blue", "Color Hex": "#4169E1", "Width": "36", "Height": "", "Width Unit Type": "Inch", "Unit Type": "Meter", "Price Per Meter": "650.00", "HSN Code": "50072000", "GST %": "5", "Vendor": "" },
+      { "Fabric Type": "Cotton", "Quality": "Super Fine", "Color Name": "Ivory White", "Color Hex": "#FFFFF0", "Width": "44", "Height": "", "Width Unit Type": "Inch", "Price Per Meter": "180.00", "HSN Code": "52081100", "GST %": "5", "Vendor": "" },
+      { "Fabric Type": "Silk", "Quality": "Premium", "Color Name": "Royal Blue", "Color Hex": "#4169E1", "Width": "36", "Height": "", "Width Unit Type": "Inch", "Price Per Meter": "650.00", "HSN Code": "50072000", "GST %": "5", "Vendor": "" },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleRows);
     const wb = XLSX.utils.book_new();
@@ -411,7 +395,6 @@ export default function FabricMaster() {
         width: String(r["Width"] ?? "").trim(),
         height: String(r["Height"] ?? "").trim() || undefined,
         widthUnitType: String(r["Width Unit Type"] ?? "").trim(),
-        unitType: String(r["Unit Type"] ?? "").trim() || undefined,
         pricePerMeter: String(r["Price Per Meter"] ?? "").trim(),
         hsnCode: String(r["HSN Code"] ?? "").trim(),
         gstPercent: String(r["GST %"] ?? "").trim() || undefined,
@@ -441,7 +424,7 @@ export default function FabricMaster() {
         Code: r.fabricCode, Type: r.fabricType, Quality: r.quality,
         "Color Name": r.colorName, "Hex Code": r.hexCode ?? "",
         Width: r.width, "Width Unit": r.widthUnitType,
-        "Price/Meter": r.pricePerMeter, "Unit Type": r.unitType,
+        "Price/Meter": r.pricePerMeter,
         "Current Stock": r.currentStock, "HSN Code": r.hsnCode,
         "GST %": r.gstPercent, Vendor: r.vendor ?? "", Location: r.location ?? "",
         Status: r.isActive ? "Active" : "Inactive",
@@ -483,7 +466,6 @@ export default function FabricMaster() {
   const asFab = (r: TableRow) => r as unknown as FabricRecord;
   const fabricTypeOptions = fabricTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const widthUnitTypeOptions = widthUnitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
-  const unitTypeOptions = unitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
 
   const columns: Column[] = [
@@ -802,13 +784,6 @@ export default function FabricMaster() {
                       const decimal = parts.length > 1 ? "." + parts[1].slice(0, 2) : "";
                       setForm((f) => ({ ...f, pricePerMeter: integer + decimal }));
                     }} error={errors.pricePerMeter} />
-                  <AddableSelect
-                    label="Pricing Unit" required value={form.unitType}
-                    onChange={(v) => setForm((f) => ({ ...f, unitType: v }))}
-                    onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
-                    addLabel="+ Add Unit"
-                    options={unitTypeOptions} placeholder="e.g. Meter" error={errors.unitType}
-                  />
                   <AddableSelect
                     label="HSN Code" required value={form.hsnCode}
                     onChange={(v) => {
@@ -1129,14 +1104,6 @@ export default function FabricMaster() {
         <InputField label="Unit Type Name" required placeholder="e.g. cm, inches" value={newWidthUnitTypeName}
           maxLength={50}
           onChange={(e) => setNewWidthUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
-      </MasterFormModal>
-
-      {/* ══ Add Pricing Unit mini-modal ══ */}
-      <MasterFormModal open={addUnitTypeOpen} title="Add Pricing Unit" onClose={() => setAddUnitTypeOpen(false)}
-        onSubmit={handleAddUnitType} submitting={createUnitType.isPending} submitLabel="Add">
-        <InputField label="Pricing Unit Name" required placeholder="e.g. Meter, Yard" value={newUnitTypeName}
-          maxLength={50}
-          onChange={(e) => setNewUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
       </MasterFormModal>
 
       {/* ══ Add HSN mini-modal ══ */}
