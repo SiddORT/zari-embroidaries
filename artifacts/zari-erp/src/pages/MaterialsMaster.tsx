@@ -19,6 +19,7 @@ import ImportResultModal, { normalizeImportResult, type NormalizedImportResult }
 
 import {
   useMaterialList,
+  useAllMaterials,
   useCreateMaterial,
   useUpdateMaterial,
   useToggleMaterialStatus,
@@ -111,7 +112,9 @@ export default function MaterialsMaster() {
   const deleteMutation = useDeleteMaterial();
   const importMutation = useImportMaterials();
 
-  const { data: itemTypes = [] } = useItemTypes();
+  const { data: itemTypeLookups = [] } = useItemTypes();
+  const { data: allMaterialRecords = [] } = useAllMaterials();
+  const distinctItemTypeFilters = [...new Set(allMaterialRecords.map((m) => m.itemType).filter(Boolean))].sort();
   const { data: unitTypes = [] } = useUnitTypes();
   const createUnitType = useCreateUnitType();
   const createItemType = useCreateItemType();
@@ -457,7 +460,7 @@ export default function MaterialsMaster() {
 
   const asMat = (r: TableRow) => r as unknown as MaterialRecord;
   const unitTypeOptions = unitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
-  const itemTypeOptions = itemTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
+  const itemTypeOptions = itemTypeLookups.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
   const submitting = createMutation.isPending || updateMutation.isPending;
 
@@ -605,7 +608,7 @@ export default function MaterialsMaster() {
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
                 <option value="">All Item Types</option>
-                {itemTypes.filter((t) => t.isActive).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                {distinctItemTypeFilters.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
               <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">

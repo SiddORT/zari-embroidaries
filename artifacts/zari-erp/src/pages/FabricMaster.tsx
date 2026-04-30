@@ -19,6 +19,7 @@ import ImportResultModal, { normalizeImportResult, type NormalizedImportResult }
 
 import {
   useFabricList,
+  useAllFabrics,
   useCreateFabric,
   useUpdateFabric,
   useToggleFabricStatus,
@@ -148,7 +149,9 @@ export default function FabricMaster() {
   const deleteMutation = useDeleteFabric();
   const importMutation = useImportFabrics();
 
-  const { data: fabricTypes = [] } = useFabricTypes();
+  const { data: fabricTypeLookups = [] } = useFabricTypes();
+  const { data: allFabricRecords = [] } = useAllFabrics();
+  const distinctFabricTypeFilters = [...new Set(allFabricRecords.map((f) => f.fabricType).filter(Boolean))].sort();
   const { data: widthUnitTypes = [] } = useWidthUnitTypes();
   const createFabricType = useCreateFabricType();
   const createWidthUnitType = useCreateWidthUnitType();
@@ -464,7 +467,7 @@ export default function FabricMaster() {
   };
 
   const asFab = (r: TableRow) => r as unknown as FabricRecord;
-  const fabricTypeOptions = fabricTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
+  const fabricTypeOptions = fabricTypeLookups.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const widthUnitTypeOptions = widthUnitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
 
@@ -613,7 +616,7 @@ export default function FabricMaster() {
               <select value={fabricTypeFilter} onChange={(e) => { setFabricTypeFilter(e.target.value); setPage(1); }}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
                 <option value="">All Fabric Types</option>
-                {fabricTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                {distinctFabricTypeFilters.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
               <select value={hsnCodeFilter} onChange={(e) => { setHsnCodeFilter(e.target.value); setPage(1); }}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
