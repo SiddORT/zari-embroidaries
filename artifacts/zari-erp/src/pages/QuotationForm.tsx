@@ -91,6 +91,7 @@ export default function QuotationForm() {
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(isEdit);
   const savedSnapshotRef = useRef<string | null>(null);
+  const saveInProgressRef = useRef(false);
 
   // Auto-set GST type from client state (only when client changes and user hasn't overridden)
   useEffect(() => {
@@ -176,12 +177,14 @@ export default function QuotationForm() {
 
   // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave() {
+    if (saveInProgressRef.current) return;
     if (!selectedClientId) {
       toast({ title: "Validation", description: "Please select a client", variant: "destructive" }); return;
     }
     const resolvedClient = allClients.find((c) => String(c.id) === selectedClientId);
     const validDesigns = designs.filter((d) => d.designName.trim());
     const validCharges = charges.filter((c) => c.chargeName.trim());
+    saveInProgressRef.current = true;
     setSaving(true);
     try {
       const j = await customFetch<{ message?: string; data?: { id: number } }>(
@@ -212,6 +215,7 @@ export default function QuotationForm() {
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
+      saveInProgressRef.current = false;
       setSaving(false);
     }
   }

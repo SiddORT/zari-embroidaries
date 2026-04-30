@@ -110,6 +110,7 @@ export default function ClientForm() {
   const [pincodeLoading, setPincodeLoading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const savedFormRef = useRef<ClientFormData>(EMPTY_FORM);
+  const saveInProgressRef = useRef(false);
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
@@ -191,7 +192,9 @@ export default function ClientForm() {
   }
 
   async function handleSave() {
+    if (saveInProgressRef.current) return;
     if (!validate()) return;
+    saveInProgressRef.current = true;
     setSaving(true);
     try {
       if (isNew) {
@@ -206,6 +209,7 @@ export default function ClientForm() {
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "An error occurred", variant: "destructive" });
     } finally {
+      saveInProgressRef.current = false;
       setSaving(false);
     }
   }

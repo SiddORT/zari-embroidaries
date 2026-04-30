@@ -198,6 +198,7 @@ export default function ArtworkDetail() {
   const [saving, setSaving] = useState(false);
   const [lightbox, setLightbox] = useState<{ images: FileAttachment[]; index: number } | null>(null);
   const savedFormRef = useRef<FormState>(EMPTY_FORM);
+  const saveInProgressRef = useRef(false);
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
@@ -253,10 +254,12 @@ export default function ArtworkDetail() {
   const isViewMode = !isNew && artworkData?.data?.feedbackStatus === "Approved";
 
   async function handleSave() {
+    if (saveInProgressRef.current) return;
     if (!form.artworkName.trim()) {
       toast({ title: "Artwork Name is required", variant: "destructive" });
       return;
     }
+    saveInProgressRef.current = true;
     setSaving(true);
     try {
       if (isNew) {
@@ -291,6 +294,7 @@ export default function ArtworkDetail() {
     } catch {
       toast({ title: "Failed to save", variant: "destructive" });
     } finally {
+      saveInProgressRef.current = false;
       setSaving(false);
     }
   }

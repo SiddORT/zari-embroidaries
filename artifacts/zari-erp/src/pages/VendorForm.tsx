@@ -96,6 +96,7 @@ export default function VendorForm() {
   const [pincodeAutoFilled, setPincodeAutoFilled] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const savedFormRef = useRef<VendorFormData>(EMPTY_FORM);
+  const saveInProgressRef = useRef(false);
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
 
   useEffect(() => {
@@ -192,7 +193,9 @@ export default function VendorForm() {
   }
 
   async function handleSave() {
+    if (saveInProgressRef.current) return;
     if (!validate()) return;
+    saveInProgressRef.current = true;
     setSaving(true);
     try {
       const payload = {
@@ -213,6 +216,7 @@ export default function VendorForm() {
       const msg = (err as { data?: { error?: string } })?.data?.error ?? (err instanceof Error ? err.message : "An error occurred.");
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
+      saveInProgressRef.current = false;
       setSaving(false);
     }
   }
