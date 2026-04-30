@@ -325,7 +325,7 @@ export default function HSNMaster() {
       const allRows = await fetchAllHSNForExport(debouncedSearch, statusFilter);
       const exportData = allRows.map((r) => ({
         "HSN Code": r.hsnCode,
-        "GST %": `${r.gstPercentage}%`,
+        "GST Percentage": r.gstPercentage,
         "Government Description": r.govtDescription,
         "Remarks": r.remarks ?? "",
         "Status": r.isActive ? "Active" : "Inactive",

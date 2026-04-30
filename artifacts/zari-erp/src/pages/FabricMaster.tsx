@@ -424,10 +424,10 @@ export default function FabricMaster() {
         fabricType: fabricTypeFilter, vendor: vendorFilter, hsnCode: hsnCodeFilter,
       });
       const exRows = result.data.map((r) => ({
-        Code: r.fabricCode, Type: r.fabricType, Quality: r.quality,
-        "Color Name": r.colorName, "Hex Code": r.hexCode ?? "",
-        Width: r.width, "Width Unit": r.widthUnitType,
-        "Price/Meter": r.pricePerMeter,
+        Code: r.fabricCode, "Fabric Type": r.fabricType, Quality: r.quality,
+        "Color Name": r.colorName, "Color Hex": r.hexCode ?? "",
+        Width: r.width, Height: r.height ?? "", "Width Unit Type": r.widthUnitType,
+        "Price Per Meter": r.pricePerMeter,
         "Current Stock": r.currentStock, "HSN Code": r.hsnCode,
         "GST %": r.gstPercent, Vendor: r.vendor ?? "", Location: r.location ?? "",
         Status: r.isActive ? "Active" : "Inactive",
