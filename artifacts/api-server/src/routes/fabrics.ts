@@ -161,11 +161,19 @@ router.post("/fabrics/import", requireAuth, async (req: AuthRequest, res): Promi
   res.json({ imported, skipped, errors });
 });
 
+function cleanStockLevels(body: Record<string, unknown>): Record<string, unknown> {
+  const cleaned = { ...body };
+  if (cleaned.reorderLevel === "") delete cleaned.reorderLevel;
+  if (cleaned.minimumLevel === "") delete cleaned.minimumLevel;
+  if (cleaned.maximumLevel === "") delete cleaned.maximumLevel;
+  return cleaned;
+}
+
 router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const fieldError = validateFabricFields(req.body);
   if (fieldError) { res.status(400).json({ error: fieldError }); return; }
 
-  const parsed = insertFabricSchema.safeParse(req.body);
+  const parsed = insertFabricSchema.safeParse(cleanStockLevels(req.body));
   if (!parsed.success) {
     const firstMsg = parsed.error.issues[0]?.message ?? "Validation failed";
     res.status(400).json({ error: firstMsg, details: parsed.error.flatten() });
@@ -198,7 +206,7 @@ router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   const fieldError = validateFabricFields(req.body);
   if (fieldError) { res.status(400).json({ error: fieldError }); return; }
 
-  const parsed = updateFabricSchema.safeParse(req.body);
+  const parsed = updateFabricSchema.safeParse(cleanStockLevels(req.body));
   if (!parsed.success) {
     const firstMsg = parsed.error.issues[0]?.message ?? "Validation failed";
     res.status(400).json({ error: firstMsg, details: parsed.error.flatten() });

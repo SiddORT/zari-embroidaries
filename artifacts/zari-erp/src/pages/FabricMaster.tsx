@@ -31,7 +31,7 @@ import {
   type MasterImage,
   type StatusFilter,
 } from "@/hooks/useFabrics";
-import { useWidthUnitTypes, useCreateWidthUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
+import { useWidthUnitTypes, useCreateWidthUnitType, useUnitTypes, useCreateUnitType, useFabricTypes, useCreateFabricType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
@@ -150,8 +150,10 @@ export default function FabricMaster() {
 
   const { data: fabricTypes = [] } = useFabricTypes();
   const { data: widthUnitTypes = [] } = useWidthUnitTypes();
+  const { data: unitTypes = [] } = useUnitTypes();
   const createFabricType = useCreateFabricType();
   const createWidthUnitType = useCreateWidthUnitType();
+  const createUnitType = useCreateUnitType();
   const createHSN = useCreateHSN();
 
   const { data: hsnData } = useHSNList({ search: "", status: "active", page: 1, limit: 200 });
@@ -199,6 +201,8 @@ export default function FabricMaster() {
   const [newFabricTypeName, setNewFabricTypeName] = useState("");
   const [addWidthUnitTypeOpen, setAddWidthUnitTypeOpen] = useState(false);
   const [newWidthUnitTypeName, setNewWidthUnitTypeName] = useState("");
+  const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
+  const [newUnitTypeName, setNewUnitTypeName] = useState("");
   const [addHSNOpen, setAddHSNOpen] = useState(false);
   const [hsnForm, setHsnForm] = useState<HsnFormData>(EMPTY_HSN_FORM);
   const [hsnErrors, setHsnErrors] = useState<HsnErrors>({});
@@ -277,6 +281,7 @@ export default function FabricMaster() {
     if (!w) e.width = "Width is required.";
     else if (!NUMERIC_REGEX.test(w) || parseFloat(w) <= 0) e.width = "Width must be a positive numeric value.";
     if (!form.widthUnitType) e.widthUnitType = "Unit Type is required.";
+    if (!form.unitType) e.unitType = "Pricing Unit is required.";
     if (!pm) e.pricePerMeter = "Price Per Meter is required.";
     else if (!NUMERIC_REGEX.test(pm) || parseFloat(pm) <= 0) e.pricePerMeter = "Price must be a positive numeric value.";
     if (!form.hsnCode) e.hsnCode = "HSN Code is required.";
@@ -362,6 +367,17 @@ export default function FabricMaster() {
       setForm((f) => ({ ...f, widthUnitType: val }));
       setNewWidthUnitTypeName(""); setAddWidthUnitTypeOpen(false);
     } catch { toast({ title: "Error", description: "Failed to add width unit type.", variant: "destructive" }); }
+  };
+
+  const handleAddUnitType = async () => {
+    const val = newUnitTypeName.trim();
+    if (!val) { toast({ title: "Validation Error", description: "Pricing Unit cannot be empty.", variant: "destructive" }); return; }
+    if (!NAME_REGEX.test(val) || val.length > 50) { toast({ title: "Validation Error", description: "Pricing Unit must contain only letters (max 50 characters).", variant: "destructive" }); return; }
+    try {
+      await createUnitType.mutateAsync({ name: val, isActive: true });
+      setForm((f) => ({ ...f, unitType: val }));
+      setNewUnitTypeName(""); setAddUnitTypeOpen(false);
+    } catch { toast({ title: "Error", description: "Failed to add pricing unit.", variant: "destructive" }); }
   };
 
   const downloadSample = () => {
@@ -471,6 +487,7 @@ export default function FabricMaster() {
   const asFab = (r: TableRow) => r as unknown as FabricRecord;
   const fabricTypeOptions = fabricTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const widthUnitTypeOptions = widthUnitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
+  const unitTypeOptions = unitTypes.filter((t) => t.isActive).map((t) => ({ value: t.name, label: t.name }));
   const hsnDropdownOptions = hsnOptions.map((h) => ({ value: h.hsnCode, label: `${h.hsnCode} (${h.gstPercentage}%)` }));
 
   const columns: Column[] = [
@@ -790,6 +807,13 @@ export default function FabricMaster() {
                       setForm((f) => ({ ...f, pricePerMeter: integer + decimal }));
                     }} error={errors.pricePerMeter} />
                   <AddableSelect
+                    label="Pricing Unit" required value={form.unitType}
+                    onChange={(v) => setForm((f) => ({ ...f, unitType: v }))}
+                    onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
+                    addLabel="+ Add Unit"
+                    options={unitTypeOptions} placeholder="e.g. Meter" error={errors.unitType}
+                  />
+                  <AddableSelect
                     label="HSN Code" required value={form.hsnCode}
                     onChange={(v) => {
                       const hsn = hsnOptions.find((h) => h.hsnCode === v);
@@ -1103,12 +1127,20 @@ export default function FabricMaster() {
           onChange={(e) => setNewFabricTypeName(e.target.value)} />
       </MasterFormModal>
 
-      {/* ══ Add Unit Type mini-modal ══ */}
-      <MasterFormModal open={addWidthUnitTypeOpen} title="Add Unit Type" onClose={() => setAddWidthUnitTypeOpen(false)}
+      {/* ══ Add Width Unit Type mini-modal ══ */}
+      <MasterFormModal open={addWidthUnitTypeOpen} title="Add Width Unit Type" onClose={() => setAddWidthUnitTypeOpen(false)}
         onSubmit={handleAddWidthUnitType} submitting={createWidthUnitType.isPending} submitLabel="Add">
         <InputField label="Unit Type Name" required placeholder="e.g. cm, inches" value={newWidthUnitTypeName}
           maxLength={50}
           onChange={(e) => setNewWidthUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
+      </MasterFormModal>
+
+      {/* ══ Add Pricing Unit mini-modal ══ */}
+      <MasterFormModal open={addUnitTypeOpen} title="Add Pricing Unit" onClose={() => setAddUnitTypeOpen(false)}
+        onSubmit={handleAddUnitType} submitting={createUnitType.isPending} submitLabel="Add">
+        <InputField label="Pricing Unit Name" required placeholder="e.g. Meter, Yard" value={newUnitTypeName}
+          maxLength={50}
+          onChange={(e) => setNewUnitTypeName(e.target.value.replace(/[^A-Za-z ]/g, ""))} />
       </MasterFormModal>
 
       {/* ══ Add HSN mini-modal ══ */}
