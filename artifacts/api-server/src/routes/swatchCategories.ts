@@ -3,6 +3,7 @@ import { eq, ilike, and, desc } from "drizzle-orm";
 import { db, swatchCategoriesTable, insertSwatchCategorySchema, updateSwatchCategorySchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -82,7 +83,7 @@ router.post("/swatch-categories/import", requireAuth, async (req: AuthRequest, r
     });
 
     if (!parsed.success) {
-      const msgs = Object.values(parsed.error.flatten().fieldErrors).flat().join("; ");
+      const msgs = zodFieldErrorsToHuman(parsed.error.flatten().fieldErrors);
       errors.push({ row: rowNum, name: String(row.name ?? ""), error: msgs });
       continue;
     }

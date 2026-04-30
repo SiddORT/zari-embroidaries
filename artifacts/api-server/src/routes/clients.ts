@@ -4,6 +4,7 @@ import { db, clientsTable } from "@workspace/db";
 import { insertClientSchema, updateClientSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -190,7 +191,7 @@ router.post("/clients/import", requireAuth, async (req: AuthRequest, res): Promi
     });
 
     if (!parsed.success) {
-      errors.push({ row: rowNum, name: brandName, error: parsed.error.issues[0]?.message ?? "Validation error" }); skipped++; continue;
+      errors.push({ row: rowNum, name: brandName, error: zodFieldErrorsToHuman(parsed.error.flatten().fieldErrors) }); skipped++; continue;
     }
 
     try {

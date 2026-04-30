@@ -12,6 +12,7 @@ import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import StatusToggle from "@/components/master/StatusToggle";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useClientList, useToggleClientStatus, useDeleteClient, useImportClients,
@@ -75,6 +76,8 @@ export default function ClientMaster() {
   const importMenuRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
@@ -249,11 +252,9 @@ export default function ClientMaster() {
         };
       });
 
-      const result = await importMutation.mutateAsync(mapped);
-      toast({
-        title: "Import Complete",
-        description: `${result.imported} client(s) imported.${result.skipped > 0 ? ` ${result.skipped} row(s) skipped.` : ""}`,
-      });
+      const importRaw = await importMutation.mutateAsync(mapped);
+      setImportResult(normalizeImportResult(importRaw));
+      setImportResultOpen(true);
     } catch (err) {
       toast({ title: "Import Failed", description: err instanceof Error ? err.message : "Could not import file.", variant: "destructive" });
     } finally {
@@ -369,6 +370,13 @@ export default function ClientMaster() {
           cancelLabel="No"
           loading={toggleStatus.isPending}
           danger={false}
+        />
+
+        <ImportResultModal
+          open={importResultOpen}
+          result={importResult}
+          entityName="Clients"
+          onClose={() => setImportResultOpen(false)}
         />
 
         {/* Delete confirmation */}

@@ -4,6 +4,7 @@ import { db, hsnTable } from "@workspace/db";
 import { insertHsnSchema, updateHsnSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -112,7 +113,7 @@ router.post("/hsn/import", requireAuth, async (req: AuthRequest, res): Promise<v
     });
 
     if (!parsed.success) {
-      const msgs = Object.values(parsed.error.flatten().fieldErrors).flat().join("; ");
+      const msgs = zodFieldErrorsToHuman(parsed.error.flatten().fieldErrors);
       errors.push({ row: rowNum, hsnCode: String(row.hsnCode ?? ""), error: msgs });
       continue;
     }

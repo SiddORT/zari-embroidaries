@@ -17,12 +17,13 @@ import StatusToggle from "@/components/master/StatusToggle";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AddableSelect from "@/components/ui/AddableSelect";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useItemList, useCreateItem, useUpdateItem, useToggleItemStatus,
   useDeleteItem, useImportItems, fetchAllItemsForExport,
   type ItemRecord, type ItemFormData, type ItemImage,
-  type ItemLocationStock, type ItemImportResult, type StatusFilter,
+  type ItemLocationStock, type StatusFilter,
 } from "@/hooks/useItems";
 import { useItemTypes, useUnitTypes, useCreateUnitType, useCreateItemType } from "@/hooks/useLookups";
 import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
@@ -132,6 +133,8 @@ export default function ItemMaster() {
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const importMenuRef = useRef<HTMLDivElement>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
@@ -351,14 +354,8 @@ export default function ItemMaster() {
         const jsonRows = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
         if (!jsonRows.length) { toast({ title: "Empty File", description: "No data rows found.", variant: "destructive" }); return; }
         const importRaw = await importMutation.mutateAsync(jsonRows);
-        const result = (importRaw as unknown) as ItemImportResult;
-        const hasErrors = result.failed > 0;
-        toast({
-          title: hasErrors ? "Imported with errors" : "Import Successful",
-          description: `${result.succeeded} succeeded${hasErrors ? `, ${result.failed} failed` : ""}.`,
-          variant: hasErrors ? "destructive" : "default",
-        });
-        if (hasErrors) console.warn("Import row errors:", result.results.filter((r) => r.status === "error"));
+        setImportResult(normalizeImportResult(importRaw));
+        setImportResultOpen(true);
       } catch (err: unknown) {
         const msg = (err as { data?: { error?: string } })?.data?.error ?? "Import failed.";
         toast({ title: "Import Error", description: msg, variant: "destructive" });
@@ -852,6 +849,13 @@ export default function ItemMaster() {
         onConfirm={handleToggleConfirmed}
         onCancel={() => setConfirmToggleTarget(null)}
         loading={toggleMutation.isPending}
+      />
+
+      <ImportResultModal
+        open={importResultOpen}
+        result={importResult}
+        entityName="Items"
+        onClose={() => setImportResultOpen(false)}
       />
 
       {/* Delete confirmation */}

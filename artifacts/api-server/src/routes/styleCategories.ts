@@ -4,6 +4,7 @@ import { db, styleCategoriesTable } from "@workspace/db";
 import { insertStyleCategorySchema, updateStyleCategorySchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
 
 const router: IRouter = Router();
@@ -83,7 +84,7 @@ router.post("/style-categories/import", requireAuth, async (req: AuthRequest, re
     });
 
     if (!parsed.success) {
-      const msgs = Object.values(parsed.error.flatten().fieldErrors).flat().join("; ");
+      const msgs = zodFieldErrorsToHuman(parsed.error.flatten().fieldErrors);
       errors.push({ row: rowNum, name: String(row.categoryName ?? ""), error: msgs });
       continue;
     }

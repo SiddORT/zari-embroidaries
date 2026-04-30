@@ -12,11 +12,12 @@ import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import StatusToggle from "@/components/master/StatusToggle";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useVendorList, useToggleVendorStatus, useDeleteVendor, useImportVendors,
   fetchAllVendorsForExport,
-  type VendorRecord, type VendorImportResult, type StatusFilter,
+  type VendorRecord, type StatusFilter,
 } from "@/hooks/useVendors";
 
 function formatDateExport(val: string | null | undefined) {
@@ -76,7 +77,7 @@ export default function VendorMaster() {
   const importMenuRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importResult, setImportResult] = useState<VendorImportResult | null>(null);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
   const [importResultOpen, setImportResultOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -271,8 +272,8 @@ export default function VendorMaster() {
           bankAccounts: hasBank ? [{ bankName, accountNo, ifscCode }] : undefined,
         };
       });
-      const result = await importMutation.mutateAsync(records);
-      setImportResult(result);
+      const importRaw = await importMutation.mutateAsync(records);
+      setImportResult(normalizeImportResult(importRaw));
       setImportResultOpen(true);
     } catch (err: unknown) {
       const msg = (err as { data?: { error?: string } })?.data?.error ?? "Failed to import file.";
@@ -390,42 +391,12 @@ export default function VendorMaster() {
         title="Delete Vendor" message="Are you sure you want to delete this vendor? This action cannot be undone."
         loading={deleteMutation.isPending} />
 
-      {importResultOpen && importResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">Import Complete</h2>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
-                <p className="text-2xl font-bold text-emerald-600">{importResult.imported}</p>
-                <p className="text-xs text-emerald-600 mt-0.5">Imported</p>
-              </div>
-              <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
-                <p className="text-2xl font-bold text-amber-600">{importResult.skipped}</p>
-                <p className="text-xs text-amber-600 mt-0.5">Skipped</p>
-              </div>
-              <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-center">
-                <p className="text-2xl font-bold text-red-600">{importResult.errors.length}</p>
-                <p className="text-xs text-red-600 mt-0.5">Errors</p>
-              </div>
-            </div>
-            {importResult.errors.length > 0 && (
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Error Details</p>
-                {importResult.errors.map((e, i) => (
-                  <div key={i} className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
-                    <p className="text-xs font-medium text-red-700">Row {e.row}{e.name ? ` — "${e.name}"` : ""}</p>
-                    <p className="text-xs text-red-500 mt-0.5">{e.error}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setImportResultOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-semibold hover:bg-gray-800 transition-colors">
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      <ImportResultModal
+        open={importResultOpen}
+        result={importResult}
+        entityName="Vendors"
+        onClose={() => setImportResultOpen(false)}
+      />
     </AppLayout>
   );
 }

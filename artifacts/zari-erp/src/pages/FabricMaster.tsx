@@ -15,6 +15,7 @@ import StatusToggle from "@/components/master/StatusToggle";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AddableSelect from "@/components/ui/AddableSelect";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useFabricList,
@@ -27,7 +28,6 @@ import {
   type FabricRecord,
   type FabricFormData,
   type FabricImportRow,
-  type FabricImportResult,
   type MasterImage,
   type StatusFilter,
 } from "@/hooks/useFabrics";
@@ -175,6 +175,8 @@ export default function FabricMaster() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [vendorPickerOpen, setVendorPickerOpen] = useState(false);
   const [vendorPickerSearch, setVendorPickerSearch] = useState("");
@@ -417,14 +419,8 @@ export default function FabricMaster() {
       }));
       if (rows.length === 0) { toast({ title: "Empty File", description: "No data rows found in the file.", variant: "destructive" }); return; }
       const importRaw = await importMutation.mutateAsync(rows);
-      const result = (importRaw as unknown) as FabricImportResult;
-      const hasErrors = result.errors.length > 0;
-      toast({
-        title: hasErrors ? `Imported with errors` : "Import Successful",
-        description: `${result.imported} imported, ${result.skipped} skipped.${hasErrors ? " Check console for row errors." : ""}`,
-        variant: hasErrors ? "destructive" : "default",
-      });
-      if (hasErrors) console.warn("Import row errors:", result.errors);
+      setImportResult(normalizeImportResult(importRaw));
+      setImportResultOpen(true);
     } catch (err: unknown) {
       const msg = (err as { data?: { error?: string } })?.data?.error ?? "Import failed.";
       toast({ title: "Import Error", description: msg, variant: "destructive" });
@@ -1160,6 +1156,13 @@ export default function FabricMaster() {
         <InputField label="Government Description" required placeholder="Official description..." value={hsnForm.govtDescription}
           onChange={(e) => setHsnForm((f) => ({ ...f, govtDescription: e.target.value }))} error={hsnErrors.govtDescription} />
       </MasterFormModal>
+
+      <ImportResultModal
+        open={importResultOpen}
+        result={importResult}
+        entityName="Fabrics"
+        onClose={() => setImportResultOpen(false)}
+      />
 
       {/* ══ Lightbox ══ */}
       {lightboxUrl && (

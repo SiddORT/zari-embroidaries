@@ -12,6 +12,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useSwatchList, useToggleSwatchStatus, useDeleteSwatch,
@@ -72,6 +73,8 @@ export default function SwatchMaster() {
   const importRef = useRef<HTMLInputElement>(null);
   const [importDropOpen, setImportDropOpen] = useState(false);
   const [exportDropOpen, setExportDropOpen] = useState(false);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   // ── Data ──
@@ -117,8 +120,9 @@ export default function SwatchMaster() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
       if (!rows.length) { toast({ title: "No data found in file", variant: "destructive" }); return; }
-      const result = await importMutation.mutateAsync(rows) as import("@/hooks/useSwatches").SwatchImportResult;
-      toast({ title: `Import done: ${result.succeeded} added, ${result.failed} failed` });
+      const importRaw = await importMutation.mutateAsync(rows);
+      setImportResult(normalizeImportResult(importRaw));
+      setImportResultOpen(true);
     } catch (err) {
       toast({ title: "Import failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
@@ -295,6 +299,13 @@ export default function SwatchMaster() {
         {/* ── Modals ── */}
         <ConfirmModal open={deleteId !== null} onCancel={() => setDeleteId(null)} onConfirm={() => { void handleDelete(); }}
           title="Delete Swatch" message="Are you sure you want to delete this swatch?" />
+
+        <ImportResultModal
+          open={importResultOpen}
+          result={importResult}
+          entityName="Swatches"
+          onClose={() => setImportResultOpen(false)}
+        />
 
         <ConfirmModal open={statusConfirm !== null} onCancel={() => setStatusConfirm(null)} onConfirm={() => { void confirmStatusChange(); }}
           title="Change Status"

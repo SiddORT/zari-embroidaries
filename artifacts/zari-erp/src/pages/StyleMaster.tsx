@@ -13,11 +13,12 @@ import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import StatusToggle from "@/components/master/StatusToggle";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useStyleList, useToggleStyleStatus, useDeleteStyle,
   useImportStyles, fetchAllStylesForExport,
-  type StyleRecord, type StatusFilter, type StyleImportResult,
+  type StyleRecord, type StatusFilter,
 } from "@/hooks/useStyles";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 
@@ -73,7 +74,8 @@ export default function StyleMaster() {
   const [importDropOpen, setImportDropOpen] = useState(false);
   const [exportDropOpen, setExportDropOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [importResult, setImportResult] = useState<StyleImportResult | null>(null);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
 
   // ── Data ──
   const { data, isLoading } = useStyleList({ search, status, client: filterClient, location: filterLocation, page, limit });
@@ -116,9 +118,9 @@ export default function StyleMaster() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
       if (!rows.length) { toast({ title: "No data found in file", variant: "destructive" }); return; }
-      const result = await importMutation.mutateAsync(rows) as StyleImportResult;
-      setImportResult(result);
-      toast({ title: `Import done: ${result.succeeded} added, ${result.failed} failed${result.failed > 0 ? " — see details below" : ""}` });
+      const importRaw = await importMutation.mutateAsync(rows);
+      setImportResult(normalizeImportResult(importRaw));
+      setImportResultOpen(true);
     } catch (err) {
       toast({ title: "Import failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
@@ -296,25 +298,6 @@ export default function StyleMaster() {
           )}
         </div>
 
-        {/* ── Import Results Banner ── */}
-        {importResult && importResult.failed > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-amber-800">
-                Import completed: {importResult.succeeded} added, {importResult.failed} failed
-              </p>
-              <button onClick={() => setImportResult(null)} className="text-amber-500 hover:text-amber-700 text-xs">Dismiss</button>
-            </div>
-            <div className="space-y-1 max-h-40 overflow-y-auto">
-              {importResult.results.filter(r => r.status === "error").map(r => (
-                <p key={r.row} className="text-xs text-amber-700">
-                  Row {r.row}: {r.errors?.join("; ")}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ── Table ── */}
         <MasterTable columns={columns} rows={rows} loading={isLoading}
           rowKey={row => (row as unknown as { id: number }).id}
@@ -337,6 +320,13 @@ export default function StyleMaster() {
           message={statusConfirm?.isActive
             ? "Are you sure you want to deactivate this style?"
             : "Are you sure you want to activate this style?"}
+        />
+
+        <ImportResultModal
+          open={importResultOpen}
+          result={importResult}
+          entityName="Styles"
+          onClose={() => setImportResultOpen(false)}
         />
 
         {/* Close dropdowns on outside click */}

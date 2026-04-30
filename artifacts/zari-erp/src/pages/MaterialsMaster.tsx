@@ -15,6 +15,7 @@ import StatusToggle from "@/components/master/StatusToggle";
 import InputField from "@/components/ui/InputField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import AddableSelect from "@/components/ui/AddableSelect";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 
 import {
   useMaterialList,
@@ -26,7 +27,6 @@ import {
   fetchAllMaterialsForExport,
   type MaterialRecord,
   type MaterialFormData,
-  type MaterialImportResult,
   type LocationStock,
   type MasterImage,
   type StatusFilter,
@@ -131,6 +131,8 @@ export default function MaterialsMaster() {
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const importMenuRef = useRef<HTMLDivElement>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
+  const [importResultOpen, setImportResultOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   const [addUnitTypeOpen, setAddUnitTypeOpen] = useState(false);
@@ -440,14 +442,8 @@ export default function MaterialsMaster() {
         const jsonRows = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
         if (!jsonRows.length) { toast({ title: "Empty File", description: "No data rows found.", variant: "destructive" }); return; }
         const importRaw = await importMutation.mutateAsync(jsonRows);
-        const result = (importRaw as unknown) as MaterialImportResult;
-        const hasErrors = result.failed > 0;
-        toast({
-          title: hasErrors ? "Imported with errors" : "Import Successful",
-          description: `${result.succeeded} succeeded${hasErrors ? `, ${result.failed} failed` : ""}.`,
-          variant: hasErrors ? "destructive" : "default",
-        });
-        if (hasErrors) console.warn("Import row errors:", result.results.filter((r) => r.status === "error"));
+        setImportResult(normalizeImportResult(importRaw));
+        setImportResultOpen(true);
       } catch (err: unknown) {
         const msg = (err as { data?: { error?: string } })?.data?.error ?? "Import failed.";
         toast({ title: "Import Error", description: msg, variant: "destructive" });
@@ -1088,6 +1084,13 @@ export default function MaterialsMaster() {
         <InputField label="Government Description" required placeholder="Official description..." value={hsnForm.govtDescription}
           onChange={(e) => setHsnForm((f) => ({ ...f, govtDescription: e.target.value }))} error={hsnErrors.govtDescription} />
       </MasterFormModal>
+
+      <ImportResultModal
+        open={importResultOpen}
+        result={importResult}
+        entityName="Materials"
+        onClose={() => setImportResultOpen(false)}
+      />
 
       {/* ══ Lightbox ══ */}
       {lightboxUrl && (

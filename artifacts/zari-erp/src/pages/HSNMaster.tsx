@@ -15,6 +15,7 @@ import StatusToggle from "@/components/master/StatusToggle";
 import InputField from "@/components/ui/InputField";
 import TextareaField from "@/components/ui/TextareaField";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import ImportResultModal, { normalizeImportResult, type NormalizedImportResult } from "@/components/ui/ImportResultModal";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 
 import {
@@ -27,7 +28,6 @@ import {
   fetchAllHSNForExport,
   type HsnRecord,
   type HsnFormData,
-  type HsnImportResult,
   type StatusFilter,
 } from "@/hooks/useHSN";
 
@@ -136,7 +136,7 @@ export default function HSNMaster() {
   const importMenuRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importResult, setImportResult] = useState<HsnImportResult | null>(null);
+  const [importResult, setImportResult] = useState<NormalizedImportResult | null>(null);
   const [importResultOpen, setImportResultOpen] = useState(false);
 
   const [exportLoading, setExportLoading] = useState(false);
@@ -307,8 +307,8 @@ export default function HSNMaster() {
         isActive: true as const,
       }));
 
-      const result = await importMutation.mutateAsync(records);
-      setImportResult(result);
+      const importRaw = await importMutation.mutateAsync(records);
+      setImportResult(normalizeImportResult(importRaw));
       setImportResultOpen(true);
     } catch (err: unknown) {
       const msg =
@@ -733,46 +733,12 @@ export default function HSNMaster() {
       />
 
       {/* Import result modal */}
-      {importResultOpen && importResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">Import Complete</h2>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
-                <p className="text-2xl font-bold text-emerald-600">{importResult.imported}</p>
-                <p className="text-xs text-emerald-600 mt-0.5">Imported</p>
-              </div>
-              <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
-                <p className="text-2xl font-bold text-amber-600">{importResult.skipped}</p>
-                <p className="text-xs text-amber-600 mt-0.5">Skipped (duplicate)</p>
-              </div>
-              <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-center">
-                <p className="text-2xl font-bold text-red-600">{importResult.errors.length}</p>
-                <p className="text-xs text-red-600 mt-0.5">Errors</p>
-              </div>
-            </div>
-            {importResult.errors.length > 0 && (
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Error Details</p>
-                {importResult.errors.map((e, i) => (
-                  <div key={i} className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
-                    <p className="text-xs font-medium text-red-700">
-                      Row {e.row}{e.hsnCode ? ` — "${e.hsnCode}"` : ""}
-                    </p>
-                    <p className="text-xs text-red-500 mt-0.5">{e.error}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button
-              onClick={() => setImportResultOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-semibold hover:bg-gray-800 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      <ImportResultModal
+        open={importResultOpen}
+        result={importResult}
+        entityName="HSN Codes"
+        onClose={() => setImportResultOpen(false)}
+      />
     </AppLayout>
   );
 }
