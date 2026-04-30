@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, and, desc } from "drizzle-orm";
+import { eq, ilike, or, and, desc, ne } from "drizzle-orm";
 import { db, pool, stylesTable } from "@workspace/db";
 import { insertStyleSchema, updateStyleSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -80,6 +80,11 @@ router.post("/styles/import", requireAuth, async (req: AuthRequest, res): Promis
     if (rowErrors.length > 0) { results.push({ row: rowNum, status: "error", errors: rowErrors }); continue; }
 
     try {
+      const dupStyle = await db.select({ id: stylesTable.id }).from(stylesTable).where(
+        and(ilike(stylesTable.client, client), ilike(stylesTable.description, description ?? ""), ilike(stylesTable.styleCategory, styleCategory), eq(stylesTable.isDeleted, false))
+      );
+      if (dupStyle.length > 0) { results.push({ row: rowNum, status: "error", errors: [`A style for client "${client}" with the same description and category already exists.`] }); continue; }
+
       const styleNo = await generateStyleNo();
       await db.insert(stylesTable).values({
         client, styleCategory, description,
@@ -172,6 +177,11 @@ router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void>
   const parsed = insertStyleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
+  const dupStyle = await db.select({ id: stylesTable.id }).from(stylesTable).where(
+    and(ilike(stylesTable.client, parsed.data.client), ilike(stylesTable.description, parsed.data.description ?? ""), ilike(stylesTable.styleCategory, parsed.data.styleCategory), eq(stylesTable.isDeleted, false))
+  );
+  if (dupStyle.length > 0) { res.status(409).json({ error: `A style for client "${parsed.data.client}" with the same description and category already exists.` }); return; }
+
   const createdBy = req.user?.email ?? "system";
   const styleNo = await generateStyleNo();
   const [record] = await db.insert(stylesTable).values({ ...parsed.data, styleNo, createdBy }).returning();
@@ -184,6 +194,14 @@ router.put("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateStyleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
+
+  if (parsed.data.client && parsed.data.description && parsed.data.styleCategory) {
+    const dupStyle = await db.select({ id: stylesTable.id }).from(stylesTable).where(
+      and(ilike(stylesTable.client, parsed.data.client), ilike(stylesTable.description, parsed.data.description), ilike(stylesTable.styleCategory, parsed.data.styleCategory), eq(stylesTable.isDeleted, false), ne(stylesTable.id, id))
+    );
+    if (dupStyle.length > 0) { res.status(409).json({ error: `A style for client "${parsed.data.client}" with the same description and category already exists.` }); return; }
+  }
+
   const updatedBy = req.user?.email ?? "system";
   const { styleNo: _ignored, ...updateData } = parsed.data;
   const [record] = await db.update(stylesTable).set({ ...updateData, updatedBy, updatedAt: new Date() })

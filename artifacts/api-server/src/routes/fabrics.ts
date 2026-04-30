@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, and, desc, count, asc } from "drizzle-orm";
+import { eq, ilike, or, and, desc, count, asc, ne } from "drizzle-orm";
 import { db, fabricsTable } from "@workspace/db";
 import { insertFabricSchema, updateFabricSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -136,6 +136,11 @@ router.post("/fabrics/import", requireAuth, async (req: AuthRequest, res): Promi
     const vendor = String(row.vendor ?? "").trim() || undefined;
 
     try {
+      const dupFab = await db.select({ id: fabricsTable.id }).from(fabricsTable).where(
+        and(ilike(fabricsTable.fabricType, fabricType), ilike(fabricsTable.quality, quality), ilike(fabricsTable.colorName, colorName), eq(fabricsTable.isDeleted, false))
+      );
+      if (dupFab.length > 0) { errors.push({ row: rowNum, name: displayName, error: `A fabric with Type "${fabricType}", Quality "${quality}", and Color "${colorName}" already exists.` }); skipped++; continue; }
+
       const [{ total }] = await db.select({ total: count() }).from(fabricsTable);
       const fabricCode = `FAB${String(total + 1).padStart(4, "0")}`;
       const createdBy = req.user?.email ?? "system";
@@ -180,6 +185,11 @@ router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void
     return;
   }
 
+  const dupFabric = await db.select({ id: fabricsTable.id }).from(fabricsTable).where(
+    and(ilike(fabricsTable.fabricType, parsed.data.fabricType), ilike(fabricsTable.quality, parsed.data.quality), ilike(fabricsTable.colorName, parsed.data.colorName), eq(fabricsTable.isDeleted, false))
+  );
+  if (dupFabric.length > 0) { res.status(409).json({ error: `A fabric with the same Type "${parsed.data.fabricType}", Quality "${parsed.data.quality}", and Color "${parsed.data.colorName}" already exists.` }); return; }
+
   const createdBy = req.user?.email ?? "system";
   const [{ total }] = await db.select({ total: count() }).from(fabricsTable);
   const fabricCode = `FAB${String(total + 1).padStart(4, "0")}`;
@@ -211,6 +221,13 @@ router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<v
     const firstMsg = parsed.error.issues[0]?.message ?? "Validation failed";
     res.status(400).json({ error: firstMsg, details: parsed.error.flatten() });
     return;
+  }
+
+  if (parsed.data.fabricType && parsed.data.quality && parsed.data.colorName) {
+    const dupFabric = await db.select({ id: fabricsTable.id }).from(fabricsTable).where(
+      and(ilike(fabricsTable.fabricType, parsed.data.fabricType), ilike(fabricsTable.quality, parsed.data.quality), ilike(fabricsTable.colorName, parsed.data.colorName), eq(fabricsTable.isDeleted, false), ne(fabricsTable.id, id))
+    );
+    if (dupFabric.length > 0) { res.status(409).json({ error: `A fabric with the same Type "${parsed.data.fabricType}", Quality "${parsed.data.quality}", and Color "${parsed.data.colorName}" already exists.` }); return; }
   }
 
   const updatedBy = req.user?.email ?? "system";

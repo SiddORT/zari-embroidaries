@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc, sql } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, ne } from "drizzle-orm";
+import { diceSimilarity } from "../lib/importHelpers";
 import { db, itemsTable, insertItemSchema, updateItemSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
@@ -91,6 +92,22 @@ router.post("/items/import", requireAuth, async (req: AuthRequest, res): Promise
     if (rowErrors.length > 0) { results.push({ row: rowNum, status: "error", errors: rowErrors }); continue; }
 
     try {
+      const dupItem = await db.select({ id: itemsTable.id }).from(itemsTable).where(
+        and(ilike(itemsTable.itemName, itemName), ilike(itemsTable.itemType, itemType), eq(itemsTable.isDeleted, false))
+      );
+      if (dupItem.length > 0) { results.push({ row: rowNum, status: "error", errors: [`An item named "${itemName}" with type "${itemType}" already exists.`] }); continue; }
+
+      if (description) {
+        const sameTypeItems = await db.select({ id: itemsTable.id, itemName: itemsTable.itemName, description: itemsTable.description })
+          .from(itemsTable).where(and(ilike(itemsTable.itemType, itemType), eq(itemsTable.isDeleted, false)));
+        for (const existing of sameTypeItems) {
+          if (existing.description && diceSimilarity(description, existing.description) >= 0.8) {
+            results.push({ row: rowNum, status: "error", errors: [`An item with a very similar description already exists: "${existing.itemName}". Please review before importing.`] }); break;
+          }
+        }
+        if (results[results.length - 1]?.row === rowNum && results[results.length - 1]?.status === "error") continue;
+      }
+
       const itemCode = await generateItemCode();
       const [record] = await db.insert(itemsTable).values({
         itemCode,
@@ -148,6 +165,22 @@ router.post("/items", requireAuth, async (req: AuthRequest, res): Promise<void> 
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
   const d = parsed.data;
+
+  const dupItem = await db.select({ id: itemsTable.id }).from(itemsTable).where(
+    and(ilike(itemsTable.itemName, d.itemName.trim()), ilike(itemsTable.itemType, (d.itemType ?? "").trim()), eq(itemsTable.isDeleted, false))
+  );
+  if (dupItem.length > 0) { res.status(409).json({ error: `An item named "${d.itemName}" with type "${d.itemType}" already exists.` }); return; }
+
+  if (d.description?.trim()) {
+    const sameTypeItems = await db.select({ id: itemsTable.id, itemName: itemsTable.itemName, description: itemsTable.description })
+      .from(itemsTable).where(and(ilike(itemsTable.itemType, (d.itemType ?? "").trim()), eq(itemsTable.isDeleted, false)));
+    for (const existing of sameTypeItems) {
+      if (existing.description && diceSimilarity(d.description.trim(), existing.description) >= 0.8) {
+        res.status(409).json({ error: `An item with a very similar description already exists: "${existing.itemName}". Please review before adding.` }); return;
+      }
+    }
+  }
+
   const locationStocks = d.locationStocks ?? [];
   const currentStock = locationStocks.length > 0 ? computeStock(locationStocks) : (d.currentStock ?? "0");
 
@@ -189,6 +222,24 @@ router.put("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<voi
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
   const d = parsed.data;
+
+  if (d.itemName) {
+    const dupItem = await db.select({ id: itemsTable.id }).from(itemsTable).where(
+      and(ilike(itemsTable.itemName, d.itemName.trim()), ilike(itemsTable.itemType, (d.itemType ?? "").trim()), eq(itemsTable.isDeleted, false), ne(itemsTable.id, id))
+    );
+    if (dupItem.length > 0) { res.status(409).json({ error: `An item named "${d.itemName}" with type "${d.itemType}" already exists.` }); return; }
+  }
+
+  if (d.description?.trim()) {
+    const sameTypeItems = await db.select({ id: itemsTable.id, itemName: itemsTable.itemName, description: itemsTable.description })
+      .from(itemsTable).where(and(ilike(itemsTable.itemType, (d.itemType ?? "").trim()), eq(itemsTable.isDeleted, false), ne(itemsTable.id, id)));
+    for (const existing of sameTypeItems) {
+      if (existing.description && diceSimilarity(d.description.trim(), existing.description) >= 0.8) {
+        res.status(409).json({ error: `An item with a very similar description already exists: "${existing.itemName}". Please review before saving.` }); return;
+      }
+    }
+  }
+
   const locationStocks = d.locationStocks ?? [];
   const currentStock = locationStocks.length > 0 ? computeStock(locationStocks) : (d.currentStock ?? "0");
 

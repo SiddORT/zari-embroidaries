@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, and, desc } from "drizzle-orm";
+import { eq, ilike, or, and, desc, ne } from "drizzle-orm";
 import { mediaUploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 import { db, pool, swatchesTable } from "@workspace/db";
 import { insertSwatchSchema, updateSwatchSchema } from "@workspace/db";
@@ -131,6 +131,11 @@ router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<voi
   const parsed = insertSwatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
+  const dupSwatch = await db.select({ id: swatchesTable.id }).from(swatchesTable).where(
+    and(ilike(swatchesTable.swatchName, parsed.data.swatchName), eq(swatchesTable.isDeleted, false))
+  );
+  if (dupSwatch.length > 0) { res.status(409).json({ error: `A swatch named "${parsed.data.swatchName}" already exists.` }); return; }
+
   const createdBy = req.user?.email ?? "system";
   const prefix = "SW-";
   const [latest] = await db
@@ -157,6 +162,14 @@ router.put("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<
 
   const parsed = updateSwatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
+
+  if (parsed.data.swatchName) {
+    const dupSwatch = await db.select({ id: swatchesTable.id }).from(swatchesTable).where(
+      and(ilike(swatchesTable.swatchName, parsed.data.swatchName), eq(swatchesTable.isDeleted, false), ne(swatchesTable.id, id))
+    );
+    if (dupSwatch.length > 0) { res.status(409).json({ error: `A swatch named "${parsed.data.swatchName}" already exists.` }); return; }
+  }
+
   const updatedBy = req.user?.email ?? "system";
   const [record] = await db.update(swatchesTable).set({ ...parsed.data, updatedBy, updatedAt: new Date() })
     .where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false))).returning();
@@ -219,6 +232,11 @@ router.post("/swatches/import", requireAuth, async (req: AuthRequest, res): Prom
         results.push({ row: i + 2, status: "error", errors: parsed.error.issues.map(e => e.message) });
         failed++; continue;
       }
+
+      const dupSwatch = await db.select({ id: swatchesTable.id }).from(swatchesTable).where(
+        and(ilike(swatchesTable.swatchName, parsed.data.swatchName), eq(swatchesTable.isDeleted, false))
+      );
+      if (dupSwatch.length > 0) { results.push({ row: i + 2, status: "error", errors: [`A swatch named "${parsed.data.swatchName}" already exists.`] }); failed++; continue; }
 
       const [latest] = await db
         .select({ swatchCode: swatchesTable.swatchCode })

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, and, desc, count } from "drizzle-orm";
+import { eq, ilike, or, and, desc, count, ne } from "drizzle-orm";
 import { db, materialsTable } from "@workspace/db";
 import { insertMaterialSchema, updateMaterialSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -121,6 +121,11 @@ router.post("/materials/import", requireAuth, async (req: AuthRequest, res): Pro
     }
 
     try {
+      const dupMat = await db.select({ id: materialsTable.id }).from(materialsTable).where(
+        and(ilike(materialsTable.itemType, itemType), ilike(materialsTable.colorName, colorName), eq(materialsTable.size, size), eq(materialsTable.isDeleted, false))
+      );
+      if (dupMat.length > 0) { results.push({ row: rowNum, status: "error", errors: [`A material with Type "${itemType}", Color "${colorName}", and Size "${size}" already exists.`] }); continue; }
+
       const [{ total }] = await db.select({ total: count() }).from(materialsTable);
       const materialCode = `MAT${String(total + 1).padStart(4, "0")}`;
       const [record] = await db.insert(materialsTable).values({
@@ -203,6 +208,11 @@ router.post("/materials", requireAuth, async (req: AuthRequest, res): Promise<vo
     return;
   }
 
+  const dupMat = await db.select({ id: materialsTable.id }).from(materialsTable).where(
+    and(ilike(materialsTable.itemType, parsed.data.itemType ?? ""), ilike(materialsTable.colorName, parsed.data.colorName), eq(materialsTable.size, parsed.data.size), eq(materialsTable.isDeleted, false))
+  );
+  if (dupMat.length > 0) { res.status(409).json({ error: `A material with the same Type "${parsed.data.itemType}", Color "${parsed.data.colorName}", and Size "${parsed.data.size}" already exists.` }); return; }
+
   const createdBy = req.user?.email ?? "system";
   const [{ total }] = await db.select({ total: count() }).from(materialsTable);
   const materialCode = `MAT${String(total + 1).padStart(4, "0")}`;
@@ -246,6 +256,13 @@ router.put("/materials/:id", requireAuth, async (req: AuthRequest, res): Promise
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
     return;
+  }
+
+  if (parsed.data.itemType !== undefined && parsed.data.colorName && parsed.data.size) {
+    const dupMat = await db.select({ id: materialsTable.id }).from(materialsTable).where(
+      and(ilike(materialsTable.itemType, parsed.data.itemType ?? ""), ilike(materialsTable.colorName, parsed.data.colorName), eq(materialsTable.size, parsed.data.size), eq(materialsTable.isDeleted, false), ne(materialsTable.id, id))
+    );
+    if (dupMat.length > 0) { res.status(409).json({ error: `A material with the same Type "${parsed.data.itemType}", Color "${parsed.data.colorName}", and Size "${parsed.data.size}" already exists.` }); return; }
   }
 
   const updatedBy = req.user?.email ?? "system";

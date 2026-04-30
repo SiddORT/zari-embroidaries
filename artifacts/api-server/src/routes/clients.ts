@@ -106,6 +106,9 @@ router.put("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<v
       res.status(400).json({ error: "Client Name must contain only letters and spaces." }); return;
     }
     parsed.data.brandName = bn;
+    const conflict = await db.select({ id: clientsTable.id }).from(clientsTable)
+      .where(and(eq(clientsTable.brandName, bn), eq(clientsTable.isDeleted, false)));
+    if (conflict.length > 0 && conflict[0].id !== id) { res.status(409).json({ error: `A client named "${bn}" already exists.` }); return; }
   }
   if (parsed.data.contactName !== undefined) {
     const cn = parsed.data.contactName.trim();

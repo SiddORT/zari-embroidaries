@@ -141,6 +141,13 @@ router.put("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promis
   const parsed = updateItemTypeSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
+  if (parsed.data.name) {
+    const trimmedName = parsed.data.name.trim();
+    const conflict = await db.select({ id: itemTypesTable.id }).from(itemTypesTable)
+      .where(and(eq(itemTypesTable.name, trimmedName), eq(itemTypesTable.isDeleted, false)));
+    if (conflict.length > 0 && conflict[0].id !== id) { res.status(409).json({ error: "An item type with this name already exists." }); return; }
+  }
+
   const updatedBy = req.user?.email ?? "system";
   const updateData = parsed.data.name ? { ...parsed.data, name: parsed.data.name.trim() } : parsed.data;
   const [record] = await db.update(itemTypesTable).set({ ...updateData, updatedBy, updatedAt: new Date() })
