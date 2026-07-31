@@ -535,18 +535,19 @@ function buildResourceTree(allPermissions: PermissionDef[]): MenuSection[] {
   return result;
 }
 
-function IndeterminateCheckbox({ checked, indeterminate, onChange, className }: {
+function IndeterminateCheckbox({ checked, indeterminate, onChange, className, disabled = false }: {
   checked: boolean;
   indeterminate?: boolean;
   onChange: () => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = !checked && !!indeterminate;
   }, [checked, indeterminate]);
   return (
-    <input ref={ref} type="checkbox" checked={checked} onChange={onChange}
+    <input ref={ref} type="checkbox" checked={checked} onChange={onChange} disabled={disabled}
       className={`rounded border-gray-300 accent-gray-900 cursor-pointer ${className ?? ""}`} />
   );
 }
@@ -570,15 +571,34 @@ function SubgroupContent({
   const isChipMode  = visibleCols.length === 1 && visibleCols[0].key === "view";
   const sgSelected  = sgKeys.filter(k => selected.has(k)).length;
 
+  // Detect whether this subgroup contains tab permissions
+  const isTabSubgroup = resources.some(r => r.resource.includes(":tab:"));
+
+  let parentViewKey: string | undefined;
+
+  if (isTabSubgroup) {
+    const parentPrefix = resources[0].resource.replace(/:tab:.*/, "");
+
+    parentViewKey = allResources.find(
+      r => r.resource === parentPrefix
+    )?.actionKeys.view;
+  }
+
+  const parentEnabled = !isTabSubgroup || !parentViewKey || selected.has(parentViewKey);
+
   return (
     <div>
       {/* Subgroup header */}
       {sgName && (
         <div
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-50/80 border-y border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors group"
-          onClick={() => toggleSubgroup(resources)}
-        >
+          onClick={() => {
+            if (!parentEnabled) return;
+            toggleSubgroup(resources);
+          }}        
+          >
           <IndeterminateCheckbox
+            disabled={!parentEnabled}
             checked={sgAllOn} indeterminate={sgSomeOn && !sgAllOn}
             onChange={() => toggleSubgroup(resources)}
             className="h-3.5 w-3.5 shrink-0"
@@ -604,7 +624,11 @@ function SubgroupContent({
             const on = selected.has(permKey);
             return (
               <button key={rg.resource} type="button"
-                onClick={() => toggleResource(rg)}
+                disabled={!parentEnabled}
+                onClick={() => {
+                    if (!parentEnabled) return;
+                    toggleResource(rg);
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-all text-left ${
                   on
                     ? "bg-gray-900 text-[#C9B45C] border-gray-900 shadow-sm"
@@ -649,8 +673,10 @@ function SubgroupContent({
               return (
                 <tr key={rg.resource}
                   className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
-                  onClick={() => toggleResource(rg)}
-                >
+                  onClick={() => {
+                      if (!parentEnabled) return;
+                      toggleResource(rg);
+                  }}                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <IndeterminateCheckbox
@@ -670,6 +696,7 @@ function SubgroupContent({
                         onClick={e => { e.stopPropagation(); if (permKey) toggle(permKey); }}>
                         {permKey ? (
                           <input type="checkbox"
+                            disabled={!parentEnabled}
                             checked={selected.has(permKey)}
                             onChange={() => toggle(permKey)}
                             className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
@@ -736,12 +763,44 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   const displayTree   = lc ? filteredTree : (activeSection ? [activeSection] : []);
 
   function toggle(key: string) {
-    setSelected(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setSelected(s => {
+        const n = new Set(s);
+        if (n.has(key)) {
+            n.delete(key);
+            // If parent view is removed, remove all child tab permissions
+            if (key.endsWith(":view")) {
+                const prefix = key.replace(/:view$/, "");
+                Array.from(n)
+                    .filter(p => p.startsWith(`${prefix}:tab:`))
+                    .forEach(p => n.delete(p));
+            }
+        } else {
+            n.add(key);
+        }
+        return n;
+    });
   }
   function toggleResource(rg: ResourceGroup) {
     const keys = Object.values(rg.actionKeys).filter(Boolean) as string[];
     const allOn = keys.every(k => selected.has(k));
-    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
+
+    setSelected(s => {
+      const n = new Set(s);
+      if (allOn) {
+        // Remove all actions of this resource
+        keys.forEach(k => n.delete(k));
+
+        // Remove all child tab permissions
+        const prefix = `${rg.resource}:tab:`;
+
+        Array.from(n)
+          .filter(p => p.startsWith(prefix))
+          .forEach(p => n.delete(p));
+      } else {
+        keys.forEach(k => n.add(k));
+      }
+      return n;
+    });
   }
   function toggleAction(action: "view"|"add_edit"|"delete"|"download", resources: ResourceGroup[]) {
     const keys = resources.map(r => r.actionKeys[action]).filter(Boolean) as string[];
@@ -754,9 +813,32 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
     setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
   }
   function toggleSubgroup(resources: ResourceGroup[]) {
-    const keys = resources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+    const keys = resources
+      .flatMap(r => Object.values(r.actionKeys))
+      .filter(Boolean) as string[];
+
     const allOn = keys.every(k => selected.has(k));
-    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
+
+    setSelected(s => {
+      const n = new Set(s);
+
+      if (allOn) {
+        keys.forEach(k => n.delete(k));
+
+        // Remove tab permissions belonging to every resource in this subgroup
+        resources.forEach(r => {
+          const prefix = `${r.resource}:tab:`;
+
+          Array.from(n)
+            .filter(p => p.startsWith(prefix))
+            .forEach(p => n.delete(p));
+        });
+      } else {
+        keys.forEach(k => n.add(k));
+      }
+
+      return n;
+    });
   }
   function selectAll() { setSelected(new Set(allPermissions.map(p => p.key))); }
   function clearAll()  { setSelected(new Set()); }
