@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_UNIT_TYPES } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
@@ -95,9 +97,19 @@ export default function UnitTypeMaster() {
   const toggleStatus = useToggleUnitTypeStatus();
   const deleteMutation = useDeleteUnitTypeMaster();
   const importMutation = useImportUnitTypes();
+  const { can } = useMyPermissions();
+  const canView = can(MASTERS_UNIT_TYPES.VIEW);
+  const canAddEdit = can(MASTERS_UNIT_TYPES.ADD_EDIT);
+  const canDelete = can(MASTERS_UNIT_TYPES.DELETE);
+  const canExport = can(MASTERS_UNIT_TYPES.DOWNLOAD);
+  const canImport = canAddEdit;
 
-  function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
+  function openCreate() {
+    if (!canAddEdit) return;
+    setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true);
+  }
   function openEdit(r: UnitTypeRecord) {
+    if (!canAddEdit) return;
     setEditRecord(r); setForm({ name: r.name, isActive: r.isActive }); setErrors({}); setModalOpen(true);
   }
 
@@ -223,7 +235,13 @@ export default function UnitTypeMaster() {
   const columns: Column[] = [
     { key: "_srNo", label: "Sr No", className: "w-16 text-center" },
     { key: "name", label: "Unit Type Name", render: (r) => <span className="font-medium text-gray-900">{asRec(r).name}</span> },
-    { key: "isActive", label: "Status", render: (r) => <StatusToggle isActive={asRec(r).isActive} onToggle={() => setToggleTarget(asRec(r))} loading={toggleStatus.isPending && toggleTarget?.id === asRec(r).id} /> },
+    { key: "isActive", label: "Status", render: (r) => canAddEdit ? (
+      <StatusToggle isActive={asRec(r).isActive} onToggle={() => setToggleTarget(asRec(r))} loading={toggleStatus.isPending && toggleTarget?.id === asRec(r).id} />
+    ) : (
+      <span className={`text-xs font-medium ${asRec(r).isActive ? "text-emerald-600" : "text-gray-400"}`}>
+        {asRec(r).isActive ? "Active" : "Inactive"}
+      </span>
+    ) },
     { key: "createdBy", label: "Created By", render: () => <span className="text-gray-500">—</span> },
     { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDateTable(asRec(r).createdAt)}</span> },
     { key: "updatedBy", label: "Updated By", render: () => <span className="text-gray-500">—</span> },
@@ -233,8 +251,12 @@ export default function UnitTypeMaster() {
         const rec = asRec(r);
         return (
           <div className="flex gap-2">
-            <button onClick={() => openEdit(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit"><Pencil size={15} /></button>
-            <button onClick={() => setDeleteId(rec.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={15} /></button>
+            {canAddEdit && (
+              <button onClick={() => openEdit(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit"><Pencil size={15} /></button>
+            )}
+            {canDelete && (
+              <button onClick={() => setDeleteId(rec.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={15} /></button>
+            )}
           </div>
         );
       },
@@ -246,7 +268,7 @@ export default function UnitTypeMaster() {
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="max-w-screen-xl mx-auto space-y-5">
-        <MasterHeader title="Unit Type Master" onAdd={openCreate} addLabel="Add Unit Type" />
+        <MasterHeader title="Unit Type Master" onAdd={openCreate} addLabel="Add Unit Type" addPermission={MASTERS_UNIT_TYPES.ADD_EDIT} />
 
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
@@ -264,35 +286,39 @@ export default function UnitTypeMaster() {
             </button>
           )}
 
-          <button onClick={handleExportAll} disabled={exportLoading || isLoading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            <FileDown className="h-4 w-4" />
-            {exportLoading ? "Exporting…" : "Export to Excel"}
-          </button>
-
-          <div className="relative" ref={importMenuRef}>
-            <button onClick={() => setImportMenuOpen(v => !v)} disabled={importLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <FileInput className="h-4 w-4 text-[#C6AF4B]" />
-              {importLoading ? "Importing…" : "Import Data"}
-              <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
+          {canExport && (
+            <button onClick={handleExportAll} disabled={exportLoading || isLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <FileDown className="h-4 w-4" />
+              {exportLoading ? "Exporting…" : "Export to Excel"}
             </button>
-            {importMenuOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
-                <button onClick={downloadSample} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <div><p className="font-medium">Download Sample</p><p className="text-xs text-gray-400">Get the Excel template</p></div>
-                </button>
-                <div className="border-t border-gray-100" />
-                <button onClick={() => { setImportMenuOpen(false); importFileRef.current?.click(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                  <FileUp className="h-4 w-4 text-blue-600 shrink-0" />
-                  <div><p className="font-medium">Upload Excel File</p><p className="text-xs text-gray-400">Import records from file</p></div>
-                </button>
-              </div>
-            )}
-            <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
-          </div>
+          )}
+
+          {canImport && (
+            <div className="relative" ref={importMenuRef}>
+              <button onClick={() => setImportMenuOpen(v => !v)} disabled={importLoading}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <FileInput className="h-4 w-4 text-[#C6AF4B]" />
+                {importLoading ? "Importing…" : "Import Data"}
+                <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+              {importMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+                  <button onClick={downloadSample} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div><p className="font-medium">Download Sample</p><p className="text-xs text-gray-400">Get the Excel template</p></div>
+                  </button>
+                  <div className="border-t border-gray-100" />
+                  <button onClick={() => { setImportMenuOpen(false); importFileRef.current?.click(); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                    <FileUp className="h-4 w-4 text-blue-600 shrink-0" />
+                    <div><p className="font-medium">Upload Excel File</p><p className="text-xs text-gray-400">Import records from file</p></div>
+                  </button>
+                </div>
+              )}
+              <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+            </div>
+          )}
         </div>
 
         <MasterTable columns={columns} rows={rows} loading={isLoading}
