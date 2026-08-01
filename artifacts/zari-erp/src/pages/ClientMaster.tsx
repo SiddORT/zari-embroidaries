@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, Eye, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -515,6 +515,9 @@ export default function ClientMaster() {
         const rec = asClient(r);
         return (
           <div className="flex gap-2">
+            {can(MASTERS_CLIENTS.VIEW) && (
+              <button onClick={() => setLocation(`/masters/clients/${rec.id}`)} className="p-1 rounded hover:bg-gray-100 text-gray-600"><Eye size={15} /></button>
+            )}
             {can(MASTERS_CLIENTS.ADD_EDIT) && (
               <button onClick={() => setLocation(`/masters/clients/${rec.id}`)} className="p-1 rounded hover:bg-gray-100 text-gray-600"><Pencil size={15} /></button>
             )}
