@@ -17,6 +17,10 @@ import {
   type ClientFormData, type ClientAddress,
 } from "@/hooks/useClients";
 import { COUNTRY_NAMES } from "@/data/countries";
+import { useFormAccess } from "@/hooks/useFormAccess";
+import { MASTERS_CLIENTS } from "@/constants/permissions";
+import { FormAccessGate } from "@/components/FormAccessGate";
+
 
 const G = "#C6AF4B";
 
@@ -75,6 +79,8 @@ export default function ClientForm() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canEdit } = useFormAccess(MASTERS_CLIENTS.BASE); 
+
 
   const isNew = params.id === "new";
   const numId = isNew ? null : parseInt(params.id ?? "", 10);
@@ -282,397 +288,407 @@ export default function ClientForm() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
-      <TopNavbar username={(user as any)?.name ?? user.username ?? ""} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending} />
+    <FormAccessGate readOnly={!canEdit}>
+      <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
+        <TopNavbar username={(user as any)?.name ?? user.username ?? ""} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending} />
 
-      <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
+        <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
 
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setLocation("/masters/clients")}
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors">
-              <ArrowLeft className="h-4 w-4" />
-              Clients
-            </button>
-            <span className="text-gray-300">/</span>
-            <h1 className="text-lg font-bold text-gray-900">
-              {isNew ? "Add Client" : `Edit Client — ${existingClient?.clientCode ?? ""}`}
-            </h1>
-          </div>
-          <button onClick={() => void handleSave()} disabled={saving || !isFormValid()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-            style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving…" : isNew ? "Create Client" : "Save Changes"}
-          </button>
-        </div>
-
-        {/* Contact Info */}
-        <div className={`${card} p-5`}>
-          <p className={sectionLabel}>Contact Information</p>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Brand / Client Name<span className="text-red-500 ml-0.5">*</span></label>
-                <span className={`text-xs ${form.brandName.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.brandName.length}/100</span>
-              </div>
-              <input
-                value={form.brandName}
-                maxLength={100}
-                placeholder="Brand or client name"
-                onChange={e => {
-                  const val = e.target.value.replace(/  +/g, " ");
-                  if (val.length <= 100) {
-                    setForm(f => ({ ...f, brandName: val }));
-                    const t = val.trim();
-                    if (t && !NAME_REGEX.test(t)) {
-                      setErrors(prev => ({ ...prev, brandName: "Client Name must contain only letters and spaces (max 100 characters)." }));
-                    } else {
-                      setErrors(prev => ({ ...prev, brandName: undefined }));
-                    }
-                  }
-                }}
-                className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.brandName ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
-              />
-              {errors.brandName && <p className="text-xs text-red-500">{errors.brandName}</p>}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Contact Name<span className="text-red-500 ml-0.5">*</span></label>
-                <span className={`text-xs ${form.contactName.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.contactName.length}/100</span>
-              </div>
-              <input
-                value={form.contactName}
-                maxLength={100}
-                placeholder="Primary contact person"
-                onChange={e => {
-                  const val = e.target.value.replace(/  +/g, " ");
-                  if (val.length <= 100) {
-                    setForm(f => ({ ...f, contactName: val }));
-                    const t = val.trim();
-                    if (t && !NAME_REGEX.test(t)) {
-                      setErrors(prev => ({ ...prev, contactName: "Contact Name must contain only letters and spaces (max 100 characters)." }));
-                    } else {
-                      setErrors(prev => ({ ...prev, contactName: undefined }));
-                    }
-                  }
-                }}
-                className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.contactName ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
-              />
-              {errors.contactName && <p className="text-xs text-red-500">{errors.contactName}</p>}
-            </div>
-            <InputField label="Email Address" value={form.email}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              error={errors.email} required placeholder="email@example.com" type="email" />
-            <InputField label="Alternate Email" value={form.altEmail}
-              onChange={e => setForm(f => ({ ...f, altEmail: e.target.value }))}
-              error={errors.altEmail} placeholder="alt@example.com" type="email" />
-            <PhoneInput label="Contact No" value={form.contactNo}
-              onChange={v => {
-                setForm(f => ({ ...f, contactNo: v }));
-                const digits = getContactDigits(v);
-                if (digits && !CONTACT_DIGITS_REGEX.test(digits)) {
-                  setErrors(prev => ({ ...prev, contactNo: "Contact Number must be exactly 10 digits." }));
-                } else {
-                  setErrors(prev => ({ ...prev, contactNo: undefined }));
-                }
-              }}
-              error={errors.contactNo} required placeholder="Phone number" />
-            <PhoneInput label="Alternate Contact No" value={form.altContactNo}
-              onChange={v => setForm(f => ({ ...f, altContactNo: v }))} placeholder="Alternate phone" />
-            <div>
-              <label className="text-sm font-medium text-gray-700">Custom Client Code<span className="text-red-500 ml-0.5">*</span></label>
-              <span className={`text-xs ${form.customClientCode.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.customClientCode.length}/100</span>
-              <input
-                value={form.customClientCode}
-                maxLength={100}
-                placeholder="Custom Client Code"
-                onChange={e => {
-                  const val = e.target.value.replace(/  +/g, " ");
-                  if (val.length <= 100) {
-                    setForm(f => ({ ...f, customClientCode: val }));
-                    const t = val.trim();
-                  }
-                }}
-                disabled={existingClient?.hasOrders}
-                className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.customClientCode ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              <SearchableSelect label="Country" value={form.country}
-                onChange={handleCountryChange}
-                options={COUNTRY_NAMES} placeholder="Select country" required
-                error={errors.country} clearable />
-            </div>
-          </div>
-        </div>
-
-        {/* Currency Preference */}
-        <div className={`${card} p-5`}>
-          <div className="flex items-start gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-[#C6AF4B]/10">
-              <Globe className="h-4 w-4" style={{ color: G }} />
-            </div>
-            <div>
-              <p className={sectionLabel + " mb-0.5"}>Invoice Currency</p>
-              <p className="text-xs text-gray-400">
-                {form.country && form.country !== "India"
-                  ? `This client is from ${form.country}. Default is USD, but you can choose any currency below.`
-                  : form.country === "India"
-                    ? "This client is in India. Default is INR for domestic invoicing."
-                    : "Select the currency to use on invoices for this client."}
-              </p>
-            </div>
-          </div>
-
-          {activeCurrencies.length === 0 ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400 py-3">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading currencies from settings…
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {activeCurrencies.map(curr => {
-                const selected = form.invoiceCurrency === curr.code;
-                return (
-                  <button key={curr.code} type="button"
-                    onClick={() => setForm(f => ({ ...f, invoiceCurrency: curr.code }))}
-                    className={`relative flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
-                      selected
-                        ? "border-[#C6AF4B] bg-[#C6AF4B]/10 shadow-sm"
-                        : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
-                    }`}>
-                    {selected && (
-                      <CheckCircle2 className="absolute top-2 right-2 h-3.5 w-3.5 shrink-0" style={{ color: G }} />
-                    )}
-                    <div className="flex items-baseline gap-1.5 pr-5">
-                      <span className={`text-base font-bold leading-none ${selected ? "text-[#8a7a2e]" : "text-gray-500"}`}>
-                        {curr.symbol}
-                      </span>
-                      <span className={`text-sm font-bold ${selected ? "text-[#5a4e1e]" : "text-gray-700"}`}>
-                        {curr.code}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">{curr.name}</p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {selectedCurrency && (
-            <div className="mt-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 flex items-center gap-2">
-              {form.invoiceCurrency === "INR" ? (
-                <IndianRupee className="h-3.5 w-3.5 text-gray-400" />
-              ) : (
-                <DollarSign className="h-3.5 w-3.5 text-gray-400" />
-              )}
-              <p className="text-xs text-gray-500">
-                Invoices for <strong>{form.brandName || "this client"}</strong> will be issued in{" "}
-                <strong>{selectedCurrency.code} ({selectedCurrency.symbol})</strong> — {selectedCurrency.name}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Addresses */}
-        <div className={`${card} p-5`}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className={sectionLabel + " mb-0.5"}>Addresses</p>
-              <p className="text-xs text-gray-400">Add up to 5 addresses — billing, delivery, or other. A client can order for different firms.</p>
-            </div>
-            <button type="button" onClick={addAddress} disabled={form.addresses.length >= 5}
-              className="flex items-center gap-1.5 text-sm font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors"
-              style={{ background: G }}>
-              <Plus size={14} />
-              Add Address
-              <span className="text-xs opacity-70">({form.addresses.length}/5)</span>
-            </button>
-          </div>
-
-          {form.addresses.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-gray-200 rounded-xl gap-2">
-              <MapPin className="h-8 w-8 text-gray-300" />
-              <p className="text-sm text-gray-400">No addresses added yet</p>
-              <button type="button" onClick={addAddress}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg text-white mt-1"
-                style={{ background: G }}>
-                Add First Address
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setLocation("/masters/clients")}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                <ArrowLeft className="h-4 w-4" />
+                Clients
               </button>
+              <span className="text-gray-300">/</span>
+              {/* <h1 className="text-lg font-bold text-gray-900">
+                {isNew ? "Add Client" : `Edit Client — ${existingClient?.clientCode ?? ""}`}
+              </h1> */}
+              <h1 className="text-lg font-bold text-gray-900">
+                {!canEdit ? (
+                  `Client — ${existingClient?.clientCode ?? ""}`
+                ) : isNew ? (
+                  "Add Client"
+                ) : (
+                  `Edit Client — ${existingClient?.clientCode ?? ""}`
+                )}
+              </h1>
             </div>
-          )}
-
-          <div className="space-y-4">
-            {form.addresses.map((addr, i) => (
-              <div key={addr.id} className={`rounded-xl border p-4 relative ${addr.isBillingDefault ? "border-[#C6AF4B] bg-[#FAFAF5]" : "border-gray-200 bg-gray-50"}`}>
-                {/* Card header */}
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-bold text-gray-400">#{i + 1}</span>
-                  <select value={addr.type}
-                    onChange={e => {
-                      const type = e.target.value as ClientAddress["type"];
-                      updateAddress(addr.id, {
-                        type,
-                        isDeliveryDefault:
-                          type === "Delivery Address"
-                            ? addr.isDeliveryDefault
-                            : false,
-                      });
-                    }}
-                    className={`${inputCls} flex-1 max-w-[180px]`}>
-                    {ADDR_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-
-                  {addr.type === "Delivery Address" && (
-                    <button
-                      type="button"
-                      onClick={() => setDefaultDelivery(addr.id)}
-                      className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${
-                        addr.isDeliveryDefault
-                          ? "border-green-600 text-green-700 bg-green-50"
-                          : "border-gray-200 text-gray-400 hover:border-green-500 hover:text-green-600"
-                      }`}
-                    >
-                      <Star
-                        size={12}
-                        className={addr.isDeliveryDefault ? "fill-green-600" : ""}
-                      />
-                      {addr.isDeliveryDefault
-                        ? "Default Delivery"
-                        : "Set as Delivery Default"}
-                    </button>
-                  )}
-
-                  {addr.type !== "Delivery Address" && (
-                    <button type="button" onClick={() => setDefaultBilling(addr.id)}
-                      className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${addr.isBillingDefault
-                        ? "border-[#C6AF4B] text-[#8a7a2e] bg-[#C6AF4B]/10"
-                        : "border-gray-200 text-gray-400 hover:border-[#C6AF4B]/50 hover:text-[#a8922e]"}`}>
-                      <Star size={12} className={addr.isBillingDefault ? "fill-[#C6AF4B]" : ""} />
-                      {addr.isBillingDefault ? "Default Billing" : "Set as Billing Default"}
-                    </button>
-                  )}
-
-                  {addr.type !== "Delivery Address" && addr.isBillingDefault && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C6AF4B]/20 text-[#8a7a2e] uppercase tracking-wide">
-                      Billing Default
-                    </span>
-                  )}
-
-                  <button type="button" onClick={() => removeAddress(addr.id)}
-                    className="ml-auto text-gray-400 hover:text-red-500 transition-colors">
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* Contact row */}
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Name at this Address
-                      <span className="text-gray-400 font-normal ml-1">(who to contact / deliver to)</span>
-                    </label>
-                    <input value={addr.name}
-                      maxLength={100}
-                      onChange={e => updateAddress(addr.id, { name: e.target.value })}
-                      placeholder="e.g. John Smith or ABC Pvt Ltd" className={inputCls} />
-                  </div>
-                  <div>
-                    <PhoneInput label="Contact Number"
-                      value={addr.contactNo || "+91"}
-                      onChange={v => updateAddress(addr.id, { contactNo: v })}
-                      placeholder="Phone number" />
-                  </div>
-                </div>
-
-                {/* Address fields */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 1</label>
-                    <input value={addr.address1}
-                      maxLength={150}
-                      onChange={e => updateAddress(addr.id, { address1: e.target.value })}
-                      placeholder="Street / building name" className={inputCls} />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 2</label>
-                    <input value={addr.address2}
-                      maxLength={150}
-                      onChange={e => updateAddress(addr.id, { address2: e.target.value })}
-                      placeholder="Area / locality" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {pincodeLoading[addr.id] ? "Pincode (looking up…)" : "Pincode"}
-                    </label>
-                    <input value={addr.pincode}
-                      maxLength={10}
-                      inputMode="numeric"
-                      onChange={e => {
-                        const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                        updateAddress(addr.id, { pincode: val });
-                        void lookupPincodeForAddress(addr.id, val);
-                      }}
-                      placeholder="6-digit pincode" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Country</label>
-                    <select value={addr.country}
-                      onChange={e => updateAddress(addr.id, { country: e.target.value })}
-                      className={inputCls}>
-                      <option value="">Select country</option>
-                      {COUNTRY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
-                    <input value={addr.state}
-                      maxLength={100}
-                      onChange={e => updateAddress(addr.id, { state: e.target.value })}
-                      placeholder="State" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">City / District</label>
-                    <input value={addr.city}
-                      maxLength={100}
-                      onChange={e => updateAddress(addr.id, { city: e.target.value })}
-                      placeholder="City or district" className={inputCls} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Status + Save */}
-        <div className={`${card} p-5 flex items-center justify-between`}>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Status</label>
-            <button type="button" onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
-              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
-              role="switch" aria-checked={form.isActive}>
-              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-4" : "translate-x-0"}`} />
-            </button>
-            <span className={`text-sm font-medium ${form.isActive ? "text-emerald-600" : "text-gray-400"}`}>
-              {form.isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setLocation("/masters/clients")}
-              className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-              Cancel
-            </button>
-            <button type="button" onClick={() => void handleSave()} disabled={saving || !isFormValid()}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+            <button onClick={() => void handleSave()} disabled={saving || !isFormValid()}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
               style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Saving…" : isNew ? "Create Client" : "Save Changes"}
             </button>
           </div>
-        </div>
 
+          {/* Contact Info */}
+          <div className={`${card} p-5`}>
+            <p className={sectionLabel}>Contact Information</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">Brand / Client Name<span className="text-red-500 ml-0.5">*</span></label>
+                  <span className={`text-xs ${form.brandName.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.brandName.length}/100</span>
+                </div>
+                <input
+                  value={form.brandName}
+                  maxLength={100}
+                  placeholder="Brand or client name"
+                  onChange={e => {
+                    const val = e.target.value.replace(/  +/g, " ");
+                    if (val.length <= 100) {
+                      setForm(f => ({ ...f, brandName: val }));
+                      const t = val.trim();
+                      if (t && !NAME_REGEX.test(t)) {
+                        setErrors(prev => ({ ...prev, brandName: "Client Name must contain only letters and spaces (max 100 characters)." }));
+                      } else {
+                        setErrors(prev => ({ ...prev, brandName: undefined }));
+                      }
+                    }
+                  }}
+                  className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.brandName ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
+                />
+                {errors.brandName && <p className="text-xs text-red-500">{errors.brandName}</p>}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">Contact Name<span className="text-red-500 ml-0.5">*</span></label>
+                  <span className={`text-xs ${form.contactName.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.contactName.length}/100</span>
+                </div>
+                <input
+                  value={form.contactName}
+                  maxLength={100}
+                  placeholder="Primary contact person"
+                  onChange={e => {
+                    const val = e.target.value.replace(/  +/g, " ");
+                    if (val.length <= 100) {
+                      setForm(f => ({ ...f, contactName: val }));
+                      const t = val.trim();
+                      if (t && !NAME_REGEX.test(t)) {
+                        setErrors(prev => ({ ...prev, contactName: "Contact Name must contain only letters and spaces (max 100 characters)." }));
+                      } else {
+                        setErrors(prev => ({ ...prev, contactName: undefined }));
+                      }
+                    }
+                  }}
+                  className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.contactName ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
+                />
+                {errors.contactName && <p className="text-xs text-red-500">{errors.contactName}</p>}
+              </div>
+              <InputField label="Email Address" value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                error={errors.email} required placeholder="email@example.com" type="email" />
+              <InputField label="Alternate Email" value={form.altEmail}
+                onChange={e => setForm(f => ({ ...f, altEmail: e.target.value }))}
+                error={errors.altEmail} placeholder="alt@example.com" type="email" />
+              <PhoneInput label="Contact No" value={form.contactNo}
+                onChange={v => {
+                  setForm(f => ({ ...f, contactNo: v }));
+                  const digits = getContactDigits(v);
+                  if (digits && !CONTACT_DIGITS_REGEX.test(digits)) {
+                    setErrors(prev => ({ ...prev, contactNo: "Contact Number must be exactly 10 digits." }));
+                  } else {
+                    setErrors(prev => ({ ...prev, contactNo: undefined }));
+                  }
+                }}
+                error={errors.contactNo} required placeholder="Phone number" />
+              <PhoneInput label="Alternate Contact No" value={form.altContactNo}
+                onChange={v => setForm(f => ({ ...f, altContactNo: v }))} placeholder="Alternate phone" />
+              <div>
+                <label className="text-sm font-medium text-gray-700">Custom Client Code<span className="text-red-500 ml-0.5">*</span></label>
+                <span className={`text-xs ${form.customClientCode.length > 90 ? "text-orange-500" : "text-gray-400"}`}>{form.customClientCode.length}/100</span>
+                <input
+                  value={form.customClientCode}
+                  maxLength={100}
+                  placeholder="Custom Client Code"
+                  onChange={e => {
+                    const val = e.target.value.replace(/  +/g, " ");
+                    if (val.length <= 100) {
+                      setForm(f => ({ ...f, customClientCode: val }));
+                      const t = val.trim();
+                    }
+                  }}
+                  disabled={existingClient?.hasOrders}
+                  className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.customClientCode ? "border-red-400 focus:border-red-400 focus:ring-red-400/10" : "border-gray-300 hover:border-gray-400"}`}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <SearchableSelect label="Country" value={form.country}
+                  onChange={handleCountryChange}
+                  options={COUNTRY_NAMES} placeholder="Select country" required
+                  error={errors.country} clearable />
+              </div>
+            </div>
+          </div>
+
+          {/* Currency Preference */}
+          <div className={`${card} p-5`}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-[#C6AF4B]/10">
+                <Globe className="h-4 w-4" style={{ color: G }} />
+              </div>
+              <div>
+                <p className={sectionLabel + " mb-0.5"}>Invoice Currency</p>
+                <p className="text-xs text-gray-400">
+                  {form.country && form.country !== "India"
+                    ? `This client is from ${form.country}. Default is USD, but you can choose any currency below.`
+                    : form.country === "India"
+                      ? "This client is in India. Default is INR for domestic invoicing."
+                      : "Select the currency to use on invoices for this client."}
+                </p>
+              </div>
+            </div>
+
+            {activeCurrencies.length === 0 ? (
+              <div className="flex items-center gap-2 text-xs text-gray-400 py-3">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading currencies from settings…
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {activeCurrencies.map(curr => {
+                  const selected = form.invoiceCurrency === curr.code;
+                  return (
+                    <button key={curr.code} type="button"
+                      onClick={() => setForm(f => ({ ...f, invoiceCurrency: curr.code }))}
+                      className={`relative flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                        selected
+                          ? "border-[#C6AF4B] bg-[#C6AF4B]/10 shadow-sm"
+                          : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
+                      }`}>
+                      {selected && (
+                        <CheckCircle2 className="absolute top-2 right-2 h-3.5 w-3.5 shrink-0" style={{ color: G }} />
+                      )}
+                      <div className="flex items-baseline gap-1.5 pr-5">
+                        <span className={`text-base font-bold leading-none ${selected ? "text-[#8a7a2e]" : "text-gray-500"}`}>
+                          {curr.symbol}
+                        </span>
+                        <span className={`text-sm font-bold ${selected ? "text-[#5a4e1e]" : "text-gray-700"}`}>
+                          {curr.code}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 leading-tight">{curr.name}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedCurrency && (
+              <div className="mt-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 flex items-center gap-2">
+                {form.invoiceCurrency === "INR" ? (
+                  <IndianRupee className="h-3.5 w-3.5 text-gray-400" />
+                ) : (
+                  <DollarSign className="h-3.5 w-3.5 text-gray-400" />
+                )}
+                <p className="text-xs text-gray-500">
+                  Invoices for <strong>{form.brandName || "this client"}</strong> will be issued in{" "}
+                  <strong>{selectedCurrency.code} ({selectedCurrency.symbol})</strong> — {selectedCurrency.name}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Addresses */}
+          <div className={`${card} p-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className={sectionLabel + " mb-0.5"}>Addresses</p>
+                <p className="text-xs text-gray-400">Add up to 5 addresses — billing, delivery, or other. A client can order for different firms.</p>
+              </div>
+              <button type="button" onClick={addAddress} disabled={form.addresses.length >= 5}
+                className="flex items-center gap-1.5 text-sm font-medium text-white px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors"
+                style={{ background: G }}>
+                <Plus size={14} />
+                Add Address
+                <span className="text-xs opacity-70">({form.addresses.length}/5)</span>
+              </button>
+            </div>
+
+            {form.addresses.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-gray-200 rounded-xl gap-2">
+                <MapPin className="h-8 w-8 text-gray-300" />
+                <p className="text-sm text-gray-400">No addresses added yet</p>
+                <button type="button" onClick={addAddress}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg text-white mt-1"
+                  style={{ background: G }}>
+                  Add First Address
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {form.addresses.map((addr, i) => (
+                <div key={addr.id} className={`rounded-xl border p-4 relative ${addr.isBillingDefault ? "border-[#C6AF4B] bg-[#FAFAF5]" : "border-gray-200 bg-gray-50"}`}>
+                  {/* Card header */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-xs font-bold text-gray-400">#{i + 1}</span>
+                    <select value={addr.type}
+                      onChange={e => {
+                        const type = e.target.value as ClientAddress["type"];
+                        updateAddress(addr.id, {
+                          type,
+                          isDeliveryDefault:
+                            type === "Delivery Address"
+                              ? addr.isDeliveryDefault
+                              : false,
+                        });
+                      }}
+                      className={`${inputCls} flex-1 max-w-[180px]`}>
+                      {ADDR_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+
+                    {addr.type === "Delivery Address" && (
+                      <button
+                        type="button"
+                        onClick={() => setDefaultDelivery(addr.id)}
+                        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${
+                          addr.isDeliveryDefault
+                            ? "border-green-600 text-green-700 bg-green-50"
+                            : "border-gray-200 text-gray-400 hover:border-green-500 hover:text-green-600"
+                        }`}
+                      >
+                        <Star
+                          size={12}
+                          className={addr.isDeliveryDefault ? "fill-green-600" : ""}
+                        />
+                        {addr.isDeliveryDefault
+                          ? "Default Delivery"
+                          : "Set as Delivery Default"}
+                      </button>
+                    )}
+
+                    {addr.type !== "Delivery Address" && (
+                      <button type="button" onClick={() => setDefaultBilling(addr.id)}
+                        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${addr.isBillingDefault
+                          ? "border-[#C6AF4B] text-[#8a7a2e] bg-[#C6AF4B]/10"
+                          : "border-gray-200 text-gray-400 hover:border-[#C6AF4B]/50 hover:text-[#a8922e]"}`}>
+                        <Star size={12} className={addr.isBillingDefault ? "fill-[#C6AF4B]" : ""} />
+                        {addr.isBillingDefault ? "Default Billing" : "Set as Billing Default"}
+                      </button>
+                    )}
+
+                    {addr.type !== "Delivery Address" && addr.isBillingDefault && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C6AF4B]/20 text-[#8a7a2e] uppercase tracking-wide">
+                        Billing Default
+                      </span>
+                    )}
+
+                    <button type="button" onClick={() => removeAddress(addr.id)}
+                      className="ml-auto text-gray-400 hover:text-red-500 transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Contact row */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Name at this Address
+                        <span className="text-gray-400 font-normal ml-1">(who to contact / deliver to)</span>
+                      </label>
+                      <input value={addr.name}
+                        maxLength={100}
+                        onChange={e => updateAddress(addr.id, { name: e.target.value })}
+                        placeholder="e.g. John Smith or ABC Pvt Ltd" className={inputCls} />
+                    </div>
+                    <div>
+                      <PhoneInput label="Contact Number"
+                        value={addr.contactNo || "+91"}
+                        onChange={v => updateAddress(addr.id, { contactNo: v })}
+                        placeholder="Phone number" />
+                    </div>
+                  </div>
+
+                  {/* Address fields */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 1</label>
+                      <input value={addr.address1}
+                        maxLength={150}
+                        onChange={e => updateAddress(addr.id, { address1: e.target.value })}
+                        placeholder="Street / building name" className={inputCls} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 2</label>
+                      <input value={addr.address2}
+                        maxLength={150}
+                        onChange={e => updateAddress(addr.id, { address2: e.target.value })}
+                        placeholder="Area / locality" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {pincodeLoading[addr.id] ? "Pincode (looking up…)" : "Pincode"}
+                      </label>
+                      <input value={addr.pincode}
+                        maxLength={10}
+                        inputMode="numeric"
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                          updateAddress(addr.id, { pincode: val });
+                          void lookupPincodeForAddress(addr.id, val);
+                        }}
+                        placeholder="6-digit pincode" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Country</label>
+                      <select value={addr.country}
+                        onChange={e => updateAddress(addr.id, { country: e.target.value })}
+                        className={inputCls}>
+                        <option value="">Select country</option>
+                        {COUNTRY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                      <input value={addr.state}
+                        maxLength={100}
+                        onChange={e => updateAddress(addr.id, { state: e.target.value })}
+                        placeholder="State" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">City / District</label>
+                      <input value={addr.city}
+                        maxLength={100}
+                        onChange={e => updateAddress(addr.id, { city: e.target.value })}
+                        placeholder="City or district" className={inputCls} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Status + Save */}
+          <div className={`${card} p-5 flex items-center justify-between`}>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700">Status</label>
+              <button type="button" onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
+                role="switch" aria-checked={form.isActive}>
+                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-4" : "translate-x-0"}`} />
+              </button>
+              <span className={`text-sm font-medium ${form.isActive ? "text-emerald-600" : "text-gray-400"}`}>
+                {form.isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setLocation("/masters/clients")}
+                className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={() => void handleSave()} disabled={saving || !isFormValid()}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {saving ? "Saving…" : isNew ? "Create Client" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </FormAccessGate>
   );
 }
