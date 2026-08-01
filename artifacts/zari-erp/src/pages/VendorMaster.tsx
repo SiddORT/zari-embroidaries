@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Eye, Pencil, Trash2, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -96,6 +96,13 @@ export default function VendorMaster() {
   const deleteMutation = useDeleteVendor();
   const importMutation = useImportVendors();
   const { can } = useMyPermissions();
+
+  const canView = can(MASTERS_VENDORS.VIEW);
+  const canManage = can(MASTERS_VENDORS.ADD_EDIT);
+  const canDelete = can(MASTERS_VENDORS.DELETE);
+  const canExport = can(MASTERS_VENDORS.DOWNLOAD);
+  const canImport = canManage;
+  const showActions = canView || canManage || canDelete;
 
   async function handleToggleConfirm() {
     if (!toggleTarget) return;
@@ -455,7 +462,7 @@ export default function VendorMaster() {
     },
     {
       key: "isActive", label: "Status", render: (r) =>
-        can(MASTERS_VENDORS.ADD_EDIT) ? (
+        canManage ? (
           <StatusToggle isActive={asVendor(r).isActive} onToggle={() => setToggleTarget(asVendor(r))}
             loading={toggleStatus.isPending && toggleTarget?.id === asVendor(r).id} />
         ) : (
@@ -473,10 +480,13 @@ export default function VendorMaster() {
         const rec = asVendor(r);
         return (
           <div className="flex gap-2">
-            {can(MASTERS_VENDORS.ADD_EDIT) && (
+            {(canView) && (
+              <button onClick={() => setLocation(`/masters/vendors/${rec.id}`)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="View"><Eye size={15} /></button>
+            )}
+            {canManage && (
               <button onClick={() => setLocation(`/masters/vendors/${rec.id}`)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit"><Pencil size={15} /></button>
             )}
-            {can(MASTERS_VENDORS.DELETE) && (
+            {canDelete && (
               <button onClick={() => setDeleteId(rec.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={15} /></button>
             )}
           </div>
@@ -486,12 +496,6 @@ export default function VendorMaster() {
   ];
 
   if (!user) return null;
-  // permission checks
-  const canAdd = can(MASTERS_VENDORS.ADD_EDIT);
-  const canExport = can(MASTERS_VENDORS.DOWNLOAD);
-  const canImport = canAdd;
-  const canDelete = can(MASTERS_VENDORS.DELETE);
-  const showActions = canAdd || canDelete;
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
