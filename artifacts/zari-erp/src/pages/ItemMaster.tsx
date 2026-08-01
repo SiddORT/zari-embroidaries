@@ -14,6 +14,8 @@ import * as XLSX from "xlsx";
 
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_ITEMS } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import StatusToggle from "@/components/master/StatusToggle";
@@ -159,9 +161,17 @@ export default function ItemMaster() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  const { can } = useMyPermissions();
+  const canView = can(MASTERS_ITEMS.VIEW);
+  const canAddEdit = can(MASTERS_ITEMS.ADD_EDIT);
+  const canDelete = can(MASTERS_ITEMS.DELETE);
+  const canExport = can(MASTERS_ITEMS.DOWNLOAD);
+  const canImport = canAddEdit;
+
   /* ─── Form open/close ────────────────────────────────────── */
-  const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setViewMode("form"); };
+  const openAdd = () => { if (!canAddEdit) return; setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setViewMode("form"); };
   const openEdit = (r: ItemRecord) => {
+    if (!canAddEdit && !canView) return;
     setEditRecord(r);
     setForm({
       itemName: r.itemName,
@@ -407,7 +417,7 @@ export default function ItemMaster() {
     { key: "currentStock", label: "Stock", render: (r) => <span className="font-medium text-gray-800">{asItem(r).currentStock}</span> },
     {
       key: "isActive", label: "Status",
-      render: (r) => <StatusToggle isActive={asItem(r).isActive} onToggle={() => setConfirmToggleTarget(asItem(r))} loading={toggleMutation.isPending} />,
+      render: (r) => <StatusToggle isActive={asItem(r).isActive} onToggle={() => canAddEdit && setConfirmToggleTarget(asItem(r))} loading={toggleMutation.isPending} />,
     },
     { key: "createdBy", label: "Created By", render: (r) => <span className="text-gray-600">{asItem(r).createdBy}</span> },
     { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 text-xs whitespace-nowrap">{formatDate(asItem(r).createdAt)}</span> },
@@ -419,17 +429,23 @@ export default function ItemMaster() {
         const rec = asItem(r);
         return (
           <div className="flex gap-2">
-            <button onClick={() => openEdit(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button onClick={() => setDeleteTarget(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete">
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {canAddEdit && (
+              <button onClick={() => openEdit(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={() => setDeleteTarget(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         );
       },
     },
   ];
+
+  const filteredColumns = (canAddEdit || canDelete) ? columns : columns.filter((c) => c.key !== "actions");
 
   const tableRows: TableRow[] = rows.map((r: ItemRecord, i: number) => ({ ...(r as unknown as TableRow), _srNo: (page - 1) * limit + i + 1 }));
 
