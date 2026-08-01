@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, Loader2, FileDown, FileUp, FileSpreadsheet, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, Eye, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, Loader2, FileDown, FileUp, FileSpreadsheet, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import { fileSrc } from "@/utils/mediaUrl";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,8 @@ import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_MATERIALS } from "@/constants/permissions";
 
 const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
 const NUMERIC_REGEX = /^[0-9]+(\.[0-9]{1,2})?$/;
@@ -141,6 +143,7 @@ export default function MaterialsMaster() {
   const toggleMutation = useToggleMaterialStatus();
   const deleteMutation = useDeleteMaterial();
   const importMutation = useImportMaterials();
+  const { can } = useMyPermissions();
 
   const { data: allMaterialRecords = [] } = useAllMaterials();
   const { data: unitTypes = [] } = useUnitTypes();
@@ -178,6 +181,13 @@ export default function MaterialsMaster() {
   const [vendorPickerSearch, setVendorPickerSearch] = useState("");
   const vendorPickerRef = useRef<HTMLDivElement>(null);
 
+  const canView = can(MASTERS_MATERIALS.VIEW);
+  const canManage = can(MASTERS_MATERIALS.ADD_EDIT);
+  const canDelete = can(MASTERS_MATERIALS.DELETE);
+  const canExport = can(MASTERS_MATERIALS.DOWNLOAD);
+  const canImport = canManage;
+  const showActions = canView || canManage || canDelete;
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) setImportMenuOpen(false);
@@ -188,6 +198,7 @@ export default function MaterialsMaster() {
   }, []);
 
   const openAdd = () => {
+    if (!canManage) return;
     setEditRecord(null);
     setForm(EMPTY_FORM);
     setErrors({});
@@ -197,6 +208,7 @@ export default function MaterialsMaster() {
   };
 
   const openEdit = (r: MaterialRecord) => {
+    if (!canManage && !canView) return;
     setEditRecord(r);
     setForm({
       materialName: r.materialName ?? "",
@@ -553,12 +565,21 @@ export default function MaterialsMaster() {
       key: "actions", label: "Actions",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => openEdit(asMat(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button onClick={() => setDeleteTarget(asMat(r))} disabled={deleteMutation.isPending} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50" title="Delete">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {(canView || canManage) && (
+            <button onClick={() => openEdit(asMat(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="View">
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {canManage && (
+            <button onClick={() => openEdit(asMat(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={() => setDeleteTarget(asMat(r))} disabled={deleteMutation.isPending} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50" title="Delete">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -570,53 +591,55 @@ export default function MaterialsMaster() {
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       {viewMode === "list" && (
         <div className="max-w-screen-xl mx-auto space-y-5">
-          <MasterHeader title="Materials Master" onAdd={openAdd} addLabel="Add Material" />
+          <MasterHeader title="Materials Master" onAdd={openAdd} addLabel="Add Material" addPermission={MASTERS_MATERIALS.ADD_EDIT} />
 
           <div className="space-y-3">
             <div className="flex gap-3">
               <div className="flex-1">
                 <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN, vendor..." />
               </div>
-              {/* Export All */}
-              <button
-                onClick={handleExportAll}
-                disabled={exportLoading || isLoading}
-                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
-                title="Export all matching records to Excel"
-              >
-                <FileDown className="h-4 w-4 text-[#C9B45C]" />
-                {exportLoading ? "Exporting…" : "Export"}
-              </button>
-              {/* Import dropdown */}
-              <div className="relative" ref={importMenuRef}>
+              {canExport && (
                 <button
-                  onClick={() => setImportMenuOpen((v) => !v)}
-                  disabled={importLoading}
+                  onClick={handleExportAll}
+                  disabled={exportLoading || isLoading}
                   className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                  title="Export all matching records to Excel"
                 >
-                  <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
-                  {importLoading ? "Importing…" : "Import"}
+                  <FileDown className="h-4 w-4 text-[#C9B45C]" />
+                  {exportLoading ? "Exporting…" : "Export"}
                 </button>
-                {importMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
-                    <button
-                      onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileDown className="h-4 w-4 text-gray-400" />
-                      Download Sample
-                    </button>
-                    <button
-                      onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileUp className="h-4 w-4 text-gray-400" />
-                      Upload Excel
-                    </button>
-                  </div>
-                )}
-                <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
-              </div>
+              )}
+              {canImport && (
+                <div className="relative" ref={importMenuRef}>
+                  <button
+                    onClick={() => setImportMenuOpen((v) => !v)}
+                    disabled={importLoading}
+                    className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
+                    {importLoading ? "Importing…" : "Import"}
+                  </button>
+                  {importMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                      <button
+                        onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <FileDown className="h-4 w-4 text-gray-400" />
+                        Download Sample
+                      </button>
+                      <button
+                        onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <FileUp className="h-4 w-4 text-gray-400" />
+                        Upload Excel
+                      </button>
+                    </div>
+                  )}
+                  <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2 items-center">
@@ -649,6 +672,7 @@ export default function MaterialsMaster() {
             loading={isLoading}
             rowKey={(r) => asMat(r).id}
             emptyText="No materials found. Click 'Add Material' to create one."
+            showActions={showActions}
             pagination={{ page, limit, total, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }}
           />
         </div>
