@@ -536,7 +536,8 @@ export default function ClientMaster() {
   const canExport = canCheck(MASTERS_CLIENTS.DOWNLOAD);
   const canImport = canAdd;
   const canDelete = canCheck(MASTERS_CLIENTS.DELETE);
-  const showActions = canAdd || canDelete;
+  const canView = canCheck(MASTERS_CLIENTS.VIEW);
+  const showActions = canAdd || canDelete || canView;
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
