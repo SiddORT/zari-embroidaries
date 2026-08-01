@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, Loader2, FileDown, FileUp, FileSpreadsheet, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, Loader2, FileDown, FileUp, FileSpreadsheet, Star, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { fileSrc } from "@/utils/mediaUrl";
 import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_FABRIC } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
@@ -152,6 +154,13 @@ export default function FabricMaster() {
   const deleteMutation = useDeleteFabric();
   const importMutation = useImportFabrics();
 
+  const { can } = useMyPermissions();
+  const canView = can(MASTERS_FABRIC.VIEW);
+  const canAddEdit = can(MASTERS_FABRIC.ADD_EDIT);
+  const canDelete = can(MASTERS_FABRIC.DELETE);
+  const canExport = can(MASTERS_FABRIC.DOWNLOAD);
+  const canImport = canAddEdit;
+
   const { data: fabricTypeLookups = [] } = useFabricTypes();
   const { data: allFabricRecords = [] } = useAllFabrics();
   const distinctFabricTypeFilters = [...new Set(allFabricRecords.map((f) => f.fabricType).filter(Boolean))].sort();
@@ -209,8 +218,15 @@ export default function FabricMaster() {
   const [hsnForm, setHsnForm] = useState<HsnFormData>(EMPTY_HSN_FORM);
   const [hsnErrors, setHsnErrors] = useState<HsnErrors>({});
 
-  const openAdd = () => { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setViewMode("form"); };
+  const openAdd = () => {
+    if (!canAddEdit) return;
+    setEditRecord(null);
+    setForm(EMPTY_FORM);
+    setErrors({});
+    setViewMode("form");
+  };
   const openEdit = (r: FabricRecord) => {
+    if (!canAddEdit && !canView) return;
     setEditRecord(r);
     const existingStocks = r.locationStocks?.length
       ? r.locationStocks
@@ -532,7 +548,7 @@ export default function FabricMaster() {
     { key: "currentStock", label: "Current Stock", render: (r) => <span className="font-medium">{asFab(r).currentStock}</span> },
     {
       key: "isActive", label: "Status",
-      render: (r) => <StatusToggle isActive={asFab(r).isActive} onToggle={() => setConfirmToggleTarget(asFab(r))} loading={toggleMutation.isPending && confirmToggleTarget?.id === asFab(r).id} />,
+      render: (r) => <StatusToggle isActive={asFab(r).isActive} onToggle={() => canAddEdit && setConfirmToggleTarget(asFab(r))} loading={toggleMutation.isPending && confirmToggleTarget?.id === asFab(r).id} />,
     },
     { key: "createdBy", label: "Created By", render: (r) => <span className="text-gray-500">{asFab(r).createdBy}</span> },
     { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDate(asFab(r).createdAt)}</span> },
@@ -542,17 +558,28 @@ export default function FabricMaster() {
       key: "actions", label: "Actions",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => openEdit(asFab(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button onClick={() => setDeleteTarget(asFab(r))} disabled={deleteMutation.isPending} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50" title="Delete">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {(canView) && (
+            <button onClick={() => openEdit(asFab(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="View">
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {canAddEdit && (
+            <button onClick={() => openEdit(asFab(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={() => setDeleteTarget(asFab(r))} disabled={deleteMutation.isPending} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50" title="Delete">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
   ];
 
+  const showActions = canView || canAddEdit || canDelete;
+  const filteredColumns = showActions ? columns : columns.filter((c) => c.key !== "actions");
 
   const submitting = createMutation.isPending || updateMutation.isPending;
   if (!user) return null;
@@ -570,7 +597,7 @@ export default function FabricMaster() {
       {/* ══════════════ LIST VIEW ══════════════ */}
       {viewMode === "list" && (
         <div className="max-w-screen-xl mx-auto space-y-5">
-          <MasterHeader title="Fabric Master" onAdd={openAdd} addLabel="Add Fabric" />
+          <MasterHeader title="Fabric Master" onAdd={openAdd} addLabel="Add Fabric" addPermission={MASTERS_FABRIC.ADD_EDIT} />
 
           <div className="space-y-3">
             <div className="flex gap-3">
@@ -578,45 +605,49 @@ export default function FabricMaster() {
                 <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN..." />
               </div>
               {/* Export All */}
-              <button
-                onClick={handleExportAll}
-                disabled={exportLoading || isLoading}
-                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
-                title="Export all matching records to Excel"
-              >
-                <FileDown className="h-4 w-4 text-[#C9B45C]" />
-                {exportLoading ? "Exporting…" : "Export"}
-              </button>
-              {/* Import dropdown */}
-              <div className="relative" ref={importMenuRef}>
+              {canExport && (
                 <button
-                  onClick={() => setImportMenuOpen((v) => !v)}
-                  disabled={importLoading}
+                  onClick={handleExportAll}
+                  disabled={exportLoading || isLoading}
                   className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                  title="Export all matching records to Excel"
                 >
-                  <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
-                  {importLoading ? "Importing…" : "Import"}
+                  <FileDown className="h-4 w-4 text-[#C9B45C]" />
+                  {exportLoading ? "Exporting…" : "Export"}
                 </button>
-                {importMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
-                    <button
-                      onClick={() => { downloadSample(); setImportMenuOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileDown className="h-4 w-4 text-gray-400" />
-                      Download Sample
-                    </button>
-                    <button
-                      onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileUp className="h-4 w-4 text-gray-400" />
-                      Upload Excel
-                    </button>
-                  </div>
-                )}
-                <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
-              </div>
+              )}
+              {/* Import dropdown */}
+              {canImport && (
+                <div className="relative" ref={importMenuRef}>
+                  <button
+                    onClick={() => setImportMenuOpen((v) => !v)}
+                    disabled={importLoading}
+                    className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
+                    {importLoading ? "Importing…" : "Import"}
+                  </button>
+                  {importMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                      <button
+                        onClick={() => { downloadSample(); setImportMenuOpen(false); }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <FileDown className="h-4 w-4 text-gray-400" />
+                        Download Sample
+                      </button>
+                      <button
+                        onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <FileUp className="h-4 w-4 text-gray-400" />
+                        Upload Excel
+                      </button>
+                    </div>
+                  )}
+                  <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2 items-center">
               <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
@@ -648,7 +679,7 @@ export default function FabricMaster() {
           </div>
 
           <MasterTable
-            columns={columns}
+            columns={filteredColumns}
             rows={rows as unknown as TableRow[]}
             loading={isLoading}
             rowKey={(r) => asFab(r).id}
