@@ -412,36 +412,36 @@ export default function ShippingVendors() {
         <span className="text-gray-500 whitespace-nowrap">{formatDate(asV(r).updated_at)}</span>
       ),
     },
-    ...(canAddEdit || canDelete
-      ? [{
-          key: "actions",
-          label: "Actions",
-          render: (r) => (
-            <div className="flex items-center gap-2">
-              {canAddEdit && (
-                <button
-                  onClick={() => openEdit(asV(r))}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                  title="Edit"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  onClick={() => setDeleteTarget(asV(r))}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                  title="Delete"
-                  disabled={deleting}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ),
-        }] as Column[]
-      : []),
+    {
+      key: "actions",
+      label: "Actions",
+      render: (r) => (
+        <div className="flex items-center gap-2">
+          {canAddEdit && (
+            <button
+              onClick={() => openEdit(asV(r))}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title="Edit"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => setDeleteTarget(asV(r))}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              title="Delete"
+              disabled={deleting}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ),
+    },
   ];
+
+  const filteredColumns = (canAddEdit || canDelete) ? columns : columns.filter((c) => c.key !== "actions");
 
   const inp = "w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10";
 
@@ -463,7 +463,7 @@ export default function ShippingVendors() {
         />
 
         <MasterTable
-          columns={columns}
+          columns={filteredColumns}
           rows={vendors as unknown as TableRow[]}
           loading={loading}
           emptyText="No shipping vendors found."
