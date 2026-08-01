@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_SHIPPING_VENDORS } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
@@ -189,7 +191,9 @@ export default function ShippingVendors() {
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
-  const isAdmin = user?.role === "admin";
+  const { can } = useMyPermissions();
+  const canAddEdit = can(MASTERS_SHIPPING_VENDORS.ADD_EDIT);
+  const canDelete = can(MASTERS_SHIPPING_VENDORS.DELETE);
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [total, setTotal] = useState(0);
@@ -234,9 +238,11 @@ export default function ShippingVendors() {
   useEffect(() => { load(); }, [load]);
 
   function openCreate() {
+    if (!canAddEdit) return;
     setEditing(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true);
   }
   function openEdit(v: Vendor) {
+    if (!canAddEdit) return;
     const { dial, num } = splitPhone(v.phone_number);
     setEditing(v);
     setForm({
@@ -370,12 +376,16 @@ export default function ShippingVendors() {
     {
       key: "is_active",
       label: "Status",
-      render: (r) => (
+      render: (r) => canAddEdit ? (
         <StatusToggle
           isActive={asV(r).is_active}
           onToggle={() => handleToggle(asV(r))}
           loading={toggling}
         />
+      ) : (
+        <span className={`text-xs font-medium ${asV(r).is_active ? "text-emerald-600" : "text-gray-400"}`}>
+          {asV(r).is_active ? "Active" : "Inactive"}
+        </span>
       ),
     },
     {
@@ -402,31 +412,35 @@ export default function ShippingVendors() {
         <span className="text-gray-500 whitespace-nowrap">{formatDate(asV(r).updated_at)}</span>
       ),
     },
-    {
-      key: "actions",
-      label: "Actions",
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => openEdit(asV(r))}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            title="Edit"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => setDeleteTarget(asV(r))}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-              title="Delete"
-              disabled={deleting}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
+    ...(canAddEdit || canDelete
+      ? [{
+          key: "actions",
+          label: "Actions",
+          render: (r) => (
+            <div className="flex items-center gap-2">
+              {canAddEdit && (
+                <button
+                  onClick={() => openEdit(asV(r))}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                  title="Edit"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => setDeleteTarget(asV(r))}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="Delete"
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ),
+        }] as Column[]
+      : []),
   ];
 
   const inp = "w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10";
@@ -440,7 +454,7 @@ export default function ShippingVendors() {
     >
       <div className="max-w-screen-xl mx-auto space-y-5">
 
-        <MasterHeader title="Shipping Vendors" addLabel="Add Vendor" onAdd={openCreate} />
+        <MasterHeader title="Shipping Vendors" addLabel="Add Vendor" onAdd={openCreate} addPermission={MASTERS_SHIPPING_VENDORS.ADD_EDIT} />
 
         <SearchBar
           value={search}
