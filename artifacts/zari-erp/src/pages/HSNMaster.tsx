@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_HSN } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
@@ -121,6 +123,13 @@ export default function HSNMaster() {
   const toggleMutation = useToggleHSNStatus();
   const deleteMutation = useDeleteHSN();
   const importMutation = useImportHSN();
+
+  const { can } = useMyPermissions();
+  const canView = can(MASTERS_HSN.VIEW);
+  const canAddEdit = can(MASTERS_HSN.ADD_EDIT);
+  const canDelete = can(MASTERS_HSN.DELETE);
+  const canExport = can(MASTERS_HSN.DOWNLOAD);
+  const canImport = canAddEdit;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<HsnRecord | null>(null);
@@ -391,7 +400,7 @@ export default function HSNMaster() {
       render: (r) => (
         <StatusToggle
           isActive={asHsn(r).isActive}
-          onToggle={() => setToggleTarget(asHsn(r))}
+          onToggle={() => canAddEdit && setToggleTarget(asHsn(r))}
           loading={toggleMutation.isPending && toggleTarget?.id === asHsn(r).id}
         />
       ),
@@ -425,25 +434,31 @@ export default function HSNMaster() {
       label: "Actions",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => openEdit(asHsn(r))}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            title="Edit"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setDeleteTarget(asHsn(r))}
-            disabled={deleteMutation.isPending}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canAddEdit && (
+            <button
+              onClick={() => openEdit(asHsn(r))}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title="Edit"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => setDeleteTarget(asHsn(r))}
+              disabled={deleteMutation.isPending}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
   ];
+
+  const filteredColumns = (canAddEdit || canDelete) ? columns : columns.filter((c) => c.key !== "actions");
 
   const submitting = createMutation.isPending || updateMutation.isPending;
   const formValid = isFormValid();
@@ -459,7 +474,7 @@ export default function HSNMaster() {
     >
       <div className="max-w-screen-xl mx-auto space-y-5">
         {/* Page header */}
-        <MasterHeader title="HSN Master" onAdd={openAdd} addLabel="Add HSN" />
+        <MasterHeader title="HSN Master" onAdd={openAdd} addLabel="Add HSN" addPermission={MASTERS_HSN.ADD_EDIT} />
 
         {/* Filters row */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -492,64 +507,68 @@ export default function HSNMaster() {
           )}
 
           {/* Export — fetches all filtered records */}
-          <button
-            onClick={handleExportAll}
-            disabled={exportLoading || isLoading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FileDown className="h-4 w-4" />
-            {exportLoading ? "Exporting…" : "Export to Excel"}
-          </button>
+          {canExport && (
+            <button
+              onClick={handleExportAll}
+              disabled={exportLoading || isLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileDown className="h-4 w-4" />
+              {exportLoading ? "Exporting…" : "Export to Excel"}
+            </button>
+          )}
 
           {/* Import button with dropdown */}
-          <div className="relative" ref={importMenuRef}>
-            <button
-              onClick={() => setImportMenuOpen((v) => !v)}
-              disabled={importLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FileInput className="h-4 w-4 text-[#C6AF4B]" />
-              {importLoading ? "Importing…" : "Import Data"}
-              <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
-            </button>
-            {importMenuOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
-                <button
-                  onClick={downloadSample}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
-                >
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="font-medium">Download Sample</p>
-                    <p className="text-xs text-gray-400">Get the Excel template</p>
-                  </div>
-                </button>
-                <div className="border-t border-gray-100" />
-                <button
-                  onClick={() => { setImportMenuOpen(false); importFileRef.current?.click(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
-                >
-                  <FileUp className="h-4 w-4 text-blue-600 shrink-0" />
-                  <div>
-                    <p className="font-medium">Upload Excel File</p>
-                    <p className="text-xs text-gray-400">Import records from file</p>
-                  </div>
-                </button>
-              </div>
-            )}
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={handleImportFile}
-            />
-          </div>
+          {canImport && (
+            <div className="relative" ref={importMenuRef}>
+              <button
+                onClick={() => setImportMenuOpen((v) => !v)}
+                disabled={importLoading}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileInput className="h-4 w-4 text-[#C6AF4B]" />
+                {importLoading ? "Importing…" : "Import Data"}
+                <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${importMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+              {importMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+                  <button
+                    onClick={downloadSample}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="font-medium">Download Sample</p>
+                      <p className="text-xs text-gray-400">Get the Excel template</p>
+                    </div>
+                  </button>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={() => { setImportMenuOpen(false); importFileRef.current?.click(); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <FileUp className="h-4 w-4 text-blue-600 shrink-0" />
+                    <div>
+                      <p className="font-medium">Upload Excel File</p>
+                      <p className="text-xs text-gray-400">Import records from file</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+            </div>
+          )}
         </div>
 
         {/* Data table */}
         <MasterTable
-          columns={columns}
+          columns={filteredColumns}
           rows={rows as unknown as TableRow[]}
           loading={isLoading}
           rowKey={(r) => asHsn(r).id}
