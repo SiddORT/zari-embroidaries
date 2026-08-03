@@ -62,7 +62,7 @@ function emptyAddress(): ClientAddress {
 
 const EMPTY_FORM: ClientFormData = {
   brandName: "", contactName: "", email: "", altEmail: "",
-  contactNo: "+91", altContactNo: "+91", country: "",customClientCode: "",
+  contactNo: "+91", altContactNo: "+91", country: "", customClientCode: "",
   addresses: [],
   invoiceCurrency: "INR",
   isActive: true,
@@ -79,7 +79,7 @@ export default function ClientForm() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { canEdit } = useFormAccess(MASTERS_CLIENTS.BASE); 
+  const { canEdit } = useFormAccess(MASTERS_CLIENTS.BASE);
 
 
   const isNew = params.id === "new";
@@ -110,7 +110,7 @@ export default function ClientForm() {
     customFetch<any>("/api/settings/currencies").then(j => {
       const all = j.data ?? [];
       setActiveCurrencies(all.filter((c: any) => c.is_active || c.is_base));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
   const [saving, setSaving] = useState(false);
   const savedFormRef = useRef<ClientFormData>(EMPTY_FORM);
@@ -288,42 +288,45 @@ export default function ClientForm() {
   }
 
   return (
-    <FormAccessGate readOnly={!canEdit}>
-      <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
-        <TopNavbar username={(user as any)?.name ?? user.username ?? ""} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending} />
+    <div className="min-h-screen" style={{ background: "#F8F6F0" }}>
+      <TopNavbar username={(user as any)?.name ?? user.username ?? ""} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending} />
 
-        <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
+      <div className="py-6 px-6 max-w-screen-xl mx-auto space-y-5">
 
-          {/* Header */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setLocation("/masters/clients")}
-                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors">
-                <ArrowLeft className="h-4 w-4" />
-                Clients
-              </button>
-              <span className="text-gray-300">/</span>
-              {/* <h1 className="text-lg font-bold text-gray-900">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setLocation("/masters/clients")}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+              <ArrowLeft className="h-4 w-4" />
+              Clients
+            </button>
+            <span className="text-gray-300">/</span>
+            {/* <h1 className="text-lg font-bold text-gray-900">
                 {isNew ? "Add Client" : `Edit Client — ${existingClient?.clientCode ?? ""}`}
               </h1> */}
-              <h1 className="text-lg font-bold text-gray-900">
-                {!canEdit ? (
-                  `Client — ${existingClient?.clientCode ?? ""}`
-                ) : isNew ? (
-                  "Add Client"
-                ) : (
-                  `Edit Client — ${existingClient?.clientCode ?? ""}`
-                )}
-              </h1>
-            </div>
+            <h1 className="text-lg font-bold text-gray-900">
+              {!canEdit ? (
+                `Client — ${existingClient?.clientCode ?? ""}`
+              ) : isNew ? (
+                "Add Client"
+              ) : (
+                `Edit Client — ${existingClient?.clientCode ?? ""}`
+              )}
+            </h1>
+          </div>
+          
+          <FormAccessGate readOnly={!canEdit}>
             <button onClick={() => void handleSave()} disabled={saving || !isFormValid()}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
               style={{ background: `linear-gradient(135deg, ${G}, #a8922e)` }}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Saving…" : isNew ? "Create Client" : "Save Changes"}
             </button>
-          </div>
-
+          </FormAccessGate>
+        </div>
+        
+        <FormAccessGate readOnly={!canEdit}>
           {/* Contact Info */}
           <div className={`${card} p-5`}>
             <p className={sectionLabel}>Contact Information</p>
@@ -453,11 +456,10 @@ export default function ClientForm() {
                   return (
                     <button key={curr.code} type="button"
                       onClick={() => setForm(f => ({ ...f, invoiceCurrency: curr.code }))}
-                      className={`relative flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
-                        selected
+                      className={`relative flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${selected
                           ? "border-[#C6AF4B] bg-[#C6AF4B]/10 shadow-sm"
                           : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
-                      }`}>
+                        }`}>
                       {selected && (
                         <CheckCircle2 className="absolute top-2 right-2 h-3.5 w-3.5 shrink-0" style={{ color: G }} />
                       )}
@@ -544,11 +546,10 @@ export default function ClientForm() {
                       <button
                         type="button"
                         onClick={() => setDefaultDelivery(addr.id)}
-                        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${
-                          addr.isDeliveryDefault
+                        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all ${addr.isDeliveryDefault
                             ? "border-green-600 text-green-700 bg-green-50"
                             : "border-gray-200 text-gray-400 hover:border-green-500 hover:text-green-600"
-                        }`}
+                          }`}
                       >
                         <Star
                           size={12}
@@ -687,8 +688,8 @@ export default function ClientForm() {
               </button>
             </div>
           </div>
-        </div>
+        </FormAccessGate>
       </div>
-    </FormAccessGate>
+    </div>
   );
 }
