@@ -12,6 +12,7 @@ import {
   type ClientMessageRecord,
 } from "@/hooks/useClientLink";
 import { useArtworkList } from "@/hooks/useArtworks";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 interface FileAttachment { name: string; type: string; data: string; size: number }
 
@@ -72,13 +73,14 @@ function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
   );
 }
 
-function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrderId, onLightbox }: {
+function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrderId, canEdit, onLightbox }: {
   aw: { id: number; artworkCode: string; artworkName: string; wipImages: FileAttachment[]; finalImages: FileAttachment[] };
   messages: ClientMessageRecord[];
   isClosed: boolean;
   decision: "Approve" | "Rework" | null;
   linkId: number;
   swatchOrderId: number;
+  canEdit?: boolean;
   onLightbox: (artworkId: number, type: "wip" | "final", idx: number) => void;
 }) {
   const { toast } = useToast();
@@ -230,6 +232,7 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                   rows={2}
                   className="flex-1 text-sm text-gray-900 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
                 />
+                <FormAccessGate readOnly={!canEdit}>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => fileRef.current?.click()}
                     className="flex items-center justify-center h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
@@ -243,8 +246,10 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                   </button>
                 </div>
                 <input ref={fileRef} type="file" className="hidden" onChange={pickFile} />
+                </FormAccessGate>
               </div>
               {/* Mark done */}
+              <FormAccessGate readOnly={!canEdit}>
               <div className="flex justify-end">
                 <button onClick={handleToggleClose} disabled={toggleThread.isPending}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-900 text-[#C9B45C] font-medium hover:bg-black transition-colors disabled:opacity-60">
@@ -252,6 +257,7 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                   Mark Thread Done
                 </button>
               </div>
+              </FormAccessGate>
             </div>
           )}
         </div>
@@ -260,7 +266,7 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
   );
 }
 
-export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number }) {
+export default function ClientLinkTab({ swatchOrderId, canEdit }: { swatchOrderId: number; canEdit?: boolean }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<{ artworkId: number; type: "wip" | "final"; idx: number } | null>(null);
@@ -366,26 +372,28 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
               <ExternalLink className="h-4 w-4" /> Preview
             </a>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={togglePublish} disabled={updateLink.isPending}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 shadow-sm ${link?.isPublished ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-900 text-[#C9B45C] hover:bg-black"}`}>
-              {updateLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : link?.isPublished ? <GlobeLock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
-              {link?.isPublished ? "Unpublish" : "Publish Link"}
-            </button>
-            {!confirmRegen ? (
-              <button onClick={() => setConfirmRegen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                <RefreshCw className="h-4 w-4" /> Regenerate
+          <FormAccessGate readOnly={!canEdit}>
+            <div className="flex items-center gap-3">
+              <button onClick={togglePublish} disabled={updateLink.isPending}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 shadow-sm ${link?.isPublished ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-900 text-[#C9B45C] hover:bg-black"}`}>
+                {updateLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : link?.isPublished ? <GlobeLock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                {link?.isPublished ? "Unpublish" : "Publish Link"}
               </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-red-600 font-medium">Old link will stop working!</span>
-                <button onClick={handleRegenerate} disabled={regenLink.isPending} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-60">
-                  {regenLink.isPending ? "…" : "Confirm"}
+              {!confirmRegen ? (
+                <button onClick={() => setConfirmRegen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                  <RefreshCw className="h-4 w-4" /> Regenerate
                 </button>
-                <button onClick={() => setConfirmRegen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-600 font-medium">Old link will stop working!</span>
+                  <button onClick={handleRegenerate} disabled={regenLink.isPending} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-60">
+                    {regenLink.isPending ? "…" : "Confirm"}
+                  </button>
+                  <button onClick={() => setConfirmRegen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                </div>
+              )}
+            </div>
+          </FormAccessGate>
         </div>
       </div>
 
@@ -424,7 +432,9 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
                                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${hidden ? "border-red-200 opacity-40" : "border-gray-200 hover:border-[#C9B45C]"}`}>
                                   <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                 </button>
-                                <button onClick={() => toggleImage(aw.id, "wip", i)} title={hidden ? "Show" : "Hide"}
+                                <button 
+                                  disabled={!canEdit}
+                                  onClick={() => toggleImage(aw.id, "wip", i)} title={hidden ? "Show" : "Hide"}
                                   className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm text-[10px] transition-colors ${hidden ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-red-100"}`}>
                                   {hidden ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                                 </button>
@@ -446,7 +456,10 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
                                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${hidden ? "border-red-200 opacity-40" : "border-gray-200 hover:border-[#C9B45C]"}`}>
                                   <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                 </button>
-                                <button onClick={() => toggleImage(aw.id, "final", i)} title={hidden ? "Show" : "Hide"}
+                                
+                                <button 
+                                  disabled={!canEdit}
+                                  onClick={() => toggleImage(aw.id, "final", i)} title={hidden ? "Show" : "Hide"}
                                   className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm text-[10px] transition-colors ${hidden ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-red-100"}`}>
                                   {hidden ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                                 </button>

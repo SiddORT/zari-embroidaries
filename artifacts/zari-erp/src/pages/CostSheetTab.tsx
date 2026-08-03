@@ -8,6 +8,7 @@ import {
   useOutsourceJobs, useCustomCharges,
   type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord,
 } from "@/hooks/useCosting";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function computeRowMetrics(r: BomRecord, pos: PurchaseOrderRecord[], prs: PurchaseReceiptRecord[]) {
@@ -95,8 +96,9 @@ function SheetTable({ headers, rows, footer, colWidths, wrapCols }: {
 
 // ─── Cost Sheet Tab ────────────────────────────────────────────────────────────
 export default function CostSheetTab({
-  swatchOrderId, orderCode, swatchName, clientName, quantity,
+  canEdit, swatchOrderId, orderCode, swatchName, clientName, quantity,
 }: {
+  canEdit: boolean;
   swatchOrderId: number;
   orderCode?: string;
   swatchName?: string;
@@ -259,6 +261,8 @@ export default function CostSheetTab({
           </button>
         </div>
       </div>
+      
+      <FormAccessGate readOnly={!canEdit}>
 
       {/* Printable cost sheet */}
       <div id="cost-sheet-print" ref={printRef}
@@ -479,6 +483,7 @@ export default function CostSheetTab({
           ))}
         </div>
       </div>
+      </FormAccessGate>
     </>
   );
 }

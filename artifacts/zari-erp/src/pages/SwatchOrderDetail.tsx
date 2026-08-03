@@ -29,6 +29,9 @@ import ShippingTab from "@/pages/ShippingTab";
 import LinkedInvoicesPanel from "@/components/LinkedInvoicesPanel";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import TagInput from "@/components/ui/TagInput";
+import { SWATCH_ORDERS, SWATCH_ORDER_TABS } from "@/constants/permissions";
+import { useFormAccess } from "@/hooks/useFormAccess";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected"];
@@ -302,6 +305,7 @@ export default function SwatchOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const isNew = id === "new";
   const numId = isNew ? null : parseInt(id ?? "0");
+  const { canEdit } = useFormAccess(SWATCH_ORDERS.BASE);
 
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
@@ -370,8 +374,11 @@ export default function SwatchOrderDetail() {
   );
 
   useEffect(() => {
-    if (activeTab === "Invoices" && !form.isChargeable) setActiveTab("Basic Info");
-  }, [form.isChargeable, activeTab]);
+    if (visibleTabs.length > 0 && !visibleTabs.some(t => t.label === activeTab)) {
+      setActiveTab(visibleTabs[0].label);
+    }
+  }, [visibleTabs, activeTab]);
+
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const savedFormRef = useRef<FormState>(EMPTY_FORM);
@@ -665,28 +672,32 @@ export default function SwatchOrderDetail() {
               <span className="text-gray-300">/</span>
               <span className="text-sm font-bold font-mono text-gray-900">{orderCode}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
-                <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
-                  className={`pl-3 pr-7 py-1.5 text-xs font-medium rounded-full border cursor-pointer appearance-none focus:outline-none ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                  {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
-              </div>
-              {canCancelOrder && (
-                <button onClick={() => setCancelOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-colors shrink-0">
-                  <XCircle className="h-4 w-4" />
-                  Cancel Order
+            <FormAccessGate readOnly={!canEdit}>
+              <div className="flex items-center gap-3">
+                <div className="relative shrink-0">
+                  <select value={form.orderStatus} onChange={e => set("orderStatus", e.target.value)}
+                    className={`pl-3 pr-7 py-1.5 text-xs font-medium rounded-full border cursor-pointer appearance-none focus:outline-none ${STATUS_COLORS[form.orderStatus] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                    {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
+                </div>
+
+                {canCancelOrder && (
+                  <button onClick={() => setCancelOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-colors shrink-0">
+                    <XCircle className="h-4 w-4" />
+                    Cancel Order
+                  </button>
+                )}
+
+                <button onClick={() => { void handleSave(); }} disabled={saving}
+                  style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shrink-0">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {saving ? "Saving…" : "Save"}
                 </button>
-              )}
-              <button onClick={() => { void handleSave(); }} disabled={saving}
-                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shrink-0">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {saving ? "Saving…" : "Save"}
-              </button>
-            </div>
+              </div>
+            </FormAccessGate>
           </div>
           {/* Tab bar */}
           <div className="px-6 md:px-8 max-w-6xl mx-auto overflow-x-auto scrollbar-none">
@@ -713,6 +724,7 @@ export default function SwatchOrderDetail() {
         {/* ══ TAB: Basic Info ══════════════════════════════════════════════ */}
         {activeTab === "Basic Info" && <div className="space-y-5">
 
+          <FormAccessGate readOnly={!canEdit}>
           {/* ── Section 1: Identity — full width ── */}
           <SectionCard icon={<User className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="Identity" subtitle="Core details of this swatch order">
@@ -936,6 +948,7 @@ export default function SwatchOrderDetail() {
               </Field>
             </div>
           </SectionCard>
+          </FormAccessGate>
 
           {/* Bottom Save — Tab 0 */}
           <div className="flex justify-end gap-3 pt-2">
@@ -943,66 +956,72 @@ export default function SwatchOrderDetail() {
               className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
               Cancel
             </button>
-            <button onClick={() => { void handleSave(); }} disabled={saving}
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-sm">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
-            </button>
+            <FormAccessGate readOnly={!canEdit}>
+              <button onClick={() => { void handleSave(); }} disabled={saving}
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-sm">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
+              </button>
+            </FormAccessGate>
           </div>
         </div>} {/* ── end Tab Basic Info ── */}
 
         {/* ══ TAB: Completion Tracking ══════════════════════════════════════ */}
         {activeTab === "Completion Tracking" && (
           <div className="space-y-5">
-            <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
-              title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Actual Start Date">
-                    <input type="date" className={inputCls} value={form.actualStartDate} min={form.orderIssueDate || undefined} onChange={e => set("actualStartDate", e.target.value)} />
+            <FormAccessGate readOnly={!canEdit}>
+              <SectionCard icon={<CheckCircle2 className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
+                title="Completion Tracking" subtitle="Record actual timings, revisions and approval">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Actual Start Date">
+                      <input type="date" className={inputCls} value={form.actualStartDate} min={form.orderIssueDate || undefined} onChange={e => set("actualStartDate", e.target.value)} />
+                    </Field>
+                    <Field label="Actual Completion Date">
+                      <input type="date" className={inputCls} value={form.actualCompletionDate} min={form.actualStartDate || form.orderIssueDate || undefined} onChange={e => set("actualCompletionDate", e.target.value)} />
+                    </Field>
+                    <Field label="Tentative Delivery Date">
+                      <input type="date" className={inputCls} value={form.tentativeDeliveryDate} min={form.orderIssueDate || undefined} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
+                    </Field>
+                    <Field label="Approval Date">
+                      <input type="date" className={inputCls} value={form.approvalDate} min={form.actualCompletionDate || form.actualStartDate || form.orderIssueDate || undefined} onChange={e => set("approvalDate", e.target.value)} />
+                    </Field>
+                  </div>
+                  <Field label="Revision Count" hint="Number of revisions this order has gone through">
+                    <div className="flex items-center gap-3">
+                      <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
+                        className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
+                      <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
+                      <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
+                        className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
+                      {form.revisionCount > 0 && (
+                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                          {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
                   </Field>
-                  <Field label="Actual Completion Date">
-                    <input type="date" className={inputCls} value={form.actualCompletionDate} min={form.actualStartDate || form.orderIssueDate || undefined} onChange={e => set("actualCompletionDate", e.target.value)} />
-                  </Field>
-                  <Field label="Tentative Delivery Date">
-                    <input type="date" className={inputCls} value={form.tentativeDeliveryDate} min={form.orderIssueDate || undefined} onChange={e => set("tentativeDeliveryDate", e.target.value)} />
-                  </Field>
-                  <Field label="Approval Date">
-                    <input type="date" className={inputCls} value={form.approvalDate} min={form.actualCompletionDate || form.actualStartDate || form.orderIssueDate || undefined} onChange={e => set("approvalDate", e.target.value)} />
+                  <Field label="Delay Reason" hint="Explain if the order was delayed beyond the delivery date">
+                    <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
+                      value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
                   </Field>
                 </div>
-                <Field label="Revision Count" hint="Number of revisions this order has gone through">
-                  <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => set("revisionCount", Math.max(0, form.revisionCount - 1))}
-                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">−</button>
-                    <span className="text-lg font-bold text-gray-900 w-8 text-center">{form.revisionCount}</span>
-                    <button type="button" onClick={() => set("revisionCount", form.revisionCount + 1)}
-                      className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-lg transition-colors">+</button>
-                    {form.revisionCount > 0 && (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                        {form.revisionCount} revision{form.revisionCount !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </Field>
-                <Field label="Delay Reason" hint="Explain if the order was delayed beyond the delivery date">
-                  <textarea rows={3} className={`${inputCls} resize-none`} placeholder="Reason for any delay (optional)…"
-                    value={form.delayReason} onChange={e => set("delayReason", e.target.value)} />
-                </Field>
-              </div>
-            </SectionCard>
+              </SectionCard>
+            </FormAccessGate>
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setLocation("/swatch-orders")}
                 className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
                 Cancel
               </button>
-              <button onClick={() => { void handleSave(); }} disabled={saving}
-                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-sm">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
-              </button>
+              <FormAccessGate readOnly={!canEdit}>
+                <button onClick={() => { void handleSave(); }} disabled={saving}
+                  style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-sm">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {saving ? "Saving…" : (isNew ? "Create Swatch Order" : "Save Changes")}
+                </button>
+              </FormAccessGate>
             </div>
           </div>
         )}
@@ -1010,6 +1029,7 @@ export default function SwatchOrderDetail() {
         {/* ══ TAB: References ═══════════════════════════════════════════════ */}
         {activeTab === "References" && <div className="space-y-5">
 
+          <FormAccessGate readOnly={!canEdit}>
           {/* Style + Swatch References */}
           <SectionCard icon={<Layers className="h-4 w-4 text-[#C9B45C]" />} accentColor="bg-gray-900"
             title="References" subtitle="Link related styles and swatches, add remarks for each">
@@ -1166,6 +1186,7 @@ export default function SwatchOrderDetail() {
               </Field>
             </div>
           </SectionCard>
+          </FormAccessGate>
 
           {/* Bottom Save — Tab 1 */}
           <div className="flex justify-end gap-3 pt-2">
@@ -1173,12 +1194,15 @@ export default function SwatchOrderDetail() {
               className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
               Cancel
             </button>
+            
+            <FormAccessGate readOnly={!canEdit}>
             <button onClick={() => { void handleSave(); }} disabled={saving}
               style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-sm">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Saving…" : "Save Changes"}
             </button>
+            </FormAccessGate>
           </div>
         </div>} {/* ── end Tab 1 ── */}
 
@@ -1200,134 +1224,141 @@ export default function SwatchOrderDetail() {
                     No artworks yet — click "New Artwork" to begin
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {(artworksData?.data ?? []).map((art: ArtworkRecord) => (
-                      <div key={art.id} className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
-                        {/* ── Row 1: Identity + status + actions ── */}
-                        <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-                          {/* Thumbnail (finalImage if Approved, else palette icon) */}
-                          {art.feedbackStatus === "Approved" && (art.finalImages ?? []).length > 0 ? (
-                            <img
-                              src={art.finalImages[0].data}
-                              alt="Final"
-                              className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
-                              onClick={e => { e.stopPropagation(); setLightbox({ images: art.finalImages ?? [], index: 0 }); }}
-                            />
-                          ) : (
-                            <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
-                              <Palette className="h-4 w-4 text-[#C9B45C]" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">{art.artworkName}</p>
-                            <p className="text-xs text-gray-400 font-mono">{art.artworkCode}</p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                              art.feedbackStatus === "Approved"
-                                ? "bg-gray-900 text-[#C9B45C] border-gray-900"
-                                : art.feedbackStatus === "Revision Required"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : art.feedbackStatus === "Rejected"
-                                ? "bg-red-50 text-red-700 border-red-200"
-                                : art.feedbackStatus === "In Review"
-                                ? "bg-sky-50 text-sky-700 border-sky-200"
-                                : "bg-gray-100 text-gray-600 border-gray-200"
-                            }`}>{art.feedbackStatus}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{art.artworkCreated}</span>
-                            {art.totalCost && (
-                              <span className="text-xs font-medium text-gray-700">{fmt(Number(art.totalCost))}</span>
-                            )}
-                          </div>
-                          {/* Action buttons */}
-                          <div className="flex items-center gap-1 ml-1 shrink-0">
-                            {art.feedbackStatus === "Approved" ? (
-                              <button
-                                onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
-                                title="View artwork (read-only)"
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">
-                                <ExternalLink className="h-3 w-3" /> View
-                              </button>
+                    <div className="space-y-2">
+                      {(artworksData?.data ?? []).map((art: ArtworkRecord) => (
+                        <div key={art.id} className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
+                          {/* ── Row 1: Identity + status + actions ── */}
+                          <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+                            {/* Thumbnail (finalImage if Approved, else palette icon) */}
+                            {art.feedbackStatus === "Approved" && (art.finalImages ?? []).length > 0 ? (
+                              <img
+                                src={art.finalImages[0].data}
+                                alt="Final"
+                                className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                                onClick={e => { e.stopPropagation(); setLightbox({ images: art.finalImages ?? [], index: 0 }); }}
+                              />
                             ) : (
-                              <button
-                                onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
-                                title="Edit artwork"
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
+                              <div className="h-8 w-8 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                                <Palette className="h-4 w-4 text-[#C9B45C]" />
+                              </div>
                             )}
-                            <button
-                              onClick={() => setArtworkToDelete(art.id)}
-                              title={art.feedbackStatus === "Approved" ? "Cannot delete an approved artwork" : "Delete artwork"}
-                              disabled={art.feedbackStatus === "Approved"}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* ── Row 2: WIP + Final image strips ── */}
-                        <div className="flex items-start gap-4 px-4 pb-3 border-t border-gray-100 pt-2 mt-0.5">
-                          {/* WIP Images */}
-                          <div className="flex-1">
-                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">WIP Images</p>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {(art.wipImages ?? []).map((img, idx) => (
-                                <img key={idx} src={img.data} alt={img.name}
-                                  className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
-                                  title={img.name}
-                                  onClick={e => { e.stopPropagation(); setLightbox({ images: art.wipImages ?? [], index: idx }); }}
-                                />
-                              ))}
-                              <button
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  setImgUploadTarget({ artId: art.id, type: "wip" });
-                                  setTimeout(() => artImgInputRef.current?.click(), 0);
-                                }}
-                                title="Add WIP image"
-                                className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0">
-                                <Plus className="h-4 w-4" />
-                              </button>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">{art.artworkName}</p>
+                              <p className="text-xs text-gray-400 font-mono">{art.artworkCode}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${art.feedbackStatus === "Approved"
+                                  ? "bg-gray-900 text-[#C9B45C] border-gray-900"
+                                  : art.feedbackStatus === "Revision Required"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : art.feedbackStatus === "Rejected"
+                                      ? "bg-red-50 text-red-700 border-red-200"
+                                      : art.feedbackStatus === "In Review"
+                                        ? "bg-sky-50 text-sky-700 border-sky-200"
+                                        : "bg-gray-100 text-gray-600 border-gray-200"
+                                }`}>{art.feedbackStatus}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{art.artworkCreated}</span>
+                              {art.totalCost && (
+                                <span className="text-xs font-medium text-gray-700">{fmt(Number(art.totalCost))}</span>
+                              )}
+                            </div>
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-1 ml-1 shrink-0">
+                              {art.feedbackStatus === "Approved" ? (
+                                <button
+                                  onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
+                                  title="View artwork (read-only)"
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">
+                                  <ExternalLink className="h-3 w-3" /> View
+                                </button>
+                              ) : (
+                                <FormAccessGate readOnly={!canEdit}>
+                                  <button
+                                    onClick={() => setLocation(`/swatch-orders/${numId}/artworks/${art.id}`)}
+                                    title="Edit artwork"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                </FormAccessGate>
+                              )}
+                              <FormAccessGate readOnly={!canEdit}>
+                                <button
+                                  onClick={() => setArtworkToDelete(art.id)}
+                                  title={art.feedbackStatus === "Approved" ? "Cannot delete an approved artwork" : "Delete artwork"}
+                                  disabled={art.feedbackStatus === "Approved"}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </FormAccessGate>
                             </div>
                           </div>
 
-                          {/* Divider */}
-                          <div className="w-px bg-gray-200 self-stretch" />
+                          {/* ── Row 2: WIP + Final image strips ── */}
+                          <FormAccessGate readOnly={!canEdit}>
+                          <div className="flex items-start gap-4 px-4 pb-3 border-t border-gray-100 pt-2 mt-0.5">
+                            {/* WIP Images */}
+                            <div className="flex-1">
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">WIP Images</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {(art.wipImages ?? []).map((img, idx) => (
+                                  <img key={idx} src={img.data} alt={img.name}
+                                    className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                                    title={img.name}
+                                    onClick={e => { e.stopPropagation(); setLightbox({ images: art.wipImages ?? [], index: idx }); }}
+                                  />
+                                ))}
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setImgUploadTarget({ artId: art.id, type: "wip" });
+                                    setTimeout(() => artImgInputRef.current?.click(), 0);
+                                  }}
+                                  title="Add WIP image"
+                                  className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0">
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
 
-                          {/* Final Images */}
-                          <div className="flex-1">
-                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Final Images</p>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {(art.finalImages ?? []).map((img, idx) => (
-                                <img key={idx} src={img.data} alt={img.name}
-                                  className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
-                                  title={img.name}
-                                  onClick={e => { e.stopPropagation(); setLightbox({ images: art.finalImages ?? [], index: idx }); }}
-                                />
-                              ))}
-                              <button
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  setImgUploadTarget({ artId: art.id, type: "final" });
-                                  setTimeout(() => artImgInputRef.current?.click(), 0);
-                                }}
-                                title="Add final image"
-                                className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0">
-                                <Plus className="h-4 w-4" />
-                              </button>
+                            {/* Divider */}
+                            <div className="w-px bg-gray-200 self-stretch" />
+
+                            {/* Final Images */}
+                            <div className="flex-1">
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Final Images</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {(art.finalImages ?? []).map((img, idx) => (
+                                  <img key={idx} src={img.data} alt={img.name}
+                                    className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:scale-105 transition-transform"
+                                    title={img.name}
+                                    onClick={e => { e.stopPropagation(); setLightbox({ images: art.finalImages ?? [], index: idx }); }}
+                                  />
+                                ))}
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setImgUploadTarget({ artId: art.id, type: "final" });
+                                    setTimeout(() => artImgInputRef.current?.click(), 0);
+                                  }}
+                                  title="Add final image"
+                                  className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0">
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
                           </div>
+                          </FormAccessGate>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
                 )}
-                <button
-                  onClick={() => setLocation(`/swatch-orders/${numId}/artworks/new`)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center font-medium">
-                  <Plus className="h-4 w-4" /> New Artwork
-                </button>
+                <FormAccessGate readOnly={!canEdit}>
+                  <button
+                    onClick={() => setLocation(`/swatch-orders/${numId}/artworks/new`)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center font-medium">
+                    <Plus className="h-4 w-4" /> New Artwork
+                  </button>
+                </FormAccessGate>
               </div>
             </SectionCard>
           )}
@@ -1335,11 +1366,12 @@ export default function SwatchOrderDetail() {
 
         {/* ══ TAB: Client Link ══════════════════════════════════════════════ */}
         {activeTab === "Client Link" && numId && (
-          <ClientLinkTab swatchOrderId={numId} />
+          <ClientLinkTab swatchOrderId={numId} canEdit={canEdit} />
         )}
 
         {/* ══ TAB: Estimate ═════════════════════════════════════════════════ */}
         {activeTab === "Estimate" && (
+          <FormAccessGate readOnly={!canEdit}>
           <div className="space-y-5">
 
             {/* Estimate Items Input */}
@@ -1501,21 +1533,25 @@ export default function SwatchOrderDetail() {
               </button>
             </div>
           </div>
+          </FormAccessGate>
         )}
 
         {/* ══ TAB: Costing ══════════════════════════════════════════════════ */}
         {activeTab === "Costing" && numId && (
+          <FormAccessGate readOnly={!canEdit}>
           <CostingTab
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
             swatchName={orderData?.data?.swatchName ?? undefined}
             clientName={orderData?.data?.clientName ?? undefined}
           />
+          </FormAccessGate>
         )}
 
         {/* ══ TAB: Cost Sheet ════════════════════════════════════════════ */}
         {activeTab === "Cost Sheet" && numId && (
           <CostSheetTab
+            canEdit={canEdit}
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
             swatchName={orderData?.data?.swatchName ?? undefined}
@@ -1526,6 +1562,7 @@ export default function SwatchOrderDetail() {
 
         {/* ══ TAB: Shipping ══════════════════════════════════════════════ */}
         {activeTab === "Shipping" && numId && (
+          <FormAccessGate readOnly={!canEdit}>
           <ShippingTab
             referenceType="Swatch"
             referenceId={numId}
@@ -1533,6 +1570,7 @@ export default function SwatchOrderDetail() {
             orderStatus={form.orderStatus}
             isAdmin={isAdmin}
           />
+          </FormAccessGate>
         )}
 
         {/* ══ TAB: Invoices ══════════════════════════════════════════════ */}
