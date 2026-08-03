@@ -313,7 +313,13 @@ export default function VendorForm() {
             </button>
             <span className="text-gray-300">/</span>
             <h1 className="text-lg font-bold text-gray-900">
-              {isNew ? "Add Vendor" : `Edit Vendor — ${existingVendor?.vendorCode ?? ""}`}
+              {!canEdit ? (
+                `Vendor — ${existingVendor?.vendorCode ?? ""}`
+              ) : isNew ? (
+                "Add Vendor"
+              ) : (
+                `Edit Vendor — ${existingVendor?.vendorCode ?? ""}`
+              )}            
             </h1>
           </div>
           <FormAccessGate readOnly={!canEdit}>
