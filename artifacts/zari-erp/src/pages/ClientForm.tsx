@@ -661,16 +661,19 @@ export default function ClientForm() {
               ))}
             </div>
           </div>
+        </FormAccessGate>
 
           {/* Status + Save */}
           <div className={`${card} p-5 flex items-center justify-between`}>
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium text-gray-700">Status</label>
-              <button type="button" onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
-                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
-                role="switch" aria-checked={form.isActive}>
-                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-4" : "translate-x-0"}`} />
-              </button>
+              <FormAccessGate readOnly={!canEdit}>
+                <button type="button" onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
+                  className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
+                  role="switch" aria-checked={form.isActive}>
+                  <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </FormAccessGate>
               <span className={`text-sm font-medium ${form.isActive ? "text-emerald-600" : "text-gray-400"}`}>
                 {form.isActive ? "Active" : "Inactive"}
               </span>
@@ -688,7 +691,6 @@ export default function ClientForm() {
               </button>
             </div>
           </div>
-        </FormAccessGate>
       </div>
     </div>
   );
