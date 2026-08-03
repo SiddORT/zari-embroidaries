@@ -10,6 +10,8 @@ import CancelOrderModal from "@/components/ui/CancelOrderModal";
 import { useSwatchOrderList, useDeleteSwatchOrder, useCancelSwatchOrder, useCreateSwatchOrder, type SwatchOrderRecord } from "@/hooks/useSwatchOrders";
 import { SmallSearchSelect } from "@/components/ui/SearchableSelect";
 import { customFetch } from "@workspace/api-client-react";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { SWATCH_ORDERS } from "@/constants/permissions";
 
 const ORDER_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed", "Rejected", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -70,15 +72,20 @@ function PriorityDot({ priority }: { priority: string }) {
 
 const CANCELLABLE = new Set(["Issued", "In Sampling", "In Artwork", "Pending Approval", "Completed"]);
 
-function OrderCard({ order, onView, onDelete, onCancel, onCopy }: {
+function OrderCard({ order, onView, onDelete, onCancel, onCopy, canView , canAddEdit, canDelete, canCancel}: {
   order: SwatchOrderRecord;
   onView: () => void;
   onDelete: () => void;
   onCancel: () => void;
   onCopy: () => void;
+
+  canView : boolean;
+  canAddEdit: boolean;
+  canDelete: boolean;
+  canCancel: boolean;
 }) {
   const isDraft = order.orderStatus === "Draft";
-  const canCancel = CANCELLABLE.has(order.orderStatus);
+  const canCancelOrder  = CANCELLABLE.has(order.orderStatus);
 
   return (
     <div className={CARD}>
@@ -135,22 +142,28 @@ function OrderCard({ order, onView, onDelete, onCancel, onCopy }: {
         </div>
 
         <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+          
           <button onClick={onView}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-gray-900 hover:bg-black transition-colors"
             style={{ color: G }}>
-            <Eye className="h-3.5 w-3.5" /> View / Edit
+            <Eye className="h-3.5 w-3.5" /> {!canAddEdit ? "View" : "View / Edit"}
           </button>
-          <button onClick={onCopy} title="Copy order"
-            className="p-2 rounded-xl text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors border border-gray-100">
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-          {isDraft && (
+          
+          {canAddEdit && (
+            <button onClick={onCopy} title="Copy order"
+              className="p-2 rounded-xl text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors border border-gray-100">
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          {canDelete && isDraft && (
             <button onClick={onDelete} title="Delete draft"
               className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
-          {canCancel && (
+
+          {canCancel && canCancelOrder && (
             <button onClick={onCancel} title="Cancel order"
               className="p-2 rounded-xl text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors border border-gray-100">
               <XCircle className="h-3.5 w-3.5" />
@@ -187,6 +200,12 @@ export default function SwatchOrders() {
   const deleteOrder = useDeleteSwatchOrder();
   const cancelOrder = useCancelSwatchOrder();
   const copyOrder = useCreateSwatchOrder();
+
+  const { can } = useMyPermissions();
+  const canView = can(SWATCH_ORDERS.VIEW);
+  const canAddEdit = can(SWATCH_ORDERS.ADD_EDIT);
+  const canDelete = can(SWATCH_ORDERS.DELETE);
+  const canCancel = canDelete; // canceling an order requires delete permission
 
   const orders = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -308,13 +327,15 @@ export default function SwatchOrders() {
                 <LayoutList className="h-4 w-4" />
               </button>
             </div>
-            <button
-              onClick={() => setLocation("/swatch-orders/new")}
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all"
-            >
+            {canAddEdit && (
+              <button
+                onClick={() => setLocation("/swatch-orders/new")}
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all"
+              >
               <Plus className="h-4 w-4" /> New Swatch Order
-            </button>
+              </button>
+            )}
           </div>
         </div>
 
@@ -402,6 +423,11 @@ export default function SwatchOrders() {
                 onDelete={() => setDeleteId(order.id)}
                 onCancel={() => setCancelId(order.id)}
                 onCopy={() => void handleCopy(order)}
+
+                canView={canView}
+                canAddEdit={canAddEdit}
+                canDelete={canDelete}
+                canCancel={canCancel}
               />
             ))}
           </div>
@@ -434,26 +460,49 @@ export default function SwatchOrders() {
                     <td className="px-4 py-3">{order.isChargeable ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(198,175,75,0.12)", color: "#A8943E" }}>Yes</span> : <span className="text-xs text-gray-400">No</span>}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => setLocation(`/swatch-orders/${order.id}`)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+
+                        {/* View / Edit */}
+                        <button
+                          onClick={() => setLocation(`/swatch-orders/${order.id}`)}
+                          title={canAddEdit ? "Edit order" : "View order"}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                        >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => void handleCopy(order)} title="Copy order"
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
-                          <Copy className="h-3.5 w-3.5" />
-                        </button>
-                        {order.orderStatus === "Draft" && (
-                          <button onClick={() => setDeleteId(order.id)} title="Delete draft"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+
+                        {/* Copy */}
+                        {canAddEdit && (
+                          <button
+                            onClick={() => void handleCopy(order)}
+                            title="Copy order"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        {/* Delete */}
+                        {canDelete && order.orderStatus === "Draft" && (
+                          <button
+                            onClick={() => setDeleteId(order.id)}
+                            title="Delete draft"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        {CANCELLABLE.has(order.orderStatus) && (
-                          <button onClick={() => setCancelId(order.id)} title="Cancel order"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors">
+
+                        {/* Cancel */}
+                        {canCancel && CANCELLABLE.has(order.orderStatus) && (
+                          <button
+                            onClick={() => setCancelId(order.id)}
+                            title="Cancel order"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors"
+                          >
                             <XCircle className="h-3.5 w-3.5" />
                           </button>
                         )}
+
                       </div>
                     </td>
                   </tr>
