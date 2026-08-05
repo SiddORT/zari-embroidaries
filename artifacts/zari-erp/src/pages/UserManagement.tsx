@@ -666,40 +666,46 @@ function SubgroupContent({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {resources.map(rg => {
-              const rgKeys  = Object.values(rg.actionKeys).filter(Boolean) as string[];
-              const rgAllOn = rgKeys.every(k => selected.has(k));
-              const rgSomeOn= rgKeys.some(k => selected.has(k));
+            {resources.map((rg) => {
+              const rgKeys = Object.values(rg.actionKeys).filter(Boolean) as string[];
+              const rgAllOn = rgKeys.length > 0 && rgKeys.every((k) => selected.has(k));
+              const rgSomeOn = rgKeys.some((k) => selected.has(k));
+
               return (
-                <tr key={rg.resource}
-                  className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
-                  onClick={() => {
-                      if (!parentEnabled) return;
-                      toggleResource(rg);
-                  }}                >
+                <tr key={rg.resource} className="hover:bg-gray-50/70 transition-colors">
+                  {/* Resource Name and Row Toggle */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <IndeterminateCheckbox
-                        checked={rgAllOn} indeterminate={rgSomeOn && !rgAllOn}
+                        disabled={!parentEnabled}
+                        checked={rgAllOn}
+                        indeterminate={rgSomeOn && !rgAllOn}
                         onChange={() => toggleResource(rg)}
                         className="h-4 w-4 shrink-0"
                       />
-                      <span className={`font-medium transition-colors ${rgAllOn ? "text-gray-900" : "text-gray-500 group-hover:text-gray-700"}`}>
+                      <span
+                        className={`font-medium transition-colors ${
+                          rgAllOn ? "text-gray-900" : "text-gray-500"
+                        }`}
+                      >
                         {rg.label}
                       </span>
                     </div>
                   </td>
-                  {visibleCols.map(col => {
+
+                  {/* Individual Action Checkboxes */}
+                  {visibleCols.map((col) => {
                     const permKey = rg.actionKeys[col.key];
                     return (
-                      <td key={col.key} className="px-4 py-3 text-center w-24"
-                        onClick={e => { e.stopPropagation(); if (permKey) toggle(permKey); }}>
+                      <td key={col.key} className="px-4 py-3 text-center w-24">
                         {permKey ? (
-                          <input type="checkbox"
+                          <input
+                            type="checkbox"
                             disabled={!parentEnabled}
                             checked={selected.has(permKey)}
+                            onClick={(e) => e.stopPropagation()} // Prevents parent row listeners from triggering
                             onChange={() => toggle(permKey)}
-                            className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                            className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer disabled:opacity-50"
                           />
                         ) : (
                           <span className="text-gray-200">—</span>
