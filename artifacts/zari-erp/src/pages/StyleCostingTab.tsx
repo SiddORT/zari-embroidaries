@@ -37,6 +37,8 @@ import {
   type BomRecord, type PurchaseOrderRecord, type PurchaseReceiptRecord,
   type PrPaymentRecord, type PoLineItem, type BomChangeLogEntry,
 } from "@/hooks/useCosting";
+import { FormAccessGate } from "@/components/FormAccessGate";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const PO_STATUSES = ["Draft", "Pending Approval", "Approved", "In Process", "Closed"];
 const PO_STATUS_COLORS: Record<string, string> = {
@@ -343,6 +345,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
   const updateBomQty = useUpdateBomQty();
   const { data: allMaterials = [] } = useAllMaterials();
   const { data: allFabrics = [] } = useAllFabrics();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const [showForm, setShowForm] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "material" | "fabric">("all");
@@ -487,6 +490,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
             </button>
           )}
           <button onClick={() => setShowForm(v => !v)}
+            disabled={!canEdit}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
             <Plus className="h-3.5 w-3.5" /> Add Material/Fabric
           </button>
@@ -673,6 +677,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setEditRow(r); setEditQty(""); setEditNotes(""); setEditMode("add"); }}
+                        disabled={!canEdit}
                         className="p-1.5 rounded-lg text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-colors" title="Add to Req / Reserved Qty">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
@@ -680,7 +685,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                         className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Change Log">
                         <History className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending}
+                      <button onClick={() => deleteRow.mutate(r.id)} disabled={deleteRow.isPending || !canDelete}
                         className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -874,6 +879,7 @@ function StylePrPaymentsPanel({ prId }: { prId: number }) {
   const delPay = useDeletePayment();
   const fileRef = useRef<HTMLInputElement>(null);
   const [showForm, setShowForm] = useState(false);
+  const { canEdit } = useFormAccessContext();
   const [payForm, setPayForm] = useState({
     paymentType: "Partial", paymentDate: new Date().toISOString().slice(0, 10),
     paymentMode: "", amount: "", transactionStatus: "", paymentStatus: "Pending",
@@ -903,6 +909,7 @@ function StylePrPaymentsPanel({ prId }: { prId: number }) {
           Payments {payments.length > 0 && <span className="text-gray-600">({payments.length})</span>}
         </p>
         <button onClick={() => setShowForm(v => !v)}
+          disabled={!canEdit}
           className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
           <CreditCard className="h-3 w-3" /> Record Payment
         </button>
@@ -977,6 +984,7 @@ function StylePrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord
   const [editing, setEditing] = useState(false);
   const deletePr = useDeleteStylePR();
   const updatePr = useUpdateStylePR();
+  const { canEdit, canDelete } = useFormAccessContext();
   const [editForm, setEditForm] = useState({
     actualPrice: pr.actualPrice,
     warehouseLocation: pr.warehouseLocation ?? "",
@@ -1051,10 +1059,11 @@ function StylePrTableRow({ pr, poNumber, bomItems }: { pr: PurchaseReceiptRecord
               <CreditCard className="h-3 w-3" /> Payments {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
             <button onClick={openEdit}
+              disabled={!canEdit}
               className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit receipt">
               <Pencil className="h-3 w-3" />
             </button>
-            <button onClick={() => deletePr.mutate(pr.id)} disabled={deletePr.isPending}
+            <button onClick={() => deletePr.mutate(pr.id)} disabled={deletePr.isPending || !canDelete}
               className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
               <Trash2 className="h-3 w-3" />
             </button>
@@ -1233,12 +1242,13 @@ function StylePoCard({ po, onCreatePR, onExportPdf, vendors }: { po: PurchaseOrd
   const [editOpen, setEditOpen] = useState(false);
   const updatePo = useUpdatePO();
   const deletePo = useDeleteStylePO();
+  const { canEdit, canDelete } = useFormAccessContext();
   const items: PoLineItem[] = po.bomItems ?? [];
   const canAdvance = po.status !== "Closed";
   const nextStatus = PO_STATUSES[PO_STATUSES.indexOf(po.status) + 1];
   const canCreatePR = ["Approved", "In Process", "Partially Received"].includes(po.status);
   const DELETABLE_PO_STATUSES = ['Draft'];
-  const canDelete = DELETABLE_PO_STATUSES.includes(po.status);
+  const isPODeleteable = DELETABLE_PO_STATUSES.includes(po.status);
 
   async function handleExport() {
     setExporting(true);
@@ -1270,13 +1280,14 @@ function StylePoCard({ po, onCreatePR, onExportPdf, vendors }: { po: PurchaseOrd
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
           {canAdvance && nextStatus && (
-            <button onClick={advance} disabled={updatePo.isPending}
+            <button onClick={advance} disabled={updatePo.isPending || !canEdit}
               className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors disabled:opacity-50">
               {updatePo.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}  {nextStatus}
             </button>
           )}
           {canCreatePR && (
             <button onClick={() => onCreatePR(po.id, po.vendorName, po.bomItems ?? [])}
+              disabled={!canEdit}
               className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-medium hover:bg-blue-100 transition-colors">
               <Plus className="h-3 w-3" /> Create PR
             </button>
@@ -1286,11 +1297,12 @@ function StylePoCard({ po, onCreatePR, onExportPdf, vendors }: { po: PurchaseOrd
             {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />} PDF
           </button>
           <button onClick={() => setEditOpen(true)}
+            disabled={!canEdit}
             className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors">
             <Pencil className="h-3 w-3" /> Edit
           </button>
-          {canDelete && (
-            <button onClick={() => deletePo.mutate(po.id)} disabled={deletePo.isPending}
+          {isPODeleteable && (
+            <button onClick={() => deletePo.mutate(po.id)} disabled={deletePo.isPending || !canDelete}
               className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -1514,6 +1526,7 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
   const activeWarehouses = warehouseLocations.filter(w => w.isActive);
   const createPO = useCreateStylePO();
   const createPR = useCreateStylePR();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   function exportSinglePoPdf(po: PurchaseOrderRecord) {
     try {
@@ -1590,6 +1603,7 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<ShoppingCart className="h-4 w-4" />} title="Purchase Orders">
         <button onClick={() => setShowPoModal(true)}
+          disabled={!canEdit}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
           <Plus className="h-3.5 w-3.5" /> Create PO
         </button>
@@ -1685,7 +1699,7 @@ function StylePoSection({ styleOrderId, orderCode, styleName, clientName }: {
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={handleCreatePR} disabled={createPR.isPending}
+              <button onClick={handleCreatePR} disabled={createPR.isPending || !canEdit}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">
                 {createPR.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Create PR
               </button>
@@ -1708,6 +1722,7 @@ function StylePrSection({ styleOrderId }: { styleOrderId: number }) {
 
   const [filterPoId, setFilterPoId] = useState<string>("all");
   const [filterBomRowId, setFilterBomRowId] = useState<string>("all");
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const filteredPrs = prs.filter(pr => {
     if (filterPoId !== "all" && String(pr.poId) !== filterPoId) return false;
@@ -1797,6 +1812,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
   const addEntry = useAddStyleConsumptionEntry();
   const deleteEntry = useDeleteStyleConsumptionEntry();
   const updateEntry = useUpdateConsumptionEntry();
+  const { canEdit } = useFormAccessContext();
 
   const [filterBomRowId, setFilterBomRowId] = useState<string>("all");
   const [filterProductId, setFilterProductId] = useState<string>("all");
@@ -1898,6 +1914,7 @@ function StyleConsumptionSection({ styleOrderId }: { styleOrderId: number }) {
           )}
           {bomRows.length > 0 && (
             <button onClick={openAddModal}
+              disabled={!canEdit}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Consumption
             </button>
@@ -2266,6 +2283,7 @@ const defaultArtisanForm = { noOfArtisans: "1", startDate: "", endDate: "", shif
 
 function StyleArtisanSection({ styleOrderId }: { styleOrderId: number }) {
   const { toast } = useToast();
+  const { canEdit, canDelete } = useFormAccessContext();
   const { data: rows = [], isLoading } = useStyleArtisanTimesheets(styleOrderId);
   const { data: productsRes } = useStyleOrderProducts(styleOrderId);
   const products = (productsRes?.data ?? []).filter(p => !p.isDeleted);
@@ -2349,6 +2367,7 @@ function StyleArtisanSection({ styleOrderId }: { styleOrderId: number }) {
             {SHIFT_TYPES.map(t => <option key={t} value={t}>{SHIFT_LABELS[t]}</option>)}
           </select>
           <button onClick={() => { setEditingId(null); setForm(defaultArtisanForm); setShowModal(true); }}
+            disabled={!canEdit}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
             <Plus className="h-3.5 w-3.5" /> Add Artisan
           </button>
@@ -2394,13 +2413,15 @@ function StyleArtisanSection({ styleOrderId }: { styleOrderId: number }) {
                   <td className="px-3 py-2.5 text-gray-500 text-[10px]">{r.createdBy}</td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(r)} className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors" title="Edit">
+                      <button onClick={() => openEdit(r)} 
+                        disabled={!canEdit}
+                        className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors" title="Edit">
                         <Pencil className="h-3 w-3" />
                       </button>
                       <button onClick={() => deleteMutation.mutate(r.id, {
                         onSuccess: () => toast({ title: "Entry deleted" }),
                         onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                      })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
+                      })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors" disabled={!canDelete}>
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
@@ -2532,6 +2553,8 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
   const [expandedPayRow, setExpandedPayRow] = useState<number | null>(null);
   const outsourcePaidTotals = useCostingPaymentTotals("outsource_job", { styleOrderId });
 
+  const { canEdit, canDelete } = useFormAccessContext();
+
   const { data: vendorResults = [] } = useVendorSearch(form.vendorQuery);
   const { data: hsnResults = [] } = useHsnSearch(form.hsnQuery);
 
@@ -2610,6 +2633,7 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
             {uniqueVendors.map(v => <option key={v} value={v}>{v}</option>)}
           </select>
           <button onClick={() => { setEditingId(null); setForm(defaultOutsourceForm); setShowModal(true); }}
+            disabled={!canEdit}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
             <Plus className="h-3.5 w-3.5" /> Add Job
           </button>
@@ -2679,13 +2703,14 @@ function StyleOutsourceSection({ styleOrderId }: { styleOrderId: number }) {
                             <CreditCard className="h-3 w-3" /> Pay
                           </button>
                         )}
-                        <button onClick={() => openEdit(r)} className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors" title="Edit">
+                        <button onClick={() => openEdit(r)} 
+                        className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors" title="Edit" disabled={!canEdit}>
                           <Pencil className="h-3 w-3" />
                         </button>
                         <button onClick={() => deleteMutation.mutate(r.id, {
                           onSuccess: () => toast({ title: "Job deleted" }),
                           onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                        })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
+                        })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors" disabled={!canDelete}>
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
@@ -2865,6 +2890,7 @@ const defaultCustomChargeForm = {
 
 function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
   const { toast } = useToast();
+  const { canEdit, canDelete } = useFormAccessContext();
   const { data: rows = [], isLoading } = useStyleCustomCharges(styleOrderId);
   const { data: productsRes } = useStyleOrderProducts(styleOrderId);
   const products = (productsRes?.data ?? []).filter(p => !p.isDeleted);
@@ -2956,6 +2982,7 @@ function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
             {uniqueVendors.map(v => <option key={v} value={v}>{v}</option>)}
           </select>
           <button onClick={() => { setEditingId(null); setForm(defaultCustomChargeForm); setShowModal(true); }}
+            disabled={!canEdit}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
             <Plus className="h-3.5 w-3.5" /> Add Charge
           </button>
@@ -3023,13 +3050,17 @@ function StyleCustomChargesSection({ styleOrderId }: { styleOrderId: number }) {
                           <CreditCard className="h-3 w-3" /> Pay
                         </button>
                       )}
-                      <button onClick={() => openEdit(r)} className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors" title="Edit">
+                      <button onClick={() => openEdit(r)} 
+                        disabled={!canEdit}
+                        className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors" title="Edit">
                         <Pencil className="h-3 w-3" />
                       </button>
                       <button onClick={() => deleteMutation.mutate(r.id, {
                         onSuccess: () => toast({ title: "Charge deleted" }),
                         onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-                      })} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
+                      })} 
+                      disabled={!canDelete}
+                      className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>

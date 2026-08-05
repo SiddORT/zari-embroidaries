@@ -12,6 +12,8 @@ import {
 import { useStyleOrderProducts, type StyleOrderProductRecord } from "@/hooks/useStyleOrderProducts";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 // ── Helpers (outside component to prevent focus-loss) ─────────────────────────
 
@@ -60,6 +62,7 @@ function ArtworkRow({
   const { fmt, currency: dc } = useCurrency();
   const [, setLocation] = useLocation();
   const isApproved = art.feedbackStatus === "Approved";
+  const { canEdit, canDelete } = useFormAccessContext();
 
   return (
     <div className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
@@ -115,7 +118,7 @@ function ArtworkRow({
           )}
           <button
             onClick={() => onDelete(art.id)}
-            disabled={isApproved}
+            disabled={isApproved || !canDelete}
             title={isApproved ? "Cannot delete an approved artwork" : "Delete artwork"}
             className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
           >
@@ -139,6 +142,7 @@ function ArtworkRow({
             ))}
             {!isApproved && (
               <button
+                disabled={!canEdit}
                 onClick={e => { e.stopPropagation(); onAddWip(art.id); }}
                 title="Add WIP image"
                 className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0"
@@ -162,6 +166,7 @@ function ArtworkRow({
             ))}
             {!isApproved && (
               <button
+                disabled={!canEdit}
                 onClick={e => { e.stopPropagation(); onAddFinal(art.id); }}
                 title="Add final image"
                 className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors shrink-0"
@@ -196,6 +201,7 @@ function ProductSection({
   const [, setLocation] = useLocation();
   const productId   = product?.id ?? null;
   const productName = product?.productName ?? "Unassigned";
+  const { canEdit, canDelete } = useFormAccessContext();
 
   return (
     <div className="space-y-2">
@@ -211,6 +217,7 @@ function ProductSection({
           </span>
         </div>
         <button
+          disabled={!canEdit}
           onClick={() => {
             const qp = productId ? `?productId=${productId}&productName=${encodeURIComponent(productName)}` : "";
             setLocation(`/style-orders/${styleOrderId}/artworks/new${qp}`);
@@ -256,6 +263,7 @@ export default function StyleOrderArtworksTab({
   const { fmt, currency: dc } = useCurrency();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const { data: artworksData, isLoading: artLoading } = useStyleOrderArtworks(styleOrderId);
   const { data: productsData } = useStyleOrderProducts(styleOrderId);
@@ -363,6 +371,7 @@ export default function StyleOrderArtworksTab({
               Add products first, then attach artworks to each product.
             </div>
             <button
+              disabled={!canEdit}
               onClick={() => setLocation(`/style-orders/${styleOrderId}/artworks/new`)}
               className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center font-medium"
             >
@@ -409,7 +418,7 @@ export default function StyleOrderArtworksTab({
                 className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
                 Cancel
               </button>
-              <button onClick={() => { void confirmDelete(); }} disabled={deleteArtwork.isPending}
+              <button onClick={() => { void confirmDelete(); }} disabled={deleteArtwork.isPending || !canDelete}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-60">
                 {deleteArtwork.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Remove
