@@ -15,6 +15,7 @@ import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 import { fileSrc } from "@/utils/mediaUrl";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G       = "#C6AF4B";
 const G_DIM   = "#A8943E";
@@ -269,6 +270,7 @@ export default function InventoryStockList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const token = localStorage.getItem("zarierp_token");
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const { data: user, isLoading: userLoading, isError } = useGetMe({
     query: { enabled: !!token, queryKey: getGetMeQueryKey(), retry: false },
@@ -807,6 +809,7 @@ export default function InventoryStockList() {
                         <td className={tdCls}>
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => openStockModal(item)}
+                              disabled={!canEdit}
                               className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-[#C6AF4B]/30 text-[#A8943E] hover:bg-[#C6AF4B]/10 transition-colors">
                               <Edit2 className="h-3 w-3" /> Stock
                             </button>
@@ -973,7 +976,7 @@ export default function InventoryStockList() {
                   className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">
                   Cancel
                 </button>
-                <button onClick={handleStockSubmit} disabled={submitting || !stockForm.currentStock}
+                <button onClick={handleStockSubmit} disabled={submitting || !stockForm.currentStock || !canEdit}
                   className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
                   style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
                   {submitting ? "Saving…" : "Update Stock"}
