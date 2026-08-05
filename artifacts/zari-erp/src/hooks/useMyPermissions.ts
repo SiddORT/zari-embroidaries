@@ -51,5 +51,23 @@ export function useMyPermissions() {
     return myPermSet.has(tabKey);
   }
 
-  return { hasTabPermission, can, isAdmin, isLoading };
+  function getModuleAccess(basePermission?: string) {
+    if (!basePermission) {
+      return {
+        canView: true,
+        canEdit: true,
+        canDelete: true,
+        canDownload: true,
+      };
+    }
+
+    return {
+      canView: can(`${basePermission}:view`),
+      canEdit: can(`${basePermission}:add_edit`),
+      canDelete: can(`${basePermission}:delete`),
+      canDownload: can(`${basePermission}:download`),
+    };
+  }
+
+  return { hasTabPermission, can, isAdmin, isLoading, getModuleAccess };
 }

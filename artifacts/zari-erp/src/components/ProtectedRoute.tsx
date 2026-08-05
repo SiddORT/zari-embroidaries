@@ -3,6 +3,7 @@ import { Route, useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useMyPermissions } from "@/hooks/useMyPermissions";
 import { useToast } from "@/hooks/use-toast";
+import { FormAccessProvider } from "@/contexts/FormAccessContext";
 
 interface ProtectedRouteProps {
   path: string;
@@ -11,7 +12,13 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ path, component: Component, permission }: ProtectedRouteProps) {
-  const { can, isAdmin, isLoading } = useMyPermissions();
+  const {
+    can,
+    getModuleAccess,
+    isAdmin,
+    isLoading,
+  } = useMyPermissions();
+  const access = getModuleAccess(permission);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -41,7 +48,11 @@ export function ProtectedRoute({ path, component: Component, permission }: Prote
         if (!isAllowed) {
           return null;
         }
-        return <Component {...params} />;
+        return (
+          <FormAccessProvider access={access}>
+            <Component {...params} />
+          </FormAccessProvider>
+        );      
       }}
     </Route>
   );
