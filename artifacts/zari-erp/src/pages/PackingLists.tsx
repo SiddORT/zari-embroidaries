@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 
@@ -48,6 +49,7 @@ export default function PackingLists() {
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const [records, setRecords] = useState<PL[]>([]);
   const [total, setTotal] = useState(0);
@@ -239,14 +241,16 @@ export default function PackingLists() {
               <p className="text-sm text-gray-900">Manage packing lists per client, delivery address and shipment</p>
             </div>
           </div>
-          <button
-            onClick={() => setLocation("/logistics/packing-lists/new")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90"
-            style={{ backgroundColor: G }}
-          >
-            <Plus className="h-4 w-4" />
-            New Packing List
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setLocation("/logistics/packing-lists/new")}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90"
+              style={{ backgroundColor: G }}
+            >
+              <Plus className="h-4 w-4" />
+              New Packing List
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -297,13 +301,13 @@ export default function PackingLists() {
                 <Layers className="h-6 w-6 text-gray-400" />
               </div>
               <p className="text-gray-500 text-sm">No packing lists found</p>
-              <button
+              {canEdit && (<button
                 onClick={() => setLocation("/logistics/packing-lists/new")}
                 className="text-sm font-semibold px-4 py-2 rounded-xl text-white transition-all hover:opacity-90"
                 style={{ backgroundColor: G }}
               >
                 Create First Packing List
-              </button>
+              </button>)}
             </div>
           ) : (
             <>
@@ -311,7 +315,8 @@ export default function PackingLists() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {["#", "PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Net Wt", "Gross Wt", "Status", ""].map(h => (
+                      {["#", "PL Number", "Client", "Delivery Address", "Shipment", "Destination", "Packages", "Net Wt", "Gross Wt", "Status", "Actions"]
+                      .map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-900 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -352,21 +357,25 @@ export default function PackingLists() {
                             >
                               <Eye className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => handlePrintPdf(r.id)}
-                              className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"
-                              title="Print PDF"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(r.id, r.pl_number)}
-                              disabled={deletingId === r.id}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => handlePrintPdf(r.id)}
+                                className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"
+                                title="Print PDF"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDelete(r.id, r.pl_number)}
+                                disabled={deletingId === r.id}
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -172,7 +172,7 @@ function Router() {
       <ProtectedRoute path="/procurement/purchase-orders" component={PurchaseOrderList} permission="stock:purchase_orders" />
       <ProtectedRoute path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} permission="stock:purchase_receipts" />
       <ProtectedRoute path="/procurement/purchase-receipts" component={PurchaseReceipts} permission="stock:purchase_receipts" />
-      <ProtectedRoute path="/shipping" component={ShippingList} permission="shipping" />
+      <ProtectedRoute path="/shipping" component={ShippingList} permission="logistics:shipments" />
       <ProtectedRoute path="/logistics/packing-lists" component={PackingLists} permission="logistics:packing_lists" />
       <ProtectedRoute path="/logistics/packing-lists/new" component={PackingListForm} permission="logistics:packing_lists" />
       <ProtectedRoute path="/logistics/packing-lists/:id/edit" component={PackingListForm} permission="logistics:packing_lists" />

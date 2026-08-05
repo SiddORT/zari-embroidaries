@@ -100,10 +100,11 @@ export const ALL_PERMISSIONS = [
   { key: "style_orders:delete",    label: "Style Orders",  resource: "style_orders",  action: "delete",   menu: "Orders", subgroup: null },
   { key: "style_orders:download",  label: "Style Orders",  resource: "style_orders",  action: "download", menu: "Orders", subgroup: null },
 
-  { key: "artwork:view",           label: "Artwork",        resource: "artwork",        action: "view",     menu: "Orders", subgroup: null },
-  { key: "artwork:add_edit",       label: "Artwork",        resource: "artwork",        action: "add_edit", menu: "Orders", subgroup: null },
-  { key: "artwork:delete",         label: "Artwork",        resource: "artwork",        action: "delete",   menu: "Orders", subgroup: null },
-  { key: "artwork:download",       label: "Artwork",        resource: "artwork",        action: "download", menu: "Orders", subgroup: null },
+  // As Artwork is not directly accessible through top navbar
+  // { key: "artwork:view",           label: "Artwork",        resource: "artwork",        action: "view",     menu: "Orders", subgroup: null },
+  // { key: "artwork:add_edit",       label: "Artwork",        resource: "artwork",        action: "add_edit", menu: "Orders", subgroup: null },
+  // { key: "artwork:delete",         label: "Artwork",        resource: "artwork",        action: "delete",   menu: "Orders", subgroup: null },
+  // { key: "artwork:download",       label: "Artwork",        resource: "artwork",        action: "download", menu: "Orders", subgroup: null },
 
   { key: "quotation:view",         label: "Quotation",      resource: "quotation",      action: "view",     menu: "Orders", subgroup: null },
   { key: "quotation:add_edit",     label: "Quotation",      resource: "quotation",      action: "add_edit", menu: "Orders", subgroup: null },
@@ -137,6 +138,7 @@ export const ALL_PERMISSIONS = [
   { key: "stock:purchase_receipts:view",      label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "view",     menu: "Stock", subgroup: "Procurement" },
   { key: "stock:purchase_receipts:add_edit",  label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "add_edit", menu: "Stock", subgroup: "Procurement" },
   { key: "stock:purchase_receipts:delete",    label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "delete",   menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_receipts:download",  label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "download", menu: "Stock", subgroup: "Procurement" },
 
   /* ── Logistics ──────────────────────────────────────────── */
   { key: "logistics:shipments:view",          label: "Shipments",           resource: "logistics:shipments",     action: "view",     menu: "Logistics", subgroup: null },

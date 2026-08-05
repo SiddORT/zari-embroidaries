@@ -16,6 +16,8 @@ import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { SmallSearchSelect} from "@/components/ui/SearchableSelect";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const G     = "#C6AF4B";
 const G_DIM = "#A8943E";
@@ -133,6 +135,7 @@ export default function PurchaseOrderForm() {
   const params = useParams<{ id: string }>();
   const isNew = params.id === "new";
   const poId = isNew ? null : parseInt(params.id ?? "0");
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   const { data: me, isError } = useGetMe();
   const token = localStorage.getItem("zarierp_token");
@@ -460,41 +463,43 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => {
-                  downloadPoPdf({
-                    po_number: po.po_number,
-                    status: po.status,
-                    vendor_name: po.vendor_name,
-                    vendor_mode: po.vendor_mode,
-                    po_date: po.po_date,
-                    reference_type: po.reference_type,
-                    notes: po.notes,
-                    items: po.items.map(i => ({
-                      item_name: i.item_name,
-                      item_code: i.item_code,
-                      unit_type: i.unit_type,
-                      ordered_quantity: i.ordered_quantity,
-                      received_quantity: i.received_quantity,
-                      pending_quantity: i.pending_quantity,
-                      unit_price: i.unit_price,
-                      vendor_name: i.vendor_name, 
-                    })),
-                    receipts: po.receipts,
-                  });
-                  logActivity(`Downloaded PDF for Purchase Order ${po.po_number} — ${po.vendor_name}`);
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
-                <FileDown className="h-4 w-4" /> Download PDF
-              </button>
-              {canApprove && (
+              {canDownload && (
+                <button
+                  onClick={() => {
+                    downloadPoPdf({
+                      po_number: po.po_number,
+                      status: po.status,
+                      vendor_name: po.vendor_name,
+                      vendor_mode: po.vendor_mode,
+                      po_date: po.po_date,
+                      reference_type: po.reference_type,
+                      notes: po.notes,
+                      items: po.items.map(i => ({
+                        item_name: i.item_name,
+                        item_code: i.item_code,
+                        unit_type: i.unit_type,
+                        ordered_quantity: i.ordered_quantity,
+                        received_quantity: i.received_quantity,
+                        pending_quantity: i.pending_quantity,
+                        unit_price: i.unit_price,
+                        vendor_name: i.vendor_name, 
+                      })),
+                      receipts: po.receipts,
+                    });
+                    logActivity(`Downloaded PDF for Purchase Order ${po.po_number} — ${po.vendor_name}`);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
+                  <FileDown className="h-4 w-4" /> Download PDF
+                </button>
+              )}
+              {canApprove && canEdit && (
                 <button onClick={handleApprove} disabled={actioning}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
                   style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
                   <CheckCircle2 className="h-4 w-4" /> {actioning ? "Approving…" : "Approve PO"}
                 </button>
               )}
-              {canCreatePr && (
+              {canCreatePr && canEdit && (
                 <button onClick={handleCreatePr}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white"
                   style={{ background: "linear-gradient(135deg,#059669,#047857)" }}>
@@ -561,6 +566,7 @@ export default function PurchaseOrderForm() {
             <div className="px-4 py-3 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-700">Order Items</h3>
             </div>
+            <FormAccessGate readOnly={!canEdit}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-[#F8F6F0]">
@@ -609,6 +615,7 @@ export default function PurchaseOrderForm() {
                 </tbody>
               </table>
             </div>
+            </FormAccessGate>
           </div>
 
           {/* Linked Receipts */}
@@ -862,234 +869,237 @@ export default function PurchaseOrderForm() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <h3 className="text-sm font-semibold text-gray-700">Order Items</h3>
             <button onClick={addLine}
+              disabled={!canEdit}
               className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">
               <Plus className="h-3.5 w-3.5" /> Add Item
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[#F8F6F0]">
-                <tr>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-8">#</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Category</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[200px]">Item</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Unit</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Ordered Qty</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Target Price / Unit</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Total</th>
-                  {includeGst && <>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">HSN Code</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">GST %</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">GST Amt</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Incl. GST</th>
-                  </>}
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Image</th>
-                  <th className="px-3 py-2.5 w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {lineItems.map((line, idx) => {
-                  const qty   = parseFloat(line.orderedQuantity) || 0;
-                  const price = parseFloat(line.targetPrice) || 0;
-                  const gstPct = parseFloat(line.gstPercent) || 0;
-                  const lineAmt = qty * price;
-                  const gstAmt  = includeGst ? lineAmt * gstPct / 100 : 0;
-                  const lineTotal = lineAmt + gstAmt;
+          <FormAccessGate readOnly={!canEdit}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-[#F8F6F0]">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-8">#</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Category</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 min-w-[200px]">Item</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Unit</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Ordered Qty</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-32">Target Price / Unit</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Total</th>
+                    {includeGst && <>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-24">HSN Code</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">GST %</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">GST Amt</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">Incl. GST</th>
+                    </>}
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 w-20">Image</th>
+                    <th className="px-3 py-2.5 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {lineItems.map((line, idx) => {
+                    const qty   = parseFloat(line.orderedQuantity) || 0;
+                    const price = parseFloat(line.targetPrice) || 0;
+                    const gstPct = parseFloat(line.gstPercent) || 0;
+                    const lineAmt = qty * price;
+                    const gstAmt  = includeGst ? lineAmt * gstPct / 100 : 0;
+                    const lineTotal = lineAmt + gstAmt;
 
-                  return (
-                    <tr key={line.key}>
-                      <td className="px-3 py-2 text-xs text-gray-400 align-top">{idx+1}</td>
+                    return (
+                      <tr key={line.key}>
+                        <td className="px-3 py-2 text-xs text-gray-400 align-top">{idx+1}</td>
 
-                      {/* Category */}
-                      <td className="px-3 py-2 align-top">
-                        <select
-                          value={line.itemCategory}
-                          onChange={e => {
-                            updateLine(line.key, "itemCategory", e.target.value as ItemCategory);
-                            selectItem(line.key, null);
-                          }}
-                          className={`${inputCls} bg-white appearance-none text-xs`}>
-                          <option value="all">All</option>
-                          <option value="fabric">Fabric</option>
-                          <option value="material">Material</option>
-                          <option value="packaging">Item Master</option>
-                        </select>
-                      </td>
-
-                      {/* Item */}
-                      <td className="px-3 py-2 align-top">
-                        <SmallSearchSelect
-                          value={line.inventoryItemId ? String(line.inventoryItemId) : ""}
-                          options={itemsForCategory(line.itemCategory).map(item => ({
-                              value: String(item.id),
-                              label: `${item.item_name} · ${
-                                  item.source_type === "fabric"
-                                      ? "Fabric"
-                                      : item.source_type === "material"
-                                      ? "Material"
-                                      : item.source_type === "packaging"
-                                      ? "Item Master"
-                                      : item.source_type
-                              }${item.item_code ? ` (${item.item_code})` : ""}`,
-                          }))}
-                          onSearch={(search) => fetchInventoryItems(search, line.itemCategory)}
-                          onChange={(value) => {
-                              const item =
-                                  inventoryItems.find(i => String(i.id) === value) ?? null;
-
-                              selectItem(line.key, item);
-                          }}
-                          placeholder="Select item..."
-                      />
-                                              
-                      </td>
-                      <td className="px-3 py-2 text-xs text-gray-500 align-top">{line.unitType || "—"}</td>
-                      <td className="px-3 py-2 align-top">
-                        <input type="number" min="0" step="0.001"
-                          value={line.orderedQuantity}
-                          onChange={e => updateLine(line.key, "orderedQuantity", e.target.value)}
-                          className={`${inputCls} text-right`} />
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <div>
-                          <input type="number" min="0" step="0.01"
-                            value={line.targetPrice}
-                            onChange={e => updateLine(line.key, "targetPrice", e.target.value)}
-                            className={`${inputCls} text-right`} />
-                          {line.unitType && (
-                            <span className="text-[10px] text-gray-400 mt-0.5 block text-right">per {line.unitType}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-sm font-mono font-semibold text-gray-900 text-right pr-4 align-top">
-                        {lineAmt > 0 ? `${fmt(lineAmt)}` : "—"}
-                      </td>
-                      {includeGst && <>
-                        <td className="px-3 py-2 align-top2">
-                          <input type="text"
-                            value={line.hsnCode}
-                            onChange={e => updateLine(line.key, "hsnCode", e.target.value)}
-                            placeholder="HSN…"
-                            className={inputCls} />
+                        {/* Category */}
+                        <td className="px-3 py-2 align-top">
+                          <select
+                            value={line.itemCategory}
+                            onChange={e => {
+                              updateLine(line.key, "itemCategory", e.target.value as ItemCategory);
+                              selectItem(line.key, null);
+                            }}
+                            className={`${inputCls} bg-white appearance-none text-xs`}>
+                            <option value="all">All</option>
+                            <option value="fabric">Fabric</option>
+                            <option value="material">Material</option>
+                            <option value="packaging">Item Master</option>
+                          </select>
                         </td>
-                        <td className="px-3 py-2 align-top2">
-                          <input type="number" min="0" max="100" step="0.01"
-                            value={line.gstPercent}
-                            onChange={e => updateLine(line.key, "gstPercent", e.target.value)}
+
+                        {/* Item */}
+                        <td className="px-3 py-2 align-top">
+                          <SmallSearchSelect
+                            value={line.inventoryItemId ? String(line.inventoryItemId) : ""}
+                            options={itemsForCategory(line.itemCategory).map(item => ({
+                                value: String(item.id),
+                                label: `${item.item_name} · ${
+                                    item.source_type === "fabric"
+                                        ? "Fabric"
+                                        : item.source_type === "material"
+                                        ? "Material"
+                                        : item.source_type === "packaging"
+                                        ? "Item Master"
+                                        : item.source_type
+                                }${item.item_code ? ` (${item.item_code})` : ""}`,
+                            }))}
+                            onSearch={(search) => fetchInventoryItems(search, line.itemCategory)}
+                            onChange={(value) => {
+                                const item =
+                                    inventoryItems.find(i => String(i.id) === value) ?? null;
+
+                                selectItem(line.key, item);
+                            }}
+                            placeholder="Select item..."
+                        />
+                                                
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500 align-top">{line.unitType || "—"}</td>
+                        <td className="px-3 py-2 align-top">
+                          <input type="number" min="0" step="0.001"
+                            value={line.orderedQuantity}
+                            onChange={e => updateLine(line.key, "orderedQuantity", e.target.value)}
                             className={`${inputCls} text-right`} />
                         </td>
-                        <td className="px-3 py-2 text-xs font-mono text-amber-600 text-right pr-4 align-top">
-                          {gstAmt > 0 ? `${fmt(gstAmt)}` : "—"}
+                        <td className="px-3 py-2 align-top">
+                          <div>
+                            <input type="number" min="0" step="0.01"
+                              value={line.targetPrice}
+                              onChange={e => updateLine(line.key, "targetPrice", e.target.value)}
+                              className={`${inputCls} text-right`} />
+                            {line.unitType && (
+                              <span className="text-[10px] text-gray-400 mt-0.5 block text-right">per {line.unitType}</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-3 py-2 text-xs font-mono font-semibold text-gray-900 text-right pr-4 align-top">
-                          {lineTotal > 0 ? `${fmt(lineTotal)}` : "—"}
+                        <td className="px-3 py-2 text-sm font-mono font-semibold text-gray-900 text-right pr-4 align-top">
+                          {lineAmt > 0 ? `${fmt(lineAmt)}` : "—"}
                         </td>
-                      </>}
-                      {/* Image picker */}
-                      <td className="px-3 py-2 align-top">
-                        <div className="relative">
-                        <div className="flex flex-col gap-1">
-                          {line.itemImage ? (
-                            <div className="relative group w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
-                              <img src={mediaUrl(line.itemImage)} alt="" className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
-                                <button type="button" onClick={() => updateLine(line.key, "itemImage", "")}
-                                  className="p-0.5 rounded-full bg-white/90"><XIcon className="h-2.5 w-2.5 text-red-500" /></button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => setImagePickerKey(imagePickerKey === line.key ? null : line.key)}
-                              className={`relative w-10 h-10 rounded-lg border overflow-hidden flex items-center justify-center transition-colors group ${line.inventoryItemId ? "border-gray-200 hover:border-[#C6AF4B] cursor-pointer" : "border-gray-200 cursor-not-allowed"}`}
-                              disabled={!line.inventoryItemId}>
-                              <div className="absolute inset-0 bg-gray-50 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 20.25h18a.75.75 0 00.75-.75V5.25A.75.75 0 0021 4.5H3A.75.75 0 002.25 5.25v14.25c0 .414.336.75.75.75zM12 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-                                </svg>
-                              </div>
-                              {line.inventoryItemId && (
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                  <Camera className="h-3.5 w-3.5 text-white" />
+                        {includeGst && <>
+                          <td className="px-3 py-2 align-top2">
+                            <input type="text"
+                              value={line.hsnCode}
+                              onChange={e => updateLine(line.key, "hsnCode", e.target.value)}
+                              placeholder="HSN…"
+                              className={inputCls} />
+                          </td>
+                          <td className="px-3 py-2 align-top2">
+                            <input type="number" min="0" max="100" step="0.01"
+                              value={line.gstPercent}
+                              onChange={e => updateLine(line.key, "gstPercent", e.target.value)}
+                              className={`${inputCls} text-right`} />
+                          </td>
+                          <td className="px-3 py-2 text-xs font-mono text-amber-600 text-right pr-4 align-top">
+                            {gstAmt > 0 ? `${fmt(gstAmt)}` : "—"}
+                          </td>
+                          <td className="px-3 py-2 text-xs font-mono font-semibold text-gray-900 text-right pr-4 align-top">
+                            {lineTotal > 0 ? `${fmt(lineTotal)}` : "—"}
+                          </td>
+                        </>}
+                        {/* Image picker */}
+                        <td className="px-3 py-2 align-top">
+                          <div className="relative">
+                          <div className="flex flex-col gap-1">
+                            {line.itemImage ? (
+                              <div className="relative group w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
+                                <img src={mediaUrl(line.itemImage)} alt="" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
+                                  <button type="button" onClick={() => updateLine(line.key, "itemImage", "")}
+                                    className="p-0.5 rounded-full bg-white/90"><XIcon className="h-2.5 w-2.5 text-red-500" /></button>
                                 </div>
-                              )}
+                              </div>
+                            ) : (
+                              <button type="button" onClick={() => setImagePickerKey(imagePickerKey === line.key ? null : line.key)}
+                                className={`relative w-10 h-10 rounded-lg border overflow-hidden flex items-center justify-center transition-colors group ${line.inventoryItemId ? "border-gray-200 hover:border-[#C6AF4B] cursor-pointer" : "border-gray-200 cursor-not-allowed"}`}
+                                disabled={!line.inventoryItemId}>
+                                <div className="absolute inset-0 bg-gray-50 flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 20.25h18a.75.75 0 00.75-.75V5.25A.75.75 0 0021 4.5H3A.75.75 0 002.25 5.25v14.25c0 .414.336.75.75.75zM12 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+                                  </svg>
+                                </div>
+                                {line.inventoryItemId && (
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                    <Camera className="h-3.5 w-3.5 text-white" />
+                                  </div>
+                                )}
+                              </button>
+                            )}
+                            
+                            {/* Image picker dropdown */}
+                            {imagePickerKey === line.key && (() => {
+                              const masterImgs = inventoryItems.find(i => i.id === line.inventoryItemId)?.images ?? [];
+                              return (
+                                <div className="fixed z-50 mt-1 w-48 bg-white rounded-xl border border-gray-200 shadow-xl p-2">
+                                  {masterImgs.length > 0 ? (
+                                    <>
+                                      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2 px-1">Master Images</p>
+                                      <div className="flex flex-wrap gap-1.5 mb-2">
+                                        {masterImgs.map(img => (
+                                          <button key={img.id} type="button"
+                                            onClick={() => { updateLine(line.key, "itemImage", img.url ?? img.data ?? ""); setImagePickerKey(null); }}
+                                            className="w-10 h-10 rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C6AF4B] transition-colors">
+                                            <img src={fileSrc(img)} alt="" className="w-full h-full object-cover" />
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <p className="text-[10px] text-gray-400 italic px-1 mb-2">No master images</p>
+                                  )}
+                                  <label className="flex items-center gap-1.5 text-[10px] text-[#8a7a2e] font-medium cursor-pointer px-1 py-1 hover:bg-gray-50 rounded-lg">
+                                    <Camera className="h-3 w-3" /> Upload custom
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const itemId = line.inventoryItemId;
+                                      const reader = new FileReader();
+                                      reader.onload = async ev => {
+                                        const data = ev.target?.result as string;
+                                        updateLine(line.key, "itemImage", data);
+                                        setImagePickerKey(null);
+                                        if (!itemId) return;
+                                        try {
+                                          const res = await customFetch<{ images: { id: string; name: string; url?: string; data?: string; size: number }[] }>(
+                                            `/api/inventory/items/${itemId}/add-image`,
+                                            {
+                                              method: "POST",
+                                              headers: { "content-type": "application/json" },
+                                              body: JSON.stringify({ name: file.name, data, size: file.size }),
+                                            }
+                                          );
+                                          setInventoryItems(prev => prev.map(i =>
+                                            i.id === itemId ? { ...i, images: res.images } : i
+                                          ));
+                                        } catch (err) {
+                                          console.warn("Failed to save image to master", err);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }} />
+                                  </label>
+                                  <button type="button" onClick={() => setImagePickerKey(null)}
+                                    className="text-[10px] text-gray-400 px-1 py-1 hover:bg-gray-50 rounded-lg w-full text-left mt-0.5">
+                                    Cancel
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {lineItems.length > 1 && (
+                            <button onClick={() => removeLine(line.key)}
+                              className="p-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600">
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          
-                          {/* Image picker dropdown */}
-                          {imagePickerKey === line.key && (() => {
-                            const masterImgs = inventoryItems.find(i => i.id === line.inventoryItemId)?.images ?? [];
-                            return (
-                              <div className="fixed z-50 mt-1 w-48 bg-white rounded-xl border border-gray-200 shadow-xl p-2">
-                                {masterImgs.length > 0 ? (
-                                  <>
-                                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-2 px-1">Master Images</p>
-                                    <div className="flex flex-wrap gap-1.5 mb-2">
-                                      {masterImgs.map(img => (
-                                        <button key={img.id} type="button"
-                                          onClick={() => { updateLine(line.key, "itemImage", img.url ?? img.data ?? ""); setImagePickerKey(null); }}
-                                          className="w-10 h-10 rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C6AF4B] transition-colors">
-                                          <img src={fileSrc(img)} alt="" className="w-full h-full object-cover" />
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <p className="text-[10px] text-gray-400 italic px-1 mb-2">No master images</p>
-                                )}
-                                <label className="flex items-center gap-1.5 text-[10px] text-[#8a7a2e] font-medium cursor-pointer px-1 py-1 hover:bg-gray-50 rounded-lg">
-                                  <Camera className="h-3 w-3" /> Upload custom
-                                  <input type="file" accept="image/*" className="hidden" onChange={e => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const itemId = line.inventoryItemId;
-                                    const reader = new FileReader();
-                                    reader.onload = async ev => {
-                                      const data = ev.target?.result as string;
-                                      updateLine(line.key, "itemImage", data);
-                                      setImagePickerKey(null);
-                                      if (!itemId) return;
-                                      try {
-                                        const res = await customFetch<{ images: { id: string; name: string; url?: string; data?: string; size: number }[] }>(
-                                          `/api/inventory/items/${itemId}/add-image`,
-                                          {
-                                            method: "POST",
-                                            headers: { "content-type": "application/json" },
-                                            body: JSON.stringify({ name: file.name, data, size: file.size }),
-                                          }
-                                        );
-                                        setInventoryItems(prev => prev.map(i =>
-                                          i.id === itemId ? { ...i, images: res.images } : i
-                                        ));
-                                      } catch (err) {
-                                        console.warn("Failed to save image to master", err);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }} />
-                                </label>
-                                <button type="button" onClick={() => setImagePickerKey(null)}
-                                  className="text-[10px] text-gray-400 px-1 py-1 hover:bg-gray-50 rounded-lg w-full text-left mt-0.5">
-                                  Cancel
-                                </button>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        {lineItems.length > 1 && (
-                          <button onClick={() => removeLine(line.key)}
-                            className="p-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </FormAccessGate>
 
           {/* Totals */}
           {(totals.subtotal > 0 || lineItems.length > 1) && (

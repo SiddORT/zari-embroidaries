@@ -8,6 +8,7 @@ import {
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +71,7 @@ export default function VendorChallans() {
   const { data: user } = useGetMe();
   const logoutMutation = useLogout();
   const { can } = useMyPermissions();
+  const { canEdit, canDelete } = useFormAccessContext();
   const { toast } = useToast();
 
   async function handleLogout() {
@@ -286,17 +288,19 @@ export default function VendorChallans() {
             <h1 className="text-xl font-bold text-gray-900">Vendor Challans</h1>
             <p className="text-sm text-gray-500 mt-0.5">Daily vendor challan entries before PO creation</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setConvertOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors">
-              <ArrowRight className="h-4 w-4" /> Convert to PO
-            </button>
-            <button onClick={() => setLocation("/procurement/vendor-challans/new")}
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-sm">
-              <Plus className="h-4 w-4" /> New Challan
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setConvertOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors">
+                <ArrowRight className="h-4 w-4" /> Convert to PO
+              </button>
+              <button onClick={() => setLocation("/procurement/vendor-challans/new")}
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-[#111827] transition-all shadow-sm">
+                <Plus className="h-4 w-4" /> New Challan
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -375,9 +379,12 @@ export default function VendorChallans() {
                       />
                     </th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-12">Sr.</th>
-                    {["Challan #", "Date", "Vendor", "Type", "Description", "Amount", "Status", "Linked PO", "Linked PR", "Actions"].map(h => (
+                    {["Challan #", "Date", "Vendor", "Type", "Description", "Amount", "Status", "Linked PO", "Linked PR", "Actions"]
+                    .filter((h) => h !== "Actions" || canEdit)
+                    .map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                    ))}
+                    ))
+                    }
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -423,30 +430,31 @@ export default function VendorChallans() {
                         </td>
                         <td className="px-4 py-3 text-xs font-mono text-violet-600">{ch.linked_po_number ?? "—"}</td>
                         <td className="px-4 py-3 text-xs font-mono text-indigo-600">{ch.linked_pr_number ?? "—"}</td>
+                        {canEdit && (
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
-                            {ch.status === "Draft" && (
+                            {ch.status === "Draft" && canEdit && (
                               <button onClick={() => setLocation(`/procurement/vendor-challans/${ch.id}`)} disabled={actionId === ch.id}
                                 title="Edit"
                                 className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
                             )}
-                            {ch.status === "Draft" && can("procurement:vendor_challans:verify") && (
+                            {ch.status === "Draft" && canEdit && can("procurement:vendor_challans:verify") && (
                               <button onClick={() => handleVerify(ch.id)} disabled={actionId === ch.id}
                                 title="Verify"
                                 className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40">
                                 {actionId === ch.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
                               </button>
                             )}
-                            {!["Converted to PO", "Converted to PR", "Billed", "Paid", "Cancelled"].includes(ch.status) && (
+                            {!["Converted to PO", "Converted to PR", "Billed", "Paid", "Cancelled"].includes(ch.status) && canEdit && (
                               <button onClick={() => setCancelTarget(ch.id)} disabled={actionId === ch.id}
                                 title="Cancel"
                                 className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-40">
                                 <XCircle className="h-3.5 w-3.5" />
                               </button>
                             )}
-                            {["Draft", "Cancelled"].includes(ch.status) && (
+                            {["Draft", "Cancelled"].includes(ch.status) && canDelete && (
                               <button onClick={() => handleDelete(ch.id, ch.challan_number ?? `#${ch.id}`)} disabled={actionId === ch.id}
                                 title="Delete"
                                 className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
@@ -455,6 +463,8 @@ export default function VendorChallans() {
                             )}
                           </div>
                         </td>
+                        )}
+                       
                       </tr>
                     );
                   })}
@@ -510,6 +520,7 @@ export default function VendorChallans() {
             <div className="w-px h-5 bg-white/20" />
             <button
               onClick={() => { setBulkError(""); setBulkSuccess(""); setBulkConvertOpen(true); }}
+              disabled={!canEdit}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
               style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
               <ArrowRight className="h-3.5 w-3.5" /> Convert to PO

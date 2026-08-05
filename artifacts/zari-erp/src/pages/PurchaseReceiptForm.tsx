@@ -13,6 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 import { SmallSearchSelect } from "@/components/ui/SearchableSelect";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { mediaUrl } from "@/utils/mediaUrl";
@@ -127,6 +129,7 @@ export default function PurchaseReceiptForm() {
   const params = useParams<{ id: string }>();
   const isNew = params.id === "new";
   const prId = isNew ? null : parseInt(params.id ?? "0");
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   const { data: me, isError } = useGetMe();
   const token = localStorage.getItem("zarierp_token");
@@ -531,7 +534,7 @@ export default function PurchaseReceiptForm() {
             </div>
 
             {/* Download PDF — always visible */}
-            {!editMode && (
+            {!editMode && canDownload &&(
               <button
                 onClick={() => {
                   downloadPrPdf({
@@ -559,13 +562,14 @@ export default function PurchaseReceiptForm() {
             )}
 
             {/* Action buttons for Open receipts */}
-            {isOpen && !editMode && (
+            {isOpen && !editMode && canEdit &&(
               <div className="flex items-center gap-2">
                 <button onClick={enterEditMode}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
                   <Edit2 className="h-4 w-4" /> Edit
                 </button>
                 <button onClick={() => setCancelConfirm(true)}
+                  disabled={!canDelete}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors">
                   <XCircle className="h-4 w-4" /> Cancel Receipt
                 </button>

@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 const card = "bg-white rounded-2xl border border-gray-200 shadow-sm";
@@ -93,6 +94,8 @@ export default function PackingListDetail() {
 
   const [pl, setPl] = useState<PLDetail | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   // Expanded state for packages
   const [expandedPkgs, setExpandedPkgs] = useState<Set<number>>(new Set());
@@ -530,18 +533,23 @@ export default function PackingListDetail() {
             </div>
           </div>
           <div className="flex gap-2 ml-auto">
-            <button onClick={printPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 text-gray-700">
-              <Printer className="h-4 w-4" />
-              Print PDF
-            </button>
-            <button
-              onClick={() => setLocation(`/logistics/packing-lists/${params.id}/edit`)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90"
-              style={{ backgroundColor: G }}
-            >
-              <Edit2 className="h-4 w-4" />
-              Edit
-            </button>
+            {canDownload && (
+              <button onClick={printPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 text-gray-700">
+                <Printer className="h-4 w-4" />
+                Print PDF
+              </button>
+            )}
+            
+            {canEdit && (
+              <button
+                onClick={() => setLocation(`/logistics/packing-lists/${params.id}/edit`)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90"
+                style={{ backgroundColor: G }}
+              >
+                <Edit2 className="h-4 w-4" />
+                Edit
+              </button>
+            )}
           </div>
         </div>
 
