@@ -11,6 +11,7 @@ import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G    = "#C6AF4B";
 const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
@@ -113,6 +114,7 @@ export default function StockAdjustments() {
   const queryClient = useQueryClient();
   const { mutateAsync: logoutMutate } = useLogout();
   const { toast } = useToast();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const handleLogout = async () => {
     await logoutMutate(undefined).catch(() => {});
@@ -407,6 +409,7 @@ export default function StockAdjustments() {
             </div>
           </div>
           <button onClick={openCreate}
+            disabled={!canEdit}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm"
             style={{ background: `linear-gradient(135deg, ${G}, #A8943E)` }}>
             <Plus className="h-4 w-4" /> New Adjustment
@@ -624,11 +627,13 @@ export default function StockAdjustments() {
                         <td className={tdCls}>
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => openEdit(row)}
+                              disabled={!canEdit}
                               className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
                               title="Edit">
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
                             <button onClick={() => setDeleteTarget(row)}
+                              disabled={!canDelete}
                               className="p-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
                               title="Delete">
                               <Trash2 className="h-3.5 w-3.5" />
@@ -842,7 +847,7 @@ export default function StockAdjustments() {
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button onClick={handleSubmit} disabled={submitting}
+              <button onClick={handleSubmit} disabled={submitting || !canEdit}
                 className="px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 flex items-center gap-2"
                 style={{ background: `linear-gradient(135deg, ${G}, #A8943E)` }}>
                 {submitting ? (
