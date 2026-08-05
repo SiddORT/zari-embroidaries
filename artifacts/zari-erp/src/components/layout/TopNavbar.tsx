@@ -97,7 +97,7 @@ const HREF_PERMISSION_MAP: Record<string, string> = {
   "/inventory/items": "stock:items",
   "/inventory/low-stock-alerts": "stock:low_stock",
   "/inventory/ledger": "stock:ledger",
-  "/inventory/reservations": "stock:reservations",
+  // "/inventory/reservations": "stock:reservations",
   "/inventory/adjustments": "stock:adjustments",
 
   "/procurement/vendor-challans": "procurement:vendor_challans",

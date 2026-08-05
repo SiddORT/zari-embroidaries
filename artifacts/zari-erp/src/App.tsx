@@ -157,7 +157,7 @@ function Router() {
       <ProtectedRoute path="/inventory/items" component={InventoryStockList} permission="stock:items" />
       <ProtectedRoute path="/inventory/low-stock-alerts" component={LowStockAlerts} permission="stock:low_stock" />
       <ProtectedRoute path="/inventory/ledger" component={InventoryLedger} permission="stock:ledger" />
-      <ProtectedRoute path="/inventory/reservations" component={Reservations} permission="stock:reservations" />
+      {/* <ProtectedRoute path="/inventory/reservations" component={Reservations} permission="stock:reservations" /> // Since Reservations are not present in swatch ans style orders, this feature is disabled for now */}
       <ProtectedRoute path="/inventory/adjustments" component={StockAdjustments} permission="stock:adjustments" />
       <ProtectedRoute path="/quotation/new" component={QuotationForm} permission="quotation" />
       <ProtectedRoute path="/quotation/:id/edit" component={QuotationForm} permission="quotation" />
