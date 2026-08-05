@@ -29,7 +29,7 @@ import ShippingTab from "@/pages/ShippingTab";
 import LinkedInvoicesPanel from "@/components/LinkedInvoicesPanel";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import TagInput from "@/components/ui/TagInput";
-import { SWATCH_ORDERS, SWATCH_ORDER_TABS } from "@/constants/permissions";
+import { SWATCH_ORDERS} from "@/constants/permissions";
 import { useFormAccess } from "@/hooks/useFormAccess";
 import { FormAccessGate } from "@/components/FormAccessGate";
 
