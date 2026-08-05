@@ -10,6 +10,7 @@ import TopNavbar from "@/components/layout/TopNavbar";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 /* ── styles ─────────────────────────────────────────── */
 const CARD = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
@@ -341,6 +342,7 @@ export default function OtherExpenses() {
   const { data: me, isError, isLoading: meLoading } = useGetMe();
   const { toast } = useToast();
   const isAdmin = (me as any)?.role === "admin";
+  const { canEdit, canView } = useFormAccessContext();
 
   const [rows, setRows]           = useState<any[]>([]);
   const [total, setTotal]         = useState(0);
@@ -483,11 +485,13 @@ export default function OtherExpenses() {
             <h1 className="text-xl font-bold text-gray-900">Other Expenses</h1>
             <p className="text-sm text-gray-500 mt-0.5">{total} record{total !== 1 ? "s" : ""}</p>
           </div>
-          <button onClick={() => setCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
-            style={{ background: G }}>
-            <Plus size={16} /> Add Expense
-          </button>
+          {canEdit && (
+            <button onClick={() => setCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+              style={{ background: G }}>
+              <Plus size={16} /> Add Expense
+            </button>
+          )}
         </div>
 
         {/* Summary cards */}
@@ -583,7 +587,9 @@ export default function OtherExpenses() {
             <table className="min-w-full">
               <thead className="bg-gray-50/80 border-b border-gray-100">
                 <tr>
-                  {["Expense #", "Category", "Vendor", "Amount", "Currency", "Status", "Payment Type", "Date", "Attachment", "Created By", "Actions"].map(h => (
+                  {["Expense #", "Category", "Vendor", "Amount", "Currency", "Status", "Payment Type", "Date", "Attachment", "Created By", "Actions"]
+                  .filter((h) => h !== "Actions" || canEdit || canView)
+                  .map(h => (
                     <th key={h} className={TH}>{h}</th>
                   ))}
                 </tr>
@@ -628,10 +634,12 @@ export default function OtherExpenses() {
                           className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition" title="View">
                           <Eye size={14} />
                         </button>
-                        <button onClick={() => setEditRow(row)}
-                          className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition" title="Edit">
-                          <Edit2 size={14} />
-                        </button>
+                        {canEdit && (
+                          <button onClick={() => setEditRow(row)}
+                            className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition" title="Edit">
+                            <Edit2 size={14} />
+                          </button>
+                        )}
                         {isAdmin && (
                           <button onClick={() => handleDelete(row.expense_id, row.expense_number)}
                             className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition" title="Delete">
