@@ -8,6 +8,8 @@ import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 import type { PreviewInvoice } from "@/components/InvoicePreviewModal";
 import { useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
 import type { InvoicePayment } from "@/hooks/useInvoicePayments";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const G = "#C6AF4B";
 
@@ -130,6 +132,7 @@ function InvoicePaymentsPanel({
   const { data, isLoading, refetch } = useInvoicePaymentsList(invoiceId);
   const addPmt   = useAddInvoicePayment();
   const deletePmt = useDeleteInvoicePayment();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const payments = data?.data ?? [];
   // Convert each payment's INR base back to invoice currency so comparisons stay in one currency
@@ -266,7 +269,9 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
-                  <th className="py-2 w-6"></th>
+                  {canDelete && (
+                    <th className="py-2 w-6"></th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -290,12 +295,13 @@ function InvoicePaymentsPanel({
                       </span>
                     </td>
                     <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
+                    {canDelete && (
                     <td className="py-2">
                       <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
                         className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 size={11} />
                       </button>
-                    </td>
+                    </td>)}
                   </tr>
                   );
                 })}
@@ -405,6 +411,7 @@ export default function InvoiceForm() {
   const params = useParams<{ id?: string }>();
   const isEdit = !!params.id && params.id !== "new";
   const { toast } = useToast();
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -824,6 +831,7 @@ export default function InvoiceForm() {
           </div>
         )}
 
+        <FormAccessGate readOnly={!canEdit}>
         <div className="grid grid-cols-3 gap-5">
           {/* LEFT — Main form */}
           <div className="col-span-2 space-y-5">
@@ -1327,6 +1335,7 @@ export default function InvoiceForm() {
 
           </div>
         </div>
+        </FormAccessGate>
 
         {/* Line Items — full width */}
         <div className={`${card} overflow-hidden`}>
@@ -1342,7 +1351,7 @@ export default function InvoiceForm() {
                 />
                 Show HSN on printed invoice
               </label>
-              {(form.referenceType === "Swatch" || form.referenceType === "Style") && form.referenceId ? (
+              {(form.referenceType === "Swatch" || form.referenceType === "Style") && form.referenceId && canDownload ? (
                 <button
                   onClick={handleLoadFromCostSheet}
                   disabled={loadingCostSheet}
@@ -1353,7 +1362,7 @@ export default function InvoiceForm() {
                     : <><Download size={13} /> Load from Cost Sheet</>
                   }
                 </button>
-              ) : (
+              ) : canDownload && (
                 <button
                   disabled
                   title="Select a Swatch or Style reference first"
@@ -1362,13 +1371,15 @@ export default function InvoiceForm() {
                   <Download size={13} /> Load from Cost Sheet
                 </button>
               )}
-              <button
-                onClick={() => setItems(prev => [...prev, blank()])}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
-                style={{ color: G }}
-              >
+              {canEdit && (
+                <button
+                  onClick={() => setItems(prev => [...prev, blank()])}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
+                  style={{ color: G }}
+                >
                 <Plus size={13} /> Add Item
               </button>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -1384,7 +1395,9 @@ export default function InvoiceForm() {
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">GST Amt {sym}</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Amount {sym}</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Total w/ GST {sym}</th>
-                  <th className="w-[4%]"></th>
+                  { canDelete && (
+                    <th className="w-[4%]"></th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1408,6 +1421,7 @@ export default function InvoiceForm() {
                         <td className="px-3 py-2">
                           {it.category === "Fabric" ? (
                             <select
+                              disabled={!canEdit}
                               value={it.description}
                               onChange={e => {
                                 const label = e.target.value;
@@ -1431,6 +1445,7 @@ export default function InvoiceForm() {
                             </select>
                           ) : (it.category === "Material" || it.category === "Item") ? (
                             <select
+                              disabled={!canEdit}
                               value={it.description}
                               onChange={e => {
                                 const label = e.target.value;
@@ -1453,7 +1468,7 @@ export default function InvoiceForm() {
                               })}
                             </select>
                           ) : (
-                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} disabled={!canEdit} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
                           )}
                         </td>
                         {/* Category */}
@@ -1464,6 +1479,7 @@ export default function InvoiceForm() {
                               const cat = e.target.value;
                               setItems(prev => prev.map(x => x.id !== it.id ? x : { ...x, category: cat }));
                             }}
+                            disabled={!canEdit}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
                           >
                             {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1476,6 +1492,7 @@ export default function InvoiceForm() {
                             value={it.quantity}
                             onChange={e => updateItem(it.id, "quantity", Math.max(0, parseFloat(e.target.value) || 0))}
                             onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault(); }}
+                            disabled={!canEdit}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
@@ -1486,12 +1503,14 @@ export default function InvoiceForm() {
                             value={parseFloat(toInvCcy(it.unitPrice).toFixed(2))}
                             onChange={e => updateItem(it.id, "unitPrice", Math.max(0, parseFloat(e.target.value) || 0) * rate)}
                             onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault(); }}
+                            disabled={!canEdit}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
                         {/* HSN Code — pick from HSN master only */}
                         <td className="px-3 py-2">
                           <select
+                            disabled={!canEdit}
                             value={it.hsnCode}
                             onChange={e => {
                               const code = e.target.value;
@@ -1512,6 +1531,7 @@ export default function InvoiceForm() {
                         {/* GST % — derived from HSN, read-only */}
                         <td className="px-3 py-2">
                           <input
+                            disabled={!canEdit}
                             type="number"
                             value={it.hsnGstPct}
                             readOnly
@@ -1536,11 +1556,13 @@ export default function InvoiceForm() {
                           {toInvCcy(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
                         {/* Delete */}
+                        {canDelete && (
                         <td className="px-2 py-2">
                           <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
                             <Trash2 size={12} />
                           </button>
                         </td>
+                        )}
                       </tr>
                     </Fragment>
                   );
@@ -1594,6 +1616,7 @@ export default function InvoiceForm() {
             Cancel
           </button>
           <div className="flex items-center gap-3">
+            {canEdit && (
             <button
               onClick={() => handleSave("Draft")}
               disabled={saving}
@@ -1602,12 +1625,14 @@ export default function InvoiceForm() {
               {saving ? <span className="h-3.5 w-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> : <FileText size={14} />}
               Save as Draft
             </button>
+            )}
             <button
               onClick={() => setShowPreview(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition"
             >
               <Eye size={14} /> Preview Invoice
             </button>
+            {canEdit && (
             <button
               onClick={() => handleSave()}
               disabled={saving}
@@ -1617,6 +1642,7 @@ export default function InvoiceForm() {
               {saving ? <span className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />}
               {isEdit ? "Save Changes" : "Generate Invoice"}
             </button>
+            )}
           </div>
         </div>
 
