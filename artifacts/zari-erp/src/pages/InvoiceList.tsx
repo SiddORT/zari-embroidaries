@@ -7,6 +7,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 import { useAddInvoicePayment } from "@/hooks/useInvoicePayments";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 
@@ -81,6 +82,7 @@ const PAY_ELIGIBLE = ["Sent", "Generated", "Partially Paid", "Overdue"];
 export default function InvoiceList() {
   const { fmt: dcFmt } = useCurrency();
   const fmt = (n: string | number | null | undefined) => dcFmt(parseFloat(String(n ?? 0)));
+  const { canView, canEdit, canDelete, canDownload } = useFormAccessContext();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -239,13 +241,16 @@ export default function InvoiceList() {
               <p className="text-sm text-gray-400 mt-0.5">Manage client &amp; vendor invoices</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate("/accounts/invoices/new")}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition"
-            style={{ backgroundColor: G }}
-          >
-            <Plus size={15} /> New Invoice
-          </button>
+          { canEdit && (
+            <button
+              onClick={() => navigate("/accounts/invoices/new")}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition"
+              style={{ backgroundColor: G }}
+            >
+              <Plus size={15} /> New Invoice
+            </button>
+          )}
+        
         </div>
 
         {/* Summary cards */}
@@ -327,7 +332,9 @@ export default function InvoiceList() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#C6AF4B]/15">
-                  {["Sr.", "Invoice No", "Direction", "Type", "Client / Vendor", "Reference", "Currency", "Total", "Received", "Pending", "Date", "Due Date", "Status", "Actions"].map(h => (
+                  {["Sr.", "Invoice No", "Direction", "Type", "Client / Vendor", "Reference", "Currency", "Total", "Received", "Pending", "Date", "Due Date", "Status", "Actions"]
+                  .filter((h) => h !== "Actions" || canView ||canEdit || canDelete || canDownload)
+                  .map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -346,13 +353,14 @@ export default function InvoiceList() {
                     <td colSpan={14} className="py-16 text-center">
                       <FileText size={40} className="mx-auto text-gray-200 mb-3" />
                       <p className="text-gray-400 text-sm">No invoices found. Create your first invoice.</p>
+                      {canEdit && (
                       <button
                         onClick={() => navigate("/accounts/invoices/new")}
                         className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white"
                         style={{ backgroundColor: G }}
                       >
                         <Plus size={14} /> New Invoice
-                      </button>
+                      </button>)}
                     </td>
                   </tr>
                 ) : invoices.map((inv, idx) => (
@@ -418,18 +426,22 @@ export default function InvoiceList() {
             className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl min-w-[170px] py-1"
             style={{ top: dropdownPos.top, right: dropdownPos.right }}
           >
-            <button
-              onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}`); }}
-              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
-            >
-              <Eye className="h-3.5 w-3.5" /> View Invoice
-            </button>
-            <button
-              onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}/edit`); }}
-              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
-            >
-              <Edit2 className="h-3.5 w-3.5" /> Edit Invoice
-            </button>
+            {canView && (
+              <button
+                onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}`); }}
+                className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+              >
+                <Eye className="h-3.5 w-3.5" /> View Invoice
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => { setOpenActionId(null); navigate(`/accounts/invoices/${inv.id}/edit`); }}
+                className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+              >
+                <Edit2 className="h-3.5 w-3.5" /> Edit Invoice
+              </button>
+            )}
             {PAY_ELIGIBLE.includes(inv.invoiceStatus) && (
               <button
                 onClick={() => { setOpenActionId(null); openPayModal(inv); }}
@@ -438,19 +450,23 @@ export default function InvoiceList() {
                 <Wallet className="h-3.5 w-3.5" /> Record Payment
               </button>
             )}
-            <button
-              onClick={() => { setOpenActionId(null); setPreviewInvId(inv.id); }}
-              className="w-full text-left px-3 py-2 text-xs text-amber-700 hover:bg-amber-50 flex items-center gap-2.5"
-            >
-              <Printer className="h-3.5 w-3.5" /> Preview / PDF
-            </button>
+            {canDownload && (
+              <button
+                onClick={() => { setOpenActionId(null); setPreviewInvId(inv.id); }}
+                className="w-full text-left px-3 py-2 text-xs text-amber-700 hover:bg-amber-50 flex items-center gap-2.5"
+              >
+                <Printer className="h-3.5 w-3.5" /> Preview / PDF
+              </button>
+            )}
             <div className="mx-2 my-1 border-t border-gray-100" />
-            <button
-              onClick={() => { setOpenActionId(null); setDeleteTarget(inv); }}
-              className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Delete
-            </button>
+            {canDelete && (
+              <button
+                onClick={() => { setOpenActionId(null); setDeleteTarget(inv); }}
+                className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </button>
+            )}
           </div>,
           document.body
         );
