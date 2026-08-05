@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G     = "#C6AF4B";
 const G_DIM = "#A8943E";
@@ -42,6 +43,7 @@ export default function LowStockAlerts() {
   const queryClient  = useQueryClient();
   const token        = localStorage.getItem("zarierp_token");
 
+  const { canEdit, canDelete } = useFormAccessContext();   // Permission Context
   const { data: user, isLoading: userLoading, isError } = useGetMe({
     query: { enabled: !!token, queryKey: getGetMeQueryKey(), retry: false },
   });
@@ -199,6 +201,7 @@ interface AlertTableProps {
 }
 
 function AlertTable({ title, subtitle, accentColor, items, onCreatePO }: AlertTableProps) {
+  const { canEdit } = useFormAccessContext();
   const G = "#C6AF4B";
   const thCls = "text-left px-4 py-3 text-[9px] font-black uppercase tracking-[0.15em] text-gray-400 bg-gray-50/80 border-b border-gray-100";
   const tdCls = "px-4 py-3 text-xs align-middle";
@@ -318,6 +321,7 @@ function AlertTable({ title, subtitle, accentColor, items, onCreatePO }: AlertTa
                   </td>
                   <td className={tdCls}>
                     <button onClick={() => onCreatePO(item)}
+                      disabled={!canEdit}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap"
                       style={{ borderColor: "#FECACA", color: "#DC2626", background: "rgba(239,68,68,0.04)" }}
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)"; }}
