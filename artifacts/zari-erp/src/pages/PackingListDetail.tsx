@@ -657,7 +657,8 @@ export default function PackingListDetail() {
                   <Box className="h-4 w-4" style={{ color: G }} />
                   <h2 className="text-sm font-bold text-gray-900">Packages ({pl.packages.length})</h2>
                 </div>
-                <button
+                { canEdit && (
+                  <button
                   onClick={handleAddPackage}
                   disabled={addingPkg}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60"
@@ -668,6 +669,8 @@ export default function PackingListDetail() {
                     : <Plus className="h-3.5 w-3.5" />}
                   Add Package
                 </button>
+                )}
+                
               </div>
 
               {pl.packages.length === 0 ? (
@@ -706,6 +709,7 @@ export default function PackingListDetail() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            {canEdit && (
                             <button
                               onClick={() => openAddPanel(pkg.id)}
                               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
@@ -716,7 +720,8 @@ export default function PackingListDetail() {
                             >
                               <Plus className="h-3 w-3" />
                               {addingToPkg === pkg.id ? "Selecting…" : "Add Orders"}
-                            </button>
+                            </button>)}
+                            {canEdit && (
                             <button
                               onClick={() => openCustomPanel(pkg.id)}
                               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
@@ -728,6 +733,8 @@ export default function PackingListDetail() {
                               <Plus className="h-3 w-3" />
                               {customPkgId === pkg.id ? "Custom…" : "Add Custom"}
                             </button>
+                            )}
+                            {canEdit && (
                             <button
                               onClick={() => isEditingDims ? setEditingPkg(null) : startEditPkg(pkg)}
                               className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600"
@@ -735,6 +742,8 @@ export default function PackingListDetail() {
                             >
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
+                            )}
+                            {canDelete && (
                             <button
                               onClick={() => handleDeletePackage(pkg.id)}
                               disabled={deletingPkgId === pkg.id}
@@ -742,6 +751,7 @@ export default function PackingListDetail() {
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
+                            )}
                             <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
@@ -1037,7 +1047,9 @@ export default function PackingListDetail() {
                                 <table className="w-full text-sm">
                                   <thead>
                                     <tr className="bg-gray-50 border-b border-gray-100">
-                                      {["#", "Image", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", ""].map(h => (
+                                      {["#", "Image", "Type", "Order Code", "Description", "Qty", "Unit", "Weight (kg)", "Actions"]
+                                      .filter(h => h !== "Actions" || canDelete)
+                                      .map(h => (
                                         <th key={h} className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                                       ))}
                                     </tr>
@@ -1123,6 +1135,7 @@ export default function PackingListDetail() {
                                             )}
                                           </div>
                                         </td>
+                                        {canDelete && (
                                         <td className="px-3 py-3">
                                           <button
                                             onClick={() => handleDeleteItem(pkg.id, item.id)}
@@ -1132,6 +1145,7 @@ export default function PackingListDetail() {
                                             <Trash2 className="h-3.5 w-3.5" />
                                           </button>
                                         </td>
+                                        )}
                                       </tr>
                                     ))}
                                   </tbody>
