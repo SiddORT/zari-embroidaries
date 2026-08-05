@@ -10,6 +10,7 @@ import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 /* ── theme ─────────────────────────────────────────── */
 const G    = "#C6AF4B";
@@ -397,6 +398,7 @@ export default function AccountPurchases() {
   const { data: me } = useGetMe();
   const role = (me as any)?.role ?? "";
   const hasAccess = role === "admin" || role === "accounts";
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   const [fromDate, setFromDate]     = useState("");
   const [toDate, setToDate]         = useState("");
@@ -722,7 +724,7 @@ export default function AccountPurchases() {
                       <th className={`${TH} text-right`}>Paid</th>
                       <th className={`${TH} text-right`}>Pending</th>
                       <th className={TH}>Status</th>
-                      <th className={TH}>Action</th>
+                      {canEdit && (<th className={TH}>Action</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -808,13 +810,15 @@ export default function AccountPurchases() {
                                 </span>
                               ) : (
                                 <div className="flex items-center gap-1.5">
-                                  <button
-                                    onClick={() => setPaymentRow(row)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
-                                    style={{ background: G }}>
-                                    <CreditCard size={11}/> Pay
-                                  </button>
-                                  {row.ref_type === "Purchase Receipt" && (
+                                  {canEdit && (
+                                    <button
+                                      onClick={() => setPaymentRow(row)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+                                      style={{ background: G }}>
+                                      <CreditCard size={11}/> Pay
+                                    </button>
+                                  )}
+                                  {row.ref_type === "Purchase Receipt" && canDelete && (
                                     <button
                                       onClick={() => setCancelRow(row)}
                                       title="Cancel this vendor bill"
