@@ -47,7 +47,7 @@ export function useMyPermissions() {
     const hasAnyTabPerm = Array.from(myPermSet).some((p) =>
       p.startsWith(`${prefix}:tab:`)
     );
-    if (!hasAnyTabPerm) return true;
+    if (!hasAnyTabPerm) return false;
     return myPermSet.has(tabKey);
   }
 
