@@ -178,8 +178,8 @@ function Router() {
       <ProtectedRoute path="/logistics/packing-lists/:id/edit" component={PackingListForm} permission="logistics:packing_lists" />
       <ProtectedRoute path="/logistics/packing-lists/:id" component={PackingListDetail} permission="logistics:packing_lists" />
       <ProtectedRoute path="/masters/shipping-vendors" component={ShippingVendors} permission="masters:shipping_vendors" />
-      <ProtectedRoute path="/settings/reports" component={Reports} permission="settings" />
-      <ProtectedRoute path="/settings" component={Settings} permission="settings" />
+      <ProtectedRoute path="/settings/reports" component={Reports} permission="reports" />
+      <ProtectedRoute path="/settings" component={Settings}/>
       <Route path="/help" component={UserManual} />
       <Route component={NotFound} />
     </Switch>

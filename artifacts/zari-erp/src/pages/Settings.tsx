@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { logDownload } from "@/utils/logDownload";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const G = "#C6AF4B";
 
@@ -123,11 +125,15 @@ export default function Settings() {
           <div className="flex-1 min-w-0">
             {tab === "profile" && can("settings:profile:view") && <ProfileTab card={card} inp={inp} label={label} toast={toast} userId={user?.id} canEdit={can("settings:profile:add_edit")} />}
             {tab === "currency" && can("settings:currency:view") && <CurrencyTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:currency:add_edit")} />}
-            {tab === "banks" && can("settings:banks:view") && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:banks:add_edit")} />}
+            {tab === "banks" && can("settings:banks:view") && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:banks:add_edit")} 
+            canDelete={can("settings:banks:delete")}
+            />}
             {tab === "gst" && can("settings:gst:view") && <GSTSettingsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:gst:add_edit")} />}
             {tab === "logs" && can("settings:activity_logs:view") && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} canDownload={can("settings:activity_logs:download")} />}
-            {tab === "warehouses" && can("settings:warehouses:view") && <WarehouseTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:warehouses:add_edit")} />}
-            {tab === "templates" && can("settings:templates:view") && <InvoiceTemplatesTab card={card} toast={toast} />}
+            {tab === "warehouses" && can("settings:warehouses:view") && <WarehouseTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:warehouses:add_edit")} 
+            canDelete={can("settings:warehouses:delete")}
+            canDownload={can("settings:warehouses:download")} />}
+            {tab === "templates" && can("settings:templates:view") && <InvoiceTemplatesTab card={card} toast={toast} canEdit={can("settings:templates:add_edit")}/>}
             {tab === "download_logs" && can("settings:download_logs:view") && <DownloadLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} canDownload={can("settings:download_logs:download")} />}
             {tab === "api_docs" && isAdmin && <ApiDocsTab card={card} />}
           </div>
@@ -166,7 +172,7 @@ function fmtDateTime(d: string) {
 // PROFILE TAB
 // ─────────────────────────────────────────────────────────
 
-function ProfileTab({ card, inp, label, toast, userId }: any) {
+function ProfileTab({ card, inp, label, toast, userId , canEdit}: any) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [form, setForm] = useState({ name: "", phone_number: "" });
   const [saving, setSaving] = useState(false);
@@ -272,6 +278,7 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
           <h2 className="font-bold text-gray-900 text-base">Profile Information</h2>
         </div>
 
+        <FormAccessGate readOnly={!canEdit}>
         {/* Photo */}
         <div className="flex items-center gap-5 mb-6">
           <div className="relative">
@@ -310,8 +317,10 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
             )}
           </div>
         </div>
+        </FormAccessGate>
 
         <div className="space-y-4">
+          <FormAccessGate readOnly={!canEdit}>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={label}>Full Name <span className="text-red-500 ml-0.5">*</span></label>
@@ -333,11 +342,12 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
               <CheckCircle2 size={16} /> Profile updated successfully
             </div>
           )}
+          </FormAccessGate>
 
           <div className="flex justify-end">
             <button
               onClick={handleSaveProfile}
-              disabled={saving}
+              disabled={saving || !canEdit}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
               style={{ backgroundColor: G }}
             >
@@ -356,6 +366,7 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
         </div>
 
         <div className="space-y-4">
+          <FormAccessGate readOnly={!canEdit}>
           <div>
             <label className={label}>Current Password <span className="text-red-500 ml-0.5">*</span></label>
             <div className="relative">
@@ -420,11 +431,11 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
               <CheckCircle2 size={16} /> Password updated successfully
             </div>
           )}
-
+          </FormAccessGate>
           <div className="flex justify-end">
             <button
               onClick={handleChangePassword}
-              disabled={pwSaving}
+              disabled={pwSaving || !canEdit}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-60"
             >
               {pwSaving ? <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Lock size={14} />}
@@ -443,7 +454,7 @@ function ProfileTab({ card, inp, label, toast, userId }: any) {
 
 const CURR_PER_PAGE = 10;
 
-function CurrencyTab({ card, inp, label, toast }: any) {
+function CurrencyTab({ card, inp, label, toast, canEdit }: any) {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [innerTab, setInnerTab] = useState<"currencies" | "rates">("currencies");
   const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -665,7 +676,7 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                         {!c.is_base && (
                           <button
                             onClick={() => handleToggle(c.code)}
-                            disabled={toggling === c.code}
+                            disabled={toggling === c.code || !canEdit}
                             className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
                               c.is_active
                                 ? "border-gray-200 text-gray-600 hover:bg-gray-50"
@@ -787,7 +798,7 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                                 className="w-28 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#C6AF4B]"
                                 autoFocus
                               />
-                              <button onClick={handleSaveRate} disabled={savingRate} className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium transition disabled:opacity-60" style={{ backgroundColor: G }}>
+                              <button onClick={handleSaveRate} disabled={savingRate || !canEdit} className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium transition disabled:opacity-60" style={{ backgroundColor: G }}>
                                 {savingRate ? "…" : "Save"}
                               </button>
                               <button onClick={() => setEditRate(null)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
@@ -807,6 +818,7 @@ function CurrencyTab({ card, inp, label, toast }: any) {
                         <td className="px-5 py-3">
                           <button
                             onClick={() => setEditRate({ code: r.currency_code, value: r.rate })}
+                            disabled={!canEdit}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
                             title="Override rate manually"
                           >
@@ -865,7 +877,7 @@ interface BankAccount {
 
 const BLANK_BANK = { bank_name: "", account_no: "", ifsc_code: "", branch: "", account_name: "", bank_upi: "", is_default: false };
 
-function BankDetailsTab({ card, inp, label, toast }: any) {
+function BankDetailsTab({ card, inp, label, toast, canEdit, canDelete }: any) {
   const token = localStorage.getItem("zarierp_token");
   const hdrs = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
@@ -945,6 +957,7 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
           </div>
           <button
             onClick={openNew}
+            disabled={!canEdit}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition"
             style={{ backgroundColor: G }}
           >
@@ -959,10 +972,12 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
         <div className={`${card} p-5`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">{editId ? "Edit Bank Account" : "Add Bank Account"}</h3>
-            <button onClick={() => setShowForm(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+            <button onClick={() => setShowForm(false)} 
+            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
               <X size={16} />
             </button>
           </div>
+          <FormAccessGate readOnly={!canEdit}>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={lbl}>Bank Name <span className="text-red-500 ml-0.5">*</span></label>
@@ -989,10 +1004,12 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
               <input className={inpClass} value={form.bank_upi} onChange={e => setF("bank_upi", e.target.value)} placeholder="e.g. business@hdfc" />
             </div>
           </div>
+          </FormAccessGate>
           <div className="flex items-center gap-3 mt-4">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
+                disabled={!canEdit}
                 checked={form.is_default}
                 onChange={e => setF("is_default", e.target.checked)}
                 className="w-4 h-4 rounded accent-[#C6AF4B]"
@@ -1002,7 +1019,7 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
           </div>
           <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
             <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60" style={{ backgroundColor: G }}>
+            <button onClick={handleSave} disabled={saving || !canEdit} className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60" style={{ backgroundColor: G }}>
               {saving ? "Saving…" : "Save Account"}
             </button>
           </div>
@@ -1019,7 +1036,9 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
           <div className="p-14 text-center">
             <CreditCard size={36} className="mx-auto text-gray-200 mb-3" />
             <p className="text-gray-400 text-sm">No bank accounts added yet.</p>
-            <button onClick={openNew} className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first bank account</button>
+            <button onClick={openNew} 
+            disabled={!canEdit}
+            className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first bank account</button>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -1051,6 +1070,7 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
                   {!b.is_default && (
                     <button
                       onClick={() => handleSetDefault(b.id)}
+                      disabled={!canEdit}
                       className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600 transition"
                       title="Set as default"
                     >
@@ -1062,7 +1082,7 @@ function BankDetailsTab({ card, inp, label, toast }: any) {
                   </button>
                   <button
                     onClick={() => handleDelete(b.id)}
-                    disabled={deletingId === b.id}
+                    disabled={deletingId === b.id || !canDelete}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40"
                     title="Delete"
                   >
@@ -1187,7 +1207,7 @@ function toPlainEnglish(method: string, url: string): string {
   return `${verb} ${resource}`.trim() || `${verb} record`;
 }
 
-function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
+function ActivityLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) {
   const token = localStorage.getItem("zarierp_token");
   const hdrs = { Authorization: `Bearer ${token}` };
 
@@ -1267,7 +1287,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail }: any) {
             {isAdmin && (
               <button
                 onClick={handleExportCSV}
-                disabled={exporting || logs.length === 0}
+                disabled={exporting || logs.length === 0 || !canDownload}
                 className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
               >
                 <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
@@ -1488,7 +1508,7 @@ const BLANK_WH: Omit<WarehouseLocation, "id" | "created_at"> = {
   is_active: true, notes: "",
 };
 
-function WarehouseTab({ card, inp, label, toast }: any) {
+function WarehouseTab({ card, inp, label, toast, canEdit, canDelete, canDownload }: any) {
   const token = localStorage.getItem("zarierp_token");
   const hdrs = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
@@ -1621,13 +1641,14 @@ function WarehouseTab({ card, inp, label, toast }: any) {
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={handleExportPDF}
-              disabled={exportingPdf || warehouses.length === 0}
+              disabled={exportingPdf || warehouses.length === 0 || !canDownload}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
             >
               <FileText size={13} /> {exportingPdf ? "Generating…" : "Export PDF"}
             </button>
             <button
               onClick={openNew}
+              disabled={!canEdit}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition"
               style={{ backgroundColor: G }}
             >
@@ -1645,7 +1666,7 @@ function WarehouseTab({ card, inp, label, toast }: any) {
             <h3 className="font-semibold text-gray-900">{editId ? "Edit Warehouse" : "Add Warehouse"}</h3>
             <button onClick={() => setShowForm(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X size={16} /></button>
           </div>
-
+          <FormAccessGate readOnly={!canEdit}>
           {/* Basic info */}
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="col-span-2">
@@ -1716,10 +1737,11 @@ function WarehouseTab({ card, inp, label, toast }: any) {
               </label>
             </div>
           </div>
+          </FormAccessGate>
 
           <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
             <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60" style={{ backgroundColor: G }}>
+            <button onClick={handleSave} disabled={saving || !canEdit} className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60" style={{ backgroundColor: G }}>
               {saving ? "Saving…" : "Save Warehouse"}
             </button>
           </div>
@@ -1735,7 +1757,9 @@ function WarehouseTab({ card, inp, label, toast }: any) {
         <div className={`${card} p-14 text-center`}>
           <Warehouse size={36} className="mx-auto text-gray-200 mb-3" />
           <p className="text-gray-400 text-sm">No warehouses added yet.</p>
-          <button onClick={openNew} className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first warehouse</button>
+          <button onClick={openNew} 
+          disabled={!canEdit}
+          className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first warehouse</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -1790,7 +1814,7 @@ function WarehouseTab({ card, inp, label, toast }: any) {
                   </button>
                   <button
                     onClick={() => handleDelete(w.id)}
-                    disabled={deletingId === w.id}
+                    disabled={deletingId === w.id || !canDelete}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40"
                     title="Delete"
                   >
@@ -1889,7 +1913,7 @@ function parsePhone(phone: string): { code: string; number: string } {
   return { code: "+91", number: phone };
 }
 
-function GSTSettingsTab({ card, inp, label, toast }: any) {
+function GSTSettingsTab({ card, inp, label, toast, canEdit }: any) {
   const [form, setForm] = useState<GSTForm>(EMPTY_GST);
   const [phoneCode, setPhoneCode] = useState("+91");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -2004,7 +2028,7 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
             <p className="text-xs text-gray-400 mt-0.5">Company GST configuration used across invoice generation and tax calculations</p>
           </div>
         </div>
-
+        <FormAccessGate readOnly={!canEdit}>
         <div className="space-y-5 pt-1">
 
           {/* Company Name + GSTIN */}
@@ -2173,8 +2197,10 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
             )}
           </div>
         </div>
+        </FormAccessGate>
       </div>
 
+      <FormAccessGate readOnly={!canEdit}>
       {/* Toggles card */}
       <div className={`${card} p-6`}>
         <div className="flex items-center gap-3 mb-5 border-b border-gray-100 pb-4">
@@ -2208,6 +2234,7 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
           </div>
         </div>
       </div>
+      </FormAccessGate>
 
       {/* Summary info card */}
       <div className={`${card} p-5`}>
@@ -2250,7 +2277,7 @@ function GSTSettingsTab({ card, inp, label, toast }: any) {
       <div className="flex justify-end">
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !canEdit}
           className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
           style={{ backgroundColor: G }}
         >
@@ -2371,7 +2398,7 @@ function TemplatePreview({ layout }: { layout: string }) {
   );
 }
 
-function InvoiceTemplatesTab({ card, toast }: any) {
+function InvoiceTemplatesTab({ card, toast, canEdit }: any) {
   const token = localStorage.getItem("zarierp_token");
   const hdrs = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
@@ -2518,7 +2545,7 @@ function InvoiceTemplatesTab({ card, toast }: any) {
                 </div>
                 <button
                   onClick={handleSetDefault}
-                  disabled={settingDefault || selectedTpl.is_default}
+                  disabled={settingDefault || selectedTpl.is_default || !canEdit}
                   className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
                     selectedTpl.is_default
                       ? "border-[#C6AF4B40] text-[#C6AF4B] bg-[#C6AF4B0D] cursor-default"
@@ -2560,7 +2587,7 @@ function InvoiceTemplatesTab({ card, toast }: any) {
               <div className="flex justify-end">
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || !canEdit}
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
                   style={{ backgroundColor: G }}
                 >

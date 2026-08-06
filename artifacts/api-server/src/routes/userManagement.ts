@@ -237,6 +237,7 @@ export const ALL_PERMISSIONS = [
   { key: "settings:warehouses:view",       label: "Warehouses",        resource: "settings:warehouses",       action: "view",     menu: "Admin", subgroup: "Settings" },
   { key: "settings:warehouses:add_edit",   label: "Warehouses",        resource: "settings:warehouses",       action: "add_edit", menu: "Admin", subgroup: "Settings" },
   { key: "settings:warehouses:delete",     label: "Warehouses",        resource: "settings:warehouses",       action: "delete",   menu: "Admin", subgroup: "Settings" },
+  { key: "settings:warehouses:download",   label: "Warehouses",        resource: "settings:warehouses",       action: "download", menu: "Admin", subgroup: "Settings" },
 
   { key: "settings:templates:view",        label: "Invoice Templates", resource: "settings:templates",        action: "view",     menu: "Admin", subgroup: "Settings" },
   { key: "settings:templates:add_edit",    label: "Invoice Templates", resource: "settings:templates",        action: "add_edit", menu: "Admin", subgroup: "Settings" },
