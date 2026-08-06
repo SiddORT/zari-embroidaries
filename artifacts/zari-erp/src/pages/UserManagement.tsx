@@ -15,6 +15,7 @@ import {
   usePermissions,
   type UserRecord, type RoleRecord, type PermissionDef,
 } from "@/hooks/useUserManagement";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 function buildInviteUrl(token: string) {
   const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -316,6 +317,7 @@ function StatusBadge({ active, pending }: { active: boolean; pending: boolean })
 
 function UsersTab({ roles }: { roles: RoleRecord[] }) {
   const { data, isLoading } = useUsers();
+  const { canEdit, canView, canDelete } = useFormAccessContext();
   const { data: meData } = useGetMe();
   const myId: number | undefined = (meData as unknown as { id?: number })?.id;
   const deleteUser = useDeleteUser();
@@ -364,6 +366,7 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">{users.length} user{users.length !== 1 ? "s" : ""}</p>
         <button onClick={() => setAddOpen(true)}
+          disabled={!canEdit}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-gray-800 transition-colors">
           <Plus className="h-4 w-4" /> Invite User
         </button>
@@ -414,13 +417,13 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                         {!isSuperuser && !isMe && (
                           isPending ? (
                             <button onClick={() => handleResend(u)} title="Resend invite email"
-                              disabled={resendInvite.isPending}
+                              disabled={resendInvite.isPending || !canEdit}
                               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-50">
                               <RefreshCw className="h-3 w-3" /> Resend Invite
                             </button>
                           ) : u.isActive ? (
                             <button onClick={() => handleAdminReset(u)} title="Send password reset email to this user"
-                              disabled={adminReset.isPending}
+                              disabled={adminReset.isPending || !canEdit}
                               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50">
                               <KeyRound className="h-3 w-3" /> Reset Password
                             </button>
@@ -428,12 +431,14 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                         )}
                         {!isSuperuser && (
                           <button onClick={() => setEditUser(u)} title="Edit"
+                            disabled={!canEdit}
                             className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                         )}
                         {!isSuperuser && !isMe && (
                           <button onClick={() => setDeleteId(u.id)} title="Delete"
+                            disabled={!canDelete}
                             className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -570,6 +575,7 @@ function SubgroupContent({
   const visibleCols = ACTION_COLS.filter(col => resources.some(r => r.actionKeys[col.key]));
   const isChipMode  = visibleCols.length === 1 && visibleCols[0].key === "view";
   const sgSelected  = sgKeys.filter(k => selected.has(k)).length;
+  const { canEdit, canView } = useFormAccessContext();
 
   // Detect whether this subgroup contains tab permissions
   const isTabSubgroup = resources.some(r => r.resource.includes(":tab:"));
@@ -598,7 +604,7 @@ function SubgroupContent({
           }}        
           >
           <IndeterminateCheckbox
-            disabled={!parentEnabled}
+            disabled={!parentEnabled || !canEdit}
             checked={sgAllOn} indeterminate={sgSomeOn && !sgAllOn}
             onChange={() => toggleSubgroup(resources)}
             className="h-3.5 w-3.5 shrink-0"
@@ -624,7 +630,7 @@ function SubgroupContent({
             const on = selected.has(permKey);
             return (
               <button key={rg.resource} type="button"
-                disabled={!parentEnabled}
+                disabled={!parentEnabled || !canEdit}
                 onClick={() => {
                     if (!parentEnabled) return;
                     toggleResource(rg);
@@ -654,6 +660,7 @@ function SubgroupContent({
                   <th key={col.key} className="px-4 py-2 text-center whitespace-nowrap w-24">
                     <label className="inline-flex flex-col items-center gap-1 cursor-pointer">
                       <IndeterminateCheckbox
+                        disabled={!canEdit}
                         checked={colAllOn} indeterminate={colSomeOn && !colAllOn}
                         onChange={() => toggleAction(col.key, resources)}
                         className="h-3.5 w-3.5"
@@ -677,7 +684,7 @@ function SubgroupContent({
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <IndeterminateCheckbox
-                        disabled={!parentEnabled}
+                        disabled={!parentEnabled || !canEdit}
                         checked={rgAllOn}
                         indeterminate={rgSomeOn && !rgAllOn}
                         onChange={() => toggleResource(rg)}
@@ -701,7 +708,7 @@ function SubgroupContent({
                         {permKey ? (
                           <input
                             type="checkbox"
-                            disabled={!parentEnabled}
+                            disabled={!parentEnabled || !canEdit}
                             checked={selected.has(permKey)}
                             onClick={(e) => e.stopPropagation()} // Prevents parent row listeners from triggering
                             onChange={() => toggle(permKey)}
@@ -732,6 +739,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions));
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const initialPerms = useMemo(() => [...new Set(role.permissions)].sort().join(","), [role.id]);
   const isDirty = [...selected].sort().join(",") !== initialPerms;
@@ -879,14 +887,16 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button type="button" onClick={clearAll}
+            disabled={!canDelete}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
             <Square className="h-3 w-3" /> Clear
           </button>
           <button type="button" onClick={selectAll}
+            disabled={!canEdit}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
             <CheckSquare className="h-3 w-3" /> All
           </button>
-          <button onClick={() => onSave([...selected])} disabled={saving}
+          <button onClick={() => onSave([...selected])} disabled={saving || !canEdit}
             className={`relative flex items-center gap-1.5 px-4 py-2 text-sm rounded-xl font-semibold transition-all disabled:opacity-60 ${
               isDirty
                 ? "bg-gray-900 text-[#C9B45C] hover:bg-black shadow-sm ring-1 ring-gray-900"
@@ -937,6 +947,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
                   }`}
                   style={isActive ? { borderRightColor: "#111" } : {}}>
                   <IndeterminateCheckbox
+                    disabled={!canEdit}
                     checked={allOn} indeterminate={someOn && !allOn}
                     onChange={() => toggleMenu(allRes)}
                     className="h-3.5 w-3.5 shrink-0"
@@ -983,6 +994,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
                 <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
                   <IndeterminateCheckbox
                     checked={menuAllOn} indeterminate={menuSomeOn && !menuAllOn}
+                    disabled={!canEdit}
                     onChange={() => toggleMenu(allRes)}
                     className="h-4 w-4"
                   />
