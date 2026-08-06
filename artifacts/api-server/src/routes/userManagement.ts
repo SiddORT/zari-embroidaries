@@ -325,6 +325,7 @@ router.get("/user-management/users", requireAdmin, async (_req, res): Promise<vo
       username: usersTable.username,
       email: usersTable.email,
       role: usersTable.role,
+      roleId: usersTable.roleId,
       isActive: usersTable.isActive,
       inviteToken: usersTable.inviteToken,
       inviteTokenExpiry: usersTable.inviteTokenExpiry,
@@ -337,7 +338,7 @@ router.get("/user-management/users", requireAdmin, async (_req, res): Promise<vo
 });
 
 router.post("/user-management/users", requireAdmin, async (req, res): Promise<void> => {
-  const { email, username, role } = req.body as { email: string; username: string; role: string };
+  const { email, username, role, roleId } = req.body as { email: string; username: string; role: string; roleId: number };
   if (!email || !username || !role) {
     res.status(400).json({ error: "email, username and role are required" });
     return;
@@ -357,13 +358,14 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
     email: email.toLowerCase(),
     username,
     role,
+    roleId,
     hashedPassword: tempHash,
     isActive: false,
     inviteToken,
     inviteTokenExpiry,
   }).returning({
     id: usersTable.id, username: usersTable.username, email: usersTable.email,
-    role: usersTable.role, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
+    role: usersTable.role, roleId: usersTable.roleId, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
     inviteToken: usersTable.inviteToken, inviteTokenExpiry: usersTable.inviteTokenExpiry,
   });
 
@@ -384,7 +386,7 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
 
 router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
-  const { username, email, role, isActive } = req.body as { username?: string; email?: string; role?: string; isActive?: boolean };
+  const { username, email, role, roleId, isActive } = req.body as { username?: string; email?: string; role?: string; roleId: number; isActive?: boolean };
 
   const [target] = await db.select({ email: usersTable.email }).from(usersTable).where(and(eq(usersTable.id, id), eq(usersTable.isDeleted, false)));
   if (target?.email === SUPERUSER_EMAIL) {
@@ -415,7 +417,7 @@ router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise
     .where(eq(usersTable.id, id))
     .returning({
       id: usersTable.id, username: usersTable.username, email: usersTable.email,
-      role: usersTable.role, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
+      role: usersTable.role, roleId:usersTable.roleId, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
     });
 
   if (!user) { res.status(404).json({ error: "User not found" }); return; }

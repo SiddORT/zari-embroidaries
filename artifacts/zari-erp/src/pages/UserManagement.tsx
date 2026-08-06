@@ -49,12 +49,12 @@ interface AddUserModalProps {
 function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState("");
+  const [roleId, setRoleId] = useState<number | "">("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const create = useCreateUser();
 
   useEffect(() => {
-    if (open) { setEmail(""); setUsername(""); setRole(""); setErrors({}); }
+    if (open) { setEmail(""); setUsername(""); setRoleId(""); setErrors({}); }
   }, [open]);
 
   if (!open) return null;
@@ -64,11 +64,22 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
     const errs: Record<string, string> = {};
     if (!email.trim()) errs.email = "Email is required";
     if (!username.trim()) errs.username = "Name is required";
-    if (!role) errs.role = "Role is required";
+    if (!roleId) errs.role = "Role is required";
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
+    const selectedRole = roles.find((r) => r.id === roleId);
+    if (!selectedRole) {
+      setErrors({ role: "Invalid role selected" });
+      return;
+    }
+
     try {
-      const res = await create.mutateAsync({ email: email.trim(), username: username.trim(), role });
+      const res = await create.mutateAsync({
+        email: email.trim(),
+        username: username.trim(),
+        role: selectedRole.name,
+        roleId: selectedRole.id,
+      });
       onCreated({ emailSent: res.emailSent, inviteUrl: res.inviteUrl, inviteToken: res.inviteToken, email: res.data.email });
       onClose();
     } catch (err: unknown) {
@@ -91,10 +102,16 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
             error={errors.email} required placeholder="user@company.com" type="email" />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
-            <select value={role} onChange={e => setRole(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <select
+              value={roleId}
+              onChange={e => {
+                setRoleId(e.target.value ? Number(e.target.value) : "");
+                setErrors(prev => { const n = { ...prev }; delete n.role; return n; });
+              }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
               <option value="">Select a role…</option>
-              {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+              {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
           </div>
@@ -180,7 +197,7 @@ interface EditUserModalProps {
 function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
-  const [role, setRole] = useState(user.role);
+  const [roleId, setRoleId] = useState<number | "">(user.roleId ?? "");
   const [isActive, setIsActive] = useState(user.isActive);
   const [emailError, setEmailError] = useState("");
   const update = useUpdateUser();
@@ -190,7 +207,7 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
     if (open) {
       setUsername(user.username);
       setEmail(user.email);
-      setRole(user.role);
+      setRoleId(user.roleId ?? "");
       setIsActive(user.isActive);
       setEmailError("");
     }
@@ -201,8 +218,20 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setEmailError("");
+    const selectedRole = roles.find((r) => r.id === roleId);
+    if (!selectedRole) {
+      toast({ title: "Error", description: "Please select a valid role.", variant: "destructive" });
+      return;
+    }
     try {
-      await update.mutateAsync({ id: user.id, username: username.trim(), email: email.trim(), role, isActive });
+      await update.mutateAsync({
+        id: user.id,
+        username: username.trim(),
+        email: email.trim(),
+        role: selectedRole.name,
+        roleId: selectedRole.id,
+        isActive,
+      });
       toast({ title: "User updated" });
       onClose();
     } catch (err: unknown) {
@@ -230,9 +259,13 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
-              {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+            <select
+              value={roleId}
+              onChange={e => setRoleId(e.target.value ? Number(e.target.value) : "")}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              <option value="">Select a role…</option>
+              {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-3">
