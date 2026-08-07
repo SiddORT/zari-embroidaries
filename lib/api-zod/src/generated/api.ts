@@ -79,6 +79,8 @@ export const GetMeResponse = zod.object({
   username: zod.string(),
   email: zod.string(),
   role: zod.string(),
+  roleId: zod.number().nullable(),
   isActive: zod.boolean(),
   createdAt: zod.coerce.date(),
+  permissions: zod.array(zod.string()),
 });

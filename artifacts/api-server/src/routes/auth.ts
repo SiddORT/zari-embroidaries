@@ -226,14 +226,34 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  let permissions: string[] = [];
+
+  if (dbUser.roleId) {
+    const rolePermissions = await db
+      .select({
+        permission: rolePermissionsTable.permission,
+      })
+      .from(rolePermissionsTable)
+      .where(
+        and(
+          eq(rolePermissionsTable.roleId, dbUser.roleId),
+          eq(rolePermissionsTable.isDeleted, false),
+        ),
+      );
+
+    permissions = rolePermissions.map((item) => item.permission);
+  }
+
   res.json(
     GetMeResponse.parse({
       id: dbUser.id,
       username: dbUser.username,
       email: dbUser.email,
       role: dbUser.role,
+      roleId: dbUser.roleId,
       isActive: dbUser.isActive,
       createdAt: dbUser.createdAt.toISOString(),
+      permissions,
     }),
   );
 });
