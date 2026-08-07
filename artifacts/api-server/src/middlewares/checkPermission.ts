@@ -1,10 +1,20 @@
-import { Response,Request,  NextFunction } from "express";
-import { db , rolePermissionsTable,rolesTable , eq, and, isNull } from "@workspace/db";
+import { Response, Request, NextFunction } from "express";
+import { db, rolePermissionsTable, rolesTable, eq, and, isNull, inArray } from "@workspace/db";
 
+type AuthRequest = Request & {
+  user?: { userId: number; email: string; role: string; roleId: number };
+};
 
-type AuthRequest = Request & { user?: { userId: number; email: string; role: string ; roleId: number} };
+type PermissionInput =
+  | string
+  | { any: string[] }
+  | { all: string[] };
 
-export const checkPermission = (permission: string) => {
+export const checkPermission = (input: PermissionInput) => {
+  const mode: "any" | "all" = typeof input === "string" || "any" in input ? "any" : "all";
+  const required: string[] =
+    typeof input === "string" ? [input] : "any" in input ? input.any : input.all;
+
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     const role = req.user?.role;
     if (!role) {
@@ -12,28 +22,36 @@ export const checkPermission = (permission: string) => {
       return;
     }
 
-    const [userRole] = await db.
-    select({id: rolesTable.id, name: rolesTable.name})
-    .from(rolesTable)
-    .where(eq(rolesTable.name, role))
-    .limit(1);
+    const [userRole] = await db
+      .select({ id: rolesTable.id })
+      .from(rolesTable)
+      .where(eq(rolesTable.name, role))
+      .limit(1);
 
-    const roleId = userRole.id;
+    if (!userRole) {
+      res.status(403).json({ error: "Forbidden", required });
+      return;
+    }
 
-    const [match] = await db
-    .select()
-    .from(rolePermissionsTable)
-    .where(
-    and(
-        eq(rolePermissionsTable.roleId, roleId),
-        eq(rolePermissionsTable.permission, permission),
-        isNull(rolePermissionsTable.deletedAt)
-    )
-    )
-    .limit(1);
+    const matches = await db
+      .select({ permission: rolePermissionsTable.permission })
+      .from(rolePermissionsTable)
+      .where(
+        and(
+          eq(rolePermissionsTable.roleId, userRole.id),
+          inArray(rolePermissionsTable.permission, required),
+          isNull(rolePermissionsTable.deletedAt)
+        )
+      );
 
-    if (!match) {
-      res.status(403).json({ error: "Forbidden", required: permission });
+    const matchedSet = new Set(matches.map((m) => m.permission));
+    const passed =
+      mode === "any"
+        ? required.some((p) => matchedSet.has(p))
+        : required.every((p) => matchedSet.has(p));
+
+    if (!passed) {
+      res.status(403).json({ error: "Forbidden", required });
       return;
     }
 
