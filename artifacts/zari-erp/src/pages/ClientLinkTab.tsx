@@ -506,6 +506,7 @@ export default function ClientLinkTab({ swatchOrderId, canEdit }: { swatchOrderI
                   linkId={link!.id}
                   swatchOrderId={swatchOrderId}
                   onLightbox={(artworkId, type, idx) => setLightbox({ artworkId, type, idx })}
+                  canEdit={canEdit}
                 />
               );
             })}
