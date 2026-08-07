@@ -12,6 +12,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { sendPoApprovalRequestEmail } from "../lib/mailer";
 import { persistAttachmentObject } from "../utils/uploadHelper";
 import jwt from "jsonwebtoken";
+import { checkPermission } from "../middlewares/checkPermission";
+import { STYLE_ORDER_TABS, SWATCH_ORDER_TABS, SWATCH_ORDERS } from "../constants/permissions";
 
 const router = Router();
 
@@ -777,7 +779,9 @@ router.get("/material-search", requireAuth, async (req, res) => {
 });
 
 // ─── BOM ─────────────────────────────────────────────────────────────────────
-router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
+router.get("/bom/:swatchOrderId", requireAuth, 
+  checkPermission(STYLE_ORDER_TABS.COSTING),
+  async (req, res) => {
   const swatchOrderId = Number(String(req.params.swatchOrderId));
   const rows = await db.select().from(swatchBomTable)
     .where(and(eq(swatchBomTable.swatchOrderId, swatchOrderId), eq(swatchBomTable.isDeleted, false)))
@@ -823,7 +827,9 @@ router.get("/bom/:swatchOrderId", requireAuth, async (req, res) => {
   return res.json({ data: enriched });
 });
 
-router.post("/bom", requireAuth, async (req, res) => {
+router.post("/bom", requireAuth,
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, materialType, materialId, materialCode, materialName, currentStock, avgUnitPrice, unitType, warehouseLocation, requiredQty, targetVendorId, targetVendorName } = req.body as Record<string, string>;
   const reqQty = parseFloat(requiredQty) || 0;
@@ -862,7 +868,9 @@ router.post("/bom", requireAuth, async (req, res) => {
   return res.status(201).json({ data: row, reservation });
 });
 
-router.patch("/bom/:id", requireAuth, async (req, res) => {
+router.patch("/bom/:id", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const { consumedQty } = req.body as { consumedQty?: string };
   const updates: Record<string, unknown> = { updatedBy: user.email, updatedAt: new Date() };
@@ -998,7 +1006,9 @@ async function adjustBomQty(opts: {
   }
 }
 
-router.patch("/bom/:id/qty", requireAuth, async (req, res) => {
+router.patch("/bom/:id/qty", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   try {
     const user = (req as any).user;
     const actor = user?.name || user?.email || "System";
@@ -1045,7 +1055,9 @@ router.patch("/bom/:id/qty", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/bom/:id/log", requireAuth, async (req, res) => {
+router.get("/bom/:id/log", requireAuth, 
+  checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   try {
     const rows = await pool.query(
       `SELECT * FROM bom_change_log WHERE bom_row_id = $1 AND is_deleted = false ORDER BY changed_at DESC`,
@@ -1062,7 +1074,9 @@ router.get("/bom/:id/log", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/bom/:id", requireAuth, async (req, res) => {
+router.delete("/bom/:id", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const bomId = Number(String(req.params.id));
   const [bomRow] = await db.select().from(swatchBomTable).where(and(eq(swatchBomTable.id, bomId), eq(swatchBomTable.isDeleted, false))).limit(1);
@@ -1124,14 +1138,18 @@ async function nextPrNumber(): Promise<string> {
 }
 
 // ─── PO ──────────────────────────────────────────────────────────────────────
-router.get("/po/:swatchOrderId", requireAuth, async (req, res) => {
+router.get("/po/:swatchOrderId", requireAuth,
+  checkPermission(STYLE_ORDER_TABS.COSTING),
+  async (req, res) => {
   const rows = await db.select().from(purchaseOrdersTable)
     .where(and(eq(purchaseOrdersTable.swatchOrderId, Number(String(req.params.swatchOrderId))), eq(purchaseOrdersTable.isDeleted, false)))
     .orderBy(purchaseOrdersTable.createdAt);
   return res.json({ data: rows });
 });
 
-router.post("/po", requireAuth, async (req, res) => {
+router.post("/po", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const { swatchOrderId, vendorId, notes, bomItems } = req.body as {
     swatchOrderId: number;
@@ -1334,7 +1352,9 @@ router.post("/po", requireAuth, async (req, res) => {
   }
 });
 
-router.patch("/po/:id", requireAuth, async (req, res) => {
+router.patch("/po/:id", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const poId = Number(req.params.id);
 
@@ -1443,7 +1463,9 @@ router.patch("/po/:id", requireAuth, async (req, res) => {
   return res.json({ data: row });
 });
 
-router.delete("/po/:id", requireAuth, async (req, res) => {
+router.delete("/po/:id", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.DELETE] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const [row] = await db.update(purchaseOrdersTable)
     .set({ isDeleted: true, updatedBy: user.email, updatedAt: new Date(), deletedBy: user.email, deletedAt: new Date() })
@@ -1454,14 +1476,18 @@ router.delete("/po/:id", requireAuth, async (req, res) => {
 });
 
 // ─── PR ──────────────────────────────────────────────────────────────────────
-router.get("/pr/:swatchOrderId", requireAuth, async (req, res) => {
+router.get("/pr/:swatchOrderId", requireAuth, 
+  checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
+  async (req, res) => {
   const rows = await db.select().from(purchaseReceiptsTable)
     .where(and(eq(purchaseReceiptsTable.swatchOrderId, Number(String(req.params.swatchOrderId))), eq(purchaseReceiptsTable.isDeleted, false)))
     .orderBy(purchaseReceiptsTable.createdAt);
   return res.json({ data: rows });
 });
 
-router.post("/pr", requireAuth, async (req, res) => {
+router.post("/pr", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const { poId, swatchOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
 
@@ -1616,7 +1642,9 @@ router.post("/pr", requireAuth, async (req, res) => {
   }
 });
 
-router.patch("/pr/:id", requireAuth, async (req, res) => {
+router.patch("/pr/:id", requireAuth, 
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const { status, actualPrice, warehouseLocation, receivedDate } = req.body as {
     status?: string; actualPrice?: string | number; warehouseLocation?: string; receivedDate?: string;
@@ -1630,7 +1658,9 @@ router.patch("/pr/:id", requireAuth, async (req, res) => {
   return res.json({ data: row });
 });
 
-router.delete("/pr/:id", requireAuth, async (req, res) => {
+router.delete("/pr/:id", requireAuth,
+  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.DELETE] }), 
+  async (req, res) => {
   const user = (req as any).user;
   const [row] = await db.update(purchaseReceiptsTable)
     .set({ isDeleted: true, updatedBy: user.email, updatedAt: new Date(), deletedBy: user.email, deletedAt: new Date() })
