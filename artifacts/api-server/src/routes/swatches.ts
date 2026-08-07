@@ -95,7 +95,7 @@ router.get("/swatches/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/swatches/for-reference", requireAuth, checkPermission(MASTERS_SWATCHES.VIEW), async (_req, res): Promise<void> => {
+router.get("/swatches/for-reference", requireAuth, async (_req, res): Promise<void> => {
   const { rows } = await (pool as any).query(`
     SELECT
       CAST(id AS text)           AS id,

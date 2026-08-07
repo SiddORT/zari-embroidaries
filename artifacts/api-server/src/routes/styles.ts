@@ -197,7 +197,7 @@ router.get("/styles", requireAuth, checkPermission(MASTERS_STYLES.VIEW), async (
 });
 
 // Combined reference list: active master styles + non-cancelled style orders
-router.get("/styles/for-reference", requireAuth, checkPermission(MASTERS_STYLES.VIEW), async (_req, res): Promise<void> => {
+router.get("/styles/for-reference", requireAuth, async (_req, res): Promise<void> => {
   const { rows } = await (pool as any).query(`
     SELECT
       CAST(id AS text)                      AS id,
