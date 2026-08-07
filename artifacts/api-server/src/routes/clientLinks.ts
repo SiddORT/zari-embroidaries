@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { eq, and, asc, desc ,db, clientLinksTable, clientFeedbackTable, clientMessagesTable, artworksTable, swatchOrdersTable, styleOrdersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { STYLE_ORDER_TABS, SWATCH_ORDER_TABS } from "../constants/permissions";
+import { STYLE_ORDERS, STYLE_ORDER_TABS, SWATCH_ORDERS, SWATCH_ORDER_TABS } from "../constants/permissions";
 
 const SWATCH_PRE_APPROVAL_STATUSES = ["Draft", "Issued", "In Sampling", "In Artwork"];
 const STYLE_PRE_APPROVAL_STATUSES  = ["Draft", "Issued", "In Production", "In Review"];
@@ -53,7 +53,7 @@ router.get("/client-links/style/:styleOrderId", requireAuth, checkPermission(STY
   res.json({ data: link });
 });
 
-router.patch("/client-links/:id", requireAuth, checkPermission({ any: [STYLE_ORDER_TABS.CLIENT_LINK, SWATCH_ORDER_TABS.CLIENT_LINK] }), async (req, res): Promise<void> => {
+router.patch("/client-links/:id", requireAuth, checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -103,7 +103,7 @@ router.patch("/client-links/:id", requireAuth, checkPermission({ any: [STYLE_ORD
   res.json({ data: updated });
 });
 
-router.post("/client-links/:id/regenerate", requireAuth, checkPermission({ any: [STYLE_ORDER_TABS.CLIENT_LINK, SWATCH_ORDER_TABS.CLIENT_LINK] }), async (req, res): Promise<void> => {
+router.post("/client-links/:id/regenerate", requireAuth, checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -133,7 +133,7 @@ router.get("/client-links/:id/feedback", requireAuth,
 });
 
 router.patch("/client-links/feedback/:feedbackId", requireAuth,
-  checkPermission({ any: [STYLE_ORDER_TABS.CLIENT_LINK, SWATCH_ORDER_TABS.CLIENT_LINK] }), 
+  checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }), 
   async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.feedbackId));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -176,7 +176,7 @@ router.get("/client-links/:id/messages", requireAuth,
 });
 
 router.post("/client-links/:id/messages", requireAuth, 
-  checkPermission({ any: [STYLE_ORDER_TABS.CLIENT_LINK, SWATCH_ORDER_TABS.CLIENT_LINK] }),
+  checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -202,7 +202,7 @@ router.post("/client-links/:id/messages", requireAuth,
 });
 
 router.patch("/client-links/:id/threads/toggle", requireAuth, 
-  checkPermission({ any: [STYLE_ORDER_TABS.CLIENT_LINK, SWATCH_ORDER_TABS.CLIENT_LINK] }),
+  checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
