@@ -2,13 +2,15 @@ import { Router } from "express";
 import { db, styleOrdersTable, eq, and, ilike, or, desc, sql,  entityTagsTable, exists } from "@workspace/db";
 // import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { STYLE_ORDERS } from "../constants/permissions";
 import { insertStyleOrderSchema, updateStyleOrderSchema, clientsTable } from "@workspace/db";
 import { generateOrderCode } from "../services/orderCodeService";
 
 const router = Router();
 
 // List
-router.get("/style-orders", requireAuth, async (req, res) => {
+router.get("/style-orders", requireAuth, checkPermission(STYLE_ORDERS.VIEW), async (req, res) => {
   const { search = "", status = "all", priority = "all", chargeable = "all",   tag = "", page = "1", limit = "24" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page));
   const limitNum = Math.min(100, parseInt(limit));
@@ -74,7 +76,7 @@ router.get("/style-orders", requireAuth, async (req, res) => {
 });
 
 // Get one
-router.get("/style-orders/:id", requireAuth, async (req, res) => {
+router.get("/style-orders/:id", requireAuth, checkPermission(STYLE_ORDERS.VIEW), async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
@@ -104,7 +106,7 @@ router.get("/style-orders/:id", requireAuth, async (req, res) => {
 });
 
 // Create
-router.post("/style-orders", requireAuth, async (req, res) => {
+router.post("/style-orders", requireAuth, checkPermission(STYLE_ORDERS.ADD_EDIT), async (req, res) => {
   const parsed = insertStyleOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
   if (!parsed.data.clientId) {
@@ -152,7 +154,7 @@ router.post("/style-orders", requireAuth, async (req, res) => {
 });
 
 // Update
-router.put("/style-orders/:id", requireAuth, async (req, res) => {
+router.put("/style-orders/:id", requireAuth, checkPermission(STYLE_ORDERS.ADD_EDIT), async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
@@ -219,7 +221,7 @@ router.put("/style-orders/:id", requireAuth, async (req, res) => {
 });
 
 // Patch status (cancel / priority change)
-router.patch("/style-orders/:id/status", requireAuth, async (req, res) => {
+router.patch("/style-orders/:id/status", requireAuth, checkPermission(STYLE_ORDERS.ADD_EDIT), async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { orderStatus, priority, cancelReason } = req.body as { orderStatus?: string; priority?: string; cancelReason?: string };
@@ -237,7 +239,7 @@ router.patch("/style-orders/:id/status", requireAuth, async (req, res) => {
 });
 
 // Delete (soft) — only Draft orders with no linked records
-router.delete("/style-orders/:id", requireAuth, async (req, res) => {
+router.delete("/style-orders/:id", requireAuth, checkPermission(STYLE_ORDERS.DELETE), async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 

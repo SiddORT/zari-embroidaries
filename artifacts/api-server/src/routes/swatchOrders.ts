@@ -1,13 +1,14 @@
 import { Router, type IRouter } from "express";
-// import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
 import { db, swatchOrdersTable,clientsTable, eq, and, ilike, or, desc, sql, exists, entityTagsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { SWATCH_ORDERS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { generateOrderCode } from "../services/orderCodeService";
 
 const router: IRouter = Router();
 
-router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
+router.get("/swatch-orders", requireAuth, checkPermission(SWATCH_ORDERS.VIEW), async (req, res): Promise<void> => {
   const { search = "", status = "all", priority = "all", chargeable = "all",   tag = "", page = "1", limit = "20" } = req.query as Record<string, string>;
   const pg = Math.max(1, parseInt(page));
   const lim = Math.min(100, Math.max(1, parseInt(limit)));
@@ -69,7 +70,7 @@ router.get("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
   res.json({ data: rows, total: Number(countRow[0]?.count ?? 0), page: pg, limit: lim });
 });
 
-router.get("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/swatch-orders/:id", requireAuth, checkPermission(SWATCH_ORDERS.VIEW), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(swatchOrdersTable).where(
@@ -96,7 +97,7 @@ router.get("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> =>
 
 });
 
-router.post("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
+router.post("/swatch-orders", requireAuth, checkPermission(SWATCH_ORDERS.ADD_EDIT), async (req, res): Promise<void> => {
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
 
@@ -200,7 +201,7 @@ router.post("/swatch-orders", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-router.put("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> => {
+router.put("/swatch-orders/:id", requireAuth, checkPermission(SWATCH_ORDERS.ADD_EDIT), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
@@ -318,7 +319,7 @@ router.put("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> =>
   }
 });
 
-router.patch("/swatch-orders/:id/status", requireAuth, async (req, res): Promise<void> => {
+router.patch("/swatch-orders/:id/status", requireAuth, checkPermission(SWATCH_ORDERS.ADD_EDIT), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
@@ -337,7 +338,7 @@ router.patch("/swatch-orders/:id/status", requireAuth, async (req, res): Promise
   res.json({ data: row });
 });
 
-router.delete("/swatch-orders/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/swatch-orders/:id", requireAuth, checkPermission(SWATCH_ORDERS.DELETE), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
