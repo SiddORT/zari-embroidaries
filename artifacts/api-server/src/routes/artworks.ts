@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, artworksTable, swatchOrdersTable, pool , eq, and, desc, ilike } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { checkPermission } from "../middlewares/checkPermission";
+import { SWATCH_ORDERS, SWATCH_ORDER_TABS } from "../constants/permissions";
 
 const SWATCH_PRE_ARTWORK_STATUSES = ["Draft", "Issued", "In Sampling"];
 
@@ -22,7 +24,7 @@ async function generateArtworkCode(): Promise<string> {
   return `${prefix}${String(num + 1).padStart(3, "0")}`;
 }
 
-router.get("/artworks", requireAuth, async (req, res): Promise<void> => {
+router.get("/artworks", requireAuth, checkPermission(SWATCH_ORDER_TABS.ARTWORKS), async (req, res): Promise<void> => {
   const { swatchOrderId } = req.query as Record<string, string>;
   if (!swatchOrderId || isNaN(parseInt(swatchOrderId))) {
     res.status(400).json({ error: "swatchOrderId is required" });
@@ -39,7 +41,7 @@ router.get("/artworks", requireAuth, async (req, res): Promise<void> => {
   res.json({ data: rows });
 });
 
-router.get("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/artworks/:id", requireAuth, checkPermission(SWATCH_ORDER_TABS.ARTWORKS), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(artworksTable).where(
@@ -49,7 +51,7 @@ router.get("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ data: row });
 });
 
-router.post("/artworks", requireAuth, async (req, res): Promise<void> => {
+router.post("/artworks", requireAuth, checkPermission(SWATCH_ORDERS.VIEW), async (req, res): Promise<void> => {
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
 
@@ -104,7 +106,7 @@ router.post("/artworks", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json({ data: row });
 });
 
-router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
+router.put("/artworks/:id", requireAuth, checkPermission(SWATCH_ORDERS.VIEW), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
@@ -179,7 +181,7 @@ router.put("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ data: row });
 });
 
-router.delete("/artworks/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/artworks/:id", requireAuth, checkPermission(SWATCH_ORDERS.VIEW), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
