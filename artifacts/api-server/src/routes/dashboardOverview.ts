@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission"
+import {DASHBOARD} from "../constants/permissions";
 
 const router = Router();
 
-router.get("/dashboard/overview", requireAuth, async (_req, res) => {
+router.get("/dashboard/overview", requireAuth, checkPermission(DASHBOARD.VIEW),async (_req, res) => {
   try {
     const [
       kpiRes,

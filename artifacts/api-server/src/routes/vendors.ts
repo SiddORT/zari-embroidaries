@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, vendorsTable,  eq, ilike, or, and, desc, count, asc } from "@workspace/db";
 import { insertVendorSchema, updateVendorSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_VENDORS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import { persistAttachmentArray } from "../utils/uploadHelper";
@@ -26,7 +28,7 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/vendors", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/vendors", requireAuth, checkPermission(MASTERS_VENDORS.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -41,7 +43,7 @@ router.get("/vendors", requireAuth, async (req: AuthRequest, res): Promise<void>
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/vendors/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/vendors/export-all", requireAuth, checkPermission(MASTERS_VENDORS.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
@@ -49,14 +51,14 @@ router.get("/vendors/export-all", requireAuth, async (req: AuthRequest, res): Pr
   res.json({ data: rows });
 });
 
-router.get("/vendors/all", requireAuth, async (_req, res): Promise<void> => {
+router.get("/vendors/all", requireAuth, checkPermission(MASTERS_VENDORS.VIEW), async (_req, res): Promise<void> => {
   const rows = await db.select().from(vendorsTable)
     .where(and(eq(vendorsTable.isDeleted, false), eq(vendorsTable.isActive, true)))
     .orderBy(vendorsTable.brandName);
   res.json(rows);
 });
 
-router.get("/vendors/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/vendors/:id", requireAuth, checkPermission(MASTERS_VENDORS.VIEW), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(vendorsTable).where(and(eq(vendorsTable.id, id), eq(vendorsTable.isDeleted, false)));
@@ -64,7 +66,7 @@ router.get("/vendors/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(record);
 });
 
-router.post("/vendors", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/vendors", requireAuth, checkPermission(MASTERS_VENDORS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertVendorSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -85,7 +87,7 @@ router.post("/vendors", requireAuth, async (req: AuthRequest, res): Promise<void
   res.status(201).json(record);
 });
 
-router.post("/vendors/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/vendors/import", requireAuth, checkPermission(MASTERS_VENDORS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const body = req.body;
   if (!Array.isArray(body) || body.length === 0) {
     res.status(400).json({ error: "Request body must be a non-empty array." });
@@ -142,7 +144,7 @@ router.post("/vendors/import", requireAuth, async (req: AuthRequest, res): Promi
   res.json({ imported, skipped, errors });
 });
 
-router.put("/vendors/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/vendors/:id", requireAuth, checkPermission(MASTERS_VENDORS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateVendorSchema.safeParse(req.body);
@@ -167,7 +169,7 @@ router.put("/vendors/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json(record);
 });
 
-router.patch("/vendors/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/vendors/:id/status", requireAuth, checkPermission(MASTERS_VENDORS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(vendorsTable).where(and(eq(vendorsTable.id, id), eq(vendorsTable.isDeleted, false)));
@@ -179,7 +181,7 @@ router.patch("/vendors/:id/status", requireAuth, async (req: AuthRequest, res): 
   res.json(record);
 });
 
-router.delete("/vendors/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/vendors/:id", requireAuth, checkPermission(MASTERS_VENDORS.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";

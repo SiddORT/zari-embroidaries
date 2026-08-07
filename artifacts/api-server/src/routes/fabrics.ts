@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, fabricsTable , eq, ilike, or, and, desc, count, asc, ne} from "@workspace/db";
 import { insertFabricSchema, updateFabricSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_FABRIC } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { ensureInventoryRecord, updateInventoryImages, updateInventoryStockLevels, softDeleteInventoryItem } from "../services/inventoryService";
 import { persistImageArray } from "../utils/uploadHelper";
@@ -58,7 +60,7 @@ function buildWhere(search: string, status: string, fabricType: string, vendor: 
   return and(...conditions);
 }
 
-router.get("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/fabrics", requireAuth, checkPermission(MASTERS_FABRIC.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const fabricType = (req.query.fabricType as string) ?? "";
@@ -79,7 +81,7 @@ router.get("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void>
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/fabrics/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/fabrics/export-all", requireAuth, checkPermission(MASTERS_FABRIC.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const fabricType = (req.query.fabricType as string) ?? "";
@@ -91,14 +93,14 @@ router.get("/fabrics/export-all", requireAuth, async (req: AuthRequest, res): Pr
   res.json({ data: rows });
 });
 
-router.get("/fabrics/all", requireAuth, async (_req, res): Promise<void> => {
+router.get("/fabrics/all", requireAuth, checkPermission(MASTERS_FABRIC.VIEW), async (_req, res): Promise<void> => {
   const rows = await db.select().from(fabricsTable)
     .where(and(eq(fabricsTable.isDeleted, false), eq(fabricsTable.isActive, true)))
     .orderBy(asc(fabricsTable.fabricType));
   res.json(rows);
 });
 
-router.post("/fabrics/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/fabrics/import", requireAuth, checkPermission(MASTERS_FABRIC.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const rows = req.body as Record<string, unknown>[];
   if (!Array.isArray(rows) || rows.length === 0) {
     res.status(400).json({ error: "No rows provided." }); return;
@@ -175,7 +177,7 @@ function cleanStockLevels(body: Record<string, unknown>): Record<string, unknown
   return cleaned;
 }
 
-router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/fabrics", requireAuth, checkPermission(MASTERS_FABRIC.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const fieldError = validateFabricFields(req.body);
   if (fieldError) { res.status(400).json({ error: fieldError }); return; }
   const parsed = insertFabricSchema.safeParse(cleanStockLevels(req.body));
@@ -225,7 +227,7 @@ router.post("/fabrics", requireAuth, async (req: AuthRequest, res): Promise<void
   res.status(201).json(record);
 });
 
-router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/fabrics/:id", requireAuth, checkPermission(MASTERS_FABRIC.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -289,7 +291,7 @@ router.put("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json(record);
 });
 
-router.patch("/fabrics/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/fabrics/:id/status", requireAuth, checkPermission(MASTERS_FABRIC.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -307,7 +309,7 @@ router.patch("/fabrics/:id/status", requireAuth, async (req: AuthRequest, res): 
   res.json(record);
 });
 
-router.delete("/fabrics/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/fabrics/:id", requireAuth, checkPermission(MASTERS_FABRIC.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
 
   if (isNaN(id)) {

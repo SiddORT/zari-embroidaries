@@ -1,6 +1,8 @@
 import { Router, type Request } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_SHIPPING_VENDORS } from "../constants/permissions";
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -80,7 +82,7 @@ export async function ensureShippingTables() {
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/shipping/vendors
-router.get("/shipping/vendors", requireAuth, async (_req, res) => {
+router.get("/shipping/vendors", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.VIEW), async (_req, res) => {
   try {
     const r = await pool.query(
       `SELECT * FROM shipping_vendors WHERE is_active = TRUE AND is_deleted = false ORDER BY vendor_name`
@@ -92,7 +94,7 @@ router.get("/shipping/vendors", requireAuth, async (_req, res) => {
 });
 
 // GET /api/shipping/vendors/all  (includes inactive, for master management)
-router.get("/shipping/vendors/all", requireAuth, async (req, res) => {
+router.get("/shipping/vendors/all", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.VIEW), async (req, res) => {
   try {
     const { search, page = "1", limit = "20" } = req.query as Record<string, string>;
     const params: any[] = [];
@@ -114,7 +116,7 @@ router.get("/shipping/vendors/all", requireAuth, async (req, res) => {
 });
 
 // POST /api/shipping/vendors
-router.post("/shipping/vendors", requireAuth, async (req: AuthRequest, res) => {
+router.post("/shipping/vendors", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.ADD_EDIT), async (req: AuthRequest, res) => {
   try {
     const { vendor_name, contact_person, phone_number, email_address, weight_rate_per_kg, minimum_charge, remarks } = req.body;
     if (!vendor_name?.trim()) return res.status(400).json({ error: "Vendor name is required" });
@@ -131,7 +133,7 @@ router.post("/shipping/vendors", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/shipping/vendors/:id
-router.put("/shipping/vendors/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/shipping/vendors/:id", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.ADD_EDIT), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { vendor_name, contact_person, phone_number, email_address, weight_rate_per_kg, minimum_charge, remarks } = req.body;
@@ -151,7 +153,7 @@ router.put("/shipping/vendors/:id", requireAuth, async (req: AuthRequest, res) =
 });
 
 // PATCH /api/shipping/vendors/:id/status
-router.patch("/shipping/vendors/:id/status", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/shipping/vendors/:id/status", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.ADD_EDIT), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const r = await pool.query(
@@ -166,7 +168,7 @@ router.patch("/shipping/vendors/:id/status", requireAuth, async (req: AuthReques
 });
 
 // DELETE /api/shipping/vendors/:id  (admin only)
-router.delete("/shipping/vendors/:id", requireAuth, async (req: AuthRequest, res) => {
+router.delete("/shipping/vendors/:id", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.DELETE), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const deletedByUser = (req as any).user?.email ?? "system";

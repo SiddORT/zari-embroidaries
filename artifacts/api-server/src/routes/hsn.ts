@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, hsnTable, eq, ilike, or, and, desc } from "@workspace/db";
 import { insertHsnSchema, updateHsnSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_HSN } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
@@ -26,7 +28,7 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/hsn", requireAuth, checkPermission(MASTERS_HSN.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -43,7 +45,7 @@ router.get("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> => 
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/hsn/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/hsn/export-all", requireAuth, checkPermission(MASTERS_HSN.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
@@ -51,7 +53,7 @@ router.get("/hsn/export-all", requireAuth, async (req: AuthRequest, res): Promis
   res.json({ data: rows });
 });
 
-router.get("/hsn/all", requireAuth, async (_req, res): Promise<void> => {
+router.get("/hsn/all", requireAuth, checkPermission(MASTERS_HSN.VIEW), async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(hsnTable)
@@ -60,7 +62,7 @@ router.get("/hsn/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.post("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/hsn", requireAuth, checkPermission(MASTERS_HSN.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertHsnSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
@@ -93,7 +95,7 @@ router.post("/hsn", requireAuth, async (req: AuthRequest, res): Promise<void> =>
   res.status(201).json(record);
 });
 
-router.post("/hsn/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/hsn/import", requireAuth, checkPermission(MASTERS_HSN.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const body = req.body;
   if (!Array.isArray(body) || body.length === 0) {
     res.status(400).json({ error: "Request body must be a non-empty array of HSN records." });
@@ -144,7 +146,7 @@ router.post("/hsn/import", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json({ imported, skipped, errors });
 });
 
-router.put("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/hsn/:id", requireAuth, checkPermission(MASTERS_HSN.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
@@ -185,7 +187,7 @@ router.put("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void>
   res.json(record);
 });
 
-router.patch("/hsn/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/hsn/:id/status", requireAuth, checkPermission(MASTERS_HSN.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
@@ -213,7 +215,7 @@ router.patch("/hsn/:id/status", requireAuth, async (req: AuthRequest, res): Prom
   res.json(record);
 });
 
-router.delete("/hsn/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/hsn/:id", requireAuth, checkPermission(MASTERS_HSN.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });

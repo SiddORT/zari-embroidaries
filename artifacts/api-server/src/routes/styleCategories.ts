@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, styleCategoriesTable, eq, ilike, and, desc } from "@workspace/db";
 import { insertStyleCategorySchema, updateStyleCategorySchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_STYLE_CATEGORIES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
@@ -18,7 +20,7 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/style-categories", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/style-categories", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -33,7 +35,7 @@ router.get("/style-categories", requireAuth, async (req: AuthRequest, res): Prom
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/style-categories/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/style-categories/export-all", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
@@ -41,14 +43,14 @@ router.get("/style-categories/export-all", requireAuth, async (req: AuthRequest,
   res.json({ data: rows });
 });
 
-router.get("/style-categories/all", requireAuth, async (_req, res): Promise<void> => {
+router.get("/style-categories/all", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.VIEW), async (_req, res): Promise<void> => {
   const rows = await db.select().from(styleCategoriesTable)
     .where(and(eq(styleCategoriesTable.isDeleted, false), eq(styleCategoriesTable.isActive, true)))
     .orderBy(styleCategoriesTable.categoryName);
   res.json(rows);
 });
 
-router.post("/style-categories", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/style-categories", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertStyleCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -62,7 +64,7 @@ router.post("/style-categories", requireAuth, async (req: AuthRequest, res): Pro
   res.status(201).json(record);
 });
 
-router.post("/style-categories/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/style-categories/import", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const body = req.body;
   if (!Array.isArray(body) || body.length === 0) {
     res.status(400).json({ error: "Request body must be a non-empty array." });
@@ -105,7 +107,7 @@ router.post("/style-categories/import", requireAuth, async (req: AuthRequest, re
   res.json({ imported, skipped, errors });
 });
 
-router.put("/style-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/style-categories/:id", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateStyleCategorySchema.safeParse(req.body);
@@ -126,7 +128,7 @@ router.put("/style-categories/:id", requireAuth, async (req: AuthRequest, res): 
   res.json(record);
 });
 
-router.patch("/style-categories/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/style-categories/:id/status", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(styleCategoriesTable)
@@ -139,7 +141,7 @@ router.patch("/style-categories/:id/status", requireAuth, async (req: AuthReques
   res.json(record);
 });
 
-router.delete("/style-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/style-categories/:id", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";

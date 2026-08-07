@@ -4,6 +4,8 @@ import { mediaUploadMiddleware, uploadFile, deleteUpload } from "../utils/upload
 import { db, pool, exists, sql, swatchesTable, entityTagsTable } from "@workspace/db";
 import { insertSwatchSchema, updateSwatchSchema, eq, ilike, or, and, desc, ne } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_SWATCHES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
@@ -67,7 +69,7 @@ function buildConditions(req: Request) {
   return conditions;
 }
 
-router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/swatches", requireAuth, checkPermission(MASTERS_SWATCHES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10)));
   const offset = (page - 1) * limit;
@@ -81,19 +83,19 @@ router.get("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/swatches/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/swatches/export-all", requireAuth, checkPermission(MASTERS_SWATCHES.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const conditions = buildConditions(req);
   const whereClause = and(...conditions);
   const rows = await db.select().from(swatchesTable).where(whereClause).orderBy(desc(swatchesTable.createdAt));
   res.json(rows);
 });
 
-router.get("/swatches/all", requireAuth, async (_req, res): Promise<void> => {
+router.get("/swatches/all", requireAuth, checkPermission(MASTERS_SWATCHES.VIEW), async (_req, res): Promise<void> => {
   const rows = await db.select().from(swatchesTable).where(and(eq(swatchesTable.isDeleted, false), eq(swatchesTable.isActive, true))).orderBy(swatchesTable.swatchName);
   res.json(rows);
 });
 
-router.get("/swatches/for-reference", requireAuth, async (_req, res): Promise<void> => {
+router.get("/swatches/for-reference", requireAuth, checkPermission(MASTERS_SWATCHES.VIEW), async (_req, res): Promise<void> => {
   const { rows } = await (pool as any).query(`
     SELECT
       CAST(id AS text)           AS id,
@@ -146,7 +148,7 @@ function validateSwatchBody(body: Record<string, unknown>): string[] {
   return errs;
 }
 
-router.get("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/swatches/:id", requireAuth, checkPermission(MASTERS_SWATCHES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
@@ -164,7 +166,7 @@ router.get("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<
   res.json({ ...record, tags: tagRows.map(row => row.tag) });
 });
 
-router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/swatches", requireAuth, checkPermission(MASTERS_SWATCHES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const validationErrs = validateSwatchBody(req.body as Record<string, unknown>);
   if (validationErrs.length > 0) { res.status(400).json({ error: validationErrs[0], details: validationErrs }); return; }
 
@@ -223,7 +225,7 @@ router.post("/swatches", requireAuth, async (req: AuthRequest, res): Promise<voi
   res.status(201).json(record);
 });
 
-router.put("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/swatches/:id", requireAuth, checkPermission(MASTERS_SWATCHES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -297,7 +299,7 @@ router.put("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<
   res.json(record);
 });
 
-router.patch("/swatches/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/swatches/:id/status", requireAuth, checkPermission(MASTERS_SWATCHES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(swatchesTable).where(and(eq(swatchesTable.id, id), eq(swatchesTable.isDeleted, false)));
@@ -307,7 +309,7 @@ router.patch("/swatches/:id/status", requireAuth, async (req: AuthRequest, res):
   res.json(record);
 });
 
-router.delete("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/swatches/:id", requireAuth, checkPermission(MASTERS_SWATCHES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
@@ -344,7 +346,7 @@ router.delete("/swatches/:id", requireAuth, async (req: AuthRequest, res): Promi
   res.json({ message: "Swatch deleted" });
 });
 
-router.post("/swatches/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/swatches/import", requireAuth, checkPermission(MASTERS_SWATCHES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const rows = req.body as Record<string, unknown>[];
   if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "No data provided" }); return; }
 
@@ -411,7 +413,7 @@ router.post("/swatches/import", requireAuth, async (req: AuthRequest, res): Prom
 
 interface MediaItem { url: string; type: "image" | "video"; name: string; }
 
-router.post("/swatches/:id/media", requireAuth, mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
+router.post("/swatches/:id/media", requireAuth, checkPermission(MASTERS_SWATCHES.ADD_EDIT), mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
@@ -435,7 +437,7 @@ router.post("/swatches/:id/media", requireAuth, mediaUploadMiddleware.single("fi
   res.json(record);
 });
 
-router.delete("/swatches/:id/media", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/swatches/:id/media", requireAuth, checkPermission(MASTERS_SWATCHES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 

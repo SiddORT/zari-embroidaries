@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 // import { eq, ilike, and, desc } from "drizzle-orm";
 import { db, swatchCategoriesTable, insertSwatchCategorySchema, updateSwatchCategorySchema ,  eq, ilike, and, desc} from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_SWATCH_CATEGORIES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
@@ -17,7 +19,7 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/swatch-categories", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/swatch-categories", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -32,7 +34,7 @@ router.get("/swatch-categories", requireAuth, async (req: AuthRequest, res): Pro
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/swatch-categories/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/swatch-categories/export-all", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
@@ -40,14 +42,14 @@ router.get("/swatch-categories/export-all", requireAuth, async (req: AuthRequest
   res.json({ data: rows });
 });
 
-router.get("/swatch-categories/all", requireAuth, async (_req, res): Promise<void> => {
+router.get("/swatch-categories/all", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.VIEW), async (_req, res): Promise<void> => {
   const rows = await db.select().from(swatchCategoriesTable)
     .where(and(eq(swatchCategoriesTable.isDeleted, false), eq(swatchCategoriesTable.isActive, true)))
     .orderBy(swatchCategoriesTable.name);
   res.json(rows);
 });
 
-router.post("/swatch-categories", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/swatch-categories", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertSwatchCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -61,7 +63,7 @@ router.post("/swatch-categories", requireAuth, async (req: AuthRequest, res): Pr
   res.status(201).json(record);
 });
 
-router.post("/swatch-categories/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/swatch-categories/import", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const body = req.body;
   if (!Array.isArray(body) || body.length === 0) {
     res.status(400).json({ error: "Request body must be a non-empty array." });
@@ -104,7 +106,7 @@ router.post("/swatch-categories/import", requireAuth, async (req: AuthRequest, r
   res.json({ imported, skipped, errors });
 });
 
-router.put("/swatch-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/swatch-categories/:id", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateSwatchCategorySchema.safeParse(req.body);
@@ -125,7 +127,7 @@ router.put("/swatch-categories/:id", requireAuth, async (req: AuthRequest, res):
   res.json(record);
 });
 
-router.patch("/swatch-categories/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/swatch-categories/:id/status", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(swatchCategoriesTable)
@@ -138,7 +140,7 @@ router.patch("/swatch-categories/:id/status", requireAuth, async (req: AuthReque
   res.json(record);
 });
 
-router.delete("/swatch-categories/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/swatch-categories/:id", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";

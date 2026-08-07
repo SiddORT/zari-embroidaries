@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, pool, stylesTable, swatchesTable,entityTagsTable, eq, ilike, or, and, desc, ne, sql, exists } from "@workspace/db";
 import { insertStyleSchema, updateStyleSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_STYLES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { mediaUploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 import type { Request } from "express";
@@ -24,7 +26,7 @@ async function generateStyleNo(): Promise<string> {
 }
 
 // ─── Export All ────────────────────────────────────────────────────────────────
-router.get("/styles/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/styles/export-all", requireAuth, checkPermission(MASTERS_STYLES.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const clientFilter = (req.query.client as string) ?? "";
@@ -43,7 +45,7 @@ router.get("/styles/export-all", requireAuth, async (req: AuthRequest, res): Pro
 const PLACE_OPTIONS_BE = ["In-house", "Out-house"];
 const URL_REGEX = /^https?:\/\/.+/i;
 
-router.post("/styles/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/styles/import", requireAuth, checkPermission(MASTERS_STYLES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const { rows: rawRows } = req.body as { rows: Record<string, unknown>[] };
   if (!Array.isArray(rawRows) || rawRows.length === 0) {
     res.status(400).json({ error: "No rows provided." }); return;
@@ -106,7 +108,7 @@ router.post("/styles/import", requireAuth, async (req: AuthRequest, res): Promis
   res.json({ succeeded, failed, results });
 });
 
-router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/styles", requireAuth, checkPermission(MASTERS_STYLES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const clientFilter = (req.query.client as string) ?? "";
@@ -195,7 +197,7 @@ router.get("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> 
 });
 
 // Combined reference list: active master styles + non-cancelled style orders
-router.get("/styles/for-reference", requireAuth, async (_req, res): Promise<void> => {
+router.get("/styles/for-reference", requireAuth, checkPermission(MASTERS_STYLES.VIEW), async (_req, res): Promise<void> => {
   const { rows } = await (pool as any).query(`
     SELECT
       CAST(id AS text)                      AS id,
@@ -223,7 +225,7 @@ router.get("/styles/for-reference", requireAuth, async (_req, res): Promise<void
 });
 
 // ─── Single style ──────────────────────────────────────────────────────────────
-router.get("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/styles/:id", requireAuth, checkPermission(MASTERS_STYLES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
@@ -246,7 +248,7 @@ router.get("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
   });
 });
 
-router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/styles", requireAuth, checkPermission(MASTERS_STYLES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertStyleSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -311,7 +313,7 @@ router.post("/styles", requireAuth, async (req: AuthRequest, res): Promise<void>
   res.status(201).json(record);
 });
 
-router.put("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/styles/:id", requireAuth, checkPermission(MASTERS_STYLES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateStyleSchema.safeParse(req.body);
@@ -382,7 +384,7 @@ router.put("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<vo
   res.json(record);
 });
 
-router.patch("/styles/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/styles/:id/status", requireAuth, checkPermission(MASTERS_STYLES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(stylesTable).where(and(eq(stylesTable.id, id), eq(stylesTable.isDeleted, false)));
@@ -392,7 +394,7 @@ router.patch("/styles/:id/status", requireAuth, async (req: AuthRequest, res): P
   res.json(record);
 });
 
-router.delete("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/styles/:id", requireAuth, checkPermission(MASTERS_STYLES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
@@ -436,7 +438,7 @@ router.delete("/styles/:id", requireAuth, async (req: AuthRequest, res): Promise
 
 interface MediaItem { url: string; type: "image" | "video"; name: string; }
 
-router.post("/styles/:id/media", requireAuth, mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
+router.post("/styles/:id/media", requireAuth, checkPermission(MASTERS_STYLES.ADD_EDIT), mediaUploadMiddleware.single("file"), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
@@ -460,7 +462,7 @@ router.post("/styles/:id/media", requireAuth, mediaUploadMiddleware.single("file
   res.json(record);
 });
 
-router.delete("/styles/:id/media", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/styles/:id/media", requireAuth, checkPermission(MASTERS_STYLES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
