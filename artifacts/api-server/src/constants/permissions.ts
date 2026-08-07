@@ -127,14 +127,6 @@ export const MASTERS_PACKAGING_MATERIALS = {
   DOWNLOAD: "masters:packaging_materials:download",
 };
 
-// ── Artwork ──
-export const ARTWORK = {
-  BASE: "artwork",
-  VIEW: "artwork:view",
-  ADD_EDIT: "artwork:add_edit",
-  DELETE: "artwork:delete",
-  DOWNLOAD: "artwork:download",
-};
 
 // ── Quotation ──
 export const QUOTATION = {
