@@ -93,7 +93,7 @@ router.get("/fabrics/export-all", requireAuth, checkPermission(MASTERS_FABRIC.DO
   res.json({ data: rows });
 });
 
-router.get("/fabrics/all", requireAuth, checkPermission(MASTERS_FABRIC.VIEW), async (_req, res): Promise<void> => {
+router.get("/fabrics/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(fabricsTable)
     .where(and(eq(fabricsTable.isDeleted, false), eq(fabricsTable.isActive, true)))
     .orderBy(asc(fabricsTable.fabricType));

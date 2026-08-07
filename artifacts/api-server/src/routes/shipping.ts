@@ -94,7 +94,7 @@ router.get("/shipping/vendors", requireAuth, checkPermission(MASTERS_SHIPPING_VE
 });
 
 // GET /api/shipping/vendors/all  (includes inactive, for master management)
-router.get("/shipping/vendors/all", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.VIEW), async (req, res) => {
+router.get("/shipping/vendors/all", requireAuth, async (req, res) => {
   try {
     const { search, page = "1", limit = "20" } = req.query as Record<string, string>;
     const params: any[] = [];

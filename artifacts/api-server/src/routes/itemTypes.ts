@@ -81,7 +81,7 @@ router.post("/item-types/import", requireAuth, checkPermission(MASTERS_ITEM_TYPE
   res.json({ succeeded, failed, results });
 });
 
-router.get("/item-types/all", requireAuth, checkPermission(MASTERS_ITEM_TYPES.VIEW), async (_req, res): Promise<void> => {
+router.get("/item-types/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db
     .select({ id: itemTypesTable.id, name: itemTypesTable.name })
     .from(itemTypesTable)

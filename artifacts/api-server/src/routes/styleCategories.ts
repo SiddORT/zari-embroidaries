@@ -43,7 +43,7 @@ router.get("/style-categories/export-all", requireAuth, checkPermission(MASTERS_
   res.json({ data: rows });
 });
 
-router.get("/style-categories/all", requireAuth, checkPermission(MASTERS_STYLE_CATEGORIES.VIEW), async (_req, res): Promise<void> => {
+router.get("/style-categories/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(styleCategoriesTable)
     .where(and(eq(styleCategoriesTable.isDeleted, false), eq(styleCategoriesTable.isActive, true)))
     .orderBy(styleCategoriesTable.categoryName);

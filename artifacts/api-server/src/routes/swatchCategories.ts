@@ -42,7 +42,7 @@ router.get("/swatch-categories/export-all", requireAuth, checkPermission(MASTERS
   res.json({ data: rows });
 });
 
-router.get("/swatch-categories/all", requireAuth, checkPermission(MASTERS_SWATCH_CATEGORIES.VIEW), async (_req, res): Promise<void> => {
+router.get("/swatch-categories/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(swatchCategoriesTable)
     .where(and(eq(swatchCategoriesTable.isDeleted, false), eq(swatchCategoriesTable.isActive, true)))
     .orderBy(swatchCategoriesTable.name);

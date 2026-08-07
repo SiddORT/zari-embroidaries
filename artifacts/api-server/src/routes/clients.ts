@@ -55,7 +55,7 @@ router.get("/clients/export-all", requireAuth, checkPermission(MASTERS_CLIENTS.D
   res.json({ data: rows });
 });
 
-router.get("/clients/all", requireAuth, checkPermission(MASTERS_CLIENTS.VIEW), async (_req, res): Promise<void> => {
+router.get("/clients/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(clientsTable).where(and(eq(clientsTable.isDeleted, false), eq(clientsTable.isActive, true))).orderBy(clientsTable.brandName);
   res.json(rows);
 });

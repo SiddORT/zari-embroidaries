@@ -146,7 +146,7 @@ router.post("/materials/import", requireAuth, checkPermission(MASTERS_MATERIALS.
   res.json({ succeeded, failed, results });
 });
 
-router.get("/materials/all", requireAuth, checkPermission(MASTERS_MATERIALS.VIEW), async (_req, res): Promise<void> => {
+router.get("/materials/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(materialsTable)

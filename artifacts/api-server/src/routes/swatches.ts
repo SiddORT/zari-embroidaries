@@ -90,7 +90,7 @@ router.get("/swatches/export-all", requireAuth, checkPermission(MASTERS_SWATCHES
   res.json(rows);
 });
 
-router.get("/swatches/all", requireAuth, checkPermission(MASTERS_SWATCHES.VIEW), async (_req, res): Promise<void> => {
+router.get("/swatches/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(swatchesTable).where(and(eq(swatchesTable.isDeleted, false), eq(swatchesTable.isActive, true))).orderBy(swatchesTable.swatchName);
   res.json(rows);
 });

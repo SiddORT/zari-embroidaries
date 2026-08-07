@@ -51,7 +51,7 @@ router.get("/vendors/export-all", requireAuth, checkPermission(MASTERS_VENDORS.D
   res.json({ data: rows });
 });
 
-router.get("/vendors/all", requireAuth, checkPermission(MASTERS_VENDORS.VIEW), async (_req, res): Promise<void> => {
+router.get("/vendors/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(vendorsTable)
     .where(and(eq(vendorsTable.isDeleted, false), eq(vendorsTable.isActive, true)))
     .orderBy(vendorsTable.brandName);

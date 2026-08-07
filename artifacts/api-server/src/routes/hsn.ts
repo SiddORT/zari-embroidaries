@@ -53,7 +53,7 @@ router.get("/hsn/export-all", requireAuth, checkPermission(MASTERS_HSN.DOWNLOAD)
   res.json({ data: rows });
 });
 
-router.get("/hsn/all", requireAuth, checkPermission(MASTERS_HSN.VIEW), async (_req, res): Promise<void> => {
+router.get("/hsn/all", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(hsnTable)
