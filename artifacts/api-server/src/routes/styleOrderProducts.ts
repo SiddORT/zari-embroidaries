@@ -1,13 +1,16 @@
 import { Router } from "express";
 import { db, styleOrderProductsTable, eq, and } from "@workspace/db";
-// import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { insertStyleOrderProductSchema, updateStyleOrderProductSchema } from "@workspace/db";
+import { checkPermission } from "../middlewares/checkPermission";
+import { STYLE_ORDER_TABS, STYLE_ORDERS } from "../constants/permissions";
 
 const router = Router();
 
 // List products for a style order
-router.get("/style-order-products", requireAuth, async (req, res) => {
+router.get("/style-order-products", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.PRODUCTS, STYLE_ORDERS.VIEW] }), 
+  async (req, res) => {
   const { styleOrderId } = req.query as Record<string, string>;
   if (!styleOrderId) { res.status(400).json({ error: "styleOrderId required" }); return; }
   const rows = await db
@@ -21,7 +24,9 @@ router.get("/style-order-products", requireAuth, async (req, res) => {
 });
 
 // Get one
-router.get("/style-order-products/:id", requireAuth, async (req, res) => {
+router.get("/style-order-products/:id", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.PRODUCTS, STYLE_ORDERS.VIEW] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(styleOrderProductsTable).where(eq(styleOrderProductsTable.id, id));
@@ -30,7 +35,9 @@ router.get("/style-order-products/:id", requireAuth, async (req, res) => {
 });
 
 // Create
-router.post("/style-order-products", requireAuth, async (req, res) => {
+router.post("/style-order-products", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.PRODUCTS, STYLE_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const parsed = insertStyleOrderProductSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.issues }); return; }
   const user = (req as any).user;
@@ -42,7 +49,9 @@ router.post("/style-order-products", requireAuth, async (req, res) => {
 });
 
 // Update
-router.put("/style-order-products/:id", requireAuth, async (req, res) => {
+router.put("/style-order-products/:id", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.PRODUCTS, STYLE_ORDERS.ADD_EDIT] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = updateStyleOrderProductSchema.safeParse(req.body);
@@ -58,7 +67,9 @@ router.put("/style-order-products/:id", requireAuth, async (req, res) => {
 });
 
 // Soft delete
-router.delete("/style-order-products/:id", requireAuth, async (req, res) => {
+router.delete("/style-order-products/:id", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.PRODUCTS, STYLE_ORDERS.DELETE] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as any).user;
