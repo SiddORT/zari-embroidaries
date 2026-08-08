@@ -5,11 +5,13 @@ import { syncAllFromMasters, appendImageToInventoryAndMaster } from "../services
 import { persistDataUri } from "../utils/uploadHelper";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { STOCK_INVENTORY_DASHBOARD } from "../constants/permissions";
+import { STOCK_INVENTORY_DASHBOARD, STOCK_ITEMS , SWATCH_ORDERS, STYLE_ORDERS, STOCK_LEDGER, STOCK_PURCHASE_ORDERS, STOCK_ADJUSTMENTS} from "../constants/permissions";
 
 const router = Router();
 
-router.get("/inventory/summary", requireAuth, async (req, res) => {
+router.get("/inventory/summary", requireAuth, 
+  checkPermission({ any: [STOCK_ITEMS.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       search = "", category = "all", department = "all", location = "all",
@@ -56,7 +58,9 @@ router.get("/inventory/summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/inventory/items", requireAuth, async (req, res) => {
+router.get("/inventory/items", requireAuth, 
+  checkPermission({ any: [STOCK_ITEMS.VIEW, SWATCH_ORDERS.VIEW, STYLE_ORDERS.VIEW, STOCK_LEDGER.VIEW, STOCK_PURCHASE_ORDERS.VIEW, STOCK_ADJUSTMENTS.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       search = "",
@@ -200,7 +204,9 @@ router.get("/inventory/items/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/inventory/items/:id/logs", requireAuth, async (req, res) => {
+router.get("/inventory/items/:id/logs", requireAuth,
+  checkPermission({ any: [STOCK_ITEMS.VIEW] }), 
+  async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const r = await pool.query(
@@ -285,7 +291,9 @@ router.get("/inventory/filters", requireAuth, async (_req, res) => {
 
 // ── Stock Ledger ────────────────────────────────────────────────────────────
 
-router.get("/inventory/ledger", requireAuth, async (req, res) => {
+router.get("/inventory/ledger", requireAuth, 
+  checkPermission({ any: [STOCK_LEDGER.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       itemId = "",
@@ -379,7 +387,9 @@ router.get("/inventory/ledger", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/inventory/ledger/wastage", requireAuth, async (req: AuthRequest, res) => {
+router.post("/inventory/ledger/wastage", requireAuth, 
+  checkPermission({ any: [STOCK_LEDGER.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
 
@@ -431,7 +441,9 @@ router.post("/inventory/ledger/wastage", requireAuth, async (req: AuthRequest, r
 
 const DELETABLE_TX_TYPES = ["opening_stock", "adjustment_in", "adjustment_out", "wastage"];
 
-router.delete("/inventory/ledger/:id", requireAuth, async (req: AuthRequest, res) => {
+router.delete("/inventory/ledger/:id", requireAuth, 
+  checkPermission({ any: [STOCK_LEDGER.DELETE] }), 
+  async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
@@ -519,7 +531,9 @@ router.delete("/inventory/ledger/:id", requireAuth, async (req: AuthRequest, res
 
 // ── Stock Update ─────────────────────────────────────────────────────────────
 
-router.put("/inventory/items/:id/stock", requireAuth, async (req: AuthRequest, res) => {
+router.put("/inventory/items/:id/stock", requireAuth, 
+  checkPermission({ any: [STOCK_ITEMS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     if (req.user?.role !== "admin") {
       return res.status(403).json({ error: "Admin only" });
@@ -1477,7 +1491,9 @@ router.get("/inventory/low-stock-alerts", requireAuth, async (_req, res) => {
   }
 });
 
-router.post("/inventory/items/:id/add-image", requireAuth, async (req: AuthRequest, res) => {
+router.post("/inventory/items/:id/add-image", requireAuth, 
+  checkPermission({ any: [STOCK_ITEMS.ADD_EDIT] }),
+  async (req: AuthRequest, res) => {
   try {
     const id = parseInt(String(req.params.id));
     if (isNaN(id)) return res.status(400).json({ error: "Invalid item id" });

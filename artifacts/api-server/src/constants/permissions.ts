@@ -205,6 +205,8 @@ export const STOCK_LOW_STOCK = {
 export const STOCK_LEDGER = {
   BASE: "stock:ledger",
   VIEW: "stock:ledger:view",
+  ADD_EDIT: "stock:ledger:add_edit",
+  DELETE: "stock:ledger:delete",
   DOWNLOAD: "stock:ledger:download",
 };
 
