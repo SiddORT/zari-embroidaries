@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { MASTERS_SHIPPING_VENDORS } from "../constants/permissions";
+import { LOGISTICS_SHIPMENTS, MASTERS_SHIPPING_VENDORS, STYLE_ORDER_TABS, SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS } from "../constants/permissions";
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -82,7 +82,9 @@ export async function ensureShippingTables() {
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/shipping/vendors
-router.get("/shipping/vendors", requireAuth, checkPermission(MASTERS_SHIPPING_VENDORS.VIEW), async (_req, res) => {
+router.get("/shipping/vendors", requireAuth, 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING] }), 
+  async (_req, res) => {
   try {
     const r = await pool.query(
       `SELECT * FROM shipping_vendors WHERE is_active = TRUE AND is_deleted = false ORDER BY vendor_name`
@@ -94,7 +96,9 @@ router.get("/shipping/vendors", requireAuth, checkPermission(MASTERS_SHIPPING_VE
 });
 
 // GET /api/shipping/vendors/all  (includes inactive, for master management)
-router.get("/shipping/vendors/all", requireAuth, async (req, res) => {
+router.get("/shipping/vendors/all", requireAuth, 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING] }), 
+  async (req, res) => {
   try {
     const { search, page = "1", limit = "20" } = req.query as Record<string, string>;
     const params: any[] = [];
@@ -193,7 +197,9 @@ function calcShipping(weight: number, ratePerKg: number, minCharge: number, over
 }
 
 // GET /api/shipping/details — list with filters
-router.get("/shipping/details", requireAuth, async (req, res) => {
+router.get("/shipping/details", requireAuth, 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
+  async (req, res) => {
   try {
     const { status, vendorId, referenceType, fromDate, toDate, search, page = "1", limit = "20" } = req.query as Record<string, string>;
     const params: any[] = [];
@@ -233,7 +239,9 @@ router.get("/shipping/details", requireAuth, async (req, res) => {
 });
 
 // GET /api/shipping/details/by-reference?referenceType=Swatch&referenceId=5
-router.get("/shipping/details/by-reference", requireAuth, async (req, res) => {
+router.get("/shipping/details/by-reference", requireAuth,
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
+   async (req, res) => {
   try {
     const { referenceType, referenceId } = req.query as Record<string, string>;
     if (!referenceType || !referenceId) return res.status(400).json({ error: "referenceType and referenceId are required" });
@@ -252,7 +260,9 @@ router.get("/shipping/details/by-reference", requireAuth, async (req, res) => {
 });
 
 // GET /api/shipping/details/:id
-router.get("/shipping/details/:id", requireAuth, async (req, res) => {
+router.get("/shipping/details/:id", requireAuth, 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
+  async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT d.*, sv.vendor_name FROM order_shipping_details d
@@ -268,7 +278,7 @@ router.get("/shipping/details/:id", requireAuth, async (req, res) => {
 });
 
 // POST /api/shipping/details
-router.post("/shipping/details", requireAuth, async (req: AuthRequest, res) => {
+router.post("/shipping/details", requireAuth, checkPermission({ any: [SWATCH_ORDERS.ADD_EDIT, STYLE_ORDERS.ADD_EDIT] }), async (req: AuthRequest, res) => {
   try {
     const actor = (req as any).user?.name || (req as any).user?.email || "System";
     const {
@@ -318,7 +328,7 @@ router.post("/shipping/details", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/shipping/details/:id
-router.put("/shipping/details/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/shipping/details/:id", requireAuth, checkPermission({ any: [SWATCH_ORDERS.ADD_EDIT, STYLE_ORDERS.ADD_EDIT] }), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const existing = await pool.query(`SELECT * FROM order_shipping_details WHERE id = $1 AND is_deleted = false`, [id]);
@@ -369,7 +379,9 @@ router.put("/shipping/details/:id", requireAuth, async (req: AuthRequest, res) =
 });
 
 // PATCH /api/shipping/details/:id/status
-router.patch("/shipping/details/:id/status", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/shipping/details/:id/status", requireAuth, 
+  checkPermission({ any: [LOGISTICS_SHIPMENTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { shipment_status } = req.body;
@@ -386,10 +398,9 @@ router.patch("/shipping/details/:id/status", requireAuth, async (req: AuthReques
   }
 });
 
-// DELETE /api/shipping/details/:id  (admin only)
-router.delete("/shipping/details/:id", requireAuth, async (req: AuthRequest, res) => {
+// DELETE /api/shipping/details/:id
+router.delete("/shipping/details/:id", requireAuth, checkPermission({ any: [SWATCH_ORDERS.DELETE, STYLE_ORDERS.DELETE] }), async (req: AuthRequest, res) => {
   try {
-    if ((req as any).user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
     const deletedByUser = (req as any).user?.email ?? "system";
     const r = await pool.query(`UPDATE order_shipping_details SET is_deleted = true, updated_at = NOW(), deleted_by = $2, deleted_at = now() WHERE id = $1 AND is_deleted = false RETURNING id`, [req.params.id, deletedByUser]);
     if (!r.rows.length) return res.status(404).json({ error: "Not found" });
