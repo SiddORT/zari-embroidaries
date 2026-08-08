@@ -4,6 +4,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { syncAllFromMasters, appendImageToInventoryAndMaster } from "../services/inventoryService";
 import { persistDataUri } from "../utils/uploadHelper";
 import type { AuthRequest } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { STOCK_INVENTORY_DASHBOARD } from "../constants/permissions";
 
 const router = Router();
 
@@ -1321,7 +1323,9 @@ router.get("/inventory/item-categories", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/inventory/dashboard", requireAuth, async (req, res) => {
+router.get("/inventory/dashboard", requireAuth, 
+  checkPermission({ any: [STOCK_INVENTORY_DASHBOARD.VIEW] }), 
+  async (req, res) => {
   try {
     const { dateFrom, dateTo, category = "all", subCategory = "all", department = "all" } = req.query as Record<string, string>;
 

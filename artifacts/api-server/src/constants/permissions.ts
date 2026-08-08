@@ -184,7 +184,7 @@ export const STYLE_ORDER_TABS = {
 };
 
 // ── Stock ──
-export const STOCK_DASHBOARD = {
+export const STOCK_INVENTORY_DASHBOARD = {
   BASE: "stock:dashboard",
   VIEW: "stock:dashboard:view",
 };
