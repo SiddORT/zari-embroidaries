@@ -3,6 +3,8 @@ import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { generateOrderCode } from "../services/orderCodeService";
+import { checkPermission } from "../middlewares/checkPermission";
+import { QUOTATION } from "../constants/permissions";
 
 const router = Router();
 const COMPANY_STATE = process.env["COMPANY_STATE"] ?? "Maharashtra";
@@ -31,7 +33,9 @@ function calcGst(clientState: string | null, subtotal: number, shipping: number)
 }
 
 // ─── LIST ────────────────────────────────────────────────────────────────────
-router.get("/quotations", requireAuth, async (req, res) => {
+router.get("/quotations", requireAuth, 
+  checkPermission({ any: [QUOTATION.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       search = "", status = "all", clientId = "",
@@ -93,7 +97,9 @@ router.get("/quotations", requireAuth, async (req, res) => {
 });
 
 // ─── GET ONE ─────────────────────────────────────────────────────────────────
-router.get("/quotations/:id", requireAuth, async (req, res) => {
+router.get("/quotations/:id", requireAuth, 
+  checkPermission({ any: [QUOTATION.VIEW] }), 
+  async (req, res) => {
   try {
     const { id } = req.params;
     const [q, designs, charges, feedback, revisions] = await Promise.all([
@@ -126,7 +132,9 @@ router.get("/quotations/:id", requireAuth, async (req, res) => {
 });
 
 // ─── CREATE ──────────────────────────────────────────────────────────────────
-router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
+router.post("/quotations", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const actor = (req as any).user?.name || (req as any).user?.email || "System";
   const client = await (pool as any).connect();
   try {
@@ -203,7 +211,9 @@ router.post("/quotations", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ─── UPDATE ──────────────────────────────────────────────────────────────────
-router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/quotations/:id", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
   try {
     const { id } = req.params;
@@ -284,7 +294,9 @@ router.put("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ─── DELETE ──────────────────────────────────────────────────────────────────
-router.delete("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
+router.delete("/quotations/:id", requireAuth, 
+  checkPermission({ any: [QUOTATION.DELETE] }), 
+  async (req: AuthRequest, res) => {
   if ((req as any).user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
   const client = await (pool as any).connect();
   try {
@@ -314,7 +326,9 @@ router.delete("/quotations/:id", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ─── STATUS CHANGE ────────────────────────────────────────────────────────────
-router.post("/quotations/:id/status", requireAuth, async (req: AuthRequest, res) => {
+router.post("/quotations/:id/status", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { newStatus } = req.body as { newStatus: string };
@@ -353,7 +367,9 @@ router.post("/quotations/:id/status", requireAuth, async (req: AuthRequest, res)
 });
 
 // ─── ADD FEEDBACK ─────────────────────────────────────────────────────────────
-router.post("/quotations/:id/feedback", requireAuth, async (req: AuthRequest, res) => {
+router.post("/quotations/:id/feedback", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const actor = (req as any).user?.name || (req as any).user?.email || "System";
@@ -371,7 +387,9 @@ router.post("/quotations/:id/feedback", requireAuth, async (req: AuthRequest, re
 });
 
 // ─── CREATE REVISION ─────────────────────────────────────────────────────────
-router.post("/quotations/:id/revise", requireAuth, async (req: AuthRequest, res) => {
+router.post("/quotations/:id/revise", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const actor = (req as any).user?.name || (req as any).user?.email || "System";
   const client = await (pool as any).connect();
   try {
@@ -435,7 +453,9 @@ router.post("/quotations/:id/revise", requireAuth, async (req: AuthRequest, res)
 });
 
 // ─── CONVERT TO SWATCH ───────────────────────────────────────────────────────
-router.post("/quotations/:id/convert-swatch", requireAuth, async (req: AuthRequest, res) => {
+router.post("/quotations/:id/convert-swatch", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const actor = (req as any).user?.name || (req as any).user?.email || "System";
   const client = await (pool as any).connect();
   try {
@@ -488,7 +508,9 @@ router.post("/quotations/:id/convert-swatch", requireAuth, async (req: AuthReque
 });
 
 // ─── CONVERT TO STYLE ────────────────────────────────────────────────────────
-router.post("/quotations/:id/convert-style", requireAuth, async (req: AuthRequest, res) => {
+router.post("/quotations/:id/convert-style", requireAuth, 
+  checkPermission({ any: [QUOTATION.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const actor = (req as any).user?.name || (req as any).user?.email || "System";
   const client = await (pool as any).connect();
   try {
