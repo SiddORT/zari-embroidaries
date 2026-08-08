@@ -83,7 +83,7 @@ export async function ensureShippingTables() {
 
 // GET /api/shipping/vendors
 router.get("/shipping/vendors", requireAuth, 
-  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING] }), 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
   async (_req, res) => {
   try {
     const r = await pool.query(
@@ -97,7 +97,7 @@ router.get("/shipping/vendors", requireAuth,
 
 // GET /api/shipping/vendors/all  (includes inactive, for master management)
 router.get("/shipping/vendors/all", requireAuth, 
-  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING] }), 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
   async (req, res) => {
   try {
     const { search, page = "1", limit = "20" } = req.query as Record<string, string>;
