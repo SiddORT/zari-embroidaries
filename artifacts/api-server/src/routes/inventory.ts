@@ -1014,7 +1014,9 @@ router.delete("/inventory/reservations/:id", requireAuth, async (req, res) => {
 
 const LOSS_TYPES = new Set(["Damage", "Loss", "Audit Correction"]);
 
-router.get("/inventory/adjustments/summary", requireAuth, async (_req, res) => {
+router.get("/inventory/adjustments/summary", requireAuth, 
+  checkPermission({ any: [STOCK_ADJUSTMENTS.VIEW] }), 
+  async (_req, res) => {
   try {
     const r = await pool.query(`
       SELECT
@@ -1036,7 +1038,9 @@ router.get("/inventory/adjustments/summary", requireAuth, async (_req, res) => {
   }
 });
 
-router.get("/inventory/adjustments", requireAuth, async (req, res) => {
+router.get("/inventory/adjustments", requireAuth, 
+  checkPermission({ any: [STOCK_ADJUSTMENTS.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       search = "", adjustmentType = "all", adjustmentDirection = "all",
@@ -1089,7 +1093,9 @@ router.get("/inventory/adjustments", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/inventory/adjustments", requireAuth, async (req: AuthRequest, res) => {
+router.post("/inventory/adjustments", requireAuth, 
+  checkPermission({ any: [STOCK_ADJUSTMENTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const auth = req;
   const actor = auth.user?.name || auth.user?.email || "System";
   try {
@@ -1179,7 +1185,9 @@ router.post("/inventory/adjustments", requireAuth, async (req: AuthRequest, res)
   }
 });
 
-router.put("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/inventory/adjustments/:id", requireAuth, 
+  checkPermission({ any: [STOCK_ADJUSTMENTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const auth = req;
   const actor = auth.user?.name || auth.user?.email || "System";
   try {
@@ -1274,7 +1282,9 @@ router.put("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, r
   }
 });
 
-router.delete("/inventory/adjustments/:id", requireAuth, async (req: AuthRequest, res) => {
+router.delete("/inventory/adjustments/:id", requireAuth, 
+  checkPermission({ any: [STOCK_ADJUSTMENTS.DELETE] }), 
+  async (req: AuthRequest, res) => {
   const auth = req;
   if ((auth.user as any)?.role !== "admin") return res.status(403).json({ error: "Admin only" });
   try {
