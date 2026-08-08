@@ -123,8 +123,8 @@ export const ALL_PERMISSIONS = [
 
   { key: "stock:ledger:view",                 label: "Stock Ledger",        resource: "stock:ledger",            action: "view",     menu: "Stock", subgroup: "Inventory" },
   { key: "stock:ledger:download",             label: "Stock Ledger",        resource: "stock:ledger",            action: "download", menu: "Stock", subgroup: "Inventory" },
-
-  { key: "stock:reservations:view",           label: "Reservations",        resource: "stock:reservations",      action: "view",     menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:ledger:add_edit",             label: "Stock Ledger",        resource: "stock:ledger",            action: "add_edit", menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:ledger:delete",               label: "Stock Ledger",        resource: "stock:ledger",            action: "delete",   menu: "Stock", subgroup: "Inventory" },
 
   { key: "stock:adjustments:view",            label: "Stock Adjustments",   resource: "stock:adjustments",       action: "view",     menu: "Stock", subgroup: "Inventory" },
   { key: "stock:adjustments:add_edit",        label: "Stock Adjustments",   resource: "stock:adjustments",       action: "add_edit", menu: "Stock", subgroup: "Inventory" },
