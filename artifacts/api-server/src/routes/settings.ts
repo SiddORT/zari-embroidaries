@@ -172,7 +172,6 @@ export async function ensureSettingsTables() {
 
 // GET /api/settings/profile
 router.get("/settings/profile", requireAuth, 
-  checkPermission({ any: [SETTINGS_PROFILE.VIEW] }), 
   async (req: AuthRequest, res) => {
   try {
     const { rows } = await pool.query(
