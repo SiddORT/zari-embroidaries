@@ -6,6 +6,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { hashPassword } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendInviteEmail, sendAdminPasswordResetEmail } from "../lib/mailer";
+import { checkPermission } from "../middlewares/checkPermission";
+import { USER_MANAGEMENT } from "../constants/permissions";
 
 function buildInviteUrl(token: string): string {
   const domain =
@@ -320,7 +322,9 @@ router.get("/user-management/permissions", requireAdmin, (_req, res): void => {
   res.json({ data: ALL_PERMISSIONS });
 });
 
-router.get("/user-management/users", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/user-management/users", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.VIEW] }), 
+  async (_req, res): Promise<void> => {
   const users = await db
     .select({
       id: usersTable.id,
@@ -339,7 +343,9 @@ router.get("/user-management/users", requireAdmin, async (_req, res): Promise<vo
   res.json({ data: users });
 });
 
-router.post("/user-management/users", requireAdmin, async (req, res): Promise<void> => {
+router.post("/user-management/users", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const { email, username, role, roleId } = req.body as { email: string; username: string; role: string; roleId: number };
   if (!email || !username || !role) {
     res.status(400).json({ error: "email, username and role are required" });
@@ -386,7 +392,9 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
   res.status(201).json({ data: user, inviteToken, inviteUrl, emailSent: true });
 });
 
-router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
+router.put("/user-management/users/:id", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const { username, email, role, roleId, isActive } = req.body as { username?: string; email?: string; role?: string; roleId: number; isActive?: boolean };
 
@@ -426,7 +434,9 @@ router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise
   res.json({ data: user });
 });
 
-router.delete("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/user-management/users/:id", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.DELETE] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const authUser = (req as typeof req & { user?: { userId: number } }).user;
   if (authUser?.userId === id) {
@@ -442,7 +452,9 @@ router.delete("/user-management/users/:id", requireAdmin, async (req, res): Prom
   res.json({ message: "User deleted" });
 });
 
-router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req, res): Promise<void> => {
+router.post("/user-management/users/:id/resend-invite", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const inviteToken = crypto.randomBytes(32).toString("hex");
   const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -466,7 +478,9 @@ router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req
   }
 });
 
-router.post("/user-management/users/:id/send-reset", requireAdmin, async (req, res): Promise<void> => {
+router.post("/user-management/users/:id/send-reset", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const authUser = (req as typeof req & { user?: { userId: number } }).user;
   if (authUser?.userId === id) {
