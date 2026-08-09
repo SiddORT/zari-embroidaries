@@ -118,7 +118,7 @@ router.get("/procurement/purchase-orders", requireAuth,
 
 // GET SINGLE
 router.get("/procurement/purchase-orders/:id", requireAuth, 
-  checkPermission({ any: [STOCK_PURCHASE_ORDERS.VIEW] }), 
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.VIEW, STOCK_PURCHASE_RECEIPTS.VIEW] }), 
   async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));

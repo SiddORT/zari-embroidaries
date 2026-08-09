@@ -525,7 +525,7 @@ router.get("/settings/activity-logs/users", requireAuth, async (req: AuthRequest
 
 // GET /api/settings/warehouses
 router.get("/settings/warehouses", requireAuth, async (req: AuthRequest, res) => {
-  if (!adminOnly(req, res)) return;
+  // if (!adminOnly(req, res)) return;
   try {
     const { rows } = await pool.query(`SELECT * FROM warehouse_locations WHERE is_deleted = false ORDER BY name ASC`);
     return res.json({ data: rows });
