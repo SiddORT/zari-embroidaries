@@ -47,12 +47,6 @@ export default function Settings() {
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isError } = useGetMe({ query: { enabled: !!token } as any });
   const logoutMutation = useLogout();
-
-  const [tab, setTab] = useState<Tab>(() => {
-    const valid: Tab[] = ["profile", "currency", "banks", "gst", "logs", "warehouses", "templates", "download_logs", "api_docs"];
-    const p = new URLSearchParams(window.location.search).get("tab") as Tab | null;
-    return p && valid.includes(p) ? p : "profile";
-  });
   const isAdmin = user?.role === "admin";
 
   const [myPerms, setMyPerms] = useState<Set<string>>(new Set());
@@ -73,6 +67,26 @@ export default function Settings() {
   useEffect(() => {
     if (!token || isError) { localStorage.removeItem("zarierp_token"); setLocation("/login"); }
   }, [token, isError]);
+
+  const accessibleTabs = [
+    can("settings:profile:view") && "profile",
+    can("settings:currency:view") && "currency",
+    can("settings:banks:view") && "banks",
+    can("settings:gst:view") && "gst",
+    can("settings:activity_logs:view") && "logs",
+    can("settings:warehouses:view") && "warehouses",
+    can("settings:templates:view") && "templates",
+    can("settings:download_logs:view") && "download_logs",
+    isAdmin && "api_docs",
+  ].filter(Boolean) as Tab[];
+
+  const [tab, setTab] = useState<Tab>(accessibleTabs[0] || "profile");
+
+  useEffect(() => {
+    if (accessibleTabs.length > 0 && !accessibleTabs.includes(tab)) {
+      setTab(accessibleTabs[0]);
+    }
+  }, [myPerms, isAdmin]);
 
   const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
   const inp = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C6AF4B] focus:ring-2 focus:ring-[#C6AF4B]/20 transition disabled:bg-gray-50 disabled:text-gray-400";
