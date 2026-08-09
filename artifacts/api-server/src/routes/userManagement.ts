@@ -158,6 +158,7 @@ export const ALL_PERMISSIONS = [
   { key: "accounts:vendor_ledgers:download",  label: "Ledgers",             resource: "accounts:vendor_ledgers",     action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:purchases:view",           label: "Purchases",           resource: "accounts:purchases",          action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:purchases:add_edit",       label: "Purchases",           resource: "accounts:purchases",          action: "add_edit", menu: "Accounts", subgroup: null },
   { key: "accounts:purchases:download",       label: "Purchases",           resource: "accounts:purchases",          action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:sales:view",               label: "Sales",               resource: "accounts:sales",              action: "view",     menu: "Accounts", subgroup: null },

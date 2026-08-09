@@ -279,6 +279,8 @@ export const ACCOUNTS_VENDOR_LEDGERS = {
 export const ACCOUNTS_PURCHASES = {
   BASE: "accounts:purchases",
   VIEW: "accounts:purchases:view",
+  ADD_EDIT: "accounts:purchases:add_edit",
+  DELETE: "accounts:purchases:delete",
   DOWNLOAD: "accounts:purchases:download",
 };
 

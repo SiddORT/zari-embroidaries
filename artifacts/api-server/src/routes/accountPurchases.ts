@@ -4,6 +4,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { recomputeVendorBillBalances } from "../lib/vendorBillBalances";
 import { convertPaymentToBillCcy, isOverpayment } from "../lib/procurementMath";
+import { checkPermission } from "../middlewares/checkPermission";
+import { ACCOUNTS_PURCHASES } from "../constants/permissions";
 
 const router = Router();
 
@@ -216,7 +218,9 @@ router.get("/summary", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    UNIFIED PAYABLES — KPI SUMMARY
 ══════════════════════════════════════════════════════════ */
-router.get("/unified-summary", requireAuth, async (req, res) => {
+router.get("/unified-summary", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PURCHASES.VIEW] }),
+  async (req, res) => {
   try {
     const { from_date, to_date, vendor_id } = req.query as Record<string, string>;
     const vid = vendor_id ? parseInt(vendor_id) : null;
@@ -295,7 +299,9 @@ router.get("/unified-summary", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    UNIFIED PAYABLES — LIABILITY TABLE
 ══════════════════════════════════════════════════════════ */
-router.get("/unified-liabilities", requireAuth, async (req, res) => {
+router.get("/unified-liabilities", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PURCHASES.VIEW] }),
+  async (req, res) => {
   try {
     const { from_date, to_date, vendor_id, ref_type, status, department,
             search, ref_no, page = "1", limit = "50" } = req.query as Record<string, string>;
@@ -485,7 +491,9 @@ router.get("/unified-liabilities", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    TOP VENDORS PENDING PAYMENT
 ══════════════════════════════════════════════════════════ */
-router.get("/top-vendors-pending", requireAuth, async (req, res) => {
+router.get("/top-vendors-pending", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PURCHASES.VIEW] }),
+  async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT vendor_id, vendor_name,
@@ -504,7 +512,9 @@ router.get("/top-vendors-pending", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    RECORD PAYMENT — unified across all source types
 ══════════════════════════════════════════════════════════ */
-router.post("/record-payment", requireAuth, async (req: AuthRequest, res) => {
+router.post("/record-payment", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PURCHASES.ADD_EDIT] }),
+  async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
