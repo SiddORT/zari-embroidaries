@@ -97,7 +97,7 @@ router.get("/shipping/vendors", requireAuth,
 
 // GET /api/shipping/vendors/all  (includes inactive, for master management)
 router.get("/shipping/vendors/all", requireAuth, 
-  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING, LOGISTICS_SHIPMENTS.VIEW] }), 
   async (req, res) => {
   try {
     const { search, page = "1", limit = "20" } = req.query as Record<string, string>;
@@ -198,7 +198,7 @@ function calcShipping(weight: number, ratePerKg: number, minCharge: number, over
 
 // GET /api/shipping/details — list with filters
 router.get("/shipping/details", requireAuth, 
-  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING, LOGISTICS_SHIPMENTS.VIEW] }), 
   async (req, res) => {
   try {
     const { status, vendorId, referenceType, fromDate, toDate, search, page = "1", limit = "20" } = req.query as Record<string, string>;
