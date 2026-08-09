@@ -3,6 +3,8 @@ import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { uploadMiddleware, uploadFile } from "../utils/uploadHelper";
+import { checkPermission } from "../middlewares/checkPermission";
+import { ACCOUNTS_OTHER_EXPENSES } from "../constants/permissions";
 
 const router = Router();
 
@@ -37,7 +39,9 @@ router.get("/other-expenses/categories", requireAuth, async (_req, res) => {
 });
 
 /* ── list ─────────────────────────────────── */
-router.get("/other-expenses", requireAuth, async (req, res) => {
+router.get("/other-expenses", requireAuth, 
+  checkPermission({any:[ACCOUNTS_OTHER_EXPENSES.VIEW]}),
+  async (req, res) => {
   try {
     const {
       search, status, category, vendor_id, from_date, to_date,
@@ -86,7 +90,9 @@ router.get("/other-expenses", requireAuth, async (req, res) => {
 });
 
 /* ── get one ──────────────────────────────── */
-router.get("/other-expenses/:id", requireAuth, async (req, res) => {
+router.get("/other-expenses/:id", requireAuth, 
+  checkPermission({any:[ACCOUNTS_OTHER_EXPENSES.VIEW]}),
+  async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT oe.*, v.brand_name AS vendor_display_name
@@ -103,7 +109,9 @@ router.get("/other-expenses/:id", requireAuth, async (req, res) => {
 });
 
 /* ── create ───────────────────────────────── */
-router.post("/other-expenses", requireAuth, uploadMiddleware.single("attachment"), async (req: any, res) => {
+router.post("/other-expenses", requireAuth, 
+  checkPermission({any:[ACCOUNTS_OTHER_EXPENSES.ADD_EDIT]}),
+  uploadMiddleware.single("attachment"), async (req: any, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -182,7 +190,9 @@ router.post("/other-expenses", requireAuth, uploadMiddleware.single("attachment"
 });
 
 /* ── update ───────────────────────────────── */
-router.put("/other-expenses/:id", requireAuth, uploadMiddleware.single("attachment"), async (req: any, res) => {
+router.put("/other-expenses/:id", requireAuth, 
+  checkPermission({any:[ACCOUNTS_OTHER_EXPENSES.ADD_EDIT]}),
+  uploadMiddleware.single("attachment"), async (req: any, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const {
@@ -230,7 +240,9 @@ router.put("/other-expenses/:id", requireAuth, uploadMiddleware.single("attachme
 });
 
 /* ── delete (admin only) ─────────────────── */
-router.delete("/other-expenses/:id", requireAuth, async (req: any, res) => {
+router.delete("/other-expenses/:id", requireAuth, 
+  checkPermission({any:[ACCOUNTS_OTHER_EXPENSES.DELETE]}),
+  async (req: any, res) => {
   try {
     const user = (req as AuthRequest).user;
     if ((user as any)?.role !== "admin")
