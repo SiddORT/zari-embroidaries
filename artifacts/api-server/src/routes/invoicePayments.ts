@@ -2,6 +2,8 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { recomputeInvoiceBalances } from "../lib/invoiceBalances";
+import { checkPermission } from "../middlewares/checkPermission";
+import { ACCOUNTS_PAYMENTS } from "../constants/permissions";
 
 const router = Router();
 
@@ -10,7 +12,9 @@ const PAYMENT_STATUSES = ["Processing", "Completed", "Failed"] as const;
 
 // ── GET /api/invoice-payments/accounts ──────────────────────────────────────
 // Returns all client + vendor invoices enriched with payment summary
-router.get("/invoice-payments/accounts", requireAuth, async (req, res) => {
+router.get("/invoice-payments/accounts", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PAYMENTS.VIEW] }),
+  async (req, res) => {
   try {
     const { direction, status, search, page = "1", limit = "30" } = req.query as Record<string, string>;
     const off = (parseInt(page) - 1) * parseInt(limit);
@@ -64,7 +68,9 @@ router.get("/invoice-payments/accounts", requireAuth, async (req, res) => {
 });
 
 // ── GET /api/invoice-payments?invoice_id=X ──────────────────────────────────
-router.get("/invoice-payments", requireAuth, async (req, res) => {
+router.get("/invoice-payments", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PAYMENTS.VIEW] }),
+  async (req, res) => {
   try {
     const { invoice_id } = req.query;
     if (!invoice_id) return res.status(400).json({ error: "invoice_id required" });
@@ -83,7 +89,9 @@ router.get("/invoice-payments", requireAuth, async (req, res) => {
 });
 
 // ── POST /api/invoice-payments ───────────────────────────────────────────────
-router.post("/invoice-payments", requireAuth, async (req: any, res) => {
+router.post("/invoice-payments", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PAYMENTS.ADD_EDIT] }),
+  async (req: any, res) => {
   const {
     invoice_id, payment_type, payment_amount, currency_code = "INR",
     exchange_rate_snapshot = 1, transaction_reference = "", payment_status = "Completed",
@@ -169,7 +177,9 @@ router.post("/invoice-payments", requireAuth, async (req: any, res) => {
 });
 
 // ── DELETE /api/invoice-payments/:id ────────────────────────────────────────
-router.delete("/invoice-payments/:id", requireAuth, async (req, res) => {
+router.delete("/invoice-payments/:id", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_PAYMENTS.DELETE] }),
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
