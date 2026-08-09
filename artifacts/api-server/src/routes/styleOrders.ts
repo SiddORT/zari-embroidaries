@@ -3,7 +3,7 @@ import { db, styleOrdersTable, eq, and, ilike, or, desc, sql,  entityTagsTable, 
 // import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { STYLE_ORDERS, STOCK_ADJUSTMENTS } from "../constants/permissions";
+import { STYLE_ORDERS, STOCK_ADJUSTMENTS, STOCK_PURCHASE_ORDERS } from "../constants/permissions";
 import { insertStyleOrderSchema, updateStyleOrderSchema, clientsTable } from "@workspace/db";
 import { generateOrderCode } from "../services/orderCodeService";
 
@@ -11,7 +11,7 @@ const router = Router();
 
 // List
 router.get("/style-orders", requireAuth, 
-  checkPermission({ any: [STYLE_ORDERS.VIEW, STOCK_ADJUSTMENTS.VIEW] }), 
+  checkPermission({ any: [STYLE_ORDERS.VIEW, STOCK_ADJUSTMENTS.VIEW, STOCK_PURCHASE_ORDERS.VIEW] }), 
   async (req, res) => {
   const { search = "", status = "all", priority = "all", chargeable = "all",   tag = "", page = "1", limit = "24" } = req.query as Record<string, string>;
   const pageNum = Math.max(1, parseInt(page));

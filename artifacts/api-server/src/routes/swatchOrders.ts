@@ -2,14 +2,14 @@ import { Router, type IRouter } from "express";
 import { db, swatchOrdersTable,clientsTable, eq, and, ilike, or, desc, sql, exists, entityTagsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { SWATCH_ORDERS, STOCK_ADJUSTMENTS } from "../constants/permissions";
+import { SWATCH_ORDERS, STOCK_ADJUSTMENTS, STOCK_PURCHASE_RECEIPTS, STOCK_PURCHASE_ORDERS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { generateOrderCode } from "../services/orderCodeService";
 
 const router: IRouter = Router();
 
 router.get("/swatch-orders", requireAuth, 
-  checkPermission({any : [SWATCH_ORDERS.VIEW, STOCK_ADJUSTMENTS.VIEW]}), 
+  checkPermission({any : [SWATCH_ORDERS.VIEW, STOCK_ADJUSTMENTS.VIEW, STOCK_PURCHASE_ORDERS.VIEW]}), 
   async (req, res): Promise<void> => {
   const { search = "", status = "all", priority = "all", chargeable = "all",   tag = "", page = "1", limit = "20" } = req.query as Record<string, string>;
   const pg = Math.max(1, parseInt(page));

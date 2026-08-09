@@ -4,7 +4,7 @@ import { db, vendorsTable,  eq, ilike, or, and, desc, count, asc } from "@worksp
 import { insertVendorSchema, updateVendorSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { MASTERS_VENDORS } from "../constants/permissions";
+import { MASTERS_VENDORS, STOCK_PURCHASE_ORDERS, STOCK_PURCHASE_RECEIPTS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import { persistAttachmentArray } from "../utils/uploadHelper";
@@ -28,7 +28,9 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/vendors", requireAuth, checkPermission(MASTERS_VENDORS.VIEW), async (req: AuthRequest, res): Promise<void> => {
+router.get("/vendors", requireAuth, 
+  checkPermission({ any: [MASTERS_VENDORS.VIEW, STOCK_PURCHASE_ORDERS.VIEW] }), 
+  async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));

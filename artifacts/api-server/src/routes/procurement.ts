@@ -4,6 +4,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { uploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 import { nextSequenceNumber } from "../utils/sequence";
+import { checkPermission } from "../middlewares/checkPermission";
+import { STOCK_PURCHASE_ORDERS, STOCK_PURCHASE_RECEIPTS } from "../constants/permissions";
 
 const router = Router();
 
@@ -64,7 +66,9 @@ async function recalcPoStatus(client: { query: typeof pool.query }, poId: number
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // LIST
-router.get("/procurement/purchase-orders", requireAuth, async (req, res) => {
+router.get("/procurement/purchase-orders", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       search = "", status = "all", referenceType = "all",
@@ -113,7 +117,9 @@ router.get("/procurement/purchase-orders", requireAuth, async (req, res) => {
 });
 
 // GET SINGLE
-router.get("/procurement/purchase-orders/:id", requireAuth, async (req, res) => {
+router.get("/procurement/purchase-orders/:id", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.VIEW] }), 
+  async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const [poRes, itemsRes, prsRes] = await Promise.all([
@@ -150,7 +156,9 @@ router.get("/procurement/purchase-orders/:id", requireAuth, async (req, res) => 
 });
 
 // CREATE PO (Inventory or Manual)
-router.post("/procurement/purchase-orders", requireAuth, async (req: AuthRequest, res) => {
+router.post("/procurement/purchase-orders", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
@@ -335,7 +343,9 @@ router.post("/procurement/purchase-orders", requireAuth, async (req: AuthRequest
 });
 
 // UPDATE PO STATUS
-router.patch("/procurement/purchase-orders/:id/status", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/procurement/purchase-orders/:id/status", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
@@ -379,7 +389,9 @@ router.patch("/procurement/purchase-orders/:id/status", requireAuth, async (req:
 });
 
 // DELETE PO (admin, draft only)
-router.delete("/procurement/purchase-orders/:id", requireAuth, async (req, res) => {
+router.delete("/procurement/purchase-orders/:id", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.DELETE] }), 
+  async (req, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
@@ -406,7 +418,9 @@ router.delete("/procurement/purchase-orders/:id", requireAuth, async (req, res) 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // LIST (all PRs from purchase_receipts — covers both Inventory and Costing sources)
-router.get("/procurement/purchase-receipts", requireAuth, async (req, res) => {
+router.get("/procurement/purchase-receipts", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.VIEW] }), 
+  async (req, res) => {
   try {
     const {
       search = "", status = "all", referenceType = "all",
@@ -466,7 +480,9 @@ router.get("/procurement/purchase-receipts", requireAuth, async (req, res) => {
 });
 
 // GET SINGLE PR
-router.get("/procurement/purchase-receipts/:id", requireAuth, async (req, res) => {
+router.get("/procurement/purchase-receipts/:id", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.VIEW] }), 
+  async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const [prRes, itemsRes] = await Promise.all([
@@ -499,7 +515,9 @@ router.get("/procurement/purchase-receipts/:id", requireAuth, async (req, res) =
 });
 
 // CREATE PR (draft, linked to PO)
-router.post("/procurement/purchase-receipts", requireAuth, async (req: AuthRequest, res) => {
+router.post("/procurement/purchase-receipts", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
@@ -643,7 +661,9 @@ router.post("/procurement/purchase-receipts", requireAuth, async (req: AuthReque
 });
 
 // CONFIRM PR
-router.post("/procurement/purchase-receipts/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
+router.post("/procurement/purchase-receipts/:id/confirm", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
@@ -701,7 +721,9 @@ router.post("/procurement/purchase-receipts/:id/confirm", requireAuth, async (re
 });
 
 // UPDATE Open PR items (edit quantities/prices before confirming)
-router.put("/procurement/purchase-receipts/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/procurement/purchase-receipts/:id", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
@@ -782,7 +804,9 @@ router.put("/procurement/purchase-receipts/:id", requireAuth, async (req: AuthRe
 });
 
 // CANCEL PR
-router.post("/procurement/purchase-receipts/:id/cancel", requireAuth, async (req: AuthRequest, res) => {
+router.post("/procurement/purchase-receipts/:id/cancel", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
@@ -858,7 +882,9 @@ router.post("/procurement/purchase-receipts/:id/cancel", requireAuth, async (req
 });
 
 // DELETE PR (admin)
-router.delete("/procurement/purchase-receipts/:id", requireAuth, async (req, res) => {
+router.delete("/procurement/purchase-receipts/:id", requireAuth, 
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.DELETE] }), 
+  async (req, res) => {
   const client = await (pool as any).connect();
   try {
     await client.query("BEGIN");
