@@ -509,7 +509,7 @@ function StyleBomSection({ styleOrderId, orderCode, styleName, clientName }: {
                 <SmallSearchSelect
                   value={selectedMaterialId}
                   onChange={v => onMaterialChange(v)}
-                  options={allMaterials.map(m => ({ value: String(m.id), label: `${[m.itemType, m.quality].filter(Boolean).join(" – ")} (${m.materialCode})` }))}
+                  options={allMaterials.map(m => ({ value: String(m.id), label: `${[m.materialName, m.quality].filter(Boolean).join(" – ")} (${m.materialCode})` }))}
                   placeholder="— Select material —"
                   disabled={form.materialType === "fabric"}
                   clearable
