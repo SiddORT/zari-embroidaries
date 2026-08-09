@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { ACCOUNTS_DASHBOARD } from "../constants/permissions";
+import { checkPermission } from "../middlewares/checkPermission";
 
 const router = Router();
 
-router.get("/accounts/dashboard", requireAuth, async (req, res) => {
+router.get("/accounts/dashboard", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_DASHBOARD.VIEW] }), 
+  async (req, res) => {
   try {
     const raw = req.query as Record<string, string>;
 
