@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { LOGISTICS_SHIPMENTS, MASTERS_SHIPPING_VENDORS, STYLE_ORDER_TABS, SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS } from "../constants/permissions";
+import { LOGISTICS_SHIPMENTS, MASTERS_SHIPPING_VENDORS, STYLE_ORDER_TABS, SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS, LOGISTICS_PACKING_LISTS } from "../constants/permissions";
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -83,7 +83,7 @@ export async function ensureShippingTables() {
 
 // GET /api/shipping/vendors
 router.get("/shipping/vendors", requireAuth, 
-  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING] }), 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING, LOGISTICS_PACKING_LISTS.VIEW] }), 
   async (_req, res) => {
   try {
     const r = await pool.query(
@@ -198,7 +198,7 @@ function calcShipping(weight: number, ratePerKg: number, minCharge: number, over
 
 // GET /api/shipping/details — list with filters
 router.get("/shipping/details", requireAuth, 
-  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING, LOGISTICS_SHIPMENTS.VIEW] }), 
+  checkPermission({ any : [MASTERS_SHIPPING_VENDORS.VIEW, SWATCH_ORDER_TABS.SHIPPING, STYLE_ORDER_TABS.SHIPPING, LOGISTICS_SHIPMENTS.VIEW, LOGISTICS_PACKING_LISTS.VIEW] }), 
   async (req, res) => {
   try {
     const { status, vendorId, referenceType, fromDate, toDate, search, page = "1", limit = "20" } = req.query as Record<string, string>;

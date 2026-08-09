@@ -4,7 +4,7 @@ import { db, clientsTable , eq, ilike, or, and, desc, count} from "@workspace/db
 import { insertClientSchema, updateClientSchema, deliveryAddresses, swatchOrdersTable, styleOrdersTable, quotations } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { MASTERS_CLIENTS } from "../constants/permissions";
+import { LOGISTICS_PACKING_LISTS, MASTERS_CLIENTS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { nextSequenceNumber } from "../utils/sequence";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
@@ -32,7 +32,9 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/clients", requireAuth, checkPermission(MASTERS_CLIENTS.VIEW), async (req: AuthRequest, res): Promise<void> => {
+router.get("/clients", requireAuth, 
+  checkPermission({ any: [MASTERS_CLIENTS.VIEW, LOGISTICS_PACKING_LISTS.VIEW] }), 
+  async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
