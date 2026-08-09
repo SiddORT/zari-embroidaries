@@ -1,14 +1,17 @@
 import { Router } from "express";
 import { db, vendorPaymentsTable, vendorLedgerChargesTable, vendorsTable } from "@workspace/db";
 import { pool } from "@workspace/db";
-// import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { insertVendorPaymentSchema, insertVendorLedgerChargeSchema ,  eq, and } from "@workspace/db";
 import { recomputeVendorBillBalances } from "../lib/vendorBillBalances";
+import { checkPermission } from "../middlewares/checkPermission";
+import { ACCOUNTS_VENDOR_LEDGERS, ACCOUNTS_CREDIT_DEBIT_NOTES } from "../constants/permissions";
 
 const router = Router();
 
-router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
+router.get("/vendor-ledger/summary", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_VENDOR_LEDGERS.VIEW, ACCOUNTS_CREDIT_DEBIT_NOTES.VIEW] }),
+  async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -144,7 +147,9 @@ router.get("/vendor-ledger/summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => {
+router.get("/vendor-ledger/:vendorId/entries", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_VENDOR_LEDGERS.VIEW] }), 
+  async (req, res) => {
   try {
     const vendorId = parseInt(String(req.params.vendorId));
     const { orderType = "all", startDate, endDate } = req.query as Record<string, string>;
