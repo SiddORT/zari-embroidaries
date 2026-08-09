@@ -2,6 +2,8 @@ import { Router, type Request } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { hashPassword, verifyPassword } from "../lib/auth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { SETTINGS_ACTIVITY_LOGS, SETTINGS_BANKS, SETTINGS_CURRENCY, SETTINGS_DOWNLOAD_LOGS, SETTINGS_GST, SETTINGS_PROFILE, SETTINGS_TEMPLATES, SETTINGS_WAREHOUSES } from "../constants/permissions";
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -169,7 +171,9 @@ export async function ensureSettingsTables() {
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/settings/profile
-router.get("/settings/profile", requireAuth, async (req: AuthRequest, res) => {
+router.get("/settings/profile", requireAuth, 
+  checkPermission({ any: [SETTINGS_PROFILE.VIEW] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, username, email, phone_number, profile_photo, role, is_active, created_at FROM users WHERE id = $1`,
@@ -193,7 +197,9 @@ router.get("/settings/profile", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PATCH /api/settings/profile
-router.patch("/settings/profile", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/profile", requireAuth, 
+  checkPermission({ any: [SETTINGS_PROFILE.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { name, phone_number, profile_photo } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
@@ -208,7 +214,9 @@ router.patch("/settings/profile", requireAuth, async (req: AuthRequest, res) => 
 });
 
 // PATCH /api/settings/password
-router.patch("/settings/password", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/password", requireAuth, 
+  checkPermission({ any: [SETTINGS_PROFILE.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { current_password, new_password, confirm_password } = req.body;
     if (!current_password || !new_password || !confirm_password)
@@ -255,7 +263,9 @@ router.get("/settings/currencies", requireAuth, async (_req, res) => {
 });
 
 // PATCH /api/settings/currencies/base
-router.patch("/settings/currencies/base", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/currencies/base", requireAuth, 
+  checkPermission({ any: [SETTINGS_CURRENCY.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   try {
     const { code } = req.body;
@@ -271,7 +281,9 @@ router.patch("/settings/currencies/base", requireAuth, async (req: AuthRequest, 
 });
 
 // PATCH /api/settings/currencies/:code/toggle
-router.patch("/settings/currencies/:code/toggle", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/currencies/:code/toggle", requireAuth, 
+  checkPermission({ any: [SETTINGS_CURRENCY.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   try {
     const { code } = req.params;
@@ -311,7 +323,9 @@ router.get("/settings/exchange-rates", requireAuth, async (_req, res) => {
 });
 
 // POST /api/settings/exchange-rates/refresh
-router.post("/settings/exchange-rates/refresh", requireAuth, async (req: AuthRequest, res) => {
+router.post("/settings/exchange-rates/refresh", requireAuth, 
+  checkPermission({ any: [SETTINGS_CURRENCY.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   try {
     const baseRow = await pool.query(`SELECT code FROM currencies WHERE is_base = TRUE LIMIT 1`);
@@ -345,7 +359,9 @@ router.post("/settings/exchange-rates/refresh", requireAuth, async (req: AuthReq
 });
 
 // PATCH /api/settings/exchange-rates/:code (manual override)
-router.patch("/settings/exchange-rates/:code", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/exchange-rates/:code", requireAuth, 
+  checkPermission({ any: [SETTINGS_CURRENCY.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   try {
     const { code } = req.params;
@@ -369,7 +385,9 @@ router.patch("/settings/exchange-rates/:code", requireAuth, async (req: AuthRequ
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/settings/bank-accounts
-router.get("/settings/bank-accounts", requireAuth, async (_req, res) => {
+router.get("/settings/bank-accounts", requireAuth, 
+  checkPermission({ any: [SETTINGS_BANKS.VIEW] }), 
+  async (_req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT * FROM bank_accounts WHERE is_deleted = false ORDER BY is_default DESC, created_at ASC`
@@ -379,7 +397,9 @@ router.get("/settings/bank-accounts", requireAuth, async (_req, res) => {
 });
 
 // POST /api/settings/bank-accounts
-router.post("/settings/bank-accounts", requireAuth, async (req: AuthRequest, res) => {
+router.post("/settings/bank-accounts", requireAuth, 
+  checkPermission({ any: [SETTINGS_BANKS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const { bank_name, account_no, ifsc_code, branch, account_name, bank_upi, is_default } = req.body;
   if (!bank_name?.trim()) return res.status(400).json({ error: "Bank name is required" });
   if (!account_no?.trim()) return res.status(400).json({ error: "Account number is required" });
@@ -395,7 +415,9 @@ router.post("/settings/bank-accounts", requireAuth, async (req: AuthRequest, res
 });
 
 // PUT /api/settings/bank-accounts/:id
-router.put("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/settings/bank-accounts/:id", requireAuth, 
+  checkPermission({ any: [SETTINGS_BANKS.ADD_EDIT] }),
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { bank_name, account_no, ifsc_code, branch, account_name, bank_upi } = req.body;
@@ -411,7 +433,9 @@ router.put("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, 
 });
 
 // PATCH /api/settings/bank-accounts/:id/default
-router.patch("/settings/bank-accounts/:id/default", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/bank-accounts/:id/default", requireAuth, 
+  checkPermission({ any: [SETTINGS_BANKS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
@@ -425,7 +449,9 @@ router.patch("/settings/bank-accounts/:id/default", requireAuth, async (req: Aut
 });
 
 // DELETE /api/settings/bank-accounts/:id
-router.delete("/settings/bank-accounts/:id", requireAuth, async (req: AuthRequest, res) => {
+router.delete("/settings/bank-accounts/:id", requireAuth, 
+  checkPermission({ any: [SETTINGS_BANKS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
@@ -441,7 +467,9 @@ router.delete("/settings/bank-accounts/:id", requireAuth, async (req: AuthReques
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/settings/activity-logs
-router.get("/settings/activity-logs", requireAuth, async (req: AuthRequest, res) => {
+router.get("/settings/activity-logs", requireAuth, 
+  checkPermission({ any: [SETTINGS_ACTIVITY_LOGS.VIEW] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { user_email, from, to, search, page = "1", limit: lim = "100" } = req.query as Record<string, string>;
     const isAdmin = req.user?.role === "admin";
@@ -507,7 +535,9 @@ router.post("/settings/activity-logs/action", requireAuth, async (req: AuthReque
 });
 
 // GET /api/settings/activity-logs/users — list of users for admin filter
-router.get("/settings/activity-logs/users", requireAuth, async (req: AuthRequest, res) => {
+router.get("/settings/activity-logs/users", requireAuth, 
+  checkPermission({ any: [SETTINGS_ACTIVITY_LOGS.VIEW] }), 
+  async (req: AuthRequest, res) => {
   if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
   try {
     const { rows } = await pool.query(
@@ -533,7 +563,9 @@ router.get("/settings/warehouses", requireAuth, async (req: AuthRequest, res) =>
 });
 
 // POST /api/settings/warehouses
-router.post("/settings/warehouses", requireAuth, async (req: AuthRequest, res) => {
+router.post("/settings/warehouses", requireAuth, 
+  checkPermission({ any: [SETTINGS_WAREHOUSES.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   const { name, code, address_line1, address_line2, city, state, pincode, country, contact_name, contact_phone, contact_email, is_active, notes } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: "Warehouse name is required" });
@@ -552,7 +584,9 @@ router.post("/settings/warehouses", requireAuth, async (req: AuthRequest, res) =
 });
 
 // PUT /api/settings/warehouses/:id
-router.put("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/settings/warehouses/:id", requireAuth, 
+  checkPermission({ any: [SETTINGS_WAREHOUSES.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -574,7 +608,9 @@ router.put("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res
 });
 
 // DELETE /api/settings/warehouses/:id
-router.delete("/settings/warehouses/:id", requireAuth, async (req: AuthRequest, res) => {
+router.delete("/settings/warehouses/:id", requireAuth, 
+  checkPermission({ any: [SETTINGS_WAREHOUSES.DELETE] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -604,7 +640,9 @@ router.get("/settings/gst", requireAuth, async (_req, res) => {
 });
 
 // PUT /api/settings/gst
-router.put("/settings/gst", requireAuth, async (req: AuthRequest, res) => {
+router.put("/settings/gst", requireAuth, 
+  checkPermission({ any: [SETTINGS_GST.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   if (!adminOnly(req, res)) return;
   try {
     const {
@@ -674,7 +712,9 @@ router.get("/settings/invoice-templates", requireAuth, async (_req, res) => {
 });
 
 // PATCH /api/settings/invoice-templates/:id  (update payment_terms & notes)
-router.patch("/settings/invoice-templates/:id", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/settings/invoice-templates/:id", requireAuth, 
+  checkPermission({ any: [SETTINGS_TEMPLATES.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id));
   const { payment_terms, notes } = req.body;
   try {
@@ -688,7 +728,9 @@ router.patch("/settings/invoice-templates/:id", requireAuth, async (req: AuthReq
 });
 
 // POST /api/settings/invoice-templates/:id/set-default
-router.post("/settings/invoice-templates/:id/set-default", requireAuth, async (req: AuthRequest, res) => {
+router.post("/settings/invoice-templates/:id/set-default", requireAuth, 
+  checkPermission({ any: [SETTINGS_TEMPLATES.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id));
   try {
     await pool.query(`UPDATE invoice_templates SET is_default = FALSE, updated_at=NOW()`);
@@ -723,7 +765,9 @@ router.get("/settings/my-permissions", requireAuth, async (req: AuthRequest, res
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/settings/download-logs — log a download (any authenticated user)
-router.post("/settings/download-logs", requireAuth, async (req: AuthRequest, res) => {
+router.post("/settings/download-logs", requireAuth, 
+  checkPermission({ any: [SETTINGS_DOWNLOAD_LOGS.DOWNLOAD] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { file_type, file_name, module = "", reference = "" } = req.body as {
       file_type: string; file_name: string; module?: string; reference?: string;
