@@ -287,6 +287,8 @@ export const ACCOUNTS_PURCHASES = {
 export const ACCOUNTS_SALES = {
   BASE: "accounts:sales",
   VIEW: "accounts:sales:view",
+  ADD_EDIT: "accounts:sales:add_edit",
+  DELETE: "accounts:sales:delete",
   DOWNLOAD: "accounts:sales:download",
 };
 

@@ -2,13 +2,17 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { recomputeInvoiceBalances } from "../lib/invoiceBalances";
+import { checkPermission } from "../middlewares/checkPermission";
+import { ACCOUNTS_SALES } from "../constants/permissions";
 
 const router = Router();
 
 /* ══════════════════════════════════════════════════════════
    UNIFIED SUMMARY CARDS
 ══════════════════════════════════════════════════════════ */
-router.get("/unified-summary", requireAuth, async (req, res) => {
+router.get("/unified-summary", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_SALES.VIEW] }),
+  async (req, res) => {
   try {
     const { from_date, to_date } = req.query as Record<string, string>;
 
@@ -136,7 +140,9 @@ router.get("/unified-summary", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    TOP CLIENTS PENDING
 ══════════════════════════════════════════════════════════ */
-router.get("/top-clients-pending", requireAuth, async (req, res) => {
+router.get("/top-clients-pending", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_SALES.VIEW] }),
+  async (req, res) => {
   try {
     const { from_date, to_date } = req.query as Record<string, string>;
     const invDate = [
@@ -191,7 +197,9 @@ router.get("/top-clients-pending", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    UNIFIED RECEIVABLES TABLE
 ══════════════════════════════════════════════════════════ */
-router.get("/unified-receivables", requireAuth, async (req, res) => {
+router.get("/unified-receivables", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_SALES.VIEW] }),
+  async (req, res) => {
   try {
     const {
       from_date, to_date, client_id, ref_type, status,
@@ -307,7 +315,9 @@ router.get("/unified-receivables", requireAuth, async (req, res) => {
 /* ══════════════════════════════════════════════════════════
    RECORD CLIENT PAYMENT
 ══════════════════════════════════════════════════════════ */
-router.post("/record-payment", requireAuth, async (req, res) => {
+router.post("/record-payment", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_SALES.ADD_EDIT] }),
+  async (req, res) => {
   const client = await pool.connect();
   try {
     const {

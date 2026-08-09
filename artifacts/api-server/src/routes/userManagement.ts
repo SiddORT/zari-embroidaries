@@ -162,6 +162,7 @@ export const ALL_PERMISSIONS = [
   { key: "accounts:purchases:download",       label: "Purchases",           resource: "accounts:purchases",          action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:sales:view",               label: "Sales",               resource: "accounts:sales",              action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:sales:add_edit",           label: "Sales",               resource: "accounts:sales",              action: "add_edit", menu: "Accounts", subgroup: null },
   { key: "accounts:sales:download",           label: "Sales",               resource: "accounts:sales",              action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:invoices:view",            label: "Invoices",            resource: "accounts:invoices",           action: "view",     menu: "Accounts", subgroup: null },
