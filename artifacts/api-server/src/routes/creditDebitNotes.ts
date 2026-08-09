@@ -2,6 +2,8 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { recomputeInvoiceBalances } from "../lib/invoiceBalances";
+import { checkPermission } from "../middlewares/checkPermission";
+import { ACCOUNTS_CREDIT_DEBIT_NOTES } from "../constants/permissions";
 
 const router = Router();
 
@@ -66,7 +68,9 @@ async function reverseNoteEffects(client: any, note: any, deletedBy: string) {
 }
 
 /* ── GET /api/credit-debit-notes ─────────────────────── */
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_CREDIT_DEBIT_NOTES.VIEW] }), 
+  async (req, res) => {
   try {
     const { search, type, status, ref_type } = req.query as Record<string, string>;
     const conditions: string[] = ["n.is_deleted = false"];
@@ -101,7 +105,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 /* ── GET /api/credit-debit-notes/:id ─────────────────── */
-router.get("/:id", requireAuth, async (req, res) => {
+router.get("/:id", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_CREDIT_DEBIT_NOTES.VIEW] }), 
+  async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT n.*, i.invoice_no,
@@ -120,7 +126,9 @@ router.get("/:id", requireAuth, async (req, res) => {
 });
 
 /* ── POST /api/credit-debit-notes ────────────────────── */
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_CREDIT_DEBIT_NOTES.ADD_EDIT] }), 
+  async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -203,7 +211,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 /* ── PUT /api/credit-debit-notes/:id/apply ───────────── */
-router.put("/:id/apply", requireAuth, async (req, res) => {
+router.put("/:id/apply", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_CREDIT_DEBIT_NOTES.ADD_EDIT] }), 
+  async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -231,7 +241,9 @@ router.put("/:id/apply", requireAuth, async (req, res) => {
 });
 
 /* ── PUT /api/credit-debit-notes/:id/cancel ─────────── */
-router.put("/:id/cancel", requireAuth, async (req, res) => {
+router.put("/:id/cancel", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_CREDIT_DEBIT_NOTES.ADD_EDIT] }), 
+  async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -261,7 +273,9 @@ router.put("/:id/cancel", requireAuth, async (req, res) => {
 });
 
 /* ── DELETE /api/credit-debit-notes/:id ─────────────── */
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_CREDIT_DEBIT_NOTES.DELETE] }), 
+  async (req, res) => {
   try {
     const { rows } = await pool.query(
       "SELECT status FROM credit_debit_notes WHERE note_id=$1 AND is_deleted = false", [req.params.id]

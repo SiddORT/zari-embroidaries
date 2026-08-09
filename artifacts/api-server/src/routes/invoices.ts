@@ -3,7 +3,7 @@ import { db, invoicesTable, pool , eq, like, desc, ilike, and, or } from "@works
 // import { eq, like, desc, ilike, and, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
-import { SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS, ACCOUNTS_INVOICES, STYLE_ORDER_TABS } from "../constants/permissions";
+import { SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS, ACCOUNTS_INVOICES, STYLE_ORDER_TABS, ACCOUNTS_CREDIT_DEBIT_NOTES } from "../constants/permissions";
 const router = Router();
 
 const INVOICE_DIRECTIONS = ["Client", "Vendor"] as const;
@@ -44,7 +44,7 @@ router.get("/invoices/next-number", requireAuth, async (_req, res) => {
 
 // GET /invoices — list with filters
 router.get("/invoices", requireAuth, 
-  checkPermission(ACCOUNTS_INVOICES.VIEW), 
+  checkPermission({ any: [ACCOUNTS_INVOICES.VIEW, ACCOUNTS_CREDIT_DEBIT_NOTES.VIEW] }), 
   async (req, res) => {
   try {
     const { direction, type, status, search, refType, refId, page = "1", limit: lim = "50" } = req.query as Record<string, string>;
