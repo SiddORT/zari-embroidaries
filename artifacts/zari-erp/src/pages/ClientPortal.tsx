@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, ZoomIn, Send, Paperclip, X,
   CheckCheck, Loader2, ChevronDown, CheckCircle,
-  RotateCcw, Clock, Sparkles, Search, MessageSquare, Layers, Calendar, User, Tag
+  RotateCcw, Clock, Sparkles, Search, MessageSquare, Layers, Calendar, User, Tag, Download, Eye
 } from "lucide-react";
 
 // --- Types ---
@@ -61,6 +61,15 @@ interface ReferenceOrder {
   portalTitle: string | null;
 }
 
+const downloadImage = (dataUrl: string, fileName: string) => {
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = fileName || "download";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 // --- Lightbox Modal ---
 function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; startIndex: number; onClose: () => void }) {
   const [idx, setIdx] = useState(startIndex);
@@ -72,12 +81,27 @@ function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; s
         <span className="text-white/70 text-xs sm:text-sm font-mono font-medium truncate max-w-[200px] sm:max-w-md">
           {img.name}
         </span>
-        <button
-          onClick={onClose}
-          className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 sm:p-2.5 transition-all active:scale-95"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          {/* Download Button */}
+          <button
+            onClick={() => downloadImage(img.data, img.name)}
+            title="Download Image"
+            className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 sm:p-2.5 transition-all active:scale-95 flex items-center gap-1.5 text-xs font-medium"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Download</span>
+          </button>
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 sm:p-2.5 transition-all active:scale-95"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       <div className="relative flex-1 flex items-center justify-center my-auto overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -125,16 +149,33 @@ function ImageStrip({ images, label }: { images: FileAttachment[]; label: string
       <p className="text-[10px] sm:text-[11px] font-bold text-[#a8922e] uppercase tracking-wider">{label}</p>
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-2.5">
         {images.map((img, i) => (
-          <button
+          <div
             key={i}
-            onClick={() => setLightbox(i)}
-            className="group relative aspect-square w-full rounded-xl overflow-hidden border border-[#e8dfc0] bg-stone-100 hover:border-[#C6AF4B] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C6AF4B]"
+            className="group relative aspect-square w-full rounded-xl overflow-hidden border border-[#e8dfc0] bg-stone-100 hover:border-[#C6AF4B] transition-all"
           >
             <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 sm:flex hidden items-center justify-center transition-opacity">
-              <ZoomIn className="h-4 w-4 text-white" />
+
+            {/* Action Overlay */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+              <button
+                onClick={() => setLightbox(i)}
+                className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white backdrop-blur-xs transition"
+                title="Preview Image"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadImage(img.data, img.name);
+                }}
+                className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white backdrop-blur-xs transition"
+                title="Download Image"
+              >
+                <Download className="h-4 w-4" />
+              </button>
             </div>
-          </button>
+          </div>
         ))}
       </div>
       {lightbox !== null && <Lightbox images={images} startIndex={lightbox} onClose={() => setLightbox(null)} />}
@@ -145,6 +186,8 @@ function ImageStrip({ images, label }: { images: FileAttachment[]; label: string
 // --- Chat Bubble Component ---
 function ChatBubble({ msg }: { msg: PortalMessage }) {
   const isTeam = msg.sender === "team";
+  const [chatLightbox, setChatLightbox] = useState(false);
+
   return (
     <div className={`flex items-end gap-1.5 sm:gap-2 ${isTeam ? "justify-start" : "justify-end"}`}>
       {isTeam && (
@@ -169,7 +212,31 @@ function ChatBubble({ msg }: { msg: PortalMessage }) {
           {msg.attachment && (
             <div className={`mt-1.5 rounded-lg overflow-hidden border ${isTeam ? "border-stone-200" : "border-white/20"}`}>
               {msg.attachment.type.startsWith("image/") ? (
-                <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-full max-h-40 sm:max-h-56 object-cover rounded" />
+                <div className="relative group">
+                  <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-full max-h-40 sm:max-h-56 object-cover rounded" />
+                  
+                  {/* Hover Overlay for Chat Attachment Preview & Download */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                    <button
+                      onClick={() => setChatLightbox(true)}
+                      className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white backdrop-blur-xs"
+                      title="Preview"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => downloadImage(msg.attachment!.data, msg.attachment!.name)}
+                      className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white backdrop-blur-xs"
+                      title="Download"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {chatLightbox && (
+                    <Lightbox images={[msg.attachment]} startIndex={0} onClose={() => setChatLightbox(false)} />
+                  )}
+                </div>
               ) : (
                 <a
                   href={msg.attachment.data}
