@@ -1999,9 +1999,10 @@ router.get("/hsn-search", requireAuth,
 });
 
 // ─── Artisan Timesheets ───────────────────────────────────────────────────────
-router.get("/artisan-timesheets/:swatchOrderId", 
+router.get("/artisan-timesheets/:swatchOrderId", requireAuth, 
   checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
-  requireAuth, async (req, res) => {
+  async (req, res) => {
+    console.log("Artisan Timesheets");
   const rows = await db.select().from(artisanTimesheetsTable)
     .where(and(eq(artisanTimesheetsTable.swatchOrderId, Number(String(req.params.swatchOrderId))), eq(artisanTimesheetsTable.isDeleted, false)))
     .orderBy(desc(artisanTimesheetsTable.createdAt));
