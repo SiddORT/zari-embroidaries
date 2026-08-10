@@ -1664,7 +1664,15 @@ export default function InvoiceForm() {
             clientEmail: form.clientEmail,
             clientPhone: form.clientPhone,
             clientState: form.clientState,
-            items: items.map(i => ({ description: i.description, hsnCode: i.hsnCode, quantity: i.quantity, unit: i.unit, unitPrice: i.unitPrice, total: i.total })),
+            showHsnOnInvoice: showHsnOnInvoice,
+            items: items.map(i => ({
+              description: i.description,
+              hsnCode: showHsnOnInvoice ? i.hsnCode : "",
+              quantity: i.quantity,
+              unit: i.unit,
+              unitPrice: i.unitPrice,
+              total: i.total
+            })),
             cgstRate: parseFloat(form.cgstRate || "0"),
             sgstRate: parseFloat(form.sgstRate || "0"),
             discountType: form.discountType,
