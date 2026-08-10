@@ -3,7 +3,7 @@ import {
   Link2, Copy, Check, ExternalLink, Eye, EyeOff, RefreshCw,
   Globe, GlobeLock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Loader2, Send, Paperclip, X, CheckCheck, LockKeyhole, UnlockKeyhole,
-  MessageSquare, RotateCcw,
+  MessageSquare, RotateCcw, Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,19 +42,58 @@ function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; s
   );
 }
 
-function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
+function ChatBubble({ 
+  msg, 
+  onPreview 
+}: { 
+  msg: ClientMessageRecord; 
+  onPreview: (attachment: FileAttachment) => void;
+}){
   const isTeam = msg.sender === "team";
+
+  function handleDownload(e: React.MouseEvent, attachment: NonNullable<ClientMessageRecord["attachment"]>) {
+    e.stopPropagation();
+    const link = document.createElement("a");
+    link.href = attachment.data;
+    link.download = attachment.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <div className={`flex gap-2 ${isTeam ? "justify-end" : "justify-start"}`}>
       {!isTeam && (
         <div className="h-7 w-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-gray-500">C</div>
       )}
       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 space-y-1.5 ${isTeam ? "bg-gray-900 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm"}`}>
-        {msg.message && <p className="text-sm leading-snug">{msg.message}</p>}
+        {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>}
         {msg.attachment && (
-          <div className={`rounded-xl overflow-hidden border ${isTeam ? "border-white/10" : "border-gray-200"}`}>
+          <div className={`rounded-xl overflow-hidden border relative group ${isTeam ? "border-white/10" : "border-gray-200"}`}>
             {msg.attachment.type.startsWith("image/") ? (
-              <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[200px] object-cover" />
+              <div className="relative overflow-hidden">
+                <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[200px] object-cover" />
+                
+                {/* Overlay with Preview and Download options */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onPreview(msg.attachment!)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                    title="Preview"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDownload(e, msg.attachment!)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             ) : (
               <a href={msg.attachment.data} download={msg.attachment.name}
                 className={`flex items-center gap-2 px-3 py-2 text-xs hover:underline ${isTeam ? "text-[#C9B45C]" : "text-blue-600"}`}>
@@ -77,7 +116,7 @@ function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
 
 function StyleArtworkAccordion({
   aw, messages, isClosed, decision, linkId, styleOrderId,
-  onLightbox, showProduct,
+  onLightbox, showProduct, onPreview
 }: {
   aw: StyleOrderArtworkRecord;
   messages: ClientMessageRecord[];
@@ -87,6 +126,7 @@ function StyleArtworkAccordion({
   styleOrderId: number;
   onLightbox: (artworkId: number, type: "wip" | "final", idx: number) => void;
   showProduct: boolean;
+  onPreview: (attachment: FileAttachment) => void;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(!isClosed);
@@ -207,7 +247,7 @@ function StyleArtworkAccordion({
                 <p className="text-sm italic">No messages yet. Client will see your replies here.</p>
               </div>
             ) : (
-              messages.map(m => <ChatBubble key={m.id} msg={m} />)
+              messages.map(m => <ChatBubble key={m.id} msg={m} onPreview={onPreview}/>)
             )}
           </div>
 
@@ -279,6 +319,7 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
   const [showImageControls, setShowImageControls] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("all");
   const { canEdit } = useFormAccessContext(); 
+  const [previewImage, setPreviewImage] = useState<FileAttachment | null>(null);
 
   const { data: link, isLoading: linkLoading } = useStyleClientLink(styleOrderId);
   const { data: artworksData, isLoading: artworksLoading } = useStyleOrderArtworks(styleOrderId);
@@ -562,6 +603,7 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
                   linkId={link!.id}
                   styleOrderId={styleOrderId}
                   onLightbox={(artworkId, type, idx) => setLightbox({ artworkId, type, idx })}
+                  onPreview={(attachment) => setPreviewImage(attachment)} 
                   showProduct={showProduct}
                 />
               );
@@ -577,6 +619,15 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
         const imgs = lightbox.type === "wip" ? aw.wipImages : aw.finalImages;
         return <Lightbox images={imgs} startIndex={lightbox.idx} onClose={() => setLightbox(null)} />;
       })()}
+
+      {/* Preview Chat Image */}
+      {previewImage && (
+        <Lightbox 
+          images={[previewImage]} 
+          startIndex={0} 
+          onClose={() => setPreviewImage(null)} 
+        />
+      )}
     </div>
   );
 }
