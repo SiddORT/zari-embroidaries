@@ -421,7 +421,7 @@ export default function InvoiceForm() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [refOrderOptions, setRefOrderOptions] = useState<{ value: string; label: string }[]>([]);
+  const [refOrderOptions, setRefOrderOptions] = useState<{ id: number; value: string; label: string }[]>([]);
   const [refOrdersLoading, setRefOrdersLoading] = useState(false);
   const [refOrderFullData, setRefOrderFullData] = useState<{ id: number; orderCode: string }[]>([]);
   const [loadingCostSheet, setLoadingCostSheet] = useState(false);
@@ -441,6 +441,8 @@ export default function InvoiceForm() {
     vendorId: "",
     referenceType: "Manual",
     referenceId: "",
+    swatchOrderId: "",
+    styleOrderId: "",
     currencyCode: "INR",
     exchangeRateSnapshot: "1",
     invoiceDate: new Date().toISOString().slice(0, 10),
@@ -555,7 +557,7 @@ export default function InvoiceForm() {
   useEffect(() => {
     if (form.referenceType !== "Swatch" && form.referenceType !== "Style") {
       setRefOrderOptions([]);
-      setRefOrderFullData([]);
+      setRefOrderFullData([]);          // keep this clean too
       return;
     }
     setRefOrdersLoading(true);
@@ -564,12 +566,20 @@ export default function InvoiceForm() {
       : "/api/style-orders?limit=200";
     customFetch<any>(endpoint).then(j => {
       const rows = j.data ?? [];
-      const opts = form.referenceType === "Swatch"
-        ? rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.swatchName ?? ""}`.trim() }))
-        : rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.styleName ?? r.styleNo ?? ""}`.trim() }));
+      const opts = rows.map((r: any) => ({
+        id: r.id,
+        value: r.orderCode,
+        label: form.referenceType === "Swatch"
+          ? `${r.orderCode} — ${r.swatchName ?? ""}`.trim()
+          : `${r.orderCode} — ${r.styleName ?? r.styleNo ?? ""}`.trim()
+      }));
+
       setRefOrderOptions(opts);
       setRefOrderFullData(rows.map((r: any) => ({ id: r.id, orderCode: r.orderCode })));
-    }).catch(() => { setRefOrderOptions([]); setRefOrderFullData([]); }).finally(() => setRefOrdersLoading(false));
+    }).catch(() => {
+      setRefOrderOptions([]);
+      setRefOrderFullData([]);
+    }).finally(() => setRefOrdersLoading(false));
   }, [form.referenceType]);
 
   // Auto-set exchange rate when currency changes
@@ -601,6 +611,8 @@ export default function InvoiceForm() {
         vendorId: String(inv.vendorId ?? ""),
         referenceType: inv.referenceType ?? "Manual",
         referenceId: inv.referenceId ?? "",
+        swatchOrderId: inv.swatchOrderId ?? "",
+        styleOrderId: inv.styleOrderId ?? "",
         currencyCode: inv.currencyCode ?? "INR",
         exchangeRateSnapshot: String(inv.exchangeRateSnapshot ?? "1"),
         invoiceDate: (inv.invoiceDate ?? "").slice(0, 10),
@@ -1025,8 +1037,20 @@ export default function InvoiceForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={lbl}>Reference Type</label>
-                  <select value={form.referenceType} onChange={e => setF("referenceType", e.target.value)} className={selClass}>
-                    {REF_TYPES.map(r => <option key={r}>{r}</option>)}
+                  <select
+                    value={form.referenceType}
+                    onChange={e => {
+                      setForm(f => ({
+                        ...f,
+                        referenceType: e.target.value,
+                        referenceId: "",
+                        swatchOrderId: "",
+                        styleOrderId: "",
+                      }));
+                    }}
+                    className={selClass}
+                  >                    
+                  {REF_TYPES.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1034,21 +1058,36 @@ export default function InvoiceForm() {
                   {(form.referenceType === "Swatch" || form.referenceType === "Style") ? (
                     <select
                       value={form.referenceId}
-                      onChange={e => setF("referenceId", e.target.value)}
+                      onChange={e => {
+                        const value = e.target.value;
+                        const dataId = e.target.selectedOptions[0]?.getAttribute("data-id") || "";
+                        setForm(f => ({
+                          ...f,
+                          referenceId: value,
+                          swatchOrderId: f.referenceType === "Swatch" ? dataId : "",
+                          styleOrderId: f.referenceType === "Style" ? dataId : "",
+                        }));
+                      }}
                       className={selClass}
-                      disabled={refOrdersLoading}
                     >
                       <option value="">
                         {refOrdersLoading ? "Loading…" : `— Select ${REF_LABELS[form.referenceType]} —`}
                       </option>
                       {refOrderOptions.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
+                        <option key={o.value} value={o.value} data-id={o.id}>{o.label}</option>
                       ))}
                     </select>
                   ) : (
                     <input
                       value={form.referenceId}
-                      onChange={e => setF("referenceId", e.target.value)}
+                      onChange={e => {
+                        setForm(f => ({
+                          ...f,
+                          referenceId: e.target.value,
+                          swatchOrderId: "",
+                          styleOrderId: "",
+                        }));
+                      }}
                       className={inp}
                       placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
                     />
