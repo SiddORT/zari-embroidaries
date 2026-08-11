@@ -1060,7 +1060,8 @@ export default function InvoiceForm() {
                       value={form.referenceId}
                       onChange={e => {
                         const value = e.target.value;
-                        const dataId = e.target.selectedOptions[0]?.getAttribute("data-id") || "";
+                        const selected = refOrderOptions.find(o => o.value === value);
+                        const dataId = selected ? String(selected.id) : "";
                         setForm(f => ({
                           ...f,
                           referenceId: value,
@@ -1074,7 +1075,7 @@ export default function InvoiceForm() {
                         {refOrdersLoading ? "Loading…" : `— Select ${REF_LABELS[form.referenceType]} —`}
                       </option>
                       {refOrderOptions.map(o => (
-                        <option key={o.value} value={o.value} data-id={o.id}>{o.label}</option>
+                        <option key={`${o.id}-${o.value}`} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   ) : (
