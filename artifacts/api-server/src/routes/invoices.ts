@@ -309,6 +309,8 @@ router.put("/invoices/:id", requireAuth,
       remarks: b.remarks ?? "",
       notes: b.notes ?? "",
       paymentTerms: b.paymentTerms ?? "",
+      swatchOrderId: b.swatchOrderId === "" ? null : Number(b.swatchOrderId),
+      styleOrderId: b.styleOrderId === "" ? null : Number(b.styleOrderId),      
       status: autoStatus,
       updatedAt: new Date(),
     }).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false))).returning();
