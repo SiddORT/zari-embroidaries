@@ -420,6 +420,7 @@ router.put("/user-management/users/:id", requireAdmin,
   if (email !== undefined) updates.email = email.trim().toLowerCase();
   if (role !== undefined) updates.role = role;
   if (isActive !== undefined) updates.isActive = isActive;
+  if (roleId !== undefined) updates.roleId = roleId;
 
   const [user] = await db
     .update(usersTable)
