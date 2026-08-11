@@ -121,11 +121,12 @@ function fmtDt(d: string | null | undefined) {
 }
 
 function InvoicePaymentsPanel({
-  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus,
+  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus, invoiceType,
   onStatusChange,
 }: {
   invoiceId: number; direction: string; totalAmount: number;
   currencyCode: string; exchangeRate: number; currentStatus: string;
+  invoiceType: string;
   onStatusChange: (status: string, received: number, pending: number) => void;
 }) {
   const { toast } = useToast();
@@ -233,7 +234,7 @@ function InvoicePaymentsPanel({
             </div>
             <span className="text-[10px] text-gray-400 tabular-nums">{Math.round(pct)}%</span>
           </div>
-          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && pendingAmt > 0 && (
+          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && invoiceType !== "Proforma" && pendingAmt > 0 && (
             <button onClick={openModal}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shrink-0"
               style={{ backgroundColor: G }}>
@@ -257,7 +258,7 @@ function InvoicePaymentsPanel({
             </div>
           ) : payments.length === 0 ? (
             <div className="py-6 text-center text-sm text-gray-400">
-              No payments recorded yet.{currentStatus !== "Draft" && currentStatus !== "Cancelled" && pendingAmt > 0 && <> Click <strong>Record Payment</strong> to add the first one.</>}
+              No payments recorded yet.{currentStatus !== "Draft" && currentStatus !== "Cancelled" && invoiceType !== "Proforma" && pendingAmt > 0 && <> Click <strong>Record Payment</strong> to add the first one.</>}
             </div>
           ) : (
             <table className="w-full text-xs">
@@ -1599,6 +1600,7 @@ export default function InvoiceForm() {
             currencyCode={form.currencyCode}
             exchangeRate={parseFloat(form.exchangeRateSnapshot || "1")}
             currentStatus={form.invoiceStatus}
+            invoiceType={form.invoiceType}
             onStatusChange={(status, received, pending) => {
               setF("invoiceStatus", status);
               setF("receivedAmount", String(received));
