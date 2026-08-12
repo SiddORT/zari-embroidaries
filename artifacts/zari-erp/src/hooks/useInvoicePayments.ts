@@ -82,6 +82,32 @@ export function useInvoicePaymentsList(invoiceId: number | null) {
   });
 }
 
+// In your hooks/useInvoicePayments.ts
+export function useInvoicePaymentsByReference(
+  referenceType: string | null,
+  referenceId: string | null
+) {
+  return useQuery<{ data: InvoicePayment[] }>({
+    queryKey: [
+      "invoice-payments-reference",
+      referenceType,
+      referenceId
+    ],
+
+    queryFn: () => {
+      if (!referenceType || !referenceId) {
+        return Promise.resolve({ data: [] });
+      }
+
+      return apiFetch(
+        `/invoice-payments/reference/${encodeURIComponent(referenceType)}/${encodeURIComponent(referenceId)}`
+      );
+    },
+
+    enabled: !!referenceType && !!referenceId,
+  });
+}
+
 export function useAddInvoicePayment() {
   const qc = useQueryClient();
   return useMutation({

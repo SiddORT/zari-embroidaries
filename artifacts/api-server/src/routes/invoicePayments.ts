@@ -318,45 +318,53 @@ router.get(
       });
     }
 
-    // 1. Get all invoices for this reference
-    const invoices = await db
-      .select({
-        id: invoicesTable.id,
-      })
-      .from(invoicesTable)
-      .where(
-        and(
-          eq(invoicesTable.referenceType, referenceType),
-          eq(invoicesTable.referenceId, referenceId),
-          eq(invoicesTable.isDeleted, false)
-        )
-      );
+    try {
+      const query = `
+        SELECT 
+          ip.payment_id,
+          ip.invoice_id,
+          ip.payment_direction,
+          ip.party_id,
+          ip.payment_type,
+          ip.payment_amount,
+          ip.currency_code,
+          ip.exchange_rate_snapshot,
+          ip.base_currency_amount,
+          ip.transaction_reference,
+          ip.payment_status,
+          ip.payment_date,
+          ip.remarks,
+          ip.attachment,
+          ip.created_by,
+          ip.created_at,
+          ip.updated_at,
+          ip.is_deleted,
+          ip.deleted_by,
+          ip.deleted_at
+        FROM 
+          invoice_payments ip
+        INNER JOIN 
+          invoices i ON i.id = ip.invoice_id
+        WHERE 
+          i.reference_type = $1
+          AND i.reference_id = $2
+          AND i.is_deleted = false
+          AND ip.is_deleted = false
+        ORDER BY 
+          ip.created_at DESC
+      `;
 
-    // No invoices = no payments
-    if (invoices.length === 0) {
+      const result = await pool.query(query, [referenceType, referenceId]);
+      
       return res.json({
-        data: [],
+        data: result.rows,
+      });
+    } catch (error) {
+      console.error("Error fetching invoice payments by reference:", error);
+      return res.status(500).json({
+        error: "Failed to fetch invoice payments",
       });
     }
-
-    // 2. Extract invoice IDs
-    const invoiceIds = invoices.map((invoice) => invoice.id);
-
-    // 3. Get payments for all those invoices
-    const rows = await db
-      .select()
-      .from(invoicePayments)
-      .where(
-        and(
-          inArray(invoicePayments.invoiceId, invoiceIds),
-          eq(invoicePayments.isDeleted, false)
-        )
-      )
-      .orderBy(desc(invoicePayments.createdAt));
-
-    return res.json({
-      data: rows,
-    });
   }
 );
 

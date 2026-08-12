@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 import type { PreviewInvoice } from "@/components/InvoicePreviewModal";
-import { useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
+import { useInvoicePaymentsByReference, useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
 import type { InvoicePayment } from "@/hooks/useInvoicePayments";
 import { useFormAccessContext } from "@/contexts/FormAccessContext";
 import { FormAccessGate } from "@/components/FormAccessGate";
@@ -118,17 +118,34 @@ function fmtDt(d: string | null | undefined) {
 }
 
 function InvoicePaymentsPanel({
-  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus, invoiceType,
-  onStatusChange,
+  isEdit,
+  invoiceId,
+  referenceType,
+  referenceId,
+  direction,
+  totalAmount,
+  currencyCode,
+  exchangeRate,
+  currentStatus,
+  invoiceType,
+  onStatusChange
 }: {
-  invoiceId: number; direction: string; totalAmount: number;
-  currencyCode: string; exchangeRate: number; currentStatus: string;
+  isEdit: boolean;
+  invoiceId: number;
+  referenceType: string;
+  referenceId: string;
+  direction: string;
+  totalAmount: number;
+  currencyCode: string;
+  exchangeRate: number;
+  currentStatus: string;
   invoiceType: string;
   onStatusChange: (status: string, received: number, pending: number) => void;
 }) {
   const { toast } = useToast();
-  const { data, isLoading, refetch } = useInvoicePaymentsList(invoiceId);
-  const addPmt   = useAddInvoicePayment();
+  
+  const { data, isLoading, refetch } = useInvoicePaymentsByReference(referenceType, referenceId);
+  const addPmt = useAddInvoicePayment();
   const deletePmt = useDeleteInvoicePayment();
   const { canDelete } = useFormAccessContext();
 
@@ -138,22 +155,28 @@ function InvoicePaymentsPanel({
     .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0);
   const pendingAmt = Math.max(0, totalAmount - totalReceived);
   const pct = totalAmount > 0 ? Math.min(100, (totalReceived / totalAmount) * 100) : 0;
-  const [showModal, setShowModal]   = useState(false);
-  const [expanded, setExpanded]     = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    payment_type: "Bank Transfer", payment_amount: "",
+    payment_type: "Bank Transfer",
+    payment_amount: "",
     currency_code: currencyCode || "INR",
     exchange_rate_snapshot: String(exchangeRate || 1),
-    transaction_reference: "", payment_status: "Completed",
-    payment_date: today, remarks: "",
+    transaction_reference: "",
+    payment_status: "Completed",
+    payment_date: today,
+    remarks: "",
   });
 
-  function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })); }
+  function setF(k: string, v: string) {
+    setForm(p => ({ ...p, [k]: v }));
+  }
 
   function openModal() {
     setForm(p => ({
-      ...p, currency_code: currencyCode || "INR",
+      ...p,
+      currency_code: currencyCode || "INR",
       exchange_rate_snapshot: String(exchangeRate || 1),
       payment_amount: fmtN(pendingAmt).replace(/,/g, ""),
     }));
@@ -166,13 +189,17 @@ function InvoicePaymentsPanel({
     if (!amt || amt <= 0) return toast({ title: "Enter a valid amount", variant: "destructive" });
     try {
       const res = await addPmt.mutateAsync({
-        invoice_id: invoiceId, ...form,
+        invoice_id: invoiceId,
+        reference_type: referenceType,
+        reference_id: referenceId,
+        ...form,
         payment_amount: amt,
         exchange_rate_snapshot: parseFloat(form.exchange_rate_snapshot),
       });
       onStatusChange(res.invoice_status, res.received_amount, res.pending_amount);
       setShowModal(false);
       toast({ title: direction === "Vendor" ? "Payment recorded" : "Payment received" });
+      refetch(); // Refresh the payments list
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -184,6 +211,7 @@ function InvoicePaymentsPanel({
       const res = await deletePmt.mutateAsync(p.payment_id);
       onStatusChange(res.invoice_status ?? currentStatus, res.received_amount ?? 0, res.pending_amount ?? 0);
       toast({ title: "Payment deleted" });
+      refetch(); // Refresh the payments list
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -270,30 +298,31 @@ function InvoicePaymentsPanel({
                   const pmtInInvCcy = parseFloat(String(p.base_currency_amount ?? 0)) / fx;
                   const showOriginal = p.currency_code !== currencyCode;
                   return (
-                  <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
-                    <td className="py-2 text-gray-400">{i + 1}</td>
-                    <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
-                    <td className="py-2 text-gray-700">{p.payment_type}</td>
-                    <td className="py-2 text-right tabular-nums">
-                      <span className="font-medium text-gray-900">{currencyCode} {fmtN(pmtInInvCcy)}</span>
-                      {showOriginal && (
-                        <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
+                    <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
+                      <td className="py-2 text-gray-400">{i + 1}</td>
+                      <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
+                      <td className="py-2 text-gray-700">{p.payment_type}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        <span className="font-medium text-gray-900">{currencyCode} {fmtN(pmtInInvCcy)}</span>
+                        {showOriginal && (
+                          <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
+                          {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
+                        </span>
+                      </td>
+                      <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
+                      {canDelete && (
+                        <td className="py-2">
+                          <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending || !isEdit}
+                            className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <Trash2 size={11} />
+                          </button>
+                        </td>
                       )}
-                    </td>
-                    <td className="py-2">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
-                        {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
-                      </span>
-                    </td>
-                    <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
-                    {canDelete && (
-                    <td className="py-2">
-                      <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
-                        className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
-                        <Trash2 size={11} />
-                      </button>
-                    </td>)}
-                  </tr>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -420,6 +449,7 @@ export default function InvoiceForm() {
   const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
   const [fabricMaster, setFabricMaster] = useState<FabricMaster[]>([]);
   const [materialMaster, setMaterialMaster] = useState<MaterialMaster[]>([]);
+  const [paymentReferenceId, setPaymentReferenceId] = useState("");
 
   const [form, setForm] = useState({
     invoiceNo: "",
@@ -638,7 +668,6 @@ export default function InvoiceForm() {
       if (inv && (inv.id || inv.invoiceNo || (Array.isArray(inv.items) && inv.items.length > 0))) {
         setForm(f => ({
           ...f,
-          invoiceNo: inv.invoiceNo ?? f.invoiceNo,
           invoiceDirection: inv.invoiceDirection ?? f.invoiceDirection,
           invoiceType: inv.invoiceType ?? f.invoiceType,
           invoiceStatus: inv.invoiceStatus ?? f.invoiceStatus,
@@ -1102,6 +1131,7 @@ export default function InvoiceForm() {
                         // Fetch existing invoice data for the selected swatch or style ID
                         if (dataId) {
                           fetchInvoiceByReference(form.referenceType, value);
+                          setPaymentReferenceId(value);
                         }
                       }}
                       className={selClass}
@@ -1118,7 +1148,7 @@ export default function InvoiceForm() {
                       value={form.referenceId}
                       onChange={e => {
                         const value = e.target.value;
-
+                        // Only update the reference ID, don't fetch
                         setForm(f => ({
                           ...f,
                           referenceId: value,
@@ -1129,11 +1159,10 @@ export default function InvoiceForm() {
                       onKeyDown={e => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-
                           const value = form.referenceId.trim();
-
                           if (value) {
                             fetchInvoiceByReference(form.referenceType, value);
+                            setPaymentReferenceId(value);
                           }
                         }
                       }}
@@ -1636,7 +1665,10 @@ export default function InvoiceForm() {
                         </td>
                         {canDelete && (
                         <td className="px-2 py-2">
-                          <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                          <button 
+                          disabled={!isEdit}
+                          onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} 
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
                             <Trash2 size={12} />
                           </button>
                         </td>
@@ -1667,10 +1699,13 @@ export default function InvoiceForm() {
           </div>
         </div>
 
-        {/* Payments Panel */}
-        {isEdit && params.id && (
+        {/* Payments Panel - Show when we have a reference */}
+        {form.referenceId && form.referenceType && (
           <InvoicePaymentsPanel
-            invoiceId={parseInt(params.id)}
+            isEdit={isEdit}
+            invoiceId={parseInt(form.invoiceNo)}
+            referenceType={form.referenceType}
+            referenceId={paymentReferenceId}
             direction={form.invoiceDirection}
             totalAmount={toInvCcy(totals.total)}
             currencyCode={form.currencyCode}
@@ -1684,7 +1719,6 @@ export default function InvoiceForm() {
             }}
           />
         )}
-
         {/* Action Buttons */}
         <div className="flex items-center justify-between gap-3 pt-1 pb-4">
           <button
