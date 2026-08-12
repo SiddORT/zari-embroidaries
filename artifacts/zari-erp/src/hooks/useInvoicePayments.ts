@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 
 const BASE = "/api";
 
@@ -102,5 +103,25 @@ export function useDeleteInvoicePayment() {
       qc.invalidateQueries({ queryKey: ["invoice-payments"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
     },
+  });
+}
+
+export function useSwatchInvoicePayments(swatchOrderId: number) {
+  return useQuery({
+    queryKey: ["invoice-payments-swatch", swatchOrderId],
+    queryFn: () =>
+      customFetch<{ data: InvoicePayment[] }>(`/api/invoice-payments/swatch/${swatchOrderId}`)
+        .then(r => r.data),
+    enabled: !!swatchOrderId,
+  });
+}
+
+export function useStyleInvoicePayments(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["invoice-payments-style", styleOrderId],
+    queryFn: () =>
+      customFetch<{ data: InvoicePayment[] }>(`/api/invoice-payments/style/${styleOrderId}`)
+        .then(r => r.data),
+    enabled: !!styleOrderId,
   });
 }

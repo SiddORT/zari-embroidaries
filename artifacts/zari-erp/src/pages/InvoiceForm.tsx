@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
-import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download, Wallet, X, ChevronDown, ChevronRight, Loader2, AlertCircle, Clock } from "lucide-react";
+import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download, Wallet, X, ChevronDown, ChevronRight, Loader2, AlertCircle, Clock, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import InvoicePreviewModal from "@/components/InvoicePreviewModal";
@@ -81,10 +81,8 @@ function calcTotals(items: LineItem[], shipping: number, adjustment: number, dis
   const rawDiscount = discountType === "percent"
     ? (subtotal * Math.min(100, Math.max(0, discountValue))) / 100
     : Math.max(0, discountValue);
-  // Cap flat discount at subtotal so taxable never goes negative
   const discount = Math.min(rawDiscount, subtotal);
   const taxable = subtotal - discount;
-  // GST is per-item HSN rate, scaled proportionally by the discount
   const scale = subtotal > 0 ? taxable / subtotal : 0;
   const itemGstTotal = items.reduce((s, i) => {
     const pct = parseFloat(i.hsnGstPct || "0");
@@ -97,7 +95,6 @@ function calcTotals(items: LineItem[], shipping: number, adjustment: number, dis
   return { subtotal, discount, taxable, cgstAmt, sgstAmt, itemGstTotal, total };
 }
 
-/* ─── Invoice Payments Panel (shown on saved invoices) ────────────────────── */
 const PAYMENT_TYPES_INV  = ["Cash", "Bank Transfer", "UPI", "Cheque", "Online Gateway", "Adjustment", "Other"] as const;
 const PAYMENT_STATUSES_INV = ["Completed", "Processing", "Failed"] as const;
 const CURRENCIES_INV = ["INR", "USD", "EUR", "GBP", "AED", "JPY", "CNY"];
@@ -133,16 +130,14 @@ function InvoicePaymentsPanel({
   const { data, isLoading, refetch } = useInvoicePaymentsList(invoiceId);
   const addPmt   = useAddInvoicePayment();
   const deletePmt = useDeleteInvoicePayment();
-  const { canEdit, canDelete } = useFormAccessContext();
+  const { canDelete } = useFormAccessContext();
 
   const payments = data?.data ?? [];
-  // Convert each payment's INR base back to invoice currency so comparisons stay in one currency
   const fx = exchangeRate > 0 ? exchangeRate : 1;
   const totalReceived = payments.filter(p => p.payment_status === "Completed")
     .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0);
   const pendingAmt = Math.max(0, totalAmount - totalReceived);
   const pct = totalAmount > 0 ? Math.min(100, (totalReceived / totalAmount) * 100) : 0;
-
   const [showModal, setShowModal]   = useState(false);
   const [expanded, setExpanded]     = useState(true);
   const today = new Date().toISOString().slice(0, 10);
@@ -200,7 +195,6 @@ function InvoicePaymentsPanel({
 
   return (
     <div className="rounded-2xl bg-white border border-[#C6AF4B]/20 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-[#F8F6F0]">
         <button onClick={() => setExpanded(p => !p)} className="flex items-center gap-2 text-left group">
           {expanded ? <ChevronDown size={15} className="text-gray-400" /> : <ChevronRight size={15} className="text-gray-400" />}
@@ -213,7 +207,6 @@ function InvoicePaymentsPanel({
           )}
         </button>
 
-        {/* Summary strip */}
         <div className="flex items-center gap-6">
           <div className="text-right">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Total</p>
@@ -249,7 +242,6 @@ function InvoicePaymentsPanel({
         </div>
       </div>
 
-      {/* Payment history */}
       {expanded && (
         <div className="px-5 pb-4 pt-3">
           {isLoading ? (
@@ -270,9 +262,7 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
-                  {canDelete && (
-                    <th className="py-2 w-6"></th>
-                  )}
+                  {canDelete && <th className="py-2 w-6"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -312,7 +302,6 @@ function InvoicePaymentsPanel({
         </div>
       )}
 
-      {/* Payment Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setShowModal(false)}>
           <div className="rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -497,7 +486,6 @@ export default function InvoiceForm() {
     if (form.cgstRate !== next || form.sgstRate !== next) {
       setForm(f => ({ ...f, cgstRate: next, sgstRate: next }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totals.itemGstTotal, totals.taxable]);
 
   const rate = parseFloat(form.exchangeRateSnapshot || "1");
@@ -507,7 +495,6 @@ export default function InvoiceForm() {
   const sym = CURRENCY_SYMBOLS[form.currencyCode] ?? form.currencyCode;
   const toInvCcy = (inrVal: number) => (rate > 0 ? inrVal / rate : inrVal);
 
-  // Load supporting data
   useEffect(() => {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
     customFetch<any>("/api/vendors?limit=500").then(j => setVendors(j.data ?? [])).catch(() => {});
@@ -518,7 +505,6 @@ export default function InvoiceForm() {
       const all = j.data ?? [];
       const active = all.filter((c: any) => c.is_active || c.is_base);
       setCurrencies(active);
-      // For new invoices, default to the base currency
       if (!isEdit) {
         const base = active.find((c: any) => c.is_base);
         if (base) setForm(f => ({ ...f, currencyCode: base.code }));
@@ -529,10 +515,8 @@ export default function InvoiceForm() {
       for (const r of (j.data ?? [])) map[r.currency_code] = parseFloat(r.rate);
       setExchangeRates(map);
     }).catch(() => {});
-    // Fetch saved bank accounts, auto-fill the default one for new invoices
+    
     if (!isEdit) {
-      // GST is derived per-item from HSN — no global auto-fill
-
       customFetch<any>("/api/settings/bank-accounts").then(j => {
         const accounts: BankAccount[] = j.data ?? [];
         setBankAccounts(accounts);
@@ -553,11 +537,10 @@ export default function InvoiceForm() {
     }
   }, [isEdit]);
 
-  // Load order options when reference type is Swatch or Style
   useEffect(() => {
     if (form.referenceType !== "Swatch" && form.referenceType !== "Style") {
       setRefOrderOptions([]);
-      setRefOrderFullData([]);          // keep this clean too
+      setRefOrderFullData([]);
       return;
     }
     setRefOrdersLoading(true);
@@ -582,18 +565,15 @@ export default function InvoiceForm() {
     }).finally(() => setRefOrdersLoading(false));
   }, [form.referenceType]);
 
-  // Auto-set exchange rate when currency changes
   useEffect(() => {
     if (form.currencyCode === "INR") {
       setForm(f => ({ ...f, exchangeRateSnapshot: "1" }));
     } else if (exchangeRates[form.currencyCode]) {
       const rate = exchangeRates[form.currencyCode];
-      // rate is 1 INR = X foreign; we want 1 foreign = ? INR => 1/rate
       setForm(f => ({ ...f, exchangeRateSnapshot: (1 / rate).toFixed(4) }));
     }
   }, [form.currencyCode, exchangeRates]);
 
-  // Load existing invoice if editing
   useEffect(() => {
     if (!isEdit) {
       customFetch<any>("/api/invoices/next-number").then(j => setForm(f => ({ ...f, invoiceNo: j.data ?? "" }))).catch(() => {});
@@ -648,13 +628,68 @@ export default function InvoiceForm() {
     }).catch(() => {});
   }, [isEdit, params.id]);
 
-  // ── Dirty tracking ────────────────────────────────────────────────────────
+  /**
+   * Fetches existing invoice data for a selected swatch or style order ID.
+   */
+  async function fetchInvoiceByReference(refType: string, refId: string | number) {
+    try {
+      const res = await customFetch<any>(`/api/invoices/reference/${refType}/${refId}`);
+      const inv = res.data ?? null;
+      if (inv && (inv.id || inv.invoiceNo || (Array.isArray(inv.items) && inv.items.length > 0))) {
+        setForm(f => ({
+          ...f,
+          invoiceNo: inv.invoiceNo ?? f.invoiceNo,
+          invoiceDirection: inv.invoiceDirection ?? f.invoiceDirection,
+          invoiceType: inv.invoiceType ?? f.invoiceType,
+          invoiceStatus: inv.invoiceStatus ?? f.invoiceStatus,
+          clientId: inv.clientId ? String(inv.clientId) : f.clientId,
+          vendorId: inv.vendorId ? String(inv.vendorId) : f.vendorId,
+          currencyCode: inv.currencyCode ?? f.currencyCode,
+          exchangeRateSnapshot: inv.exchangeRateSnapshot ? String(inv.exchangeRateSnapshot) : f.exchangeRateSnapshot,
+          invoiceDate: inv.invoiceDate ? String(inv.invoiceDate).slice(0, 10) : f.invoiceDate,
+          dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : f.dueDate,
+          clientName: inv.clientName ?? f.clientName,
+          clientAddress: inv.clientAddress ?? f.clientAddress,
+          clientGstin: inv.clientGstin ?? f.clientGstin,
+          clientEmail: inv.clientEmail ?? f.clientEmail,
+          clientPhone: inv.clientPhone ?? f.clientPhone,
+          clientState: inv.clientState ?? f.clientState,
+          discountType: inv.discountType ?? f.discountType,
+          discountValue: inv.discountValue !== undefined ? String(inv.discountValue) : f.discountValue,
+          cgstRate: inv.cgstRate !== undefined ? String(inv.cgstRate) : f.cgstRate,
+          sgstRate: inv.sgstRate !== undefined ? String(inv.sgstRate) : f.sgstRate,
+          shippingAmount: inv.shippingAmount !== undefined ? String(inv.shippingAmount) : f.shippingAmount,
+          adjustmentAmount: inv.adjustmentAmount !== undefined ? String(inv.adjustmentAmount) : f.adjustmentAmount,
+          receivedAmount: inv.receivedAmount !== undefined ? String(inv.receivedAmount) : f.receivedAmount,
+          bankName: inv.bankName ?? f.bankName,
+          bankAccount: inv.bankAccount ?? f.bankAccount,
+          bankIfsc: inv.bankIfsc ?? f.bankIfsc,
+          bankBranch: inv.bankBranch ?? f.bankBranch,
+          bankUpi: inv.bankUpi ?? f.bankUpi,
+          paymentTerms: inv.paymentTerms ?? f.paymentTerms,
+          remarks: inv.remarks ?? f.remarks,
+          notes: inv.notes ?? f.notes,
+          shippingAddress: inv.shippingAddress ?? f.shippingAddress,
+          carrier: inv.carrier ?? f.carrier,
+          trackingNumber: inv.trackingNumber ?? f.trackingNumber,
+          dispatchDate: inv.dispatchDate ? String(inv.dispatchDate).slice(0, 10) : f.dispatchDate,
+          expectedDelivery: inv.expectedDelivery ? String(inv.expectedDelivery).slice(0, 10) : f.expectedDelivery,
+        }));
+        if (Array.isArray(inv.items) && inv.items.length > 0) {
+          setItems(inv.items);
+        }
+        toast({ title: `Invoice data loaded for ${refType}` });
+      }
+    } catch (e: any) {
+      // Invoice doesn't exist yet for this reference ID; no action required
+    }
+  }
+
   const invoiceSnapshot = JSON.stringify({ form, items });
   useEffect(() => {
     if (savedInvoiceRef.current === null && form.invoiceNo) {
       savedInvoiceRef.current = JSON.stringify({ form, items });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.invoiceNo]);
   const isDirty = savedInvoiceRef.current !== null && invoiceSnapshot !== savedInvoiceRef.current;
   const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, items]);
@@ -710,8 +745,6 @@ export default function InvoiceForm() {
 
     setSaving(true);
     try {
-      // Derive CGST/SGST rate as a % of TAXABLE (post-discount) base, since
-      // any consumer computing tax as `taxable * rate` must reproduce itemGstTotal.
       const derivedHalfRate = totals.taxable > 0
         ? ((totals.itemGstTotal / totals.taxable) * 100) / 2
         : 0;
@@ -778,7 +811,6 @@ export default function InvoiceForm() {
         showHsn: !!(r.hsnCode),
       }));
 
-      // If order has a shipping record, append it as a line item
       const shippingAmt = parseFloat(j.shippingAmount ?? "0") || 0;
       if (shippingAmt > 0) {
         loaded.push({
@@ -811,7 +843,6 @@ export default function InvoiceForm() {
   }
 
   function handleLoadFromCostSheet() {
-    // Section 6 — duplicate prevention: if items already exist, confirm before replacing
     if (items.length > 0) {
       setShowCostSheetConfirm(true);
     } else {
@@ -1068,6 +1099,10 @@ export default function InvoiceForm() {
                           swatchOrderId: f.referenceType === "Swatch" ? dataId : "",
                           styleOrderId: f.referenceType === "Style" ? dataId : "",
                         }));
+                        // Fetch existing invoice data for the selected swatch or style ID
+                        if (dataId) {
+                          fetchInvoiceByReference(form.referenceType, value);
+                        }
                       }}
                       className={selClass}
                     >
@@ -1082,12 +1117,25 @@ export default function InvoiceForm() {
                     <input
                       value={form.referenceId}
                       onChange={e => {
+                        const value = e.target.value;
+
                         setForm(f => ({
                           ...f,
-                          referenceId: e.target.value,
+                          referenceId: value,
                           swatchOrderId: "",
                           styleOrderId: "",
                         }));
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+
+                          const value = form.referenceId.trim();
+
+                          if (value) {
+                            fetchInvoiceByReference(form.referenceType, value);
+                          }
+                        }
                       }}
                       className={inp}
                       placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
@@ -1285,7 +1333,6 @@ export default function InvoiceForm() {
                     <span>Discount</span><span>− {totals.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                {/* GST — auto-derived from per-item HSN rates */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-600">CGST <span className="text-[10px] text-gray-400">(auto)</span></label>
@@ -1458,7 +1505,6 @@ export default function InvoiceForm() {
                   return (
                     <Fragment key={it.id}>
                       <tr className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
-                        {/* Description */}
                         <td className="px-3 py-2">
                           {it.category === "Fabric" ? (
                             <select
@@ -1512,7 +1558,6 @@ export default function InvoiceForm() {
                             <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} disabled={!canEdit} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
                           )}
                         </td>
-                        {/* Category */}
                         <td className="px-3 py-2">
                           <select
                             value={it.category}
@@ -1526,7 +1571,6 @@ export default function InvoiceForm() {
                             {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </td>
-                        {/* Qty */}
                         <td className="px-3 py-2">
                           <input
                             type="number" min="0" step="0.01"
@@ -1537,7 +1581,6 @@ export default function InvoiceForm() {
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
-                        {/* Rate */}
                         <td className="px-3 py-2">
                           <input
                             type="number" min="0" step="0.01"
@@ -1548,7 +1591,6 @@ export default function InvoiceForm() {
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
-                        {/* HSN Code — pick from HSN master only */}
                         <td className="px-3 py-2">
                           <select
                             disabled={!canEdit}
@@ -1569,7 +1611,6 @@ export default function InvoiceForm() {
                             ))}
                           </select>
                         </td>
-                        {/* GST % — derived from HSN, read-only */}
                         <td className="px-3 py-2">
                           <input
                             disabled={!canEdit}
@@ -1581,22 +1622,18 @@ export default function InvoiceForm() {
                             placeholder="—"
                           />
                         </td>
-                        {/* GST Amount */}
                         <td className="px-3 py-2 text-right text-xs text-gray-600">
                           {gstPct > 0
                             ? <span className="font-medium text-amber-700">{toInvCcy(itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             : <span className="text-gray-300">—</span>
                           }
                         </td>
-                        {/* Amount */}
                         <td className="px-3 py-2 font-semibold text-gray-900 text-right text-xs">
                           {toInvCcy(it.total).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
-                        {/* Total w/ GST */}
                         <td className="px-3 py-2 text-right text-xs font-bold text-[#C9B45C]">
                           {toInvCcy(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
-                        {/* Delete */}
                         {canDelete && (
                         <td className="px-2 py-2">
                           <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
@@ -1610,7 +1647,6 @@ export default function InvoiceForm() {
                 })}
               </tbody>
               {items.length > 0 && (() => {
-                // Footer matches sidebar/persisted totals (includes shipping + adjustment)
                 const totalAmt = totals.subtotal;
                 const totalGst = totals.itemGstTotal;
                 const grandTotal = totals.total;
@@ -1631,7 +1667,7 @@ export default function InvoiceForm() {
           </div>
         </div>
 
-        {/* Payments Panel — shown on all saved invoices */}
+        {/* Payments Panel */}
         {isEdit && params.id && (
           <InvoicePaymentsPanel
             invoiceId={parseInt(params.id)}
@@ -1741,7 +1777,7 @@ export default function InvoiceForm() {
         />
       )}
 
-      {/* Cost Sheet Duplicate Confirmation Modal */}
+      {/* Cost Sheet Confirmation Modal */}
       {showCostSheetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-md mx-4 p-6">
