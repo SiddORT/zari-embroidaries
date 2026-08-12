@@ -7,6 +7,8 @@ import TopNavbar from "@/components/layout/TopNavbar";
 import { SmallSearchSelect } from "@/components/ui/SearchableSelect";
 import { useToast } from "@/hooks/use-toast";
 import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { mediaUrl } from "@/utils/mediaUrl";
 
@@ -499,6 +501,7 @@ export default function VendorChallanDetail() {
   };
 
   const { can } = useMyPermissions();
+  const { canEdit: canEditPerm } = useFormAccessContext();
 
   const [form, setForm]                     = useState(emptyForm());
   const [lineItems, setLineItems]           = useState<LineItem[]>([newLine()]);
@@ -560,7 +563,7 @@ export default function VendorChallanDetail() {
   useEffect(() => { void fetchVendors(); }, [fetchVendors]);
   useEffect(() => { void fetchChallan(); }, [fetchChallan]);
 
-  const canEdit = isNew || status === "Draft";
+  const canEdit = (isNew || status === "Draft") && canEditPerm;
 
   async function handleSave() {
     setError("");
@@ -736,84 +739,86 @@ export default function VendorChallanDetail() {
           </div>
         )}
 
-        {/* ── Challan Details ──────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <p className={sectionLbl}>Challan Details</p>
-          <div className="grid grid-cols-2 gap-4">
+        <FormAccessGate readOnly={!canEdit}>
+          {/* ── Challan Details ──────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <p className={sectionLbl}>Challan Details</p>
+            <div className="grid grid-cols-2 gap-4">
 
-            <div>
-              <label className={labelCls}>Challan Date <span className="text-red-500">*</span></label>
-              <input type="date" className={inputCls} value={form.challanDate}
-                onChange={e => set("challanDate", e.target.value)} disabled={!canEdit} />
+              <div>
+                <label className={labelCls}>Challan Date <span className="text-red-500">*</span></label>
+                <input type="date" className={inputCls} value={form.challanDate}
+                  onChange={e => set("challanDate", e.target.value)} disabled={!canEdit} />
+              </div>
+
+              <div>
+                <label className={labelCls}>Vendor <span className="text-red-500">*</span></label>
+                <SmallSearchSelect
+                  value={form.vendorId}
+                  onChange={v => set("vendorId", v)}
+                  options={vendors.map(v => ({ value: String(v.id), label: v.brandName }))}
+                  placeholder="— Search vendor —"
+                  disabled={!canEdit}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Challan Type <span className="text-red-500">*</span></label>
+                <select value={form.challanType} onChange={e => set("challanType", e.target.value)}
+                  disabled={!canEdit} className={inputCls}>
+                  <option value="">— Select type —</option>
+                  {CHALLAN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className={labelCls}>
+                  Reference Order <span className="text-xs text-gray-400 font-normal ml-1">(optional)</span>
+                </label>
+                <OrderSearchInput value={form.referenceOrderId} onChange={v => set("referenceOrderId", v)} disabled={!canEdit} />
+              </div>
+
+              <div className="col-span-2">
+                <label className={labelCls}>Description</label>
+                <textarea rows={2} className={`${inputCls} resize-none`}
+                  placeholder="Overall description of this challan…"
+                  value={form.description} onChange={e => set("description", e.target.value)}
+                  disabled={!canEdit} />
+              </div>
+
             </div>
-
-            <div>
-              <label className={labelCls}>Vendor <span className="text-red-500">*</span></label>
-              <SmallSearchSelect
-                value={form.vendorId}
-                onChange={v => set("vendorId", v)}
-                options={vendors.map(v => ({ value: String(v.id), label: v.brandName }))}
-                placeholder="— Search vendor —"
-                disabled={!canEdit}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Challan Type <span className="text-red-500">*</span></label>
-              <select value={form.challanType} onChange={e => set("challanType", e.target.value)}
-                disabled={!canEdit} className={inputCls}>
-                <option value="">— Select type —</option>
-                {CHALLAN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>
-                Reference Order <span className="text-xs text-gray-400 font-normal ml-1">(optional)</span>
-              </label>
-              <OrderSearchInput value={form.referenceOrderId} onChange={v => set("referenceOrderId", v)} disabled={!canEdit} />
-            </div>
-
-            <div className="col-span-2">
-              <label className={labelCls}>Description</label>
-              <textarea rows={2} className={`${inputCls} resize-none`}
-                placeholder="Overall description of this challan…"
-                value={form.description} onChange={e => set("description", e.target.value)}
-                disabled={!canEdit} />
-            </div>
-
           </div>
-        </div>
 
-        {/* ── Line Items ───────────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <div className="flex items-baseline justify-between mb-3">
-            <p className={sectionLbl} style={{ marginBottom: 0 }}>Items &amp; Pricing</p>
-            <p className="text-xs text-gray-400">Amount auto-calculated from Qty × Rate</p>
+          {/* ── Line Items ───────────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <div className="flex items-baseline justify-between mb-3">
+              <p className={sectionLbl} style={{ marginBottom: 0 }}>Items &amp; Pricing</p>
+              <p className="text-xs text-gray-400">Amount auto-calculated from Qty × Rate</p>
+            </div>
+            <LineItemsTable items={lineItems} onChange={setLineItems} disabled={!canEdit} />
           </div>
-          <LineItemsTable items={lineItems} onChange={setLineItems} disabled={!canEdit} />
-        </div>
 
-        {/* ── Attachment ───────────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <p className={sectionLbl}>Attachments</p>
-          <AttachmentSection
-            challanId={numId}
-            attachments={attachments}
-            pendingFiles={pendingFiles}
-            onPendingFiles={setPendingFiles}
-            onUploaded={fetchChallan}
-            disabled={!canEdit}
-          />
-        </div>
+          {/* ── Attachment ───────────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <p className={sectionLbl}>Attachments</p>
+            <AttachmentSection
+              challanId={numId}
+              attachments={attachments}
+              pendingFiles={pendingFiles}
+              onPendingFiles={setPendingFiles}
+              onUploaded={fetchChallan}
+              disabled={!canEdit}
+            />
+          </div>
 
-        {/* ── Remarks ──────────────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <p className={sectionLbl}>Remarks</p>
-          <textarea rows={3} className={`${inputCls} resize-none`}
-            placeholder="Any internal notes or remarks…"
-            value={form.remarks} onChange={e => set("remarks", e.target.value)} disabled={!canEdit} />
-        </div>
+          {/* ── Remarks ──────────────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <p className={sectionLbl}>Remarks</p>
+            <textarea rows={3} className={`${inputCls} resize-none`}
+              placeholder="Any internal notes or remarks…"
+              value={form.remarks} onChange={e => set("remarks", e.target.value)} disabled={!canEdit} />
+          </div>
+        </FormAccessGate>
 
         {/* ── Bottom action bar ────────────────────────────────────────────── */}
         {canEdit && (

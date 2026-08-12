@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 // import { eq, ilike, and, desc } from "drizzle-orm";
 import { db, itemTypesTable, insertItemTypeSchema, updateItemTypeSchema , eq, ilike, and, desc } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_ITEM_TYPES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import type { Request } from "express";
 
@@ -18,7 +20,7 @@ function validateName(name: string): string | null {
   return null;
 }
 
-router.get("/item-types/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/item-types/export-all", requireAuth, checkPermission(MASTERS_ITEM_TYPES.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
 
@@ -33,7 +35,7 @@ router.get("/item-types/export-all", requireAuth, async (req: AuthRequest, res):
   res.json(rows);
 });
 
-router.post("/item-types/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/item-types/import", requireAuth, checkPermission(MASTERS_ITEM_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const { rows: rawRows } = req.body as { rows: Record<string, unknown>[] };
   if (!Array.isArray(rawRows) || rawRows.length === 0) {
     res.status(400).json({ error: "No rows provided." });
@@ -88,7 +90,7 @@ router.get("/item-types/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/item-types", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/item-types", requireAuth, checkPermission(MASTERS_ITEM_TYPES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -110,7 +112,7 @@ router.get("/item-types", requireAuth, async (req: AuthRequest, res): Promise<vo
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.post("/item-types", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/item-types", requireAuth, checkPermission(MASTERS_ITEM_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const nameError = validateName((req.body as Record<string, unknown>).name as string ?? "");
   if (nameError) { res.status(400).json({ error: nameError }); return; }
 
@@ -128,7 +130,7 @@ router.post("/item-types", requireAuth, async (req: AuthRequest, res): Promise<v
   res.status(201).json(record);
 });
 
-router.put("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/item-types/:id", requireAuth, checkPermission(MASTERS_ITEM_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -156,7 +158,7 @@ router.put("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promis
   res.json(record);
 });
 
-router.patch("/item-types/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/item-types/:id/status", requireAuth, checkPermission(MASTERS_ITEM_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(itemTypesTable).where(and(eq(itemTypesTable.id, id), eq(itemTypesTable.isDeleted, false)));
@@ -166,7 +168,7 @@ router.patch("/item-types/:id/status", requireAuth, async (req: AuthRequest, res
   res.json(record);
 });
 
-router.delete("/item-types/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/item-types/:id", requireAuth, checkPermission(MASTERS_ITEM_TYPES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";

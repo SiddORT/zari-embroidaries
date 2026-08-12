@@ -8,6 +8,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 
@@ -103,6 +104,8 @@ export default function CreditDebitNotes() {
   const { fmt: dcFmt } = useCurrency();
   const fmt = (n: any) => dcFmt(parseFloat(String(n ?? 0)));
   const { toast } = useToast();
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
+  const hasAccess = canEdit || canDelete || canDownload;
 
   const [notes, setNotes]       = useState<CdNote[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -355,13 +358,15 @@ export default function CreditDebitNotes() {
               <p className="text-sm text-gray-400 mt-0.5">Invoice corrections, adjustments &amp; balance notes</p>
             </div>
           </div>
-          <button
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm"
-            style={{ backgroundColor: G }}
-          >
-            <Plus size={15} /> Create Note
-          </button>
+          {canEdit && (
+            <button
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm"
+              style={{ backgroundColor: G }}
+            >
+              <Plus size={15} /> Create Note
+            </button>
+          )}
         </div>
 
         {/* Summary cards */}
@@ -461,12 +466,16 @@ export default function CreditDebitNotes() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={e => toggleDropdown(e, n.note_id)}
-                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
+                      {(canEdit || canDelete) ? (
+                        <button
+                          onClick={e => toggleDropdown(e, n.note_id)}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -486,7 +495,7 @@ export default function CreditDebitNotes() {
             className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl min-w-[170px] py-1"
             style={{ top: dropdownPos.top, right: dropdownPos.right }}
           >
-            {n.status === "Draft" && (
+            {n.status === "Draft" && canEdit && (
               <button
                 onClick={() => { setOpenActionId(null); applyNote(n); }}
                 className="w-full text-left px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2.5"
@@ -494,7 +503,7 @@ export default function CreditDebitNotes() {
                 <FileCheck2 className="h-3.5 w-3.5" /> Apply Note
               </button>
             )}
-            {n.status !== "Cancelled" && (
+            {n.status !== "Cancelled" && canDelete &&(
               <button
                 onClick={() => { setOpenActionId(null); cancelNote(n); }}
                 className="w-full text-left px-3 py-2 text-xs text-orange-600 hover:bg-orange-50 flex items-center gap-2.5"
@@ -502,7 +511,7 @@ export default function CreditDebitNotes() {
                 <XCircle className="h-3.5 w-3.5" /> Cancel Note
               </button>
             )}
-            {n.status === "Draft" && (
+            {n.status === "Draft" && canDelete && (
               <>
                 <div className="mx-2 my-1 border-t border-gray-100" />
                 <button

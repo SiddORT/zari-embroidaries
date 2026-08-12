@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 // import { eq, ilike, and, or, desc } from "drizzle-orm";
 import { db, packagingMaterialsTable, insertPackagingMaterialSchema, updatePackagingMaterialSchema, eq, ilike, and, or, desc } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_PACKAGING_MATERIALS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { ensureInventoryRecord } from "../services/inventoryService";
 import { pool } from "@workspace/db";
@@ -26,7 +28,7 @@ async function syncStockLevelsToInventory(sourceId: number, reorderLevel?: strin
 const router: IRouter = Router();
 type AuthRequest = Request & { user?: { userId: number; email: string; role: string } };
 
-router.get("/packaging-materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/packaging-materials", requireAuth, checkPermission(MASTERS_PACKAGING_MATERIALS.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const itemType = (req.query.itemType as string) ?? "";
@@ -59,7 +61,7 @@ router.get("/packaging-materials", requireAuth, async (req: AuthRequest, res): P
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/packaging-materials", requireAuth, checkPermission(MASTERS_PACKAGING_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertPackagingMaterialSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
   const createdBy = req.user?.email ?? "system";
@@ -81,7 +83,7 @@ router.post("/packaging-materials", requireAuth, async (req: AuthRequest, res): 
   res.status(201).json(record);
 });
 
-router.put("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/packaging-materials/:id", requireAuth, checkPermission(MASTERS_PACKAGING_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updatePackagingMaterialSchema.safeParse(req.body);
@@ -96,7 +98,7 @@ router.put("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res
   res.json(record);
 });
 
-router.patch("/packaging-materials/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/packaging-materials/:id/status", requireAuth, checkPermission(MASTERS_PACKAGING_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [current] = await db.select().from(packagingMaterialsTable).where(and(eq(packagingMaterialsTable.id, id), eq(packagingMaterialsTable.isDeleted, false)));
@@ -108,7 +110,7 @@ router.patch("/packaging-materials/:id/status", requireAuth, async (req: AuthReq
   res.json(record);
 });
 
-router.delete("/packaging-materials/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/packaging-materials/:id", requireAuth, checkPermission(MASTERS_PACKAGING_MATERIALS.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";

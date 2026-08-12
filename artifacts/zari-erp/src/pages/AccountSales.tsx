@@ -13,6 +13,7 @@ import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useExchangeRates } from "@/hooks/useExchangeRates";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 /* ── theme ─────────────────────────────────────────── */
 const G    = "#C6AF4B";
@@ -325,6 +326,7 @@ export default function AccountSales() {
   const { data: me } = useGetMe();
   const role = (me as any)?.role ?? "";
   const hasAccess = role === "admin" || role === "accounts";
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
   const { toast } = useToast();
 
   /* ── filter state ──────────────────────────────── */
@@ -658,7 +660,7 @@ export default function AccountSales() {
                     <th className={`${TH} text-right`}>Pending</th>
                     <th className={TH}>Currency</th>
                     <th className={TH}>Status</th>
-                    <th className={TH}>Action</th>
+                    {canEdit && (<th className={TH}>Action</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -727,7 +729,7 @@ export default function AccountSales() {
                               <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
                                 <CheckCircle2 size={12}/> Settled
                               </span>
-                            ) : (
+                            ) : canEdit && (
                               <button
                                 onClick={() => setPaymentRow(row)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"

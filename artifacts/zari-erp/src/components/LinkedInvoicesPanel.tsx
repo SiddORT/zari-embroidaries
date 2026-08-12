@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { FileText, Plus, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 
@@ -52,7 +53,7 @@ export default function LinkedInvoicesPanel({ type, orderId, orderNo }: Props) {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<LinkedInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-
+    const { canEdit } = useFormAccessContext();
   const token = localStorage.getItem("zarierp_token");
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -104,6 +105,7 @@ export default function LinkedInvoicesPanel({ type, orderId, orderNo }: Props) {
             onClick={() => navigate(`/accounts/invoices/new?refType=${type}&refId=${orderId}`)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white transition"
             style={{ backgroundColor: G }}
+            disabled={!canEdit}
           >
             <Plus size={14} /> New Invoice
           </button>
@@ -160,6 +162,7 @@ export default function LinkedInvoicesPanel({ type, orderId, orderNo }: Props) {
                       onClick={() => navigate(`/accounts/invoices/new?refType=${type}&refId=${orderId}`)}
                       className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white"
                       style={{ backgroundColor: G }}
+                      disabled={!canEdit}
                     >
                       <Plus size={14} /> Create First Invoice
                     </button>

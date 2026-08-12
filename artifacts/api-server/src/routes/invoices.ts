@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db, invoicesTable, pool , eq, like, desc, ilike, and, or } from "@workspace/db";
 // import { eq, like, desc, ilike, and, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS, ACCOUNTS_INVOICES, STYLE_ORDER_TABS, ACCOUNTS_CREDIT_DEBIT_NOTES } from "../constants/permissions";
 const router = Router();
 
 const INVOICE_DIRECTIONS = ["Client", "Vendor"] as const;
@@ -41,7 +43,9 @@ router.get("/invoices/next-number", requireAuth, async (_req, res) => {
 });
 
 // GET /invoices — list with filters
-router.get("/invoices", requireAuth, async (req, res) => {
+router.get("/invoices", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_INVOICES.VIEW, ACCOUNTS_CREDIT_DEBIT_NOTES.VIEW] }), 
+  async (req, res) => {
   try {
     const { direction, type, status, search, refType, refId, page = "1", limit: lim = "50" } = req.query as Record<string, string>;
     const offset = (parseInt(page) - 1) * parseInt(lim);
@@ -77,7 +81,9 @@ router.get("/invoices", requireAuth, async (req, res) => {
 });
 
 // GET /invoices/:id — single
-router.get("/invoices/:id", requireAuth, async (req, res) => {
+router.get("/invoices/:id", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.VIEW, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [row] = await db.select().from(invoicesTable).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false)));
@@ -86,7 +92,9 @@ router.get("/invoices/:id", requireAuth, async (req, res) => {
 });
 
 // GET /invoices/swatch/:swatchOrderId
-router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
+router.get("/invoices/swatch/:swatchOrderId", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.swatchOrderId));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const codeRes = await pool.query(`SELECT order_code FROM swatch_orders WHERE id = $1`, [id]);
@@ -105,7 +113,9 @@ router.get("/invoices/swatch/:swatchOrderId", requireAuth, async (req, res) => {
 });
 
 // GET /invoices/style/:styleOrderId
-router.get("/invoices/style/:styleOrderId", requireAuth, async (req, res) => {
+router.get("/invoices/style/:styleOrderId", requireAuth, 
+  checkPermission({ any: [ACCOUNTS_INVOICES.VIEW, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.styleOrderId));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const codeRes = await pool.query(`SELECT order_code FROM style_orders WHERE id = $1`, [id]);
@@ -162,7 +172,9 @@ function validateInvoiceBody(b: any): string | null {
 }
 
 // POST /invoices — create
-router.post("/invoices", requireAuth, async (req, res) => {
+router.post("/invoices", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   try {
     const b = req.body;
     const err = validateInvoiceBody(b);
@@ -235,7 +247,9 @@ router.post("/invoices", requireAuth, async (req, res) => {
 });
 
 // PUT /invoices/:id — update
-router.put("/invoices/:id", requireAuth, async (req, res) => {
+router.put("/invoices/:id", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
@@ -295,6 +309,8 @@ router.put("/invoices/:id", requireAuth, async (req, res) => {
       remarks: b.remarks ?? "",
       notes: b.notes ?? "",
       paymentTerms: b.paymentTerms ?? "",
+      swatchOrderId: b.swatchOrderId === "" ? null : Number(b.swatchOrderId),
+      styleOrderId: b.styleOrderId === "" ? null : Number(b.styleOrderId),      
       status: autoStatus,
       updatedAt: new Date(),
     }).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false))).returning();
@@ -307,7 +323,9 @@ router.put("/invoices/:id", requireAuth, async (req, res) => {
 });
 
 // PATCH /invoices/:id/status — quick status update
-router.patch("/invoices/:id/status", requireAuth, async (req, res) => {
+router.patch("/invoices/:id/status", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { invoiceStatus } = req.body;
@@ -321,7 +339,9 @@ router.patch("/invoices/:id/status", requireAuth, async (req, res) => {
 });
 
 // PATCH /invoices/:id/payment — record payment
-router.patch("/invoices/:id/payment", requireAuth, async (req, res) => {
+router.patch("/invoices/:id/payment", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [existing] = await db.select().from(invoicesTable).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false)));
@@ -340,7 +360,9 @@ router.patch("/invoices/:id/payment", requireAuth, async (req, res) => {
 });
 
 // DELETE /invoices/:id
-router.delete("/invoices/:id", requireAuth, async (req, res) => {
+router.delete("/invoices/:id", requireAuth, 
+  checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.DELETE, STYLE_ORDER_TABS.INVOICES] }), 
+  async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const [row] = await db.update(invoicesTable)

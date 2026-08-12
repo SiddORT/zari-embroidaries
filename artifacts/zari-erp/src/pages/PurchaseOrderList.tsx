@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 import { downloadPoPdf, type POItem as PdfPOItem, type PRReceipt } from "@/utils/pdfExport";
 import { logActivity } from "@/utils/logActivity";
 
@@ -79,6 +80,7 @@ function fmtDate(s: string) {
 export default function PurchaseOrderList() {
   const [, navigate] = useLocation();
   const { data: me, isError } = useGetMe();
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
   const token   = localStorage.getItem("zarierp_token");
   const isAdmin = (me as { role?: string } | undefined)?.role === "admin";
   const queryClient = useQueryClient();
@@ -353,12 +355,14 @@ export default function PurchaseOrderList() {
             </div>
             <p className="text-sm text-gray-700 mt-0.5">All procurement purchase orders across modules</p>
           </div>
-          <button
-            onClick={() => navigate("/procurement/purchase-orders/new")}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
-            <Plus className="h-4 w-4" /> New PO
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => navigate("/procurement/purchase-orders/new")}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
+              <Plus className="h-4 w-4" /> New PO
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -622,10 +626,10 @@ export default function PurchaseOrderList() {
                                 <Eye className="h-3.5 w-3.5 text-gray-400" /> View Details
                               </button>
 
-                              {/* Download PDF — only for Draft / Approved */}
-                              {["Draft", "Approved"].includes(po.status) && (
+                              {/* Download PDF */}
+                              {canDownload && (
                                 <button
-                                  onClick={() => handleDownloadPdf(po)}
+                                  onClick={() => { setOpenActionMenu(null); handleDownloadPdf(po); }}
                                   disabled={pdfInFlight.has(po.id)}
                                   className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 disabled:opacity-60">
                                   <FileDown className="h-3.5 w-3.5 text-gray-400" />
@@ -634,7 +638,7 @@ export default function PurchaseOrderList() {
                               )}
 
                               {/* Create PR */}
-                              {canCreatePr && (
+                              {canEdit && canCreatePr && (
                                 <button
                                   onClick={() => { setOpenActionMenu(null); navigate(`/procurement/purchase-receipts/new?poId=${po.id}`); }}
                                   className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-green-50 flex items-center gap-2.5">
@@ -643,7 +647,7 @@ export default function PurchaseOrderList() {
                               )}
 
                               {/* Status transitions */}
-                              {transitions.length > 0 && (
+                              {canEdit && transitions.length > 0 && (
                                 <>
                                   <div className="mx-2 my-1 border-t border-gray-100" />
                                   <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Change Status</p>
@@ -664,7 +668,7 @@ export default function PurchaseOrderList() {
                               )}
 
                               {/* Delete */}
-                              {isAdmin && !["Closed", "Partially Received"].includes(po.status) && (
+                              {canDelete && !["Closed", "Partially Received"].includes(po.status) && (
                                 <>
                                   <div className="mx-2 my-1 border-t border-gray-100" />
                                   <button

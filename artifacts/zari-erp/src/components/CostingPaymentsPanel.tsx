@@ -5,6 +5,7 @@ import { useGetMe } from "@workspace/api-client-react";
 import { Plus, Trash2, Loader2, Pencil, X, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 export interface CostingPaymentRecord {
   id: number;
@@ -69,6 +70,7 @@ export default function CostingPaymentsPanel({
   const [editForm, setEditForm] = useState(DEFAULT_FORM);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [form, setForm] = useState(DEFAULT_FORM);
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const queryKey = ["costing-payments", referenceType, referenceId];
   const { data: payments = [], isLoading } = useQuery<CostingPaymentRecord[]>({
@@ -190,6 +192,7 @@ export default function CostingPaymentsPanel({
         </button>
         {!collapsed && !hasCompleted && (
           <button
+            disabled={!canEdit}
             onClick={() => { setShowForm(v => !v); setEditingId(null); }}
             className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors"
           >
@@ -358,7 +361,7 @@ export default function CostingPaymentsPanel({
                   <input value={editForm.remarks} onChange={e => setEditForm(f => ({ ...f, remarks: e.target.value }))} className={inpCls} placeholder="Optional notes" />
                 </div>
                 <div className="flex items-center gap-2 pt-1">
-                  <button onClick={handleUpdate} disabled={updatingId === p.id}
+                  <button onClick={handleUpdate} disabled={updatingId === p.id || !canEdit}
                     className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60 transition-colors">
                     {updatingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                     Update
@@ -404,11 +407,11 @@ export default function CostingPaymentsPanel({
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button onClick={() => startEdit(p)}
-                    className="p-1 rounded hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors" title="Edit">
+                    className="p-1 rounded hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors" title="Edit" disabled={!canEdit}>
                     <Pencil className="h-3 w-3" />
                   </button>
                   {isAdmin && (
-                    <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id}
+                    <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id || !canDelete}
                       className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Delete">
                       {deletingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                     </button>

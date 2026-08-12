@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 
@@ -62,6 +63,9 @@ export default function ShippingList() {
   const [filterVendor, setFilterVendor] = useState("");
   const [filterRefType, setFilterRefType] = useState("");
   const [fromDate, setFromDate] = useState("");
+
+  const { canEdit, canDelete } = useFormAccessContext();
+
 
   const LIMIT = 20;
 
@@ -176,7 +180,9 @@ export default function ShippingList() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#C6AF4B]/15">
-                  {["Sr.", "Type", "Ref ID", "Client", "Vendor", "Tracking No.", "Weight", "Cost", "Status", "Ship Date", "EDD", "ADD", "Change Status"].map(h => (
+                  {["Sr.", "Type", "Ref ID", "Client", "Vendor", "Tracking No.", "Weight", "Cost", "Status", "Ship Date", "EDD", "ADD", "Change Status"]
+                  .filter((h) => h !== "Change Status" || canEdit)
+                  .map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -222,19 +228,21 @@ export default function ShippingList() {
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(r.shipment_date)}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(r.expected_delivery_date)}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(r.actual_delivery_date)}</td>
-                    <td className="px-4 py-3">
-                      <div className="relative">
-                        <select
-                          value={r.shipment_status}
-                          disabled={updatingId === r.id}
-                          onChange={e => handleStatusChange(r.id, e.target.value)}
-                          className="appearance-none pr-7 pl-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:border-[#C6AF4B] disabled:opacity-50 cursor-pointer"
-                        >
-                          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                      </div>
-                    </td>
+                    {canEdit && (
+                      <td className="px-4 py-3">
+                        <div className="relative">
+                          <select
+                            value={r.shipment_status}
+                            disabled={updatingId === r.id || !canEdit}
+                            onChange={e => handleStatusChange(r.id, e.target.value)}
+                            className="appearance-none pr-7 pl-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:border-[#C6AF4B] disabled:opacity-50 cursor-pointer"
+                          >
+                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

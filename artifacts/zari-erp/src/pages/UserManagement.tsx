@@ -15,6 +15,7 @@ import {
   usePermissions,
   type UserRecord, type RoleRecord, type PermissionDef,
 } from "@/hooks/useUserManagement";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 function buildInviteUrl(token: string) {
   const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -48,12 +49,12 @@ interface AddUserModalProps {
 function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState("");
+  const [roleId, setRoleId] = useState<number | "">("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const create = useCreateUser();
 
   useEffect(() => {
-    if (open) { setEmail(""); setUsername(""); setRole(""); setErrors({}); }
+    if (open) { setEmail(""); setUsername(""); setRoleId(""); setErrors({}); }
   }, [open]);
 
   if (!open) return null;
@@ -63,11 +64,22 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
     const errs: Record<string, string> = {};
     if (!email.trim()) errs.email = "Email is required";
     if (!username.trim()) errs.username = "Name is required";
-    if (!role) errs.role = "Role is required";
+    if (!roleId) errs.role = "Role is required";
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
+    const selectedRole = roles.find((r) => r.id === roleId);
+    if (!selectedRole) {
+      setErrors({ role: "Invalid role selected" });
+      return;
+    }
+
     try {
-      const res = await create.mutateAsync({ email: email.trim(), username: username.trim(), role });
+      const res = await create.mutateAsync({
+        email: email.trim(),
+        username: username.trim(),
+        role: selectedRole.name,
+        roleId: selectedRole.id,
+      });
       onCreated({ emailSent: res.emailSent, inviteUrl: res.inviteUrl, inviteToken: res.inviteToken, email: res.data.email });
       onClose();
     } catch (err: unknown) {
@@ -90,10 +102,16 @@ function AddUserModal({ open, onClose, roles, onCreated }: AddUserModalProps) {
             error={errors.email} required placeholder="user@company.com" type="email" />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
-            <select value={role} onChange={e => setRole(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <select
+              value={roleId}
+              onChange={e => {
+                setRoleId(e.target.value ? Number(e.target.value) : "");
+                setErrors(prev => { const n = { ...prev }; delete n.role; return n; });
+              }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
               <option value="">Select a role…</option>
-              {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+              {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
           </div>
@@ -179,7 +197,7 @@ interface EditUserModalProps {
 function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
-  const [role, setRole] = useState(user.role);
+  const [roleId, setRoleId] = useState<number | "">(user.roleId ?? "");
   const [isActive, setIsActive] = useState(user.isActive);
   const [emailError, setEmailError] = useState("");
   const update = useUpdateUser();
@@ -189,7 +207,7 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
     if (open) {
       setUsername(user.username);
       setEmail(user.email);
-      setRole(user.role);
+      setRoleId(user.roleId ?? "");
       setIsActive(user.isActive);
       setEmailError("");
     }
@@ -200,8 +218,20 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setEmailError("");
+    const selectedRole = roles.find((r) => r.id === roleId);
+    if (!selectedRole) {
+      toast({ title: "Error", description: "Please select a valid role.", variant: "destructive" });
+      return;
+    }
     try {
-      await update.mutateAsync({ id: user.id, username: username.trim(), email: email.trim(), role, isActive });
+      await update.mutateAsync({
+        id: user.id,
+        username: username.trim(),
+        email: email.trim(),
+        role: selectedRole.name,
+        roleId: selectedRole.id,
+        isActive,
+      });
       toast({ title: "User updated" });
       onClose();
     } catch (err: unknown) {
@@ -229,9 +259,13 @@ function EditUserModal({ open, onClose, user, roles }: EditUserModalProps) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
-              {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+            <select
+              value={roleId}
+              onChange={e => setRoleId(e.target.value ? Number(e.target.value) : "")}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              <option value="">Select a role…</option>
+              {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-3">
@@ -316,6 +350,7 @@ function StatusBadge({ active, pending }: { active: boolean; pending: boolean })
 
 function UsersTab({ roles }: { roles: RoleRecord[] }) {
   const { data, isLoading } = useUsers();
+  const { canEdit, canView, canDelete } = useFormAccessContext();
   const { data: meData } = useGetMe();
   const myId: number | undefined = (meData as unknown as { id?: number })?.id;
   const deleteUser = useDeleteUser();
@@ -364,6 +399,7 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">{users.length} user{users.length !== 1 ? "s" : ""}</p>
         <button onClick={() => setAddOpen(true)}
+          disabled={!canEdit}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-gray-800 transition-colors">
           <Plus className="h-4 w-4" /> Invite User
         </button>
@@ -414,13 +450,13 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                         {!isSuperuser && !isMe && (
                           isPending ? (
                             <button onClick={() => handleResend(u)} title="Resend invite email"
-                              disabled={resendInvite.isPending}
+                              disabled={resendInvite.isPending || !canEdit}
                               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-50">
                               <RefreshCw className="h-3 w-3" /> Resend Invite
                             </button>
                           ) : u.isActive ? (
                             <button onClick={() => handleAdminReset(u)} title="Send password reset email to this user"
-                              disabled={adminReset.isPending}
+                              disabled={adminReset.isPending || !canEdit}
                               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50">
                               <KeyRound className="h-3 w-3" /> Reset Password
                             </button>
@@ -428,12 +464,14 @@ function UsersTab({ roles }: { roles: RoleRecord[] }) {
                         )}
                         {!isSuperuser && (
                           <button onClick={() => setEditUser(u)} title="Edit"
+                            disabled={!canEdit}
                             className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                         )}
                         {!isSuperuser && !isMe && (
                           <button onClick={() => setDeleteId(u.id)} title="Delete"
+                            disabled={!canDelete}
                             className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -535,18 +573,19 @@ function buildResourceTree(allPermissions: PermissionDef[]): MenuSection[] {
   return result;
 }
 
-function IndeterminateCheckbox({ checked, indeterminate, onChange, className }: {
+function IndeterminateCheckbox({ checked, indeterminate, onChange, className, disabled = false }: {
   checked: boolean;
   indeterminate?: boolean;
   onChange: () => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = !checked && !!indeterminate;
   }, [checked, indeterminate]);
   return (
-    <input ref={ref} type="checkbox" checked={checked} onChange={onChange}
+    <input ref={ref} type="checkbox" checked={checked} onChange={onChange} disabled={disabled}
       className={`rounded border-gray-300 accent-gray-900 cursor-pointer ${className ?? ""}`} />
   );
 }
@@ -569,6 +608,22 @@ function SubgroupContent({
   const visibleCols = ACTION_COLS.filter(col => resources.some(r => r.actionKeys[col.key]));
   const isChipMode  = visibleCols.length === 1 && visibleCols[0].key === "view";
   const sgSelected  = sgKeys.filter(k => selected.has(k)).length;
+  const { canEdit, canView } = useFormAccessContext();
+
+  // Detect whether this subgroup contains tab permissions
+  const isTabSubgroup = resources.some(r => r.resource.includes(":tab:"));
+
+  let parentViewKey: string | undefined;
+
+  if (isTabSubgroup) {
+    const parentPrefix = resources[0].resource.replace(/:tab:.*/, "");
+
+    parentViewKey = allResources.find(
+      r => r.resource === parentPrefix
+    )?.actionKeys.view;
+  }
+
+  const parentEnabled = !isTabSubgroup || !parentViewKey || selected.has(parentViewKey);
 
   return (
     <div>
@@ -576,9 +631,13 @@ function SubgroupContent({
       {sgName && (
         <div
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-50/80 border-y border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors group"
-          onClick={() => toggleSubgroup(resources)}
-        >
+          onClick={() => {
+            if (!parentEnabled) return;
+            toggleSubgroup(resources);
+          }}        
+          >
           <IndeterminateCheckbox
+            disabled={!parentEnabled || !canEdit}
             checked={sgAllOn} indeterminate={sgSomeOn && !sgAllOn}
             onChange={() => toggleSubgroup(resources)}
             className="h-3.5 w-3.5 shrink-0"
@@ -604,7 +663,11 @@ function SubgroupContent({
             const on = selected.has(permKey);
             return (
               <button key={rg.resource} type="button"
-                onClick={() => toggleResource(rg)}
+                disabled={!parentEnabled || !canEdit}
+                onClick={() => {
+                    if (!parentEnabled) return;
+                    toggleResource(rg);
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-all text-left ${
                   on
                     ? "bg-gray-900 text-[#C9B45C] border-gray-900 shadow-sm"
@@ -630,6 +693,7 @@ function SubgroupContent({
                   <th key={col.key} className="px-4 py-2 text-center whitespace-nowrap w-24">
                     <label className="inline-flex flex-col items-center gap-1 cursor-pointer">
                       <IndeterminateCheckbox
+                        disabled={!canEdit}
                         checked={colAllOn} indeterminate={colSomeOn && !colAllOn}
                         onChange={() => toggleAction(col.key, resources)}
                         className="h-3.5 w-3.5"
@@ -642,37 +706,46 @@ function SubgroupContent({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {resources.map(rg => {
-              const rgKeys  = Object.values(rg.actionKeys).filter(Boolean) as string[];
-              const rgAllOn = rgKeys.every(k => selected.has(k));
-              const rgSomeOn= rgKeys.some(k => selected.has(k));
+            {resources.map((rg) => {
+              const rgKeys = Object.values(rg.actionKeys).filter(Boolean) as string[];
+              const rgAllOn = rgKeys.length > 0 && rgKeys.every((k) => selected.has(k));
+              const rgSomeOn = rgKeys.some((k) => selected.has(k));
+
               return (
-                <tr key={rg.resource}
-                  className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
-                  onClick={() => toggleResource(rg)}
-                >
+                <tr key={rg.resource} className="hover:bg-gray-50/70 transition-colors">
+                  {/* Resource Name and Row Toggle */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <IndeterminateCheckbox
-                        checked={rgAllOn} indeterminate={rgSomeOn && !rgAllOn}
+                        disabled={!parentEnabled || !canEdit}
+                        checked={rgAllOn}
+                        indeterminate={rgSomeOn && !rgAllOn}
                         onChange={() => toggleResource(rg)}
                         className="h-4 w-4 shrink-0"
                       />
-                      <span className={`font-medium transition-colors ${rgAllOn ? "text-gray-900" : "text-gray-500 group-hover:text-gray-700"}`}>
+                      <span
+                        className={`font-medium transition-colors ${
+                          rgAllOn ? "text-gray-900" : "text-gray-500"
+                        }`}
+                      >
                         {rg.label}
                       </span>
                     </div>
                   </td>
-                  {visibleCols.map(col => {
+
+                  {/* Individual Action Checkboxes */}
+                  {visibleCols.map((col) => {
                     const permKey = rg.actionKeys[col.key];
                     return (
-                      <td key={col.key} className="px-4 py-3 text-center w-24"
-                        onClick={e => { e.stopPropagation(); if (permKey) toggle(permKey); }}>
+                      <td key={col.key} className="px-4 py-3 text-center w-24">
                         {permKey ? (
-                          <input type="checkbox"
+                          <input
+                            type="checkbox"
+                            disabled={!parentEnabled || !canEdit}
                             checked={selected.has(permKey)}
+                            onClick={(e) => e.stopPropagation()} // Prevents parent row listeners from triggering
                             onChange={() => toggle(permKey)}
-                            className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                            className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer disabled:opacity-50"
                           />
                         ) : (
                           <span className="text-gray-200">—</span>
@@ -699,6 +772,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions));
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const initialPerms = useMemo(() => [...new Set(role.permissions)].sort().join(","), [role.id]);
   const isDirty = [...selected].sort().join(",") !== initialPerms;
@@ -736,12 +810,44 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   const displayTree   = lc ? filteredTree : (activeSection ? [activeSection] : []);
 
   function toggle(key: string) {
-    setSelected(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setSelected(s => {
+        const n = new Set(s);
+        if (n.has(key)) {
+            n.delete(key);
+            // If parent view is removed, remove all child tab permissions
+            if (key.endsWith(":view")) {
+                const prefix = key.replace(/:view$/, "");
+                Array.from(n)
+                    .filter(p => p.startsWith(`${prefix}:tab:`))
+                    .forEach(p => n.delete(p));
+            }
+        } else {
+            n.add(key);
+        }
+        return n;
+    });
   }
   function toggleResource(rg: ResourceGroup) {
     const keys = Object.values(rg.actionKeys).filter(Boolean) as string[];
     const allOn = keys.every(k => selected.has(k));
-    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
+
+    setSelected(s => {
+      const n = new Set(s);
+      if (allOn) {
+        // Remove all actions of this resource
+        keys.forEach(k => n.delete(k));
+
+        // Remove all child tab permissions
+        const prefix = `${rg.resource}:tab:`;
+
+        Array.from(n)
+          .filter(p => p.startsWith(prefix))
+          .forEach(p => n.delete(p));
+      } else {
+        keys.forEach(k => n.add(k));
+      }
+      return n;
+    });
   }
   function toggleAction(action: "view"|"add_edit"|"delete"|"download", resources: ResourceGroup[]) {
     const keys = resources.map(r => r.actionKeys[action]).filter(Boolean) as string[];
@@ -754,9 +860,32 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
     setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
   }
   function toggleSubgroup(resources: ResourceGroup[]) {
-    const keys = resources.flatMap(r => Object.values(r.actionKeys)).filter(Boolean) as string[];
+    const keys = resources
+      .flatMap(r => Object.values(r.actionKeys))
+      .filter(Boolean) as string[];
+
     const allOn = keys.every(k => selected.has(k));
-    setSelected(s => { const n = new Set(s); keys.forEach(k => allOn ? n.delete(k) : n.add(k)); return n; });
+
+    setSelected(s => {
+      const n = new Set(s);
+
+      if (allOn) {
+        keys.forEach(k => n.delete(k));
+
+        // Remove tab permissions belonging to every resource in this subgroup
+        resources.forEach(r => {
+          const prefix = `${r.resource}:tab:`;
+
+          Array.from(n)
+            .filter(p => p.startsWith(prefix))
+            .forEach(p => n.delete(p));
+        });
+      } else {
+        keys.forEach(k => n.add(k));
+      }
+
+      return n;
+    });
   }
   function selectAll() { setSelected(new Set(allPermissions.map(p => p.key))); }
   function clearAll()  { setSelected(new Set()); }
@@ -791,14 +920,16 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button type="button" onClick={clearAll}
+            disabled={!canDelete}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
             <Square className="h-3 w-3" /> Clear
           </button>
           <button type="button" onClick={selectAll}
+            disabled={!canEdit}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
             <CheckSquare className="h-3 w-3" /> All
           </button>
-          <button onClick={() => onSave([...selected])} disabled={saving}
+          <button onClick={() => onSave([...selected])} disabled={saving || !canEdit}
             className={`relative flex items-center gap-1.5 px-4 py-2 text-sm rounded-xl font-semibold transition-all disabled:opacity-60 ${
               isDirty
                 ? "bg-gray-900 text-[#C9B45C] hover:bg-black shadow-sm ring-1 ring-gray-900"
@@ -849,6 +980,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
                   }`}
                   style={isActive ? { borderRightColor: "#111" } : {}}>
                   <IndeterminateCheckbox
+                    disabled={!canEdit}
                     checked={allOn} indeterminate={someOn && !allOn}
                     onChange={() => toggleMenu(allRes)}
                     className="h-3.5 w-3.5 shrink-0"
@@ -895,6 +1027,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
                 <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
                   <IndeterminateCheckbox
                     checked={menuAllOn} indeterminate={menuSomeOn && !menuAllOn}
+                    disabled={!canEdit}
                     onChange={() => toggleMenu(allRes)}
                     className="h-4 w-4"
                   />

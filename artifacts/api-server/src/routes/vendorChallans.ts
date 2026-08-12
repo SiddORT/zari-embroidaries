@@ -4,6 +4,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { uploadMiddleware, uploadFile, deleteUpload } from "../utils/uploadHelper";
 import { nextSequenceNumber } from "../utils/sequence";
+import { checkPermission } from "../middlewares/checkPermission";
+import { PROCUREMENT_VENDOR_CHALLANS } from "../constants/permissions";
 
 const router = Router();
 
@@ -106,7 +108,9 @@ async function insertPoItemsForChallan(
 }
 
 // ── LIST ──────────────────────────────────────────────────────────────────────
-router.get("/vendor-challans", requireAuth, async (req: AuthRequest, res) => {
+router.get("/vendor-challans", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.VIEW] }), 
+  async (req: AuthRequest, res) => {
   try {
     const { search = "", vendor = "", challanType = "", status = "", dateFrom = "", dateTo = "", page = "1", limit = "20" } = req.query as Record<string, string>;
     const pg = Math.max(1, parseInt(page, 10));
@@ -140,7 +144,9 @@ router.get("/vendor-challans", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── SINGLE ────────────────────────────────────────────────────────────────────
-router.get("/vendor-challans/:id", requireAuth, async (req, res) => {
+router.get("/vendor-challans/:id", requireAuth, 
+checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.VIEW] }),
+  async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const r = await pool.query(`SELECT * FROM vendor_challans WHERE id = $1 AND is_deleted = false`, [id]);
@@ -153,7 +159,9 @@ router.get("/vendor-challans/:id", requireAuth, async (req, res) => {
 // creation (files under "files"). Stays backwards-compatible with JSON bodies:
 // when the request isn't multipart, multer is a no-op and express.json populates
 // req.body — in that case `lineItems` arrives as an array instead of a string.
-router.post("/vendor-challans", requireAuth, uploadMiddleware.array("files", 10), async (req: AuthRequest, res) => {
+router.post("/vendor-challans", requireAuth,
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  uploadMiddleware.array("files", 10), async (req: AuthRequest, res) => {
   const client = await pool.connect();
   // Track files written to disk so they can be cleaned up if the transaction
   // rolls back (filesystem writes aren't covered by the DB transaction).
@@ -229,7 +237,9 @@ router.post("/vendor-challans", requireAuth, uploadMiddleware.array("files", 10)
 });
 
 // ── UPDATE ────────────────────────────────────────────────────────────────────
-router.put("/vendor-challans/:id", requireAuth, async (req: AuthRequest, res) => {
+router.put("/vendor-challans/:id", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   try {
@@ -269,7 +279,9 @@ router.put("/vendor-challans/:id", requireAuth, async (req: AuthRequest, res) =>
 });
 
 // ── DELETE (soft) ─────────────────────────────────────────────────────────────
-router.delete("/vendor-challans/:id", requireAuth, async (req, res) => {
+router.delete("/vendor-challans/:id", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.DELETE] }),  
+  async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const existing = await pool.query(`SELECT status FROM vendor_challans WHERE id=$1 AND is_deleted=false`, [id]);
@@ -283,7 +295,9 @@ router.delete("/vendor-challans/:id", requireAuth, async (req, res) => {
 });
 
 // ── VERIFY ────────────────────────────────────────────────────────────────────
-router.patch("/vendor-challans/:id/verify", requireAuth, async (req: AuthRequest, res) => {
+router.patch("/vendor-challans/:id/verify", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  async (req: AuthRequest, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -309,7 +323,9 @@ router.patch("/vendor-challans/:id/verify", requireAuth, async (req: AuthRequest
 });
 
 // ── CANCEL ────────────────────────────────────────────────────────────────────
-router.patch("/vendor-challans/:id/cancel", requireAuth, async (req, res) => {
+router.patch("/vendor-challans/:id/cancel", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const existing = await pool.query(`SELECT status FROM vendor_challans WHERE id=$1 AND is_deleted=false`, [id]);
@@ -322,7 +338,9 @@ router.patch("/vendor-challans/:id/cancel", requireAuth, async (req, res) => {
 });
 
 // ── PREVIEW PO (fetch matching verified challans) ─────────────────────────────
-router.post("/vendor-challans/preview-po", requireAuth, async (req, res) => {
+router.post("/vendor-challans/preview-po", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.VIEW] }),  
+  async (req, res) => {
   try {
     const { vendorId, challanType, durationMonths } = req.body as { vendorId: number; challanType: string; durationMonths: number };
     if (!vendorId || !challanType) { res.status(400).json({ error: "Vendor and Challan Type are required" }); return; }
@@ -342,7 +360,9 @@ router.post("/vendor-challans/preview-po", requireAuth, async (req, res) => {
 });
 
 // ── CONVERT TO PO ─────────────────────────────────────────────────────────────
-router.post("/vendor-challans/convert-to-po", requireAuth, async (req: AuthRequest, res) => {
+router.post("/vendor-challans/convert-to-po", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  async (req: AuthRequest, res) => {
   const { vendorId, vendorName, challanType, durationMonths } = req.body as {
     vendorId: number; vendorName: string; challanType: string; durationMonths: number;
   };
@@ -408,7 +428,9 @@ router.post("/vendor-challans/convert-to-po", requireAuth, async (req: AuthReque
 });
 
 // ── CONVERT SELECTED IDs TO PO ────────────────────────────────────────────────
-router.post("/vendor-challans/convert-selected-to-po", requireAuth, async (req: AuthRequest, res) => {
+router.post("/vendor-challans/convert-selected-to-po", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  async (req: AuthRequest, res) => {
   const { challanIds } = req.body as { challanIds: number[] };
   if (!Array.isArray(challanIds) || !challanIds.length) {
     res.status(400).json({ error: "No challans selected" }); return;
@@ -501,7 +523,9 @@ function normalizeAttachments(row: { attachment?: unknown; attachments?: unknown
 }
 
 // ── DOCUMENT UPLOAD (one or more files) ───────────────────────────────────────
-router.post("/vendor-challans/:id/document", requireAuth, uploadMiddleware.array("files", 10), async (req, res) => {
+router.post("/vendor-challans/:id/document", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  uploadMiddleware.array("files", 10), async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -546,7 +570,9 @@ router.post("/vendor-challans/:id/document", requireAuth, uploadMiddleware.array
 });
 
 // ── DOCUMENT DELETE (one file by ?url=, or all) ───────────────────────────────
-router.delete("/vendor-challans/:id/document", requireAuth, async (req, res) => {
+router.delete("/vendor-challans/:id/document", requireAuth, 
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+  async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 

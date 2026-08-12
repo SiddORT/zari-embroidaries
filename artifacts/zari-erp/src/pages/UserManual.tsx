@@ -33,13 +33,13 @@ function ScreenshotCallout({ src, alt, callouts }: { src: string; alt: string; c
               width: `${c.width}%`, height: `${c.height}%`,
               border: `2px solid ${G}`,
               borderRadius: "5px",
-              background: "rgba(198,175,75,0.10)",
+              background: "transparent",
               pointerEvents: "none",
             }}
           >
             <span style={{
               position: "absolute", top: "-13px", left: "6px",
-              background: G, color: "#fff",
+              background: "transparent",
               fontSize: "10px", fontWeight: "800",
               padding: "1px 6px", borderRadius: "4px", lineHeight: "1.5",
               whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
@@ -1007,13 +1007,17 @@ export default function UserManual() {
   const triggerPrint = (mode: "full" | "section") => {
     setDlOpen(false);
     setPrintMode(mode);
-    // Give React one frame to render the print content, then print
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        window.print();
-        // Reset after dialog closes (afterprint fires when print dialog is dismissed)
-        const reset = () => { setPrintMode(null); window.removeEventListener("afterprint", reset); };
+        const reset = () => {
+          setPrintMode(null);
+          window.removeEventListener("afterprint", reset);
+        };
+
         window.addEventListener("afterprint", reset);
+
+        window.print();
       });
     });
   };

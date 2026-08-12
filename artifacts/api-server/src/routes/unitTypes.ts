@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 // import { eq, ilike, and, desc } from "drizzle-orm";
 import { db, unitTypesTable, insertUnitTypeSchema, updateUnitTypeSchema, eq, ilike, and, desc } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_UNIT_TYPES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
 import type { Request } from "express";
@@ -17,7 +19,7 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/unit-types-master", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/unit-types-master", requireAuth, checkPermission(MASTERS_UNIT_TYPES.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -32,7 +34,7 @@ router.get("/unit-types-master", requireAuth, async (req: AuthRequest, res): Pro
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/unit-types-master/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/unit-types-master/export-all", requireAuth, checkPermission(MASTERS_UNIT_TYPES.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
@@ -40,7 +42,7 @@ router.get("/unit-types-master/export-all", requireAuth, async (req: AuthRequest
   res.json({ data: rows });
 });
 
-router.post("/unit-types-master", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/unit-types-master", requireAuth, checkPermission(MASTERS_UNIT_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertUnitTypeSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -52,7 +54,7 @@ router.post("/unit-types-master", requireAuth, async (req: AuthRequest, res): Pr
   res.status(201).json(record);
 });
 
-router.post("/unit-types-master/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/unit-types-master/import", requireAuth, checkPermission(MASTERS_UNIT_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const body = req.body;
   if (!Array.isArray(body) || body.length === 0) {
     res.status(400).json({ error: "Request body must be a non-empty array." });
@@ -90,7 +92,7 @@ router.post("/unit-types-master/import", requireAuth, async (req: AuthRequest, r
   res.json({ imported, skipped, errors });
 });
 
-router.put("/unit-types-master/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/unit-types-master/:id", requireAuth, checkPermission(MASTERS_UNIT_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateUnitTypeSchema.safeParse(req.body);
@@ -110,7 +112,7 @@ router.put("/unit-types-master/:id", requireAuth, async (req: AuthRequest, res):
   res.json(record);
 });
 
-router.patch("/unit-types-master/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/unit-types-master/:id/status", requireAuth, checkPermission(MASTERS_UNIT_TYPES.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(unitTypesTable).where(and(eq(unitTypesTable.id, id), eq(unitTypesTable.isDeleted, false)));
@@ -121,7 +123,7 @@ router.patch("/unit-types-master/:id/status", requireAuth, async (req: AuthReque
   res.json(record);
 });
 
-router.delete("/unit-types-master/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/unit-types-master/:id", requireAuth, checkPermission(MASTERS_UNIT_TYPES.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const deletedByUser = (req.user as any)?.email ?? "system";

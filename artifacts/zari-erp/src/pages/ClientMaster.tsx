@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, Eye, FileInput, FileDown, FileUp, FileSpreadsheet, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_CLIENTS } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import StatusToggle from "@/components/master/StatusToggle";
@@ -92,6 +94,7 @@ export default function ClientMaster() {
   const toggleStatus = useToggleClientStatus();
   const deleteMutation = useDeleteClient();
   const importMutation = useImportClients();
+  const { can } = useMyPermissions();
 
   async function handleStatusConfirm() {
     if (!statusTarget) return;
@@ -494,8 +497,14 @@ export default function ClientMaster() {
     },
     {
       key: "isActive", label: "Status", render: (r) => (
-        <StatusToggle isActive={asClient(r).isActive} onToggle={() => setStatusTarget(asClient(r))} />
-      )
+          can(MASTERS_CLIENTS.ADD_EDIT) ? (
+            <StatusToggle isActive={asClient(r).isActive} onToggle={() => setStatusTarget(asClient(r))} />
+          ) : (
+            <span className={`text-xs font-medium ${asClient(r).isActive ? "text-emerald-600" : "text-gray-400"}`}>
+              {asClient(r).isActive ? "Active" : "Inactive"}
+            </span>
+          )
+        )
     },
     { key: "createdBy", label: "Created By", render: (r) => asClient(r).createdBy },
     { key: "createdAt", label: "Created At", render: (r) => formatDateTable(asClient(r).createdAt) },
@@ -506,8 +515,15 @@ export default function ClientMaster() {
         const rec = asClient(r);
         return (
           <div className="flex gap-2">
-            <button onClick={() => setLocation(`/masters/clients/${rec.id}`)} className="p-1 rounded hover:bg-gray-100 text-gray-600"><Pencil size={15} /></button>
-            <button onClick={() => setDeleteId(rec.id)} className="p-1 rounded hover:bg-red-50 text-red-500"><Trash2 size={15} /></button>
+            {can(MASTERS_CLIENTS.VIEW) && (
+              <button onClick={() => setLocation(`/masters/clients/${rec.id}`)} className="p-1 rounded hover:bg-gray-100 text-gray-600"><Eye size={15} /></button>
+            )}
+            {can(MASTERS_CLIENTS.ADD_EDIT) && (
+              <button onClick={() => setLocation(`/masters/clients/${rec.id}`)} className="p-1 rounded hover:bg-gray-100 text-gray-600"><Pencil size={15} /></button>
+            )}
+            {can(MASTERS_CLIENTS.DELETE) && (
+              <button onClick={() => setDeleteId(rec.id)} className="p-1 rounded hover:bg-red-50 text-red-500"><Trash2 size={15} /></button>
+            )}
           </div>
         );
       },
@@ -515,11 +531,18 @@ export default function ClientMaster() {
   ];
 
   if (!user) return null;
+  const { can: canCheck } = useMyPermissions();
+  const canAdd = canCheck(MASTERS_CLIENTS.ADD_EDIT);
+  const canExport = canCheck(MASTERS_CLIENTS.DOWNLOAD);
+  const canImport = canAdd;
+  const canDelete = canCheck(MASTERS_CLIENTS.DELETE);
+  const canView = canCheck(MASTERS_CLIENTS.VIEW);
+  const showActions = canAdd || canDelete || canView;
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="max-w-screen-xl mx-auto space-y-5">
-        <MasterHeader title="Client Master" onAdd={() => setLocation("/masters/clients/new")} addLabel="Add Client" />
+        <MasterHeader title="Client Master" onAdd={() => setLocation("/masters/clients/new")} addLabel="Add Client" addPermission={MASTERS_CLIENTS.ADD_EDIT} />
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1">
@@ -530,13 +553,16 @@ export default function ClientMaster() {
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
 
-          <button onClick={handleExportAll} disabled={exportLoading || isLoading}
+          {canExport && (
+            <button onClick={handleExportAll} disabled={exportLoading || isLoading}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <FileDown className="h-4 w-4" />
             {exportLoading ? "Exporting…" : "Export to Excel"}
-          </button>
+            </button>
+          )}
 
-          <div className="relative" ref={importMenuRef}>
+          {canImport && (
+            <div className="relative" ref={importMenuRef}>
             <button onClick={() => setImportMenuOpen(v => !v)} disabled={importLoading}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#C9B45C]/50 bg-white text-sm font-medium text-gray-700 shadow-sm hover:border-[#C9B45C] hover:bg-amber-50/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <FileInput className="h-4 w-4 text-[#C6AF4B]" />
@@ -559,10 +585,12 @@ export default function ClientMaster() {
             )}
             <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
           </div>
+          )} 
         </div>
 
         <MasterTable columns={columns} rows={rows} loading={isLoading}
           rowKey={(row) => (row as unknown as { id: number }).id}
+          showActions={showActions}
           pagination={{ page, limit, total: data?.total ?? 0, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }} />
 
         {/* Status change confirmation */}

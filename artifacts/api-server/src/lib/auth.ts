@@ -16,6 +16,7 @@ export interface AuthTokenPayload {
   userId: number;
   email: string;
   role: string;
+  roleId: number;
   username?: string;
   name?: string;
 }

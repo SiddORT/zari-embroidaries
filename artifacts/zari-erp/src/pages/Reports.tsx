@@ -13,6 +13,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 
 const G     = "#C6AF4B";
 const G_DIM = "#A8943E";
@@ -81,6 +82,18 @@ const REPORT_COLS: Record<ReportId, string[]> = {
   "order-profitability": ["Order ID", "Client", "Type", "Invoice Amount", "Shipping Cost", "Net Profit"],
   "purchase-vs-sales":   ["Period", "Total Sales", "Total Purchases", "Other Expenses", "Net Revenue"],
   "gst-summary":         ["Ref No", "Party Name", "Transaction Type", "Taxable Amount", "CGST", "SGST", "IGST", "Total GST", "Date"],
+};
+
+const REPORT_PERM_BASE: Record<ReportId, string> = {
+  "stock-summary":       "reports:stock_summary",
+  "stock-movement":      "reports:stock_movement",
+  "purchase-summary":    "reports:purchase_summary",
+  "invoice-summary":     "reports:invoice_summary",
+  "vendor-ledger":       "reports:vendor_ledger",
+  "client-ledger":       "reports:client_ledger",
+  "order-profitability": "reports:order_profitability",
+  "purchase-vs-sales":   "reports:purchase_vs_sales",
+  "gst-summary":         "reports:gst_summary",
 };
 
 interface GstSummary {
@@ -180,6 +193,7 @@ export default function Reports() {
   const { toast }        = useToast();
   const qc               = useQueryClient();
   const token            = localStorage.getItem("zarierp_token");
+  const { can, isAdmin } = useMyPermissions();
 
   const { data: user, isError } = useGetMe({
     query: { enabled: !!token, queryKey: getGetMeQueryKey(), retry: false },
@@ -367,6 +381,7 @@ export default function Reports() {
   const showItem   = !!selected && ["stock-summary", "stock-movement"].includes(selected);
 
   const selectedCard = REPORT_CARDS.find(r => r.id === selected);
+  const canDownload = selected ? isAdmin || can(`${REPORT_PERM_BASE[selected]}:download`) : false;
 
   if (!user) {
     return (
@@ -658,6 +673,7 @@ export default function Reports() {
                     )}
                     <div className="ml-auto">
                       <button onClick={exportExcel}
+                        disabled={!canDownload || filteredRows.length === 0} 
                         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all hover:bg-gray-50"
                         style={{ borderColor: `${G}40`, color: G }}>
                         <Download className="h-3.5 w-3.5" />

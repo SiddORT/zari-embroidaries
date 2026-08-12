@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import ZariButton from "@/components/ui/ZariButton";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 
@@ -80,6 +81,7 @@ export default function ShippingTab({ referenceType, referenceId, clientName, or
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState<number | null>(null);
+  const { canEdit, canDelete } = useFormAccessContext();
 
   // Auto-calculated preview
   const selectedVendor = vendors.find(v => String(v.id) === form.shipping_vendor_id);
@@ -216,7 +218,7 @@ export default function ShippingTab({ referenceType, referenceId, clientName, or
             </span>
           )}
         </div>
-        {canAdd && (
+        {canAdd && canEdit && (
           <ZariButton onClick={openCreate}>
             <Plus size={14} /> Add Shipping Details
           </ZariButton>
@@ -229,7 +231,7 @@ export default function ShippingTab({ referenceType, referenceId, clientName, or
         <div className={`${card} p-10 text-center`}>
           <Package size={36} className="mx-auto text-gray-200 mb-3" />
           <p className="text-gray-500 font-medium">No shipping details yet</p>
-          {canAdd && <p className="text-xs text-gray-400 mt-1">Click "Add Shipping Details" to log a shipment</p>}
+          {canAdd && canEdit &&  <p className="text-xs text-gray-400 mt-1">Click "Add Shipping Details" to log a shipment</p>}
         </div>
       ) : (
         <div className="space-y-4">
@@ -260,16 +262,20 @@ export default function ShippingTab({ referenceType, referenceId, clientName, or
                   <select
                     value={r.shipment_status}
                     onChange={e => handleStatusUpdate(r.id, e.target.value)}
-                    disabled={statusUpdating === r.id}
+                    disabled={statusUpdating === r.id || !canEdit}
                     className={`text-xs font-semibold rounded-full px-3 py-1 border cursor-pointer appearance-none focus:outline-none ${STATUS_COLORS[r.shipment_status] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}
                   >
                     {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
-                  <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Edit">
+                  <button onClick={() => openEdit(r)} 
+                    disabled={!canEdit}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Edit">
                     <Edit2 size={14} />
                   </button>
                   {isAdmin && (
-                    <button onClick={() => setDeleteTarget(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-300 hover:text-red-500 transition" title="Delete">
+                    <button onClick={() => setDeleteTarget(r.id)}
+                      disabled={!canDelete} 
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-red-300 hover:text-red-500 transition" title="Delete">
                       <X size={14} />
                     </button>
                   )}

@@ -50,7 +50,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const token = signToken({ userId: user.id, email: user.email, role: user.role, username: user.username });
+  if (user.roleId === null) {
+    res.status(400).json({ error: "User does not have a role assigned" });
+    return;
+  }
+
+  const token = signToken({ userId: user.id, email: user.email, role: user.role, roleId: user.roleId, username: user.username });
 
   const response = LoginResponse.parse({
     token,
@@ -59,6 +64,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       username: user.username,
       email: user.email,
       role: user.role,
+      roleId : user.roleId,
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
     },
@@ -226,14 +232,34 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  let permissions: string[] = [];
+
+  if (dbUser.roleId) {
+    const rolePermissions = await db
+      .select({
+        permission: rolePermissionsTable.permission,
+      })
+      .from(rolePermissionsTable)
+      .where(
+        and(
+          eq(rolePermissionsTable.roleId, dbUser.roleId),
+          eq(rolePermissionsTable.isDeleted, false),
+        ),
+      );
+
+    permissions = rolePermissions.map((item) => item.permission);
+  }
+
   res.json(
     GetMeResponse.parse({
       id: dbUser.id,
       username: dbUser.username,
       email: dbUser.email,
       role: dbUser.role,
+      roleId: dbUser.roleId,
       isActive: dbUser.isActive,
       createdAt: dbUser.createdAt.toISOString(),
+      permissions,
     }),
   );
 });

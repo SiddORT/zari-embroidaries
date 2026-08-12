@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, materialsTable , insertMaterialSchema, updateMaterialSchema,  eq, ilike, or, and, desc, count, ne } from "@workspace/db";
 // import { insertMaterialSchema, updateMaterialSchema } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_MATERIALS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { ensureInventoryRecord, updateInventoryImages, updateInventoryStockLevels, softDeleteInventoryItem } from "../services/inventoryService";
 import { persistImageArray } from "../utils/uploadHelper";
@@ -39,7 +41,7 @@ function validateMaterialFields(data: Record<string, unknown>): string[] {
   return errs;
 }
 
-router.get("/materials/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/materials/export-all", requireAuth, checkPermission(MASTERS_MATERIALS.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const hsnCodeFilter = (req.query.hsnCode as string) ?? "";
@@ -69,7 +71,7 @@ router.get("/materials/export-all", requireAuth, async (req: AuthRequest, res): 
   res.json(rows);
 });
 
-router.post("/materials/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/materials/import", requireAuth, checkPermission(MASTERS_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const { rows: rawRows } = req.body as { rows: Record<string, unknown>[] };
   if (!Array.isArray(rawRows) || rawRows.length === 0) {
     res.status(400).json({ error: "No rows provided." });
@@ -153,7 +155,7 @@ router.get("/materials/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/materials", requireAuth, checkPermission(MASTERS_MATERIALS.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const hsnCodeFilter = (req.query.hsnCode as string) ?? "";
@@ -194,7 +196,7 @@ router.get("/materials", requireAuth, async (req: AuthRequest, res): Promise<voi
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.post("/materials", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/materials", requireAuth, checkPermission(MASTERS_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const extraErrors = validateMaterialFields(req.body as Record<string, unknown>);
   if (extraErrors.length > 0) {
     res.status(400).json({ error: extraErrors[0], details: extraErrors });
@@ -253,7 +255,7 @@ router.post("/materials", requireAuth, async (req: AuthRequest, res): Promise<vo
   res.status(201).json(record);
 });
 
-router.put("/materials/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/materials/:id", requireAuth, checkPermission(MASTERS_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -320,7 +322,7 @@ router.put("/materials/:id", requireAuth, async (req: AuthRequest, res): Promise
   res.json(record);
 });
 
-router.patch("/materials/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/materials/:id/status", requireAuth, checkPermission(MASTERS_MATERIALS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -338,7 +340,7 @@ router.patch("/materials/:id/status", requireAuth, async (req: AuthRequest, res)
   res.json(record);
 });
 
-router.delete("/materials/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/materials/:id", requireAuth, checkPermission(MASTERS_MATERIALS.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
 
   if (isNaN(id)) {

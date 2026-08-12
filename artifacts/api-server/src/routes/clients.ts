@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { db, clientsTable , eq, ilike, or, and, desc, count} from "@workspace/db";
 import { insertClientSchema, updateClientSchema, deliveryAddresses, swatchOrdersTable, styleOrdersTable, quotations } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { LOGISTICS_PACKING_LISTS, MASTERS_CLIENTS,ACCOUNTS_CREDIT_DEBIT_NOTES } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { nextSequenceNumber } from "../utils/sequence";
 import { zodFieldErrorsToHuman } from "../lib/importHelpers";
@@ -30,7 +32,9 @@ function buildWhere(search: string, status: string) {
   return and(...conditions);
 }
 
-router.get("/clients", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/clients", requireAuth, 
+  checkPermission({ any: [MASTERS_CLIENTS.VIEW, LOGISTICS_PACKING_LISTS.VIEW, ACCOUNTS_CREDIT_DEBIT_NOTES.VIEW] }), 
+  async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -45,7 +49,7 @@ router.get("/clients", requireAuth, async (req: AuthRequest, res): Promise<void>
   res.json({ data: rows, total: countRows.length, page, limit });
 });
 
-router.get("/clients/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/clients/export-all", requireAuth, checkPermission(MASTERS_CLIENTS.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const whereClause = buildWhere(search, status);
@@ -58,7 +62,7 @@ router.get("/clients/all", requireAuth, async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/clients/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/clients/:id", requireAuth, checkPermission(MASTERS_CLIENTS.VIEW), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, id), eq(clientsTable.isDeleted, false)));
@@ -89,7 +93,7 @@ router.get("/clients/:id", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-router.post("/clients", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/clients", requireAuth, checkPermission(MASTERS_CLIENTS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const parsed = insertClientSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() }); return; }
 
@@ -159,7 +163,7 @@ router.post("/clients", requireAuth, async (req: AuthRequest, res): Promise<void
   res.status(201).json(record);
 });
 
-router.put("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/clients/:id", requireAuth, checkPermission(MASTERS_CLIENTS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = updateClientSchema.safeParse(req.body);
@@ -303,7 +307,7 @@ router.put("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json(record);
 });
 
-router.patch("/clients/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/clients/:id/status", requireAuth, checkPermission(MASTERS_CLIENTS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, id), eq(clientsTable.isDeleted, false)));
@@ -313,7 +317,7 @@ router.patch("/clients/:id/status", requireAuth, async (req: AuthRequest, res): 
   res.json(record);
 });
 
-router.delete("/clients/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/clients/:id", requireAuth, checkPermission(MASTERS_CLIENTS.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";
@@ -336,7 +340,7 @@ router.delete("/clients/:id", requireAuth, async (req: AuthRequest, res): Promis
   res.json({ message: "Client deleted" });
 });
 
-router.post("/clients/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/clients/import", requireAuth, checkPermission(MASTERS_CLIENTS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const body = req.body;
   if (!Array.isArray(body) || body.length === 0) {
     res.status(400).json({ error: "Request body must be a non-empty array." });

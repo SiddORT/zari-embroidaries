@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { REPORTS_CLIENT_LEDGER, REPORTS_GST_SUMMARY, REPORTS_INVOICE_SUMMARY, REPORTS_ORDER_PROFITABILITY, REPORTS_PURCHASE_SUMMARY, REPORTS_PURCHASE_VS_SALES, REPORTS_STOCK_MOVEMENT, REPORTS_STOCK_SUMMARY, REPORTS_VENDOR_LEDGER } from "../constants/permissions";
 
 const router = Router();
 
@@ -30,7 +32,9 @@ router.get("/reports/filter-options", requireAuth, async (_req, res) => {
   }
 });
 
-router.get("/reports/stock-summary", requireAuth, async (req, res) => {
+router.get("/reports/stock-summary", requireAuth, 
+  checkPermission({ any: [REPORTS_STOCK_SUMMARY.VIEW] }),
+  async (req, res) => {
   try {
     const { category = "all", item = "all" } = req.query as Record<string, string>;
     const conds: string[] = ["is_active = true"];
@@ -62,7 +66,9 @@ router.get("/reports/stock-summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/stock-movement", requireAuth, async (req, res) => {
+router.get("/reports/stock-movement", requireAuth, 
+  checkPermission({ any: [REPORTS_STOCK_MOVEMENT.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to, item = "all" } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -93,7 +99,9 @@ router.get("/reports/stock-movement", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/purchase-summary", requireAuth, async (req, res) => {
+router.get("/reports/purchase-summary", requireAuth, 
+  checkPermission({ any: [REPORTS_PURCHASE_SUMMARY.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to, vendor = "all" } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -131,7 +139,9 @@ router.get("/reports/purchase-summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/invoice-summary", requireAuth, async (req, res) => {
+router.get("/reports/invoice-summary", requireAuth, 
+  checkPermission({ any: [REPORTS_INVOICE_SUMMARY.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to, client = "all" } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -159,7 +169,9 @@ router.get("/reports/invoice-summary", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/vendor-ledger", requireAuth, async (req, res) => {
+router.get("/reports/vendor-ledger", requireAuth, 
+  checkPermission({ any: [REPORTS_VENDOR_LEDGER.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to, vendor = "all" } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -188,7 +200,9 @@ router.get("/reports/vendor-ledger", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/client-ledger", requireAuth, async (req, res) => {
+router.get("/reports/client-ledger", requireAuth, 
+  checkPermission({ any: [REPORTS_CLIENT_LEDGER.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to, client = "all" } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -217,7 +231,9 @@ router.get("/reports/client-ledger", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/order-profitability", requireAuth, async (req, res) => {
+router.get("/reports/order-profitability", requireAuth, 
+  checkPermission({ any: [REPORTS_ORDER_PROFITABILITY.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -275,7 +291,9 @@ router.get("/reports/order-profitability", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/purchase-vs-sales", requireAuth, async (req, res) => {
+router.get("/reports/purchase-vs-sales", requireAuth, 
+  checkPermission({ any: [REPORTS_PURCHASE_VS_SALES.VIEW] }),
+  async (req, res) => {
   try {
     const { from, to } = req.query as Record<string, string>;
     const { dfrom, dto } = dateRange(from, to);
@@ -317,7 +335,9 @@ router.get("/reports/purchase-vs-sales", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/reports/gst-summary", requireAuth, async (req, res) => {
+router.get("/reports/gst-summary", requireAuth, 
+  checkPermission({ any: [REPORTS_GST_SUMMARY.VIEW] }),
+  async (req, res) => {
   try {
     const { year, month, client, vendor } = req.query as Record<string, string>;
     const gstYear   = parseInt(year  || String(new Date().getFullYear()), 10);

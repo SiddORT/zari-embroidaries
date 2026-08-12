@@ -3,7 +3,7 @@ import {
   Link2, Copy, Check, ExternalLink, Eye, EyeOff, RefreshCw,
   Globe, GlobeLock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Loader2, Send, Paperclip, X, CheckCheck, LockKeyhole, UnlockKeyhole,
-  MessageSquare, RotateCcw,
+  MessageSquare, RotateCcw, Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -13,6 +13,8 @@ import {
 } from "@/hooks/useClientLink";
 import { useStyleOrderArtworks, type StyleOrderArtworkRecord } from "@/hooks/useStyleOrderArtworks";
 import { useStyleOrderProducts } from "@/hooks/useStyleOrderProducts";
+import { FormAccessGate } from "@/components/FormAccessGate";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 interface FileAttachment { name: string; type: string; data: string; size: number }
 
@@ -40,19 +42,58 @@ function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; s
   );
 }
 
-function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
+function ChatBubble({ 
+  msg, 
+  onPreview 
+}: { 
+  msg: ClientMessageRecord; 
+  onPreview: (attachment: FileAttachment) => void;
+}){
   const isTeam = msg.sender === "team";
+
+  function handleDownload(e: React.MouseEvent, attachment: NonNullable<ClientMessageRecord["attachment"]>) {
+    e.stopPropagation();
+    const link = document.createElement("a");
+    link.href = attachment.data;
+    link.download = attachment.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <div className={`flex gap-2 ${isTeam ? "justify-end" : "justify-start"}`}>
       {!isTeam && (
         <div className="h-7 w-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-gray-500">C</div>
       )}
       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 space-y-1.5 ${isTeam ? "bg-gray-900 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm"}`}>
-        {msg.message && <p className="text-sm leading-snug">{msg.message}</p>}
+        {msg.message && <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>}
         {msg.attachment && (
-          <div className={`rounded-xl overflow-hidden border ${isTeam ? "border-white/10" : "border-gray-200"}`}>
+          <div className={`rounded-xl overflow-hidden border relative group ${isTeam ? "border-white/10" : "border-gray-200"}`}>
             {msg.attachment.type.startsWith("image/") ? (
-              <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[200px] object-cover" />
+              <div className="relative overflow-hidden">
+                <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[200px] object-cover" />
+                
+                {/* Overlay with Preview and Download options */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onPreview(msg.attachment!)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                    title="Preview"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDownload(e, msg.attachment!)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             ) : (
               <a href={msg.attachment.data} download={msg.attachment.name}
                 className={`flex items-center gap-2 px-3 py-2 text-xs hover:underline ${isTeam ? "text-[#C9B45C]" : "text-blue-600"}`}>
@@ -75,7 +116,7 @@ function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
 
 function StyleArtworkAccordion({
   aw, messages, isClosed, decision, linkId, styleOrderId,
-  onLightbox, showProduct,
+  onLightbox, showProduct, onPreview
 }: {
   aw: StyleOrderArtworkRecord;
   messages: ClientMessageRecord[];
@@ -85,12 +126,14 @@ function StyleArtworkAccordion({
   styleOrderId: number;
   onLightbox: (artworkId: number, type: "wip" | "final", idx: number) => void;
   showProduct: boolean;
+  onPreview: (attachment: FileAttachment) => void;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(!isClosed);
   const [text, setText] = useState("");
   const [attachFile, setAttachFile] = useState<FileAttachment | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { canEdit } = useFormAccessContext();
 
   const sendMsg = useSendTeamMessage();
   const toggleThread = useToggleStyleThread();
@@ -204,7 +247,7 @@ function StyleArtworkAccordion({
                 <p className="text-sm italic">No messages yet. Client will see your replies here.</p>
               </div>
             ) : (
-              messages.map(m => <ChatBubble key={m.id} msg={m} />)
+              messages.map(m => <ChatBubble key={m.id} msg={m} onPreview={onPreview}/>)
             )}
           </div>
 
@@ -235,6 +278,7 @@ function StyleArtworkAccordion({
                   rows={2}
                   className="flex-1 text-sm text-gray-900 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
                 />
+                <FormAccessGate readOnly={!canEdit}>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => fileRef.current?.click()}
                     className="flex items-center justify-center h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
@@ -248,7 +292,9 @@ function StyleArtworkAccordion({
                   </button>
                 </div>
                 <input ref={fileRef} type="file" className="hidden" onChange={pickFile} />
+                </FormAccessGate>
               </div>
+              <FormAccessGate readOnly={!canEdit}>
               <div className="flex justify-end">
                 <button onClick={handleToggleClose} disabled={toggleThread.isPending}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-900 text-[#C9B45C] font-medium hover:bg-black transition-colors disabled:opacity-60">
@@ -256,6 +302,7 @@ function StyleArtworkAccordion({
                   Mark Thread Done
                 </button>
               </div>
+              </FormAccessGate>
             </div>
           )}
         </div>
@@ -264,13 +311,15 @@ function StyleArtworkAccordion({
   );
 }
 
-export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: number }) {
+export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: number; }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<{ artworkId: number; type: "wip" | "final"; idx: number } | null>(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [showImageControls, setShowImageControls] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("all");
+  const { canEdit } = useFormAccessContext(); 
+  const [previewImage, setPreviewImage] = useState<FileAttachment | null>(null);
 
   const { data: link, isLoading: linkLoading } = useStyleClientLink(styleOrderId);
   const { data: artworksData, isLoading: artworksLoading } = useStyleOrderArtworks(styleOrderId);
@@ -373,19 +422,19 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
             </a>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={togglePublish} disabled={updateLink.isPending}
+            <button onClick={togglePublish} disabled={updateLink.isPending || !canEdit}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 shadow-sm ${link?.isPublished ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-900 text-[#C9B45C] hover:bg-black"}`}>
               {updateLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : link?.isPublished ? <GlobeLock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
               {link?.isPublished ? "Unpublish" : "Publish Link"}
             </button>
             {!confirmRegen ? (
-              <button onClick={() => setConfirmRegen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+              <button onClick={() => setConfirmRegen(true)} disabled={!canEdit} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                 <RefreshCw className="h-4 w-4" /> Regenerate
               </button>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-red-600 font-medium">Old link will stop working!</span>
-                <button onClick={handleRegenerate} disabled={regenLink.isPending} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-60">
+                <button onClick={handleRegenerate} disabled={regenLink.isPending || !canEdit} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-60">
                   {regenLink.isPending ? "…" : "Confirm"}
                 </button>
                 <button onClick={() => setConfirmRegen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
@@ -468,7 +517,9 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
                                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${hidden ? "border-red-200 opacity-40" : "border-gray-200 hover:border-[#C9B45C]"}`}>
                                   <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                 </button>
-                                <button onClick={() => toggleImage(aw.id, "wip", i)} title={hidden ? "Show" : "Hide"}
+                                <button
+                                  disabled={!canEdit}
+                                  onClick={() => toggleImage(aw.id, "wip", i)} title={hidden ? "Show" : "Hide"}
                                   className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm text-[10px] transition-colors ${hidden ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-red-100"}`}>
                                   {hidden ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                                 </button>
@@ -490,7 +541,9 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
                                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${hidden ? "border-red-200 opacity-40" : "border-gray-200 hover:border-[#C9B45C]"}`}>
                                   <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                 </button>
-                                <button onClick={() => toggleImage(aw.id, "final", i)} title={hidden ? "Show" : "Hide"}
+                                <button
+                                  disabled={!canEdit}
+                                  onClick={() => toggleImage(aw.id, "final", i)} title={hidden ? "Show" : "Hide"}
                                   className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm text-[10px] transition-colors ${hidden ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-red-100"}`}>
                                   {hidden ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                                 </button>
@@ -550,6 +603,7 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
                   linkId={link!.id}
                   styleOrderId={styleOrderId}
                   onLightbox={(artworkId, type, idx) => setLightbox({ artworkId, type, idx })}
+                  onPreview={(attachment) => setPreviewImage(attachment)} 
                   showProduct={showProduct}
                 />
               );
@@ -565,6 +619,15 @@ export default function StyleClientLinkTab({ styleOrderId }: { styleOrderId: num
         const imgs = lightbox.type === "wip" ? aw.wipImages : aw.finalImages;
         return <Lightbox images={imgs} startIndex={lightbox.idx} onClose={() => setLightbox(null)} />;
       })()}
+
+      {/* Preview Chat Image */}
+      {previewImage && (
+        <Lightbox 
+          images={[previewImage]} 
+          startIndex={0} 
+          onClose={() => setPreviewImage(null)} 
+        />
+      )}
     </div>
   );
 }

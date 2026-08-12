@@ -14,6 +14,7 @@ import { customFetch } from "@workspace/api-client-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
@@ -97,6 +98,7 @@ export default function QuotationDetail() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   const token = localStorage.getItem("zarierp_token");
   const { data: user } = useGetMe({ query: { enabled: !!token } as any });
@@ -239,7 +241,7 @@ export default function QuotationDetail() {
 
   const q = quotation;
   const nextStatuses = STATUS_TRANSITIONS[q.status] ?? [];
-  const canEdit = q.status === "Draft" || q.status === "Revised";
+  const canEditStatusBased = q.status === "Draft" || q.status === "Revised";
   const canRevise = q.status === "Correction Requested";
   const canConvertSwatch = q.status === "Approved" && q.converted_to !== "Swatch";
   const canConvertStyle = q.status === "Approved" && q.converted_to !== "Style";
@@ -267,9 +269,10 @@ export default function QuotationDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {canEdit && (
+            {canEditStatusBased && (
               <button
                 onClick={() => navigate(`/quotation/${id}/edit`)}
+                disabled={!canEdit}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50 text-gray-700 transition"
               >
                 <Edit2 size={14} /> Edit
@@ -277,12 +280,14 @@ export default function QuotationDetail() {
             )}
             <button
               onClick={() => setFeedbackOpen(true)}
+              disabled={!canEdit}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50 text-gray-700 transition"
             >
               <MessageSquare size={14} /> Add Feedback
             </button>
             <button
               onClick={() => { downloadQuotationPdf(q); logActivity(`Downloaded PDF for Quotation ${q.quotation_number ?? ""} — ${q.client_name ?? ""}`); }}
+              disabled={!canDownload}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm transition"
               style={{ background: "#C6AF4B" }}
               title="Download PDF"
@@ -304,7 +309,7 @@ export default function QuotationDetail() {
                 {nextStatuses.map((ns) => (
                   <button
                     key={ns}
-                    disabled={statusBusy}
+                    disabled={statusBusy || !canEdit}
                     onClick={() => changeStatus(ns)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 transition ${STATUS_BTN_STYLES[ns] ?? "border-gray-200 text-gray-700 hover:bg-gray-50"}`}
                   >

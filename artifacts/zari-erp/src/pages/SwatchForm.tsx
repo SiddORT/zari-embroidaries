@@ -21,6 +21,10 @@ import { useAllFabrics } from "@/hooks/useFabrics";
 import { useUnitTypes, useSwatchCategories, useCreateSwatchCategory, useCreateUnitType } from "@/hooks/useLookups";
 import { useAllClients, type ClientRecord } from "@/hooks/useClients";
 import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
+import { MASTERS_SWATCHES } from "@/constants/permissions";
+import { useFormAccess } from "@/hooks/useFormAccess";
+import { FormAccessGate } from "@/components/FormAccessGate";
+
 const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
 const NUMERIC_REGEX = /^[0-9]+(\.[0-9]{1,2})?$/;
 
@@ -140,6 +144,7 @@ export default function SwatchForm() {
   const params = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canEdit } = useFormAccess(MASTERS_SWATCHES.BASE);
 
   // Detect create mode: either explicit /new route (params.id undefined) or path ends with /new
   const isNew = !params.id || currentPath.endsWith("/new");
@@ -380,15 +385,23 @@ export default function SwatchForm() {
             </button>
             <span className="text-gray-300">/</span>
             <h1 className="text-lg font-bold text-gray-900">
-              {isNew ? "New Swatch" : `Edit Swatch — ${existing?.swatchCode ?? ""}`}
+              {!canEdit ? (
+                `Swatch — ${existing?.swatchCode ?? ""}`
+              ) : isNew ? (
+                "New Swatch"
+              ) : (
+                `Edit Swatch — ${existing?.swatchCode ?? ""}`
+              )}
             </h1>
           </div>
+          <FormAccessGate readOnly={!canEdit}>
           <button type="button" onClick={handleSubmit} disabled={submitting}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
             style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {submitting ? "Saving…" : isNew ? "Create Swatch" : "Update Swatch"}
           </button>
+          </FormAccessGate>
         </div>
 
         {/* ── Form Card ── */}
@@ -398,6 +411,7 @@ export default function SwatchForm() {
           </div>
 
           <div className="p-6">
+            <FormAccessGate readOnly={!canEdit}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
               {/* Left: Fields (2/3) */}
@@ -633,6 +647,7 @@ export default function SwatchForm() {
 
               </div>
             </div>
+            </FormAccessGate>
 
             {/* ── Actions ── */}
             <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-100">
@@ -640,12 +655,14 @@ export default function SwatchForm() {
                 className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
+              <FormAccessGate readOnly={!canEdit}>
               <button type="button" onClick={handleSubmit} disabled={submitting}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-50 transition-all"
                 style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {submitting ? "Saving…" : (isNew ? "Create Swatch" : "Update Swatch")}
               </button>
+              </FormAccessGate>
             </div>
           </div>
         </div>

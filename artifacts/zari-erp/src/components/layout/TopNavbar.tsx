@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings, BarChart2, BookOpen } from "lucide-react";
+import { Menu, X, LogOut, Loader2, ChevronDown, Users, Settings, BarChart2 } from "lucide-react";
 import zariLogo from "@assets/zari-symbol_1779781911897.png";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 
 interface TopNavbarProps {
   username?: string;
@@ -53,6 +54,74 @@ const OPERATIONS_SECTIONS = [
     ],
   },
 ];
+
+const LOGISTICS_ITEMS = [
+  { label: "Shipments",     href: "/shipping" },
+  { label: "Packing Lists", href: "/logistics/packing-lists" },
+];
+
+const ACCOUNTS_ITEMS = [
+  { label: "Dashboard",            href: "/accounts/dashboard" },
+  { label: "Ledgers",              href: "/accounts/ledgers" },
+  { label: "Purchases",            href: "/accounts/purchases" },
+  { label: "Sales",                href: "/accounts/sales" },
+  { label: "Invoices",             href: "/accounts/invoices" },
+  { label: "Payments",             href: "/accounts/payments" },
+  { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
+  { label: "Other Expenses",       href: "/accounts/other-expenses" },
+];
+
+const HREF_PERMISSION_MAP: Record<string, string> = {
+  "/dashboard": "dashboard",
+  "/masters/hsn": "masters:hsn",
+  "/masters/materials": "masters:materials",
+  "/masters/fabric": "masters:fabric",
+  "/masters/clients": "masters:clients",
+  "/masters/vendors": "masters:vendors",
+  "/masters/style-categories": "masters:style_categories",
+  "/masters/swatch-categories": "masters:swatch_categories",
+  "/masters/swatches": "masters:swatches",
+  "/masters/styles": "masters:styles",
+  "/masters/item-types": "masters:item_types",
+  "/masters/items": "masters:items",
+  "/masters/departments": "masters:departments",
+  "/masters/unit-types": "masters:unit_types",
+  "/masters/shipping-vendors": "masters:shipping_vendors",
+  "/masters/packaging-materials": "masters:packaging_materials",
+
+  "/orders": "orders",
+  "/swatch-orders": "swatch_orders",
+  "/style-orders": "style_orders",
+
+  "/inventory/dashboard": "stock:dashboard",
+  "/inventory/items": "stock:items",
+  "/inventory/low-stock-alerts": "stock:low_stock",
+  "/inventory/ledger": "stock:ledger",
+  // "/inventory/reservations": "stock:reservations",
+  "/inventory/adjustments": "stock:adjustments",
+
+  "/procurement/vendor-challans": "procurement:vendor_challans",
+  "/procurement/purchase-orders": "stock:purchase_orders",
+  "/procurement/purchase-receipts": "stock:purchase_receipts",
+
+  "/shipping": "logistics:shipments",
+  "/logistics/packing-lists": "logistics:packing_lists",
+
+  "/accounts": "accounts:dashboard",
+  "/accounts/dashboard": "accounts:dashboard",
+  "/accounts/ledgers": "accounts:vendor_ledgers",
+  "/accounts/invoices": "accounts:invoices",
+  "/accounts/payments": "accounts:payments",
+  "/accounts/credit-debit-notes": "accounts:credit_debit_notes",
+  "/accounts/purchases": "accounts:purchases",
+  "/accounts/sales": "accounts:sales",
+  "/accounts/other-expenses": "accounts:other_expenses",
+
+  "/user-management": "user_management",
+  "/settings/reports": "reports",
+  "/settings": "settings",
+  "/quotation": "quotation",
+};
 
 const ALL_OPERATIONS_HREFS = OPERATIONS_SECTIONS.flatMap(s => s.items.map(i => i.href));
 
@@ -111,7 +180,8 @@ function readFreshCache(): ProfileSnapshot | null {
 }
 
 export default function TopNavbar({ username = "", role = "", onLogout = () => {}, isLoggingOut = false }: TopNavbarProps) {
-  const [location, navigate] = useLocation();
+  const [location] = useLocation();
+  const { can } = useMyPermissions();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mastersOpen, setMastersOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
@@ -149,6 +219,15 @@ export default function TopNavbar({ username = "", role = "", onLogout = () => {
   const accountsRef   = useRef<HTMLDivElement>(null);
   const profileRef    = useRef<HTMLDivElement>(null);
 
+  // Filter menu items by user permissions
+  const visibleMastersItems = MASTERS_ITEMS.filter(item => can(HREF_PERMISSION_MAP[item.href] || item.href));
+  const visibleOrdersItems = ORDERS_ITEMS.filter(item => can(HREF_PERMISSION_MAP[item.href] || item.href));
+  const visibleOperationsSections = OPERATIONS_SECTIONS.map(section => ({
+    ...section,
+    items: section.items.filter(item => can(HREF_PERMISSION_MAP[item.href] || item.href)),
+  })).filter(section => section.items.length > 0);
+  const visibleLogisticsItems = LOGISTICS_ITEMS.filter(item => can(HREF_PERMISSION_MAP[item.href] || item.href));
+  const visibleAccountsItems = ACCOUNTS_ITEMS.filter(item => can(HREF_PERMISSION_MAP[item.href] || item.href));
   const mastersActive    = location.startsWith("/masters");
   const ordersActive     = ORDERS_ITEMS.some(i => location === i.href || location.startsWith(i.href + "/"));
   const operationsActive = ALL_OPERATIONS_HREFS.some(h => location === h || location.startsWith(h + "/"));
@@ -231,187 +310,190 @@ export default function TopNavbar({ username = "", role = "", onLogout = () => {
           <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-end">
 
             {/* Dashboard */}
-            <Link href="/dashboard" className={navLink(location === "/dashboard")}>
-              Dashboard
-            </Link>
+            {can("dashboard") && (
+              <Link href="/dashboard" className={navLink(location === "/dashboard")}>
+                Dashboard
+              </Link>
+            )}
 
             {/* Masters */}
-            <div className="relative" ref={mastersRef}>
-              <button
-                onClick={() => setMastersOpen(v => !v)}
-                className={`flex items-center gap-1 ${navLink(mastersActive)}`}
-              >
-                Masters
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${mastersOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mastersOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50 grid grid-cols-2 gap-0.5">
-                  {MASTERS_ITEMS.map(({ label, href }) => {
-                    const active = location === href || (href === "/masters/hsn" && location === "/masters");
-                    return (
-                      <Link
-                        key={href}
-                        href={href}
-                        onClick={() => setMastersOpen(false)}
-                        className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                          active ? "text-gray-900 bg-gray-50 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                        }`}
-                      >
-                        {label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            {visibleMastersItems.length > 0 && (
+              <div className="relative" ref={mastersRef}>
+                <button
+                  onClick={() => setMastersOpen(v => !v)}
+                  className={`flex items-center gap-1 ${navLink(mastersActive)}`}
+                >
+                  Masters
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${mastersOpen ? "rotate-180" : ""}`} />
+                </button>
+                {mastersOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50 grid grid-cols-2 gap-0.5">
+                    {visibleMastersItems.map(({ label, href }) => {
+                      const active = location === href || (href === "/masters/hsn" && location === "/masters");
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setMastersOpen(false)}
+                          className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                            active ? "text-gray-900 bg-gray-50 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          {label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Orders */}
-            <div className="relative" ref={ordersRef}>
-              <button
-                onClick={() => setOrdersOpen(v => !v)}
-                className={`flex items-center gap-1 ${navLink(ordersActive)}`}
-              >
-                Orders
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${ordersOpen ? "rotate-180" : ""}`} />
-              </button>
-              {ordersOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
-                  {ORDERS_ITEMS.map(({ label, href }) => {
-                    const active = location === href || location.startsWith(href + "/");
-                    return (
+            {visibleOrdersItems.length > 0 && (
+              <div className="relative" ref={ordersRef}>
+                <button
+                  onClick={() => setOrdersOpen(v => !v)}
+                  className={`flex items-center gap-1 ${navLink(ordersActive)}`}
+                >
+                  Orders
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${ordersOpen ? "rotate-180" : ""}`} />
+                </button>
+                {ordersOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                    {visibleOrdersItems.map(({ label, href }) => {
+                      const active = location === href || location.startsWith(href + "/");
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setOrdersOpen(false)}
+                          className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                            active ? "text-gray-900 bg-gray-50 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          {label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Operations / Stock */}
+            {visibleOperationsSections.length > 0 && (
+              <div className="relative" ref={operationsRef}>
+                <button
+                  onClick={() => setOperationsOpen(v => !v)}
+                  className={`flex items-center gap-1 ${navLink(operationsActive)}`}
+                >
+                  Stock
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${operationsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {operationsOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-3 grid grid-cols-2 gap-x-6 gap-y-0 min-w-[320px]">
+                    {visibleOperationsSections.map(({ title, items }) => (
+                      <div key={title}>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-2 pb-1.5 pt-0.5">
+                          {title}
+                        </p>
+                        {items.map(({ label, href }) => {
+                          const active = location === href || location.startsWith(href + "/");
+                          return (
+                            <Link
+                              key={href}
+                              href={href}
+                              onClick={() => setOperationsOpen(false)}
+                              className={`block px-2 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                                active ? "text-gray-900 bg-gray-50 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                              }`}
+                            >
+                              {label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Quotation */}
+            {can("quotation") && (
+              <Link href="/quotation" className={navLink(location === "/quotation" || location.startsWith("/quotation/"))}>
+                Quotation
+              </Link>
+            )}
+
+            {/* Logistics */}
+            {visibleLogisticsItems.length > 0 && (
+              <div className="relative" ref={logisticsRef}>
+                <button
+                  onClick={() => setLogisticsOpen(v => !v)}
+                  className={`flex items-center gap-1 ${navLink(logisticsActive)}`}
+                >
+                  Logistics
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${logisticsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {logisticsOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+                    {visibleLogisticsItems.map(({ label, href }) => (
                       <Link
                         key={href}
                         href={href}
-                        onClick={() => setOrdersOpen(false)}
+                        onClick={() => setLogisticsOpen(false)}
                         className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                          active ? "text-gray-900 bg-gray-50 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          location === href || location.startsWith(href + "/")
+                            ? "text-gray-900 bg-gray-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                         }`}
                       >
                         {label}
                       </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Operations — mega dropdown with sections */}
-            <div className="relative" ref={operationsRef}>
-              <button
-                onClick={() => setOperationsOpen(v => !v)}
-                className={`flex items-center gap-1 ${navLink(operationsActive)}`}
-              >
-                Stock
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${operationsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {operationsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-3 grid grid-cols-2 gap-x-6 gap-y-0 min-w-[320px]">
-                  {OPERATIONS_SECTIONS.map(({ title, items }) => (
-                    <div key={title}>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-2 pb-1.5 pt-0.5">
-                        {title}
-                      </p>
-                      {items.map(({ label, href }) => {
-                        const active = location === href || location.startsWith(href + "/");
-                        return (
-                          <Link
-                            key={href}
-                            href={href}
-                            onClick={() => setOperationsOpen(false)}
-                            className={`block px-2 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                              active ? "text-gray-900 bg-gray-50 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                            }`}
-                          >
-                            {label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Accounts */}
+            {visibleAccountsItems.length > 0 && (
+              <div className="relative" ref={accountsRef}>
+                <button
+                  onClick={() => setAccountsOpen(v => !v)}
+                  className={`flex items-center gap-1 ${navLink(accountsActive)}`}
+                >
+                  Accounts
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {accountsOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50 grid grid-cols-2 gap-0.5">
+                    {visibleAccountsItems.map(({ label, href }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setAccountsOpen(false)}
+                        className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          location === href || location.startsWith(href + "/")
+                            ? "text-gray-900 bg-gray-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Quotation — direct link */}
-            <Link href="/quotation" className={navLink(location === "/quotation" || location.startsWith("/quotation/"))}>
-              Quotation
-            </Link>
-
-            {/* Logistics — dropdown */}
-            <div className="relative" ref={logisticsRef}>
-              <button
-                onClick={() => setLogisticsOpen(v => !v)}
-                className={`flex items-center gap-1 ${navLink(logisticsActive)}`}
-              >
-                Logistics
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${logisticsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {logisticsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
-                  {[
-                    { label: "Shipments",     href: "/shipping" },
-                    { label: "Packing Lists", href: "/logistics/packing-lists" },
-                  ].map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setLogisticsOpen(false)}
-                      className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        location === href || location.startsWith(href + "/")
-                          ? "text-gray-900 bg-gray-50 font-semibold"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Accounts — dropdown */}
-            <div className="relative" ref={accountsRef}>
-              <button
-                onClick={() => setAccountsOpen(v => !v)}
-                className={`flex items-center gap-1 ${navLink(accountsActive)}`}
-              >
-                Accounts
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {accountsOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50 grid grid-cols-2 gap-0.5">
-                  {[
-                    { label: "Dashboard",            href: "/accounts/dashboard" },
-                    { label: "Ledgers",              href: "/accounts/ledgers" },
-                    { label: "Purchases",            href: "/accounts/purchases" },
-                    { label: "Sales",                href: "/accounts/sales" },
-                    { label: "Invoices",             href: "/accounts/invoices" },
-                    { label: "Payments",             href: "/accounts/payments" },
-                    { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
-                    { label: "Other Expenses",       href: "/accounts/other-expenses" },
-
-                  ].map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setAccountsOpen(false)}
-                      className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        location === href || location.startsWith(href + "/")
-                          ? "text-gray-900 bg-gray-50 font-semibold"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Reports — direct link */}
-            <Link href="/settings/reports" className={navLink(reportsActive)}>
-              Reports
-            </Link>
+            {/* Reports */}
+            {can("reports") && (
+              <Link href="/settings/reports" className={navLink(reportsActive)}>
+                Reports
+              </Link>
+            )}
 
           </nav>
 
@@ -448,43 +530,47 @@ export default function TopNavbar({ username = "", role = "", onLogout = () => {
                         ? <img src={displayPhoto} alt={displayName} className="h-full w-full object-cover" />
                         : initials}
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
-                      {displayEmail && <p className="text-xs text-gray-500 truncate">{displayEmail}</p>}
-                      <p className="text-xs text-gray-400 capitalize">{displayRole}</p>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-semibold text-gray-900 truncate">{displayName || "User"}</span>
+                      {displayEmail && <span className="text-xs text-gray-500 truncate">{displayEmail}</span>}
+                      <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-max mt-1 capitalize">
+                        {displayRole || "Role"}
+                      </span>
                     </div>
                   </div>
+
                   <div className="p-1">
-                    <button
-                      onClick={() => { setProfileOpen(false); navigate("/settings"); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
-                    >
-                      <Settings className="h-4 w-4 text-gray-400 shrink-0" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => { setProfileOpen(false); navigate("/help"); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
-                    >
-                      <BookOpen className="h-4 w-4 text-gray-400 shrink-0" />
-                      User Manual
-                    </button>
-                    <button
-                      onClick={() => { setProfileOpen(false); navigate("/user-management"); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
-                    >
-                      <Users className="h-4 w-4 text-gray-400 shrink-0" />
-                      User Management
-                    </button>
-                    <div className="my-1 border-t border-gray-100" />
+                    {can("settings") && (
+                      <Link
+                        href="/settings"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <Settings className="h-4 w-4 text-gray-400" />
+                        Settings
+                      </Link>
+                    )}
+                    {can("user_management") && (
+                      <Link
+                        href="/user-management"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <Users className="h-4 w-4 text-gray-400" />
+                        User Management
+                      </Link>
+                    )}
+                  </div>
+
+                  <div className="p-1 border-t border-gray-100">
                     <button
                       onClick={() => { setProfileOpen(false); onLogout(); }}
                       disabled={isLoggingOut}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors text-left disabled:opacity-50"
+                      className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
                     >
                       {isLoggingOut
-                        ? <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                        : <LogOut className="h-4 w-4 shrink-0" />}
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <LogOut className="h-4 w-4 text-red-500" />}
                       Sign Out
                     </button>
                   </div>
@@ -492,11 +578,10 @@ export default function TopNavbar({ username = "", role = "", onLogout = () => {
               )}
             </div>
 
-            {/* Mobile menu toggle */}
+            {/* Mobile menu hamburger button */}
             <button
               onClick={() => setMobileOpen(v => !v)}
-              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-              aria-label="Toggle menu"
+              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -509,86 +594,33 @@ export default function TopNavbar({ username = "", role = "", onLogout = () => {
             <nav className="flex flex-col gap-1 mb-3">
 
               {/* Dashboard */}
-              <Link
-                href="/dashboard"
-                onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  location === "/dashboard" ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                Dashboard
-              </Link>
+              {can("dashboard") && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    location === "/dashboard" ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  Dashboard
+                </Link>
+              )}
 
               {/* Mobile Masters */}
-              <button
-                onClick={() => setMobileMastersOpen(v => !v)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                  mastersActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                Masters
-                <ChevronDown className={`h-4 w-4 transition-transform ${mobileMastersOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mobileMastersOpen && (
-                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
-                  {MASTERS_ITEMS.map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {/* Mobile Orders */}
-              <button
-                onClick={() => setMobileOrdersOpen(v => !v)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                  ordersActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <span>Orders</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${mobileOrdersOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mobileOrdersOpen && (
-                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
-                  {ORDERS_ITEMS.map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {/* Mobile Operations */}
-              <button
-                onClick={() => setMobileOperationsOpen(v => !v)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                  operationsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <span>Stock</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${mobileOperationsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mobileOperationsOpen && (
-                <div className="ml-4 flex flex-col gap-2 border-l-2 border-gray-100 pl-3 pt-1">
-                  {OPERATIONS_SECTIONS.map(({ title, items }) => (
-                    <div key={title}>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-3 pb-1">{title}</p>
-                      {items.map(({ label, href }) => (
+              {visibleMastersItems.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setMobileMastersOpen(v => !v)}
+                    className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                      mastersActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    Masters
+                    <ChevronDown className={`h-4 w-4 transition-transform ${mobileMastersOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileMastersOpen && (
+                    <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                      {visibleMastersItems.map(({ label, href }) => (
                         <Link
                           key={href}
                           href={href}
@@ -601,109 +633,179 @@ export default function TopNavbar({ username = "", role = "", onLogout = () => {
                         </Link>
                       ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
 
-              {/* Quotation — direct link */}
-              <Link
-                href="/quotation"
-                onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  location === "/quotation" || location.startsWith("/quotation/") ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                Quotation
-              </Link>
+              {/* Mobile Orders */}
+              {visibleOrdersItems.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setMobileOrdersOpen(v => !v)}
+                    className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                      ordersActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Orders</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${mobileOrdersOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileOrdersOpen && (
+                    <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                      {visibleOrdersItems.map(({ label, href }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setMobileOpen(false)}
+                          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                            location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Mobile Operations */}
+              {visibleOperationsSections.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setMobileOperationsOpen(v => !v)}
+                    className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                      operationsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Stock</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${mobileOperationsOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileOperationsOpen && (
+                    <div className="ml-4 flex flex-col gap-2 border-l-2 border-gray-100 pl-3 pt-1">
+                      {visibleOperationsSections.map(({ title, items }) => (
+                        <div key={title}>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-3 pb-1">{title}</p>
+                          {items.map(({ label, href }) => (
+                            <Link
+                              key={href}
+                              href={href}
+                              onClick={() => setMobileOpen(false)}
+                              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                                location === href ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                              }`}
+                            >
+                              {label}
+                            </Link>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Quotation */}
+              {can("quotation") && (
+                <Link
+                  href="/quotation"
+                  onClick={() => setMobileOpen(false)}
+                  className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    location === "/quotation" || location.startsWith("/quotation/") ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  Quotation
+                </Link>
+              )}
 
               {/* Mobile Logistics */}
-              <button
-                onClick={() => setMobileLogisticsOpen(v => !v)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                  logisticsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <span>Logistics</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${mobileLogisticsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mobileLogisticsOpen && (
-                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
-                  {[
-                    { label: "Shipments",     href: "/shipping" },
-                    { label: "Packing Lists", href: "/logistics/packing-lists" },
-                  ].map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
+              {visibleLogisticsItems.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setMobileLogisticsOpen(v => !v)}
+                    className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                      logisticsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Logistics</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${mobileLogisticsOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileLogisticsOpen && (
+                    <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                      {visibleLogisticsItems.map(({ label, href }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setMobileOpen(false)}
+                          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                            location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Mobile Accounts */}
-              <button
-                onClick={() => setMobileAccountsOpen(v => !v)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                  accountsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <span>Accounts</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${mobileAccountsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {mobileAccountsOpen && (
-                <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
-                  {[
-                    { label: "Dashboard",            href: "/accounts/dashboard" },
-                    { label: "Ledgers",              href: "/accounts/ledgers" },
-                    { label: "Purchases",            href: "/accounts/purchases" },
-                    { label: "Sales",                href: "/accounts/sales" },
-                    { label: "Invoices",             href: "/accounts/invoices" },
-                    { label: "Payments",             href: "/accounts/payments" },
-                    { label: "Credit / Debit Notes", href: "/accounts/credit-debit-notes" },
-                    { label: "Other Expenses",       href: "/accounts/other-expenses" },
-
-                  ].map(({ label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
+              {visibleAccountsItems.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setMobileAccountsOpen(v => !v)}
+                    className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                      accountsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Accounts</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${mobileAccountsOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileAccountsOpen && (
+                    <div className="ml-4 flex flex-col gap-0.5 border-l-2 border-gray-100 pl-3">
+                      {visibleAccountsItems.map(({ label, href }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setMobileOpen(false)}
+                          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                            location === href || location.startsWith(href + "/") ? "text-gray-900 font-semibold" : "text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Mobile Reports */}
-              <Link
-                href="/settings/reports"
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  reportsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <BarChart2 className="h-4 w-4" />
-                Reports
-              </Link>
+              {can("reports") && (
+                <Link
+                  href="/settings/reports"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    reportsActive ? "bg-gray-900 text-[#C9B45C]" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <BarChart2 className="h-4 w-4" />
+                  Reports
+                </Link>
+              )}
 
               <div className="mt-2 border-t border-gray-100 pt-2 flex flex-col gap-1">
-                <Link href="/settings" onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <Settings className="h-4 w-4 text-gray-400" /> Settings
-                </Link>
-                <Link href="/user-management" onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <Users className="h-4 w-4 text-gray-400" /> User Management
-                </Link>
+                {can("settings") && (
+                  <Link href="/settings" onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    <Settings className="h-4 w-4 text-gray-400" /> Settings
+                  </Link>
+                )}
+                {can("user_management") && (
+                  <Link href="/user-management" onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    <Users className="h-4 w-4 text-gray-400" /> User Management
+                  </Link>
+                )}
                 <button
                   onClick={() => { setMobileOpen(false); onLogout(); }}
                   disabled={isLoggingOut}

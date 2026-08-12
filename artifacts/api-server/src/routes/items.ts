@@ -3,6 +3,8 @@ import { Router, type IRouter } from "express";
 import { diceSimilarity } from "../lib/importHelpers";
 import { db, itemsTable, insertItemSchema, updateItemSchema , eq, ilike, and, desc, sql, ne} from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { checkPermission } from "../middlewares/checkPermission";
+import { MASTERS_ITEMS } from "../constants/permissions";
 import { logger } from "../lib/logger";
 import { nextSequenceNumber } from "../utils/sequence";
 import { persistImageArray } from "../utils/uploadHelper";
@@ -41,7 +43,7 @@ function computeStock(locationStocks: { location: string; stock: string }[]): st
 }
 
 /* ─── Export All ─────────────────────────────────────────────────── */
-router.get("/items/export-all", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/items/export-all", requireAuth, checkPermission(MASTERS_ITEMS.DOWNLOAD), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
 
@@ -57,7 +59,7 @@ router.get("/items/export-all", requireAuth, async (req: AuthRequest, res): Prom
 });
 
 /* ─── Import ─────────────────────────────────────────────────────── */
-router.post("/items/import", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/items/import", requireAuth, checkPermission(MASTERS_ITEMS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const { rows: rawRows } = req.body as { rows: Record<string, unknown>[] };
   if (!Array.isArray(rawRows) || rawRows.length === 0) {
     res.status(400).json({ error: "No rows provided." }); return;
@@ -136,7 +138,7 @@ router.post("/items/import", requireAuth, async (req: AuthRequest, res): Promise
 });
 
 /* ─── List ───────────────────────────────────────────────────────── */
-router.get("/items", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/items", requireAuth, checkPermission(MASTERS_ITEMS.VIEW), async (req: AuthRequest, res): Promise<void> => {
   const search = (req.query.search as string) ?? "";
   const status = (req.query.status as string) ?? "all";
   const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10));
@@ -159,7 +161,7 @@ router.get("/items", requireAuth, async (req: AuthRequest, res): Promise<void> =
 });
 
 /* ─── Create ─────────────────────────────────────────────────────── */
-router.post("/items", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/items", requireAuth, checkPermission(MASTERS_ITEMS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const bodyErr = validateItemPayload(req.body as Record<string, unknown>);
   if (bodyErr) { res.status(400).json({ error: bodyErr }); return; }
 
@@ -213,7 +215,7 @@ router.post("/items", requireAuth, async (req: AuthRequest, res): Promise<void> 
 });
 
 /* ─── Update ─────────────────────────────────────────────────────── */
-router.put("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.put("/items/:id", requireAuth, checkPermission(MASTERS_ITEMS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
@@ -272,7 +274,7 @@ router.put("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<voi
 });
 
 /* ─── Toggle Status ──────────────────────────────────────────────── */
-router.patch("/items/:id/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/items/:id/status", requireAuth, checkPermission(MASTERS_ITEMS.ADD_EDIT), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [existing] = await db.select().from(itemsTable)
@@ -286,7 +288,7 @@ router.patch("/items/:id/status", requireAuth, async (req: AuthRequest, res): Pr
 });
 
 /* ─── Delete ─────────────────────────────────────────────────────── */
-router.delete("/items/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/items/:id", requireAuth, checkPermission(MASTERS_ITEMS.DELETE), async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const updatedBy = req.user?.email ?? "system";

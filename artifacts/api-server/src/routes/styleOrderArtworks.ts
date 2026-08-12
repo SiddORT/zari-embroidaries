@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-// import { eq, and, desc, ilike } from "drizzle-orm";
 import { db, styleOrderArtworksTable, pool, eq, and, desc, ilike  } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { checkPermission } from "../middlewares/checkPermission";
+import { STYLE_ORDER_TABS, STYLE_ORDERS } from "../constants/permissions";
 
 const router: IRouter = Router();
 
@@ -21,7 +22,9 @@ async function generateCode(): Promise<string> {
 }
 
 // GET all artworks for a style order (optionally filtered by product)
-router.get("/style-order-artworks", requireAuth, async (req, res): Promise<void> => {
+router.get("/style-order-artworks", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.ARTWORKS, STYLE_ORDERS.VIEW] }), 
+  async (req, res): Promise<void> => {
   const { styleOrderId, styleOrderProductId } = req.query as Record<string, string>;
   if (!styleOrderId || isNaN(parseInt(styleOrderId))) {
     res.status(400).json({ error: "styleOrderId is required" });
@@ -46,7 +49,9 @@ router.get("/style-order-artworks", requireAuth, async (req, res): Promise<void>
 });
 
 // GET single artwork
-router.get("/style-order-artworks/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/style-order-artworks/:id", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.ARTWORKS, STYLE_ORDERS.VIEW] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.select().from(styleOrderArtworksTable).where(
@@ -57,7 +62,9 @@ router.get("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
 });
 
 // POST create
-router.post("/style-order-artworks", requireAuth, async (req, res): Promise<void> => {
+router.post("/style-order-artworks", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.ARTWORKS, STYLE_ORDERS.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const user = (req as typeof req & { user?: { email: string } }).user;
   const body = req.body as Record<string, unknown>;
 
@@ -105,7 +112,9 @@ router.post("/style-order-artworks", requireAuth, async (req, res): Promise<void
 });
 
 // PUT update
-router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<void> => {
+router.put("/style-order-artworks/:id", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.ARTWORKS, STYLE_ORDERS.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;
@@ -253,7 +262,9 @@ router.put("/style-order-artworks/:id", requireAuth, async (req, res): Promise<v
 });
 
 // DELETE (soft)
-router.delete("/style-order-artworks/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/style-order-artworks/:id", requireAuth, 
+  checkPermission({ any: [STYLE_ORDER_TABS.ARTWORKS, STYLE_ORDERS.DELETE] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const user = (req as typeof req & { user?: { email: string } }).user;

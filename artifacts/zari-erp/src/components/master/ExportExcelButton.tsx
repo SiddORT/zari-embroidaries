@@ -1,6 +1,7 @@
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { logDownload } from "@/utils/logDownload";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 
 export interface ExportColumn {
   key: string;
@@ -14,6 +15,7 @@ interface ExportExcelButtonProps {
   disabled?: boolean;
   module?: string;
   reference?: string;
+  permission?: string; // optional permission key to control visibility
 }
 
 export default function ExportExcelButton({
@@ -23,7 +25,13 @@ export default function ExportExcelButton({
   disabled = false,
   module = "",
   reference = "",
+  permission,
 }: ExportExcelButtonProps) {
+  const { can } = useMyPermissions();
+
+  // If a permission key is provided and user cannot, hide the button
+  if (permission && !can(permission)) return null;
+
   const handleExport = () => {
     const rows = data.map((row) =>
       Object.fromEntries(columns.map(({ key, label }) => [label, row[key] ?? ""]))

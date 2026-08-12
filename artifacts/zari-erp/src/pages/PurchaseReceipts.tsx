@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G     = "#C6AF4B";
 const G_DIM = "#A8943E";
@@ -54,6 +55,7 @@ function fmtDate(s: string) {
 export default function PurchaseReceipts() {
   const [, navigate] = useLocation();
   const { data: me, isError } = useGetMe();
+  const { canEdit, canDelete } = useFormAccessContext();
   const token   = localStorage.getItem("zarierp_token");
   const isAdmin = (me as { role?: string } | undefined)?.role === "admin";
   const queryClient = useQueryClient();
@@ -216,12 +218,14 @@ export default function PurchaseReceipts() {
             </div>
             <p className="text-sm text-gray-700 mt-0.5">All receipts from approved purchase orders</p>
           </div>
-          <button
-            onClick={() => navigate("/procurement/purchase-receipts/new")}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
-            <PackageCheck className="h-4 w-4" /> New Receipt
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => navigate("/procurement/purchase-receipts/new")}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ background: `linear-gradient(135deg, ${G}, ${G_DIM})` }}>
+              <PackageCheck className="h-4 w-4" /> New Receipt
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -391,13 +395,13 @@ export default function PurchaseReceipts() {
                             className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors">
                             <Eye className="h-3 w-3" /> View
                           </button>
-                          {pr.status !== "Cancelled" && (
+                          {pr.status !== "Cancelled" && canEdit && (
                             <button onClick={() => setCancelConfirm(pr)}
                               className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
                               <XCircle className="h-3 w-3" /> Cancel
                             </button>
                           )}
-                          {isAdmin && (
+                          {canDelete && (
                             <button onClick={() => setDeleteConfirm(pr)}
                               className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                               <Trash2 className="h-3.5 w-3.5" />

@@ -18,6 +18,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PRODUCT_STATUSES = ["Draft", "In Progress", "Completed", "On Hold", "Cancelled"];
@@ -330,6 +332,9 @@ export default function ProductsTab({
   const [newDeptName, setNewDeptName] = useState("");
   const [deptError, setDeptError]     = useState("");
 
+  // Permission Context
+  const { canEdit, canDelete } = useFormAccessContext();
+
   function set<K extends keyof ProductForm>(k: K, v: ProductForm[K]) {
     setForm(prev => ({ ...prev, [k]: v }));
   }
@@ -473,7 +478,7 @@ export default function ProductsTab({
             </button>
             <button
               onClick={() => { void handleSave(); }}
-              disabled={saving}
+              disabled={saving || !canEdit}
               className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -482,6 +487,7 @@ export default function ProductsTab({
           </div>
         </div>
 
+        <FormAccessGate readOnly={!canEdit}>
         {/* ── Card 1: Identity ─────────────────────────────────────────────── */}
         <SectionCard
           icon={<Package className="h-4 w-4 text-[#C9B45C]" />}
@@ -801,6 +807,7 @@ export default function ProductsTab({
             />
           </Field>
         </SectionCard>
+        </FormAccessGate>
 
         {/* Bottom save bar */}
         <div className="flex justify-end gap-3 pt-1 pb-4">
@@ -812,7 +819,7 @@ export default function ProductsTab({
           </button>
           <button
             onClick={() => { void handleSave(); }}
-            disabled={saving}
+            disabled={saving || !canEdit}
             className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -889,6 +896,7 @@ export default function ProductsTab({
 
           {/* Add Product button */}
           <button
+            disabled={!canEdit}
             onClick={openAdd}
             className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center font-medium"
           >
@@ -911,6 +919,7 @@ export default function ProductsTab({
                 Cancel
               </button>
               <button
+                disabled={!canDelete}
                 onClick={() => { void handleDelete(deleteConfirmId); }}
                 className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
               >
@@ -936,6 +945,7 @@ function ProductCard({
   onDelete: (id: number) => void;
   onCopy: (r: StyleOrderProductRecord) => void;
 }) {
+  const { canEdit, canDelete } = useFormAccessContext();
   return (
     <div className="bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-white transition-all">
       {/* Row 1: identity + badges + actions */}
@@ -965,6 +975,7 @@ function ProductCard({
         {/* Actions */}
         <div className="flex items-center gap-1 ml-1 shrink-0">
           <button
+            disabled={!canEdit}
             onClick={() => onCopy(p)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-[#8a7a30] hover:bg-[#fdf9ec] transition-colors"
             title="Duplicate product"
@@ -979,6 +990,7 @@ function ProductCard({
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
+            disabled={!canDelete}
             onClick={() => onDelete(p.id)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
             title="Remove product"

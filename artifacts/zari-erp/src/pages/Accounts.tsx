@@ -14,6 +14,7 @@ import {
   useAddInvoicePayment, useDeleteInvoicePayment,
   type AccountInvoice, type InvoicePayment,
 } from "../hooks/useInvoicePayments";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 import { useExchangeRates } from "@/hooks/useExchangeRates";
 
@@ -242,6 +243,7 @@ function PaymentsHistory({ invoiceId }: { invoiceId: number }) {
   const { data, isLoading } = useInvoicePaymentsList(invoiceId);
   const deletePmt = useDeleteInvoicePayment();
   const { toast } = useToast();
+  const {canDelete} = useFormAccessContext();
 
   const { fmt, fmt: dcFmtH } = useCurrency();
   const fmtH = (n: number | string | undefined | null) => dcFmtH(parseFloat(String(n ?? 0)));
@@ -283,7 +285,9 @@ function PaymentsHistory({ invoiceId }: { invoiceId: number }) {
             <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
             <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
             <th className="py-2 text-left font-semibold uppercase tracking-wide">By</th>
-            <th className="py-2 w-8"></th>
+            {canDelete && (
+              <th className="py-2 w-8"></th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -307,12 +311,14 @@ function PaymentsHistory({ invoiceId }: { invoiceId: number }) {
               </td>
               <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
               <td className="py-2 text-gray-400 max-w-[90px] truncate" title={p.created_by}>{p.created_by || "—"}</td>
-              <td className="py-2">
-                <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
-                  className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
-                  <Trash2 size={12} />
-                </button>
-              </td>
+              {canDelete && (
+                <td className="py-2">
+                  <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
+                    className="p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <Trash2 size={12} />
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -326,6 +332,7 @@ function InvoiceRow({
   inv, index, expanded, onToggle, onPay,
 }: { inv: AccountInvoice; index: number; expanded: boolean; onToggle: () => void; onPay: () => void }) {
   const { fmt } = useCurrency();
+  const {canEdit, canDelete} = useFormAccessContext();
   const direction = inv.invoice_direction;
   const pct = inv.total_amount > 0 ? Math.min(100, (inv.received_amount / inv.total_amount) * 100) : 0;
 
@@ -389,7 +396,7 @@ function InvoiceRow({
           ) : "—"}
         </td>
         <td className="px-4 py-3">
-          {inv.invoice_status !== "Paid" && inv.invoice_status !== "Cancelled" && (
+          {inv.invoice_status !== "Paid" && inv.invoice_status !== "Cancelled" && canEdit &&(
             <button onClick={onPay}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:opacity-90"
               style={{ backgroundColor: G }}>
@@ -430,6 +437,7 @@ export default function Accounts() {
   const [, setLocation] = useLocation();
   const { data: meData } = useMe();
   const { toast } = useToast();
+    const { canEdit } = useFormAccessContext();
 
   const [direction, setDirection] = useState("all");
   const [status, setStatus] = useState("all");
@@ -460,7 +468,8 @@ export default function Accounts() {
     setLocation("/login");
   }
 
-  const TABLE_HEADERS = ["#", "Invoice", "Party", "Type", "Total", "Received", "Pending", "Progress", "Status", "Date", "Due", "Pmts", "Action"];
+  let TABLE_HEADERS = ["#", "Invoice", "Party", "Type", "Total", "Received", "Pending", "Progress", "Status", "Date", "Due", "Pmts", "Action"];
+  TABLE_HEADERS = TABLE_HEADERS.filter((_, i) => !(i === 12 && !canEdit)); // Remove Action column if canEdit is false
 
   if (isLoading || isFetching) return (
     <div className="min-h-screen" style={{ background: "#F8F6F0" }}>

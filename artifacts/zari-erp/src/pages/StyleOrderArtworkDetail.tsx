@@ -19,6 +19,8 @@ import { useAllVendors, type VendorRecord } from "@/hooks/useVendors";
 import AddableSelect from "@/components/ui/AddableSelect";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const FEEDBACK_STATUSES = ["Pending", "In Review", "Approved", "Revision Required", "Rejected"];
@@ -178,6 +180,7 @@ export default function StyleOrderArtworkDetail() {
   const searchParams = new URLSearchParams(search);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { canEdit } = useFormAccessContext(); // Permission Context Permision Based On : style_orders
 
   const isNew      = id === "new";
   const numericId  = isNew ? null : parseInt(id);
@@ -367,7 +370,7 @@ export default function StyleOrderArtworkDetail() {
                 )}
               </div>
             </div>
-            <button onClick={() => { void handleSave(); }} disabled={saving}
+            <button onClick={() => { void handleSave(); }} disabled={saving || !canEdit}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shrink-0">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Saving…" : isViewMode ? "Save Changes" : "Save"}
@@ -376,6 +379,8 @@ export default function StyleOrderArtworkDetail() {
         </div>
 
         <div className="mt-5 space-y-5">
+
+          <FormAccessGate readOnly={!canEdit}>
 
           {/* Identity + Product assignment */}
           <SectionCard icon={<Palette className="h-4 w-4 text-[#C9B45C]" />}
@@ -619,6 +624,8 @@ export default function StyleOrderArtworkDetail() {
                 readOnly={isViewMode} />
             </Field>
           </SectionCard>
+          
+          </FormAccessGate>
 
           {/* Bottom save bar */}
           <div className="flex justify-end gap-3 pt-2 pb-4">
@@ -626,7 +633,7 @@ export default function StyleOrderArtworkDetail() {
               className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
               Cancel
             </button>
-            <button onClick={() => { void handleSave(); }} disabled={saving}
+            <button onClick={() => { void handleSave(); }} disabled={saving || !canEdit}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-[#C9B45C] text-sm font-medium hover:bg-black transition-colors disabled:opacity-60 shadow-sm">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Saving…" : isNew ? "Create Artwork" : "Save Changes"}

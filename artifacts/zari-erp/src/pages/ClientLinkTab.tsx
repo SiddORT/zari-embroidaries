@@ -3,7 +3,7 @@ import {
   Link2, Copy, Check, ExternalLink, Eye, EyeOff, RefreshCw,
   Globe, GlobeLock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Loader2, Send, Paperclip, X, CheckCheck, LockKeyhole, UnlockKeyhole,
-  MessageSquare, RotateCcw,
+  MessageSquare, RotateCcw, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -12,6 +12,7 @@ import {
   type ClientMessageRecord,
 } from "@/hooks/useClientLink";
 import { useArtworkList } from "@/hooks/useArtworks";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 interface FileAttachment { name: string; type: string; data: string; size: number }
 
@@ -39,23 +40,68 @@ function Lightbox({ images, startIndex, onClose }: { images: FileAttachment[]; s
   );
 }
 
-function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
+function ChatBubble({ 
+  msg, 
+  onPreview 
+}: { 
+  msg: ClientMessageRecord; 
+  onPreview: (attachment: FileAttachment) => void;
+}) {
   const isTeam = msg.sender === "team";
+
+  function handleDownload(e: React.MouseEvent, attachment: NonNullable<ClientMessageRecord["attachment"]>) {
+    e.stopPropagation();
+    const link = document.createElement("a");
+    link.href = attachment.data;
+    link.download = attachment.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <div className={`flex gap-2 ${isTeam ? "justify-end" : "justify-start"}`}>
       {!isTeam && (
-        <div className="h-7 w-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-gray-500">C</div>
+        <div className="h-7 w-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-gray-500">
+          C
+        </div>
       )}
       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 space-y-1.5 ${isTeam ? "bg-gray-900 text-white rounded-tr-sm" : "bg-gray-100 text-gray-900 rounded-tl-sm"}`}>
         {msg.message && <p className="text-sm leading-snug">{msg.message}</p>}
         {msg.attachment && (
-          <div className={`rounded-xl overflow-hidden border ${isTeam ? "border-white/10" : "border-gray-200"}`}>
+          <div className={`rounded-xl overflow-hidden border relative group ${isTeam ? "border-white/10" : "border-gray-200"}`}>
             {msg.attachment.type.startsWith("image/") ? (
-              <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[200px] object-cover" />
+              <div className="relative overflow-hidden">
+                <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-[200px] object-cover" />
+                
+                {/* Overlay with Preview and Download options */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onPreview(msg.attachment!)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                    title="Preview"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDownload(e, msg.attachment!)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             ) : (
-              <a href={msg.attachment.data} download={msg.attachment.name}
-                className={`flex items-center gap-2 px-3 py-2 text-xs hover:underline ${isTeam ? "text-[#C9B45C]" : "text-blue-600"}`}>
-                <Paperclip className="h-3.5 w-3.5" />{msg.attachment.name}
+              <a
+                href={msg.attachment.data}
+                download={msg.attachment.name}
+                className={`flex items-center gap-2 px-3 py-2 text-xs hover:underline ${isTeam ? "text-[#C9B45C]" : "text-blue-600"}`}
+              >
+                <Paperclip className="h-3.5 w-3.5" />
+                {msg.attachment.name}
               </a>
             )}
           </div>
@@ -66,20 +112,24 @@ function ChatBubble({ msg }: { msg: ClientMessageRecord }) {
         </p>
       </div>
       {isTeam && (
-        <div className="h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-[#C9B45C]">Z</div>
+        <div className="h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-[#C9B45C]">
+          Z
+        </div>
       )}
     </div>
   );
 }
 
-function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrderId, onLightbox }: {
+function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrderId, canEdit, onLightbox, onPreview }: {
   aw: { id: number; artworkCode: string; artworkName: string; wipImages: FileAttachment[]; finalImages: FileAttachment[] };
   messages: ClientMessageRecord[];
   isClosed: boolean;
   decision: "Approve" | "Rework" | null;
   linkId: number;
   swatchOrderId: number;
+  canEdit?: boolean;
   onLightbox: (artworkId: number, type: "wip" | "final", idx: number) => void;
+  onPreview: (attachment: FileAttachment) => void;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(!isClosed);
@@ -197,7 +247,7 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                 <p className="text-sm italic">No messages yet. Client will see your replies here.</p>
               </div>
             ) : (
-              messages.map(m => <ChatBubble key={m.id} msg={m} />)
+              messages.map(m => <ChatBubble key={m.id} msg={m} onPreview={onPreview} />)
             )}
           </div>
 
@@ -230,6 +280,7 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                   rows={2}
                   className="flex-1 text-sm text-gray-900 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 resize-none placeholder:text-gray-400"
                 />
+                <FormAccessGate readOnly={!canEdit}>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => fileRef.current?.click()}
                     className="flex items-center justify-center h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
@@ -243,8 +294,10 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                   </button>
                 </div>
                 <input ref={fileRef} type="file" className="hidden" onChange={pickFile} />
+                </FormAccessGate>
               </div>
               {/* Mark done */}
+              <FormAccessGate readOnly={!canEdit}>
               <div className="flex justify-end">
                 <button onClick={handleToggleClose} disabled={toggleThread.isPending}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-900 text-[#C9B45C] font-medium hover:bg-black transition-colors disabled:opacity-60">
@@ -252,6 +305,7 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
                   Mark Thread Done
                 </button>
               </div>
+              </FormAccessGate>
             </div>
           )}
         </div>
@@ -260,12 +314,13 @@ function ArtworkAccordion({ aw, messages, isClosed, decision, linkId, swatchOrde
   );
 }
 
-export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number }) {
+export default function ClientLinkTab({ swatchOrderId, canEdit }: { swatchOrderId: number; canEdit?: boolean }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<{ artworkId: number; type: "wip" | "final"; idx: number } | null>(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [showImageControls, setShowImageControls] = useState(false);
+  const [previewImage, setPreviewImage] = useState<FileAttachment | null>(null);
 
   const { data: link, isLoading: linkLoading } = useClientLink(swatchOrderId);
   const { data: artworks, isLoading: artworksLoading } = useArtworkList(swatchOrderId);
@@ -366,26 +421,28 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
               <ExternalLink className="h-4 w-4" /> Preview
             </a>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={togglePublish} disabled={updateLink.isPending}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 shadow-sm ${link?.isPublished ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-900 text-[#C9B45C] hover:bg-black"}`}>
-              {updateLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : link?.isPublished ? <GlobeLock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
-              {link?.isPublished ? "Unpublish" : "Publish Link"}
-            </button>
-            {!confirmRegen ? (
-              <button onClick={() => setConfirmRegen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                <RefreshCw className="h-4 w-4" /> Regenerate
+          <FormAccessGate readOnly={!canEdit}>
+            <div className="flex items-center gap-3">
+              <button onClick={togglePublish} disabled={updateLink.isPending}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 shadow-sm ${link?.isPublished ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-900 text-[#C9B45C] hover:bg-black"}`}>
+                {updateLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : link?.isPublished ? <GlobeLock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                {link?.isPublished ? "Unpublish" : "Publish Link"}
               </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-red-600 font-medium">Old link will stop working!</span>
-                <button onClick={handleRegenerate} disabled={regenLink.isPending} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-60">
-                  {regenLink.isPending ? "…" : "Confirm"}
+              {!confirmRegen ? (
+                <button onClick={() => setConfirmRegen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                  <RefreshCw className="h-4 w-4" /> Regenerate
                 </button>
-                <button onClick={() => setConfirmRegen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-600 font-medium">Old link will stop working!</span>
+                  <button onClick={handleRegenerate} disabled={regenLink.isPending} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-60">
+                    {regenLink.isPending ? "…" : "Confirm"}
+                  </button>
+                  <button onClick={() => setConfirmRegen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                </div>
+              )}
+            </div>
+          </FormAccessGate>
         </div>
       </div>
 
@@ -424,7 +481,9 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
                                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${hidden ? "border-red-200 opacity-40" : "border-gray-200 hover:border-[#C9B45C]"}`}>
                                   <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                 </button>
-                                <button onClick={() => toggleImage(aw.id, "wip", i)} title={hidden ? "Show" : "Hide"}
+                                <button 
+                                  disabled={!canEdit}
+                                  onClick={() => toggleImage(aw.id, "wip", i)} title={hidden ? "Show" : "Hide"}
                                   className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm text-[10px] transition-colors ${hidden ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-red-100"}`}>
                                   {hidden ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                                 </button>
@@ -446,7 +505,10 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
                                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${hidden ? "border-red-200 opacity-40" : "border-gray-200 hover:border-[#C9B45C]"}`}>
                                   <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
                                 </button>
-                                <button onClick={() => toggleImage(aw.id, "final", i)} title={hidden ? "Show" : "Hide"}
+                                
+                                <button 
+                                  disabled={!canEdit}
+                                  onClick={() => toggleImage(aw.id, "final", i)} title={hidden ? "Show" : "Hide"}
                                   className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm text-[10px] transition-colors ${hidden ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-red-100"}`}>
                                   {hidden ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                                 </button>
@@ -493,6 +555,8 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
                   linkId={link!.id}
                   swatchOrderId={swatchOrderId}
                   onLightbox={(artworkId, type, idx) => setLightbox({ artworkId, type, idx })}
+                  onPreview={(attachment) => setPreviewImage(attachment)} 
+                  canEdit={canEdit}
                 />
               );
             })}
@@ -507,6 +571,14 @@ export default function ClientLinkTab({ swatchOrderId }: { swatchOrderId: number
         const imgs = lightbox.type === "wip" ? aw.wipImages : aw.finalImages;
         return <Lightbox images={imgs} startIndex={lightbox.idx} onClose={() => setLightbox(null)} />;
       })()}
+
+      {previewImage && (
+        <Lightbox 
+          images={[previewImage]} 
+          startIndex={0} 
+          onClose={() => setPreviewImage(null)} 
+        />
+      )}
     </div>
   );
 }

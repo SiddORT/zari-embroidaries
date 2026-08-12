@@ -26,6 +26,7 @@ interface MasterTableProps {
   pagination: PaginationState;
   rowKey: (row: TableRow) => string | number;
   showSerial?: boolean;
+  showActions?: boolean;
 }
 
 export default function MasterTable({
@@ -36,13 +37,16 @@ export default function MasterTable({
   pagination,
   rowKey,
   showSerial = false,
+  showActions = true,
 }: MasterTableProps) {
   const { page, limit, total, onPageChange, onLimitChange } = pagination;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const start = total === 0 ? 0 : (page - 1) * limit + 1;
   const end = Math.min(page * limit, total);
   const serialStart = (page - 1) * limit + 1;
-  const totalCols = columns.length + (showSerial ? 1 : 0);
+
+  const visibleColumns = showActions ? columns : columns.filter((c) => c.key !== "actions");
+  const totalCols = visibleColumns.length + (showSerial ? 1 : 0);
 
   return (
     <div className="bg-white rounded-2xl border border-[#C6AF4B]/20 shadow-[0_2px_16px_rgba(198,175,75,0.10),0_1px_3px_rgba(0,0,0,0.05)] overflow-hidden">
@@ -55,7 +59,7 @@ export default function MasterTable({
                   Sr.
                 </th>
               )}
-              {columns.map((col) => (
+              {visibleColumns.map((col) => (
                 <th
                   key={col.key}
                   className={`px-4 py-3 align-middle text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap ${col.className ?? ""}`}
@@ -90,7 +94,7 @@ export default function MasterTable({
                       {serialStart + idx}
                     </td>
                   )}
-                  {columns.map((col) => (
+                  {visibleColumns.map((col) => (
                     <td key={col.key} className={`px-4 py-3 align-middle text-gray-700 ${col.className ?? ""}`}>
                       {col.render ? col.render(row) : String(row[col.key] ?? "")}
                     </td>

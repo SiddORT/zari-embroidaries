@@ -8,6 +8,8 @@ import * as XLSX from "xlsx";
 
 import AppLayout from "@/components/layout/AppLayout";
 import MasterHeader from "@/components/master/MasterHeader";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_ITEM_TYPES } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import MasterFormModal from "@/components/master/MasterFormModal";
@@ -86,6 +88,13 @@ export default function ItemTypeMaster() {
   const deleteMutation = useDeleteItemType();
   const importMutation = useImportItemTypes();
 
+  const { can } = useMyPermissions();
+  const canView = can(MASTERS_ITEM_TYPES.VIEW);
+  const canAddEdit = can(MASTERS_ITEM_TYPES.ADD_EDIT);
+  const canDelete = can(MASTERS_ITEM_TYPES.DELETE);
+  const canExport = can(MASTERS_ITEM_TYPES.DOWNLOAD);
+  const canImport = canAddEdit;
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) setImportMenuOpen(false);
@@ -94,8 +103,9 @@ export default function ItemTypeMaster() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  function openCreate() { setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
+  function openCreate() { if (!canAddEdit) return; setEditRecord(null); setForm(EMPTY_FORM); setErrors({}); setModalOpen(true); }
   function openEdit(r: ItemTypeMasterRecord) {
+    if (!canAddEdit && !canView) return;
     setEditRecord(r); setForm({ name: r.name, isActive: r.isActive }); setErrors({}); setModalOpen(true);
   }
 
@@ -210,7 +220,7 @@ export default function ItemTypeMaster() {
     { key: "name", label: "Item Type Name", render: (r) => <span className="font-medium text-gray-900">{asIT(r).name}</span> },
     {
       key: "isActive", label: "Status",
-      render: (r) => <StatusToggle isActive={asIT(r).isActive} onToggle={() => setConfirmToggleTarget(asIT(r))} loading={toggleMutation.isPending} />,
+      render: (r) => <StatusToggle isActive={asIT(r).isActive} onToggle={() => canAddEdit && setConfirmToggleTarget(asIT(r))} loading={toggleMutation.isPending} />,
     },
     { key: "createdBy", label: "Created By", render: (r) => <span className="text-gray-500">{asIT(r).createdBy}</span> },
     { key: "createdAt", label: "Created At", render: (r) => <span className="text-gray-500 whitespace-nowrap">{formatDate(asIT(r).createdAt)}</span> },
@@ -222,24 +232,30 @@ export default function ItemTypeMaster() {
         const rec = asIT(r);
         return (
           <div className="flex gap-2">
-            <button onClick={() => openEdit(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button onClick={() => setDeleteId(rec.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete">
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {canAddEdit && (
+              <button onClick={() => openEdit(rec)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={() => setDeleteId(rec.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         );
       },
     },
   ];
 
+  const filteredColumns = (canAddEdit || canDelete) ? columns : columns.filter((c) => c.key !== "actions");
+
   if (!user) return null;
 
   return (
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       <div className="max-w-screen-xl mx-auto space-y-5">
-        <MasterHeader title="Item Type Master" onAdd={openCreate} addLabel="Add Item Type" />
+        <MasterHeader title="Item Type Master" onAdd={openCreate} addLabel="Add Item Type" addPermission={MASTERS_ITEM_TYPES.ADD_EDIT} />
 
         <div className="space-y-3">
           <div className="flex gap-3">
@@ -248,46 +264,50 @@ export default function ItemTypeMaster() {
             </div>
 
             {/* Export All */}
-            <button
-              onClick={handleExportAll}
-              disabled={exportLoading || isLoading}
-              className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
-              title="Export all matching records to Excel"
-            >
-              <FileDown className="h-4 w-4 text-[#C9B45C]" />
-              {exportLoading ? "Exporting…" : "Export"}
-            </button>
+            {canExport && (
+              <button
+                onClick={handleExportAll}
+                disabled={exportLoading || isLoading}
+                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                title="Export all matching records to Excel"
+              >
+                <FileDown className="h-4 w-4 text-[#C9B45C]" />
+                {exportLoading ? "Exporting…" : "Export"}
+              </button>
+            )}
 
             {/* Import dropdown */}
-            <div className="relative" ref={importMenuRef}>
-              <button
-                onClick={() => setImportMenuOpen((v) => !v)}
-                disabled={importLoading}
-                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
-                {importLoading ? "Importing…" : "Import"}
-              </button>
-              {importMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
-                  <button
-                    onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
-                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <FileDown className="h-4 w-4 text-gray-400" />
-                    Download Sample
-                  </button>
-                  <button
-                    onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
-                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <FileUp className="h-4 w-4 text-gray-400" />
-                    Upload Excel
-                  </button>
-                </div>
-              )}
-              <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
-            </div>
+            {canImport && (
+              <div className="relative" ref={importMenuRef}>
+                <button
+                  onClick={() => setImportMenuOpen((v) => !v)}
+                  disabled={importLoading}
+                  className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
+                  {importLoading ? "Importing…" : "Import"}
+                </button>
+                {importMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                    <button
+                      onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileDown className="h-4 w-4 text-gray-400" />
+                      Download Sample
+                    </button>
+                    <button
+                      onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileUp className="h-4 w-4 text-gray-400" />
+                      Upload Excel
+                    </button>
+                  </div>
+                )}
+                <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+              </div>
+            )}
 
             {/* Status filter */}
             <select value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
@@ -298,7 +318,7 @@ export default function ItemTypeMaster() {
         </div>
 
         <MasterTable
-          columns={columns}
+          columns={filteredColumns}
           rows={rows}
           loading={isLoading}
           rowKey={(row) => (row as unknown as { id: number }).id}

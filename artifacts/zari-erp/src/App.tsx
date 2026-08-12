@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import NotFound from "@/pages/not-found";
 
 import Login from "@/pages/login";
@@ -106,79 +107,79 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/masters" component={MastersRedirect} />
-      <Route path="/masters/hsn" component={HSNMaster} />
-      <Route path="/masters/materials" component={MaterialsMaster} />
-      <Route path="/masters/fabric" component={FabricMaster} />
-      <Route path="/masters/clients/:id" component={ClientForm} />
-      <Route path="/masters/clients" component={ClientMaster} />
-      <Route path="/masters/vendors/:id" component={VendorForm} />
-      <Route path="/masters/vendors" component={VendorMaster} />
-      <Route path="/masters/style-categories" component={StyleCategoryMaster} />
-      <Route path="/masters/item-types" component={ItemTypeMaster} />
-      <Route path="/masters/items" component={ItemMaster} />
-      <Route path="/masters/swatch-categories" component={SwatchCategoryMaster} />
-      <Route path="/masters/departments" component={DepartmentMaster} />
-      <Route path="/masters/unit-types" component={UnitTypeMaster} />
-      <Route path="/masters/swatches/new" component={SwatchForm} />
-      <Route path="/masters/swatches/:id/edit" component={SwatchForm} />
-      <Route path="/masters/swatches" component={SwatchMaster} />
-      <Route path="/masters/styles/new" component={StyleForm} />
-      <Route path="/masters/styles/:id/edit" component={StyleForm} />
-      <Route path="/masters/styles" component={StyleMaster} />
-      <Route path="/masters/packaging-materials" component={PackagingMaterialsMaster} />
-      <Route path="/orders" component={Orders} />
-      <Route path="/orders/:id" component={OrderDetails} />
-      <Route path="/swatch-orders" component={SwatchOrders} />
-      <Route path="/swatch-orders/:swatchOrderId/artworks/:id" component={ArtworkDetail} />
-      <Route path="/swatch-orders/:id" component={SwatchOrderDetail} />
-      <Route path="/style-orders" component={StyleOrders} />
-      <Route path="/style-orders/:styleOrderId/artworks/:id" component={StyleOrderArtworkDetail} />
-      <Route path="/style-orders/:id" component={StyleOrderDetail} />
-      <Route path="/user-management" component={UserManagement} />
+      <ProtectedRoute path="/dashboard" component={Dashboard} permission="dashboard" />
+      <ProtectedRoute path="/masters" component={MastersRedirect} permission="masters:hsn" />
+      <ProtectedRoute path="/masters/hsn" component={HSNMaster} permission="masters:hsn" />
+      <ProtectedRoute path="/masters/materials" component={MaterialsMaster} permission="masters:materials" />
+      <ProtectedRoute path="/masters/fabric" component={FabricMaster} permission="masters:fabric" />
+      <ProtectedRoute path="/masters/clients/:id" component={ClientForm} permission="masters:clients" />
+      <ProtectedRoute path="/masters/clients" component={ClientMaster} permission="masters:clients" />
+      <ProtectedRoute path="/masters/vendors/:id" component={VendorForm} permission="masters:vendors" />
+      <ProtectedRoute path="/masters/vendors" component={VendorMaster} permission="masters:vendors" />
+      <ProtectedRoute path="/masters/style-categories" component={StyleCategoryMaster} permission="masters:style_categories" />
+      <ProtectedRoute path="/masters/item-types" component={ItemTypeMaster} permission="masters:item_types" />
+      <ProtectedRoute path="/masters/items" component={ItemMaster} permission="masters:items" />
+      <ProtectedRoute path="/masters/swatch-categories" component={SwatchCategoryMaster} permission="masters:swatch_categories" />
+      <ProtectedRoute path="/masters/departments" component={DepartmentMaster} permission="masters:departments" />
+      <ProtectedRoute path="/masters/unit-types" component={UnitTypeMaster} permission="masters:unit_types" />
+      <ProtectedRoute path="/masters/swatches/new" component={SwatchForm} permission="masters:swatches" />
+      <ProtectedRoute path="/masters/swatches/:id/edit" component={SwatchForm} permission="masters:swatches" />
+      <ProtectedRoute path="/masters/swatches" component={SwatchMaster} permission="masters:swatches" />
+      <ProtectedRoute path="/masters/styles/new" component={StyleForm} permission="masters:styles" />
+      <ProtectedRoute path="/masters/styles/:id/edit" component={StyleForm} permission="masters:styles" />
+      <ProtectedRoute path="/masters/styles" component={StyleMaster} permission="masters:styles" />
+      <ProtectedRoute path="/masters/packaging-materials" component={PackagingMaterialsMaster} permission="masters:packaging_materials" />
+      <ProtectedRoute path="/orders" component={Orders} permission="orders" />
+      <ProtectedRoute path="/orders/:id" component={OrderDetails} permission="orders" />
+      <ProtectedRoute path="/swatch-orders" component={SwatchOrders} permission="swatch_orders" />
+      <ProtectedRoute path="/swatch-orders/:swatchOrderId/artworks/:id" component={ArtworkDetail} permission="swatch_orders" />
+      <ProtectedRoute path="/swatch-orders/:id" component={SwatchOrderDetail} permission="swatch_orders" />
+      <ProtectedRoute path="/style-orders" component={StyleOrders} permission="style_orders" />
+      <ProtectedRoute path="/style-orders/:styleOrderId/artworks/:id" component={StyleOrderArtworkDetail} permission="style_orders" />
+      <ProtectedRoute path="/style-orders/:id" component={StyleOrderDetail} permission="style_orders" />
+      <ProtectedRoute path="/user-management" component={UserManagement} permission="user_management" />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/client/:token" component={ClientPortal} />
-      <Route path="/accounts/dashboard" component={AccountsDashboard} />
-      <Route path="/accounts" component={AccountsDashboard} />
-      <Route path="/accounts/ledgers" component={VendorLedgers} />
-      <Route path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} />
-      <Route path="/accounts/invoices/new" component={InvoiceForm} />
-      <Route path="/accounts/invoices/:id/edit" component={InvoiceForm} />
-      <Route path="/accounts/invoices/:id" component={InvoiceForm} />
-      <Route path="/accounts/invoices" component={InvoiceList} />
-      <Route path="/accounts/payments" component={Accounts} />
-      <Route path="/accounts/credit-debit-notes" component={CreditDebitNotes} />
-      <Route path="/accounts/purchases" component={AccountPurchases} />
-      <Route path="/accounts/sales" component={AccountSales} />
-      <Route path="/accounts/other-expenses" component={OtherExpenses} />
-      <Route path="/inventory/dashboard" component={InventoryDashboard} />
-      <Route path="/inventory/items" component={InventoryStockList} />
-      <Route path="/inventory/low-stock-alerts" component={LowStockAlerts} />
-      <Route path="/inventory/ledger" component={InventoryLedger} />
-      <Route path="/inventory/reservations" component={Reservations} />
-      <Route path="/inventory/adjustments" component={StockAdjustments} />
-      <Route path="/quotation/new" component={QuotationForm} />
-      <Route path="/quotation/:id/edit" component={QuotationForm} />
-      <Route path="/quotation/:id" component={QuotationDetail} />
-      <Route path="/quotation" component={QuotationList} />
-      <Route path="/inventory/purchase-receipts/:id" component={PurchaseReceiptForm} />
-      <Route path="/inventory/purchase-receipts" component={PurchaseReceipts} />
-      <Route path="/procurement/vendor-challans/new" component={VendorChallanDetail} />
-      <Route path="/procurement/vendor-challans/:id" component={VendorChallanDetail} />
-      <Route path="/procurement/vendor-challans" component={VendorChallans} />
-      <Route path="/procurement/purchase-orders/:id" component={PurchaseOrderForm} />
-      <Route path="/procurement/purchase-orders" component={PurchaseOrderList} />
-      <Route path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} />
-      <Route path="/procurement/purchase-receipts" component={PurchaseReceipts} />
-      <Route path="/shipping" component={ShippingList} />
-      <Route path="/logistics/packing-lists" component={PackingLists} />
-      <Route path="/logistics/packing-lists/new" component={PackingListForm} />
-      <Route path="/logistics/packing-lists/:id/edit" component={PackingListForm} />
-      <Route path="/logistics/packing-lists/:id" component={PackingListDetail} />
-      <Route path="/masters/shipping-vendors" component={ShippingVendors} />
-      <Route path="/settings/reports" component={Reports} />
-      <Route path="/settings" component={Settings} />
+      <ProtectedRoute path="/accounts/dashboard" component={AccountsDashboard} permission="accounts:dashboard" />
+      <ProtectedRoute path="/accounts" component={AccountsDashboard} permission="accounts:dashboard" />
+      <ProtectedRoute path="/accounts/ledgers" component={VendorLedgers} permission="accounts:vendor_ledgers" />
+      <ProtectedRoute path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} permission="accounts:vendor_ledgers" />
+      <ProtectedRoute path="/accounts/invoices/new" component={InvoiceForm} permission="accounts:invoices" />
+      <ProtectedRoute path="/accounts/invoices/:id/edit" component={InvoiceForm} permission="accounts:invoices" />
+      <ProtectedRoute path="/accounts/invoices/:id" component={InvoiceForm} permission="accounts:invoices" />
+      <ProtectedRoute path="/accounts/invoices" component={InvoiceList} permission="accounts:invoices" />
+      <ProtectedRoute path="/accounts/payments" component={Accounts} permission="accounts:payments" />
+      <ProtectedRoute path="/accounts/credit-debit-notes" component={CreditDebitNotes} permission="accounts:credit_debit_notes" />
+      <ProtectedRoute path="/accounts/purchases" component={AccountPurchases} permission="accounts:purchases" />
+      <ProtectedRoute path="/accounts/sales" component={AccountSales} permission="accounts:sales" />
+      <ProtectedRoute path="/accounts/other-expenses" component={OtherExpenses} permission="accounts:other_expenses" />
+      <ProtectedRoute path="/inventory/dashboard" component={InventoryDashboard} permission="stock:items" />
+      <ProtectedRoute path="/inventory/items" component={InventoryStockList} permission="stock:items" />
+      <ProtectedRoute path="/inventory/low-stock-alerts" component={LowStockAlerts} permission="stock:low_stock" />
+      <ProtectedRoute path="/inventory/ledger" component={InventoryLedger} permission="stock:ledger" />
+      {/* <ProtectedRoute path="/inventory/reservations" component={Reservations} permission="stock:reservations" /> // Since Reservations are not present in swatch ans style orders, this feature is disabled for now */}
+      <ProtectedRoute path="/inventory/adjustments" component={StockAdjustments} permission="stock:adjustments" />
+      <ProtectedRoute path="/quotation/new" component={QuotationForm} permission="quotation" />
+      <ProtectedRoute path="/quotation/:id/edit" component={QuotationForm} permission="quotation" />
+      <ProtectedRoute path="/quotation/:id" component={QuotationDetail} permission="quotation" />
+      <ProtectedRoute path="/quotation" component={QuotationList} permission="quotation" />
+      <ProtectedRoute path="/inventory/purchase-receipts/:id" component={PurchaseReceiptForm} permission="stock:purchase_receipts" />
+      <ProtectedRoute path="/inventory/purchase-receipts" component={PurchaseReceipts} permission="stock:purchase_receipts" />
+      <ProtectedRoute path="/procurement/vendor-challans/new" component={VendorChallanDetail} permission="procurement:vendor_challans" />
+      <ProtectedRoute path="/procurement/vendor-challans/:id" component={VendorChallanDetail} permission="procurement:vendor_challans" />
+      <ProtectedRoute path="/procurement/vendor-challans" component={VendorChallans} permission="procurement:vendor_challans" />
+      <ProtectedRoute path="/procurement/purchase-orders/:id" component={PurchaseOrderForm} permission="stock:purchase_orders" />
+      <ProtectedRoute path="/procurement/purchase-orders" component={PurchaseOrderList} permission="stock:purchase_orders" />
+      <ProtectedRoute path="/procurement/purchase-receipts/:id" component={PurchaseReceiptForm} permission="stock:purchase_receipts" />
+      <ProtectedRoute path="/procurement/purchase-receipts" component={PurchaseReceipts} permission="stock:purchase_receipts" />
+      <ProtectedRoute path="/shipping" component={ShippingList} permission="logistics:shipments" />
+      <ProtectedRoute path="/logistics/packing-lists" component={PackingLists} permission="logistics:packing_lists" />
+      <ProtectedRoute path="/logistics/packing-lists/new" component={PackingListForm} permission="logistics:packing_lists" />
+      <ProtectedRoute path="/logistics/packing-lists/:id/edit" component={PackingListForm} permission="logistics:packing_lists" />
+      <ProtectedRoute path="/logistics/packing-lists/:id" component={PackingListDetail} permission="logistics:packing_lists" />
+      <ProtectedRoute path="/masters/shipping-vendors" component={ShippingVendors} permission="masters:shipping_vendors" />
+      <ProtectedRoute path="/settings/reports" component={Reports} permission="reports" />
+      <ProtectedRoute path="/settings" component={Settings}/>
       <Route path="/help" component={UserManual} />
       <Route component={NotFound} />
     </Switch>

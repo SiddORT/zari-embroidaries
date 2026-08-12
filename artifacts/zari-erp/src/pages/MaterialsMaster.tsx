@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, Loader2, FileDown, FileUp, FileSpreadsheet, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, Eye, ImagePlus, X as XIcon, ZoomIn, ArrowLeft, Save, Loader2, FileDown, FileUp, FileSpreadsheet, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import { fileSrc } from "@/utils/mediaUrl";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,10 @@ import { useHSNList, useCreateHSN, type HsnFormData } from "@/hooks/useHSN";
 import { useAllVendors } from "@/hooks/useVendors";
 import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_MATERIALS } from "@/constants/permissions";
+import { useFormAccess } from "@/hooks/useFormAccess";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
 const NUMERIC_REGEX = /^[0-9]+(\.[0-9]{1,2})?$/;
@@ -141,6 +145,8 @@ export default function MaterialsMaster() {
   const toggleMutation = useToggleMaterialStatus();
   const deleteMutation = useDeleteMaterial();
   const importMutation = useImportMaterials();
+  const { can } = useMyPermissions();
+  const { canEdit } = useFormAccess(MASTERS_MATERIALS.BASE);
 
   const { data: allMaterialRecords = [] } = useAllMaterials();
   const { data: unitTypes = [] } = useUnitTypes();
@@ -178,6 +184,13 @@ export default function MaterialsMaster() {
   const [vendorPickerSearch, setVendorPickerSearch] = useState("");
   const vendorPickerRef = useRef<HTMLDivElement>(null);
 
+  const canView = can(MASTERS_MATERIALS.VIEW);
+  const canManage = can(MASTERS_MATERIALS.ADD_EDIT);
+  const canDelete = can(MASTERS_MATERIALS.DELETE);
+  const canExport = can(MASTERS_MATERIALS.DOWNLOAD);
+  const canImport = canManage;
+  const showActions = canView || canManage || canDelete;
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) setImportMenuOpen(false);
@@ -188,6 +201,7 @@ export default function MaterialsMaster() {
   }, []);
 
   const openAdd = () => {
+    if (!canManage) return;
     setEditRecord(null);
     setForm(EMPTY_FORM);
     setErrors({});
@@ -197,6 +211,7 @@ export default function MaterialsMaster() {
   };
 
   const openEdit = (r: MaterialRecord) => {
+    if (!canManage && !canView) return;
     setEditRecord(r);
     setForm({
       materialName: r.materialName ?? "",
@@ -553,12 +568,21 @@ export default function MaterialsMaster() {
       key: "actions", label: "Actions",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => openEdit(asMat(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button onClick={() => setDeleteTarget(asMat(r))} disabled={deleteMutation.isPending} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50" title="Delete">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {(canView || canManage) && (
+            <button onClick={() => openEdit(asMat(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="View">
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {canManage && (
+            <button onClick={() => openEdit(asMat(r))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Edit">
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={() => setDeleteTarget(asMat(r))} disabled={deleteMutation.isPending} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50" title="Delete">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -570,53 +594,55 @@ export default function MaterialsMaster() {
     <AppLayout username={user.username} role={user.role} onLogout={handleLogout} isLoggingOut={logoutMutation.isPending}>
       {viewMode === "list" && (
         <div className="max-w-screen-xl mx-auto space-y-5">
-          <MasterHeader title="Materials Master" onAdd={openAdd} addLabel="Add Material" />
+          <MasterHeader title="Materials Master" onAdd={openAdd} addLabel="Add Material" addPermission={MASTERS_MATERIALS.ADD_EDIT} />
 
           <div className="space-y-3">
             <div className="flex gap-3">
               <div className="flex-1">
                 <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by code, type, quality, color, HSN, vendor..." />
               </div>
-              {/* Export All */}
-              <button
-                onClick={handleExportAll}
-                disabled={exportLoading || isLoading}
-                className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
-                title="Export all matching records to Excel"
-              >
-                <FileDown className="h-4 w-4 text-[#C9B45C]" />
-                {exportLoading ? "Exporting…" : "Export"}
-              </button>
-              {/* Import dropdown */}
-              <div className="relative" ref={importMenuRef}>
+              {canExport && (
                 <button
-                  onClick={() => setImportMenuOpen((v) => !v)}
-                  disabled={importLoading}
+                  onClick={handleExportAll}
+                  disabled={exportLoading || isLoading}
                   className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                  title="Export all matching records to Excel"
                 >
-                  <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
-                  {importLoading ? "Importing…" : "Import"}
+                  <FileDown className="h-4 w-4 text-[#C9B45C]" />
+                  {exportLoading ? "Exporting…" : "Export"}
                 </button>
-                {importMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
-                    <button
-                      onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileDown className="h-4 w-4 text-gray-400" />
-                      Download Sample
-                    </button>
-                    <button
-                      onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileUp className="h-4 w-4 text-gray-400" />
-                      Upload Excel
-                    </button>
-                  </div>
-                )}
-                <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
-              </div>
+              )}
+              {canImport && (
+                <div className="relative" ref={importMenuRef}>
+                  <button
+                    onClick={() => setImportMenuOpen((v) => !v)}
+                    disabled={importLoading}
+                    className="flex items-center gap-2 rounded-lg border border-[#C9B45C]/50 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-[#C9B45C] hover:bg-amber-50/40 disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-[#C9B45C]" />
+                    {importLoading ? "Importing…" : "Import"}
+                  </button>
+                  {importMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                      <button
+                        onClick={() => { handleDownloadSample(); setImportMenuOpen(false); }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <FileDown className="h-4 w-4 text-gray-400" />
+                        Download Sample
+                      </button>
+                      <button
+                        onClick={() => { importInputRef.current?.click(); setImportMenuOpen(false); }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <FileUp className="h-4 w-4 text-gray-400" />
+                        Upload Excel
+                      </button>
+                    </div>
+                  )}
+                  <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2 items-center">
@@ -649,6 +675,7 @@ export default function MaterialsMaster() {
             loading={isLoading}
             rowKey={(r) => asMat(r).id}
             emptyText="No materials found. Click 'Add Material' to create one."
+            showActions={showActions}
             pagination={{ page, limit, total, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }}
           />
         </div>
@@ -667,378 +694,388 @@ export default function MaterialsMaster() {
               </button>
               <span className="text-gray-300">/</span>
               <h1 className="text-lg font-bold text-gray-900">
-                {editRecord ? `Edit Material — ${editRecord.materialCode}` : "Add Material"}
+                {!canEdit ? (
+                  `Material — ${editRecord?.materialCode ?? ""}`
+                ) : editRecord ? (
+                  `Edit Material — ${editRecord.materialCode}`
+                ) : (
+                  "Add Material"
+                )}
               </h1>
             </div>
-            <button type="button" onClick={handleSubmit} disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {submitting ? "Saving…" : editRecord ? "Save Changes" : "Create Material"}
-            </button>
+            <FormAccessGate readOnly={!canEdit}>
+              <button type="button" onClick={handleSubmit} disabled={submitting}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {submitting ? "Saving…" : editRecord ? "Save Changes" : "Create Material"}
+              </button>
+            </FormAccessGate>
           </div>
 
           {/* ── Two column grid ── */}
-          <div className="grid grid-cols-[1fr_380px] gap-5 items-start">
-            {/* ── Left column ── */}
-            <div className="space-y-5">
+          <FormAccessGate readOnly={!canEdit}>
+            <div className="grid grid-cols-[1fr_380px] gap-5 items-start">
+              {/* ── Left column ── */}
+              <div className="space-y-5">
 
-              {/* Basic Info */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Basic Information</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <InputField label="Material Name" required placeholder="e.g. Silk Thread"
-                    maxLength={100}
-                    value={form.materialName ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, materialName: e.target.value }))}
-                    error={errors.materialName} />
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Quality</label>
-                    <input value={form.quality} maxLength={50}
-                      onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
-                      placeholder="e.g. Premium"
-                      className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.quality ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.quality ? <p className="text-xs text-red-500">{errors.quality}</p> : <p className="text-[10px] text-gray-400">{form.quality.length} / 50 characters used</p>}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Type</label>
-                    <input value={form.type ?? ""} maxLength={50}
-                      onChange={(e) => setForm((f) => ({ ...f, type: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
-                      placeholder="e.g. Natural"
-                      className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.type ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.type ? <p className="text-xs text-red-500">{errors.type}</p> : <p className="text-[10px] text-gray-400">{(form.type ?? "").length} / 50 characters used</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Color */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Color</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-gray-700">Color Picker</label>
-                    <div className="flex gap-2 items-center">
-                      <input type="color" value={form.hexCode || "#c9b45c"}
-                        onChange={(e) => { const name = hexToColorName(e.target.value); setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: name })); }}
-                        className="h-10 w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0" />
-                      <input type="text" value={form.hexCode || ""} readOnly
-                        className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500" placeholder="#000000" />
+                {/* Basic Info */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Basic Information</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <InputField label="Material Name" required placeholder="e.g. Silk Thread"
+                      maxLength={100}
+                      value={form.materialName ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, materialName: e.target.value }))}
+                      error={errors.materialName} />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Quality</label>
+                      <input value={form.quality} maxLength={50}
+                        onChange={(e) => setForm((f) => ({ ...f, quality: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
+                        placeholder="e.g. Premium"
+                        className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.quality ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                      {errors.quality ? <p className="text-xs text-red-500">{errors.quality}</p> : <p className="text-[10px] text-gray-400">{form.quality.length} / 50 characters used</p>}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Type</label>
+                      <input value={form.type ?? ""} maxLength={50}
+                        onChange={(e) => setForm((f) => ({ ...f, type: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
+                        placeholder="e.g. Natural"
+                        className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.type ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                      {errors.type ? <p className="text-xs text-red-500">{errors.type}</p> : <p className="text-[10px] text-gray-400">{(form.type ?? "").length} / 50 characters used</p>}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Color Name<span className="text-red-500 ml-0.5">*</span></label>
-                    <input value={form.colorName} maxLength={50}
-                      onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
-                      placeholder="e.g. Royal Blue"
-                      className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.colorName ? <p className="text-xs text-red-500">{errors.colorName}</p> : <p className="text-[10px] text-gray-400">{form.colorName.length} / 50 characters used</p>}
+                </div>
+
+                {/* Color */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Color</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700">Color Picker</label>
+                      <div className="flex gap-2 items-center">
+                        <input type="color" value={form.hexCode || "#c9b45c"}
+                          onChange={(e) => { const name = hexToColorName(e.target.value); setForm((f) => ({ ...f, hexCode: e.target.value, color: e.target.value, colorName: name })); }}
+                          className="h-10 w-14 rounded-lg border border-gray-300 cursor-pointer p-0.5 shrink-0" />
+                        <input type="text" value={form.hexCode || ""} readOnly
+                          className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500" placeholder="#000000" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Color Name<span className="text-red-500 ml-0.5">*</span></label>
+                      <input value={form.colorName} maxLength={50}
+                        onChange={(e) => setForm((f) => ({ ...f, colorName: e.target.value.replace(/[^A-Za-z ]/g, "") }))}
+                        placeholder="e.g. Royal Blue"
+                        className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.colorName ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                      {errors.colorName ? <p className="text-xs text-red-500">{errors.colorName}</p> : <p className="text-[10px] text-gray-400">{form.colorName.length} / 50 characters used</p>}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Sizing & Pricing */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Sizing & Pricing</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Size<span className="text-red-500 ml-0.5">*</span></label>
-                    <input value={form.size} maxLength={6}
-                      onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
-                      onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))}
-                      placeholder="e.g. 5"
-                      className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.size ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.size && <p className="text-xs text-red-500">{errors.size}</p>}
-                  </div>
-                  <AddableSelect
-                    label="Unit Type" required value={form.unitType}
-                    onChange={(v) => setForm((f) => ({ ...f, unitType: v }))}
-                    onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
-                    addLabel="+ Add Unit Type"
-                    options={unitTypeOptions} placeholder="Select Unit Type" error={errors.unitType}
-                  />
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Unit Price<span className="text-red-500 ml-0.5">*</span></label>
-                    <input value={form.unitPrice} maxLength={10}
-                      onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
-                      onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
-                      placeholder="e.g. 250"
-                      className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.unitPrice ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.unitPrice && <p className="text-xs text-red-500">{errors.unitPrice}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* HSN & Tax */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">HSN & Tax</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <AddableSelect
-                    label="HSN Code" required value={form.hsnCode}
-                    onChange={(v) => {
-                      const hsn = hsnOptions.find((h) => h.hsnCode === v);
-                      setForm((f) => ({ ...f, hsnCode: v, gstPercent: hsn?.gstPercentage ?? f.gstPercent }));
-                    }}
-                    onAdd={() => { setHsnForm(EMPTY_HSN_FORM); setHsnErrors({}); setAddHSNOpen(true); }}
-                    addLabel="+ Add HSN"
-                    options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
-                  />
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-gray-700">GST %</label>
-                    <input type="text" readOnly value={form.gstPercent ? `${form.gstPercent}%` : ""}
-                      placeholder="Auto-filled from HSN"
-                      className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500" />
+                {/* Sizing & Pricing */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Sizing & Pricing</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Size<span className="text-red-500 ml-0.5">*</span></label>
+                      <input value={form.size} maxLength={6}
+                        onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
+                        onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))}
+                        placeholder="e.g. 5"
+                        className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.size ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                      {errors.size && <p className="text-xs text-red-500">{errors.size}</p>}
+                    </div>
+                    <AddableSelect
+                      label="Unit Type" required value={form.unitType}
+                      onChange={(v) => setForm((f) => ({ ...f, unitType: v }))}
+                      onAdd={() => { setNewUnitTypeName(""); setAddUnitTypeOpen(true); }}
+                      addLabel="+ Add Unit Type"
+                      options={unitTypeOptions} placeholder="Select Unit Type" error={errors.unitType}
+                    />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Unit Price<span className="text-red-500 ml-0.5">*</span></label>
+                      <input value={form.unitPrice} maxLength={10}
+                        onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
+                        onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
+                        placeholder="e.g. 250"
+                        className={`rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.unitPrice ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                      {errors.unitPrice && <p className="text-xs text-red-500">{errors.unitPrice}</p>}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Sourcing — Preferred Vendors */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Sourcing</p>
-                {(() => {
-                  return (
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-gray-700">Preferred Vendors</label>
-                      {selectedVendors.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-1">
-                          {selectedVendors.map((name) => (
-                            <span key={name} className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-[#C9B45C]/40 px-2.5 py-1 text-xs font-medium text-gray-700 max-w-[200px]" title={name}>
-                              <span className="truncate">{name}</span>
-                              <button type="button" onClick={() => removeVendor(name)}
-                                className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors leading-none shrink-0">
-                                <XIcon className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="relative" ref={vendorPickerRef}>
-                        <button type="button"
-                          onClick={() => { setVendorPickerOpen((v) => !v); setVendorPickerSearch(""); }}
-                          className="w-full flex items-center justify-between rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-500 shadow-sm outline-none transition hover:border-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
-                          <span>{selectedVendors.length === 0 ? "Select vendors…" : `${selectedVendors.length} selected`}</span>
-                          <svg className={`h-4 w-4 text-gray-400 transition-transform ${vendorPickerOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                        {vendorPickerOpen && (
-                          <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl border border-gray-100 bg-white shadow-lg overflow-hidden">
-                            <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
-                              <input autoFocus value={vendorPickerSearch}
-                                onChange={(e) => setVendorPickerSearch(e.target.value)}
-                                placeholder="Search vendors…"
-                                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-400" />
-                            </div>
-                            <div className="max-h-48 overflow-y-auto py-1">
-                              {availableVendors.length === 0 ? (
-                                <p className="px-4 py-3 text-sm text-gray-400 text-center">
-                                  {vendorPickerSearch ? "No vendors match your search" : "All vendors selected"}
-                                </p>
-                              ) : (
-                                availableVendors.map((name) => (
-                                  <button key={name} type="button"
-                                    onClick={() => { addVendor(name); setVendorPickerSearch(""); }}
-                                    className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-amber-50/60 hover:text-gray-900 transition-colors text-left truncate"
-                                    title={name}>
-                                    {name}
+                {/* HSN & Tax */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">HSN & Tax</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <AddableSelect
+                      label="HSN Code" required value={form.hsnCode}
+                      onChange={(v) => {
+                        const hsn = hsnOptions.find((h) => h.hsnCode === v);
+                        setForm((f) => ({ ...f, hsnCode: v, gstPercent: hsn?.gstPercentage ?? f.gstPercent }));
+                      }}
+                      onAdd={() => { setHsnForm(EMPTY_HSN_FORM); setHsnErrors({}); setAddHSNOpen(true); }}
+                      addLabel="+ Add HSN"
+                      options={hsnDropdownOptions} placeholder="Select HSN" error={errors.hsnCode}
+                    />
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-gray-700">GST %</label>
+                      <input type="text" readOnly value={form.gstPercent ? `${form.gstPercent}%` : ""}
+                        placeholder="Auto-filled from HSN"
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sourcing — Preferred Vendors */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B] mb-4">Sourcing</p>
+                  {(() => {
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium text-gray-700">Preferred Vendors</label>
+                        {selectedVendors.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-1">
+                            {selectedVendors.map((name) => (
+                              <span key={name} className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-[#C9B45C]/40 px-2.5 py-1 text-xs font-medium text-gray-700 max-w-[200px]" title={name}>
+                                <span className="truncate">{name}</span>
+                                <button type="button" onClick={() => removeVendor(name)}
+                                  className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors leading-none shrink-0">
+                                  <XIcon className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="relative" ref={vendorPickerRef}>
+                          <button type="button"
+                            onClick={() => { setVendorPickerOpen((v) => !v); setVendorPickerSearch(""); }}
+                            className="w-full flex items-center justify-between rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-500 shadow-sm outline-none transition hover:border-gray-400 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10">
+                            <span>{selectedVendors.length === 0 ? "Select vendors…" : `${selectedVendors.length} selected`}</span>
+                            <svg className={`h-4 w-4 text-gray-400 transition-transform ${vendorPickerOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          {vendorPickerOpen && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl border border-gray-100 bg-white shadow-lg overflow-hidden">
+                              <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
+                                <input autoFocus value={vendorPickerSearch}
+                                  onChange={(e) => setVendorPickerSearch(e.target.value)}
+                                  placeholder="Search vendors…"
+                                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-400" />
+                              </div>
+                              <div className="max-h-48 overflow-y-auto py-1">
+                                {availableVendors.length === 0 ? (
+                                  <p className="px-4 py-3 text-sm text-gray-400 text-center">
+                                    {vendorPickerSearch ? "No vendors match your search" : "All vendors selected"}
+                                  </p>
+                                ) : (
+                                  availableVendors.map((name) => (
+                                    <button key={name} type="button"
+                                      onClick={() => { addVendor(name); setVendorPickerSearch(""); }}
+                                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-amber-50/60 hover:text-gray-900 transition-colors text-left truncate"
+                                      title={name}>
+                                      {name}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                              {selectedVendors.length > 0 && (
+                                <div className="border-t border-gray-100 px-3 py-2">
+                                  <button type="button" onClick={() => { setForm((f) => ({ ...f, vendor: undefined })); setVendorPickerOpen(false); }}
+                                    className="text-xs text-red-400 hover:text-red-600 transition-colors">
+                                    Clear all
                                   </button>
-                                ))
+                                </div>
                               )}
                             </div>
-                            {selectedVendors.length > 0 && (
-                              <div className="border-t border-gray-100 px-3 py-2">
-                                <button type="button" onClick={() => { setForm((f) => ({ ...f, vendor: undefined })); setVendorPickerOpen(false); }}
-                                  className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                                  Clear all
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Stock by Location */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Stock by Location</span>
-                    {form.locationStocks.length > 0 && (
-                      <span className="text-xs text-gray-500">
-                        · Total: <span className="font-semibold text-gray-800">{totalStock} {form.unitType || "units"}</span>
-                      </span>
-                    )}
-                  </div>
-                  <button type="button" onClick={addLocationStock}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors">
-                    + Add Location
-                  </button>
-                </div>
-                {form.locationStocks.length === 0 ? (
-                  <div className="border-2 border-dashed border-indigo-100 rounded-xl py-7 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
-                    <p className="text-xs text-gray-400">No locations added yet. Click "+ Add Location" to track stock per warehouse.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {form.locationStocks.map((ls, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                        <select value={ls.location}
-                          onChange={(e) => updateLocationStock(idx, "location", e.target.value)}
-                          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
-                          <option value="">Select warehouse…</option>
-                          {locationOptions.map((l) => <option key={l} value={l}>{l}</option>)}
-                        </select>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
-                          <input type="number" min="0" placeholder="0" value={ls.stock}
-                            onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-") e.preventDefault(); }}
-                            onChange={(e) => updateLocationStock(idx, "stock", e.target.value)}
-                            className="w-28 rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
-                        </div>
-                        <button type="button" onClick={() => removeLocationStock(idx)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                          <XIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="border-t border-indigo-100 pt-2 flex justify-end">
-                      <span className="text-sm font-semibold text-gray-700">
-                        Total Stock: <span className="text-indigo-700">{totalStock} {form.unitType || "units"}</span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {form.locationStocks.length === 0 && (
-                  <div className="mt-3">
-                    <label className="text-sm font-medium text-gray-700">Current Stock<span className="text-red-500 ml-0.5">*</span></label>
-                    <input value={form.currentStock} maxLength={10}
-                      onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
-                      onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))}
-                      placeholder="e.g. 100"
-                      className={`mt-1 w-full rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.currentStock ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
-                    {errors.currentStock && <p className="text-xs text-red-500 mt-1">{errors.currentStock}</p>}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── Right column ── */}
-            <div className="space-y-5">
-
-              {/* Material Images */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Material Images</span>
-                    <span className="text-[10px] text-gray-400">{form.images.length}/5</span>
-                  </div>
-                  {form.images.length < 5 && (
-                    <button type="button" onClick={() => imgInputRef.current?.click()}
-                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-dashed border-[#C6AF4B] text-[#8a7a2e] hover:bg-[#C6AF4B]/10 transition-colors">
-                      <ImagePlus className="h-3.5 w-3.5" /> Add
-                    </button>
-                  )}
-                  <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageFiles(e.target.files)} />
-                </div>
-                {form.images.length === 0 ? (
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-10 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
-                    onClick={() => imgInputRef.current?.click()}>
-                    <ImagePlus className="h-8 w-8 text-gray-300" />
-                    <p className="text-xs text-gray-400 text-center">Click to add images<br />(JPG, PNG, WebP · max 3 MB)</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {form.images.map((img, imgIdx) => (
-                      <div key={img.id} className="relative group aspect-square rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-                        <img src={fileSrc(img)} alt={img.name} className="w-full h-full object-cover" />
-                        {imgIdx === 0 && (
-                          <div className="absolute top-1 left-1 bg-[#C6AF4B] rounded-full p-0.5 shadow" title="Thumbnail">
-                            <Star className="h-2.5 w-2.5 text-white fill-white" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-                          <button type="button" onClick={() => openCarousel(form.images, imgIdx)}
-                            className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors" title="View">
-                            <ZoomIn className="h-3 w-3 text-gray-700" />
-                          </button>
-                          {imgIdx !== 0 && (
-                            <button type="button" onClick={() => setAsThumbnail(img.id)}
-                              className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors" title="Set as thumbnail">
-                              <Star className="h-3 w-3 text-[#C6AF4B]" />
-                            </button>
                           )}
-                          <button type="button" onClick={() => removeImage(img.id)}
-                            className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors" title="Remove">
-                            <XIcon className="h-3 w-3 text-red-500" />
-                          </button>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })()}
+                </div>
+
+                {/* Stock by Location */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Stock by Location</span>
+                      {form.locationStocks.length > 0 && (
+                        <span className="text-xs text-gray-500">
+                          · Total: <span className="font-semibold text-gray-800">{totalStock} {form.unitType || "units"}</span>
+                        </span>
+                      )}
+                    </div>
+                    <button type="button" onClick={addLocationStock}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors">
+                      + Add Location
+                    </button>
+                  </div>
+                  {form.locationStocks.length === 0 ? (
+                    <div className="border-2 border-dashed border-indigo-100 rounded-xl py-7 text-center cursor-pointer hover:border-indigo-200 transition-colors" onClick={addLocationStock}>
+                      <p className="text-xs text-gray-400">No locations added yet. Click "+ Add Location" to track stock per warehouse.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.locationStocks.map((ls, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <select value={ls.location}
+                            onChange={(e) => updateLocationStock(idx, "location", e.target.value)}
+                            className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+                            <option value="">Select warehouse…</option>
+                            {locationOptions.map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs text-gray-500 whitespace-nowrap">Stock:</span>
+                            <input type="number" min="0" placeholder="0" value={ls.stock}
+                              onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-") e.preventDefault(); }}
+                              onChange={(e) => updateLocationStock(idx, "stock", e.target.value)}
+                              className="w-28 rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                          </div>
+                          <button type="button" onClick={() => removeLocationStock(idx)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                            <XIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="border-t border-indigo-100 pt-2 flex justify-end">
+                        <span className="text-sm font-semibold text-gray-700">
+                          Total Stock: <span className="text-indigo-700">{totalStock} {form.unitType || "units"}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {form.locationStocks.length === 0 && (
+                    <div className="mt-3">
+                      <label className="text-sm font-medium text-gray-700">Current Stock<span className="text-red-500 ml-0.5">*</span></label>
+                      <input value={form.currentStock} maxLength={10}
+                        onKeyDown={(e) => { if (e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault(); }}
+                        onChange={(e) => setForm((f) => ({ ...f, currentStock: e.target.value }))}
+                        placeholder="e.g. 100"
+                        className={`mt-1 w-full rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 ${errors.currentStock ? "border-red-400 bg-red-50/30" : "border-gray-300 bg-white"}`} />
+                      {errors.currentStock && <p className="text-xs text-red-500 mt-1">{errors.currentStock}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Right column ── */}
+              <div className="space-y-5">
+
+                {/* Material Images */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C6AF4B]">Material Images</span>
+                      <span className="text-[10px] text-gray-400">{form.images.length}/5</span>
+                    </div>
                     {form.images.length < 5 && (
                       <button type="button" onClick={() => imgInputRef.current?.click()}
-                        className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center hover:border-[#C6AF4B]/50 transition-colors">
-                        <ImagePlus className="h-5 w-5 text-gray-300" />
+                        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-dashed border-[#C6AF4B] text-[#8a7a2e] hover:bg-[#C6AF4B]/10 transition-colors">
+                        <ImagePlus className="h-3.5 w-3.5" /> Add
                       </button>
                     )}
+                    <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageFiles(e.target.files)} />
                   </div>
-                )}
-                <p className="text-[10px] text-gray-400 mt-2">First image is the thumbnail · Max 3 MB per image</p>
-              </div>
-
-              {/* Stock Control Thresholds */}
-              <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#B8A240" }}>Stock Control</p>
-                  <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">(Optional)</span>
+                  {form.images.length === 0 ? (
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center py-10 gap-2 cursor-pointer hover:border-[#C6AF4B]/50 transition-colors"
+                      onClick={() => imgInputRef.current?.click()}>
+                      <ImagePlus className="h-8 w-8 text-gray-300" />
+                      <p className="text-xs text-gray-400 text-center">Click to add images<br />(JPG, PNG, WebP · max 3 MB)</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {form.images.map((img, imgIdx) => (
+                        <div key={img.id} className="relative group aspect-square rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                          <img src={fileSrc(img)} alt={img.name} className="w-full h-full object-cover" />
+                          {imgIdx === 0 && (
+                            <div className="absolute top-1 left-1 bg-[#C6AF4B] rounded-full p-0.5 shadow" title="Thumbnail">
+                              <Star className="h-2.5 w-2.5 text-white fill-white" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                            <button type="button" onClick={() => openCarousel(form.images, imgIdx)}
+                              className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors" title="View">
+                              <ZoomIn className="h-3 w-3 text-gray-700" />
+                            </button>
+                            {imgIdx !== 0 && (
+                              <button type="button" onClick={() => setAsThumbnail(img.id)}
+                                className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors" title="Set as thumbnail">
+                                <Star className="h-3 w-3 text-[#C6AF4B]" />
+                              </button>
+                            )}
+                            <button type="button" onClick={() => removeImage(img.id)}
+                              className="p-1 rounded-full bg-white/90 hover:bg-white transition-colors" title="Remove">
+                              <XIcon className="h-3 w-3 text-red-500" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {form.images.length < 5 && (
+                        <button type="button" onClick={() => imgInputRef.current?.click()}
+                          className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center hover:border-[#C6AF4B]/50 transition-colors">
+                          <ImagePlus className="h-5 w-5 text-gray-300" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-2">First image is the thumbnail · Max 3 MB per image</p>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Minimum Level</label>
-                    <input type="number" min="0" placeholder="0" value={form.minimumLevel ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, minimumLevel: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
-                    {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
+
+                {/* Stock Control Thresholds */}
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#B8A240" }}>Stock Control</p>
+                    <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">(Optional)</span>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Reorder Level</label>
-                    <input type="number" min="0" placeholder="0" value={form.reorderLevel ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, reorderLevel: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
-                    {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Minimum Level</label>
+                      <input type="number" min="0" placeholder="0" value={form.minimumLevel ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, minimumLevel: e.target.value }))}
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
+                      {errors.minimumLevel && <p className="text-xs text-red-500">{errors.minimumLevel}</p>}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Reorder Level</label>
+                      <input type="number" min="0" placeholder="0" value={form.reorderLevel ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, reorderLevel: e.target.value }))}
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
+                      {errors.reorderLevel && <p className="text-xs text-red-500">{errors.reorderLevel}</p>}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-gray-700">Maximum Level</label>
+                      <input type="number" min="0" placeholder="0" value={form.maximumLevel ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, maximumLevel: e.target.value }))}
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
+                      {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Maximum Level</label>
-                    <input type="number" min="0" placeholder="0" value={form.maximumLevel ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, maximumLevel: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900" />
-                    {errors.maximumLevel && <p className="text-xs text-red-500">{errors.maximumLevel}</p>}
+                  <p className="text-[10px] text-gray-400 mt-3">Low Stock alert triggers when stock ≤ Reorder Level.</p>
+                </div>
+
+                {/* Status */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-700">Status</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{form.isActive ? "Visible and active in the system" : "Hidden from active lists"}</p>
+                    </div>
+                    <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
+                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
+                      role="switch" aria-checked={form.isActive}>
+                      <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-5" : "translate-x-0"}`} />
+                    </button>
+                    <span className={`text-sm font-medium min-w-[48px] ${form.isActive ? "text-emerald-600" : "text-gray-400"}`}>
+                      {form.isActive ? "Active" : "Inactive"}
+                    </span>
                   </div>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-3">Low Stock alert triggers when stock ≤ Reorder Level.</p>
-              </div>
 
-              {/* Status */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700">Status</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{form.isActive ? "Visible and active in the system" : "Hidden from active lists"}</p>
-                  </div>
-                  <button type="button" onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
-                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}
-                    role="switch" aria-checked={form.isActive}>
-                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${form.isActive ? "translate-x-5" : "translate-x-0"}`} />
-                  </button>
-                  <span className={`text-sm font-medium min-w-[48px] ${form.isActive ? "text-emerald-600" : "text-gray-400"}`}>
-                    {form.isActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
               </div>
-
             </div>
-          </div>
+          </FormAccessGate>
 
           {/* Bottom action bar */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-end gap-3">
@@ -1046,12 +1083,14 @@ export default function MaterialsMaster() {
               className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               Cancel
             </button>
-            <button type="button" onClick={handleSubmit} disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {submitting ? "Saving…" : editRecord ? "Save Changes" : "Create Material"}
-            </button>
+            <FormAccessGate readOnly={!canEdit}>
+              <button type="button" onClick={handleSubmit} disabled={submitting}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {submitting ? "Saving…" : editRecord ? "Save Changes" : "Create Material"}
+              </button>
+            </FormAccessGate>
           </div>
           </div>
         </div>

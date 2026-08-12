@@ -14,6 +14,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 import { useAllClients } from "@/hooks/useClients";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
@@ -66,6 +67,7 @@ export default function QuotationList() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canEdit, canDelete , canDownload} = useFormAccessContext(); // Permission Context
 
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
@@ -201,6 +203,7 @@ export default function QuotationList() {
             </div>
             <button
               onClick={() => navigate("/quotation/new")}
+              disabled={!canEdit}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition"
               style={{ background: G }}
             >
@@ -261,6 +264,7 @@ export default function QuotationList() {
                 <FileText size={36} strokeWidth={1.2} />
                 <p className="text-sm">No quotations found</p>
                 <button onClick={() => navigate("/quotation/new")}
+                  disabled={!canEdit}
                   className="mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: G }}>
                   Create First Quotation
                 </button>
@@ -293,11 +297,13 @@ export default function QuotationList() {
                             <Eye size={12} /> View
                           </button>
                           <button onClick={() => handleDownloadPdf(row.id)}
+                            disabled={!canDownload}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors border border-gray-100">
                             <FileDown size={13} />
                           </button>
                           {isAdmin && (
                             <button onClick={() => setDeleteId(row.id)}
+                              disabled={!canDelete}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
                               <Trash2 size={13} />
                             </button>
@@ -425,6 +431,7 @@ export default function QuotationList() {
                               {(row.status === "Draft" || row.status === "Revised") && (
                                 <button
                                   onClick={() => navigate(`/quotation/${row.id}/edit`)}
+                                  disabled={!canEdit}
                                   className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
                                   title="Edit"
                                 >
@@ -434,6 +441,7 @@ export default function QuotationList() {
                               {isAdmin && (
                                 <button
                                   onClick={() => setDeleteId(row.id)}
+                                  disabled={!canDelete}
                                   className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
                                   title="Delete"
                                 >
@@ -504,6 +512,7 @@ export default function QuotationList() {
                                                 </button>
                                                 <button
                                                   onClick={() => handleDownloadPdf(rev.id)}
+                                                  disabled={!canDownload}
                                                   className="p-1 rounded hover:bg-[#C6AF4B]/10 text-gray-500 hover:text-[#C6AF4B] transition"
                                                   title="Download PDF"
                                                 >
@@ -512,6 +521,7 @@ export default function QuotationList() {
                                                 {(rev.status === "Draft" || rev.status === "Revised") && (
                                                   <button
                                                     onClick={() => navigate(`/quotation/${rev.id}/edit`)}
+                                                    disabled={!canEdit}
                                                     className="p-1 rounded hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
                                                     title="Edit"
                                                   >
@@ -521,6 +531,7 @@ export default function QuotationList() {
                                                 {isAdmin && (
                                                   <button
                                                     onClick={() => setDeleteId(rev.id)}
+                                                    disabled={!canDelete}
                                                     className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
                                                     title="Delete"
                                                   >

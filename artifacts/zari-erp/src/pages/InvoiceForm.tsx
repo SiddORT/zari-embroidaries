@@ -8,6 +8,8 @@ import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 import type { PreviewInvoice } from "@/components/InvoicePreviewModal";
 import { useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
 import type { InvoicePayment } from "@/hooks/useInvoicePayments";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const G = "#C6AF4B";
 
@@ -119,17 +121,19 @@ function fmtDt(d: string | null | undefined) {
 }
 
 function InvoicePaymentsPanel({
-  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus,
+  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus, invoiceType,
   onStatusChange,
 }: {
   invoiceId: number; direction: string; totalAmount: number;
   currencyCode: string; exchangeRate: number; currentStatus: string;
+  invoiceType: string;
   onStatusChange: (status: string, received: number, pending: number) => void;
 }) {
   const { toast } = useToast();
   const { data, isLoading, refetch } = useInvoicePaymentsList(invoiceId);
   const addPmt   = useAddInvoicePayment();
   const deletePmt = useDeleteInvoicePayment();
+  const { canEdit, canDelete } = useFormAccessContext();
 
   const payments = data?.data ?? [];
   // Convert each payment's INR base back to invoice currency so comparisons stay in one currency
@@ -230,7 +234,7 @@ function InvoicePaymentsPanel({
             </div>
             <span className="text-[10px] text-gray-400 tabular-nums">{Math.round(pct)}%</span>
           </div>
-          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && pendingAmt > 0 && (
+          {currentStatus !== "Draft" && currentStatus !== "Cancelled" && invoiceType !== "Proforma" && pendingAmt > 0 && (
             <button onClick={openModal}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shrink-0"
               style={{ backgroundColor: G }}>
@@ -254,7 +258,7 @@ function InvoicePaymentsPanel({
             </div>
           ) : payments.length === 0 ? (
             <div className="py-6 text-center text-sm text-gray-400">
-              No payments recorded yet.{currentStatus !== "Draft" && currentStatus !== "Cancelled" && pendingAmt > 0 && <> Click <strong>Record Payment</strong> to add the first one.</>}
+              No payments recorded yet.{currentStatus !== "Draft" && currentStatus !== "Cancelled" && invoiceType !== "Proforma" && pendingAmt > 0 && <> Click <strong>Record Payment</strong> to add the first one.</>}
             </div>
           ) : (
             <table className="w-full text-xs">
@@ -266,7 +270,9 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
-                  <th className="py-2 w-6"></th>
+                  {canDelete && (
+                    <th className="py-2 w-6"></th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -290,12 +296,13 @@ function InvoicePaymentsPanel({
                       </span>
                     </td>
                     <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
+                    {canDelete && (
                     <td className="py-2">
                       <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
                         className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 size={11} />
                       </button>
-                    </td>
+                    </td>)}
                   </tr>
                   );
                 })}
@@ -405,6 +412,7 @@ export default function InvoiceForm() {
   const params = useParams<{ id?: string }>();
   const isEdit = !!params.id && params.id !== "new";
   const { toast } = useToast();
+  const { canEdit, canDelete, canDownload } = useFormAccessContext();
 
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -413,7 +421,7 @@ export default function InvoiceForm() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [refOrderOptions, setRefOrderOptions] = useState<{ value: string; label: string }[]>([]);
+  const [refOrderOptions, setRefOrderOptions] = useState<{ id: number; value: string; label: string }[]>([]);
   const [refOrdersLoading, setRefOrdersLoading] = useState(false);
   const [refOrderFullData, setRefOrderFullData] = useState<{ id: number; orderCode: string }[]>([]);
   const [loadingCostSheet, setLoadingCostSheet] = useState(false);
@@ -433,6 +441,8 @@ export default function InvoiceForm() {
     vendorId: "",
     referenceType: "Manual",
     referenceId: "",
+    swatchOrderId: "",
+    styleOrderId: "",
     currencyCode: "INR",
     exchangeRateSnapshot: "1",
     invoiceDate: new Date().toISOString().slice(0, 10),
@@ -547,7 +557,7 @@ export default function InvoiceForm() {
   useEffect(() => {
     if (form.referenceType !== "Swatch" && form.referenceType !== "Style") {
       setRefOrderOptions([]);
-      setRefOrderFullData([]);
+      setRefOrderFullData([]);          // keep this clean too
       return;
     }
     setRefOrdersLoading(true);
@@ -556,12 +566,20 @@ export default function InvoiceForm() {
       : "/api/style-orders?limit=200";
     customFetch<any>(endpoint).then(j => {
       const rows = j.data ?? [];
-      const opts = form.referenceType === "Swatch"
-        ? rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.swatchName ?? ""}`.trim() }))
-        : rows.map((r: any) => ({ value: r.orderCode, label: `${r.orderCode} — ${r.styleName ?? r.styleNo ?? ""}`.trim() }));
+      const opts = rows.map((r: any) => ({
+        id: r.id,
+        value: r.orderCode,
+        label: form.referenceType === "Swatch"
+          ? `${r.orderCode} — ${r.swatchName ?? ""}`.trim()
+          : `${r.orderCode} — ${r.styleName ?? r.styleNo ?? ""}`.trim()
+      }));
+
       setRefOrderOptions(opts);
       setRefOrderFullData(rows.map((r: any) => ({ id: r.id, orderCode: r.orderCode })));
-    }).catch(() => { setRefOrderOptions([]); setRefOrderFullData([]); }).finally(() => setRefOrdersLoading(false));
+    }).catch(() => {
+      setRefOrderOptions([]);
+      setRefOrderFullData([]);
+    }).finally(() => setRefOrdersLoading(false));
   }, [form.referenceType]);
 
   // Auto-set exchange rate when currency changes
@@ -593,6 +611,8 @@ export default function InvoiceForm() {
         vendorId: String(inv.vendorId ?? ""),
         referenceType: inv.referenceType ?? "Manual",
         referenceId: inv.referenceId ?? "",
+        swatchOrderId: inv.swatchOrderId ?? "",
+        styleOrderId: inv.styleOrderId ?? "",
         currencyCode: inv.currencyCode ?? "INR",
         exchangeRateSnapshot: String(inv.exchangeRateSnapshot ?? "1"),
         invoiceDate: (inv.invoiceDate ?? "").slice(0, 10),
@@ -824,6 +844,7 @@ export default function InvoiceForm() {
           </div>
         )}
 
+        <FormAccessGate readOnly={!canEdit}>
         <div className="grid grid-cols-3 gap-5">
           {/* LEFT — Main form */}
           <div className="col-span-2 space-y-5">
@@ -1016,8 +1037,20 @@ export default function InvoiceForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={lbl}>Reference Type</label>
-                  <select value={form.referenceType} onChange={e => setF("referenceType", e.target.value)} className={selClass}>
-                    {REF_TYPES.map(r => <option key={r}>{r}</option>)}
+                  <select
+                    value={form.referenceType}
+                    onChange={e => {
+                      setForm(f => ({
+                        ...f,
+                        referenceType: e.target.value,
+                        referenceId: "",
+                        swatchOrderId: "",
+                        styleOrderId: "",
+                      }));
+                    }}
+                    className={selClass}
+                  >                    
+                  {REF_TYPES.map(r => <option key={r}>{r}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1025,21 +1058,37 @@ export default function InvoiceForm() {
                   {(form.referenceType === "Swatch" || form.referenceType === "Style") ? (
                     <select
                       value={form.referenceId}
-                      onChange={e => setF("referenceId", e.target.value)}
+                      onChange={e => {
+                        const value = e.target.value;
+                        const selected = refOrderOptions.find(o => o.value === value);
+                        const dataId = selected ? String(selected.id) : "";
+                        setForm(f => ({
+                          ...f,
+                          referenceId: value,
+                          swatchOrderId: f.referenceType === "Swatch" ? dataId : "",
+                          styleOrderId: f.referenceType === "Style" ? dataId : "",
+                        }));
+                      }}
                       className={selClass}
-                      disabled={refOrdersLoading}
                     >
                       <option value="">
                         {refOrdersLoading ? "Loading…" : `— Select ${REF_LABELS[form.referenceType]} —`}
                       </option>
                       {refOrderOptions.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
+                        <option key={`${o.id}-${o.value}`} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   ) : (
                     <input
                       value={form.referenceId}
-                      onChange={e => setF("referenceId", e.target.value)}
+                      onChange={e => {
+                        setForm(f => ({
+                          ...f,
+                          referenceId: e.target.value,
+                          swatchOrderId: "",
+                          styleOrderId: "",
+                        }));
+                      }}
                       className={inp}
                       placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
                     />
@@ -1327,6 +1376,7 @@ export default function InvoiceForm() {
 
           </div>
         </div>
+        </FormAccessGate>
 
         {/* Line Items — full width */}
         <div className={`${card} overflow-hidden`}>
@@ -1342,7 +1392,7 @@ export default function InvoiceForm() {
                 />
                 Show HSN on printed invoice
               </label>
-              {(form.referenceType === "Swatch" || form.referenceType === "Style") && form.referenceId ? (
+              {(form.referenceType === "Swatch" || form.referenceType === "Style") && form.referenceId && canDownload ? (
                 <button
                   onClick={handleLoadFromCostSheet}
                   disabled={loadingCostSheet}
@@ -1353,7 +1403,7 @@ export default function InvoiceForm() {
                     : <><Download size={13} /> Load from Cost Sheet</>
                   }
                 </button>
-              ) : (
+              ) : canDownload && (
                 <button
                   disabled
                   title="Select a Swatch or Style reference first"
@@ -1362,13 +1412,15 @@ export default function InvoiceForm() {
                   <Download size={13} /> Load from Cost Sheet
                 </button>
               )}
-              <button
-                onClick={() => setItems(prev => [...prev, blank()])}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
-                style={{ color: G }}
-              >
+              {canEdit && (
+                <button
+                  onClick={() => setItems(prev => [...prev, blank()])}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 transition"
+                  style={{ color: G }}
+                >
                 <Plus size={13} /> Add Item
               </button>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -1384,7 +1436,9 @@ export default function InvoiceForm() {
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">GST Amt {sym}</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[9%]">Amount {sym}</th>
                   <th className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-gray-400 w-[10%]">Total w/ GST {sym}</th>
-                  <th className="w-[4%]"></th>
+                  { canDelete && (
+                    <th className="w-[4%]"></th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1408,6 +1462,7 @@ export default function InvoiceForm() {
                         <td className="px-3 py-2">
                           {it.category === "Fabric" ? (
                             <select
+                              disabled={!canEdit}
                               value={it.description}
                               onChange={e => {
                                 const label = e.target.value;
@@ -1431,6 +1486,7 @@ export default function InvoiceForm() {
                             </select>
                           ) : (it.category === "Material" || it.category === "Item") ? (
                             <select
+                              disabled={!canEdit}
                               value={it.description}
                               onChange={e => {
                                 const label = e.target.value;
@@ -1453,7 +1509,7 @@ export default function InvoiceForm() {
                               })}
                             </select>
                           ) : (
-                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
+                            <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} disabled={!canEdit} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
                           )}
                         </td>
                         {/* Category */}
@@ -1464,6 +1520,7 @@ export default function InvoiceForm() {
                               const cat = e.target.value;
                               setItems(prev => prev.map(x => x.id !== it.id ? x : { ...x, category: cat }));
                             }}
+                            disabled={!canEdit}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] cursor-pointer"
                           >
                             {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1476,6 +1533,7 @@ export default function InvoiceForm() {
                             value={it.quantity}
                             onChange={e => updateItem(it.id, "quantity", Math.max(0, parseFloat(e.target.value) || 0))}
                             onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault(); }}
+                            disabled={!canEdit}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
@@ -1486,12 +1544,14 @@ export default function InvoiceForm() {
                             value={parseFloat(toInvCcy(it.unitPrice).toFixed(2))}
                             onChange={e => updateItem(it.id, "unitPrice", Math.max(0, parseFloat(e.target.value) || 0) * rate)}
                             onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault(); }}
+                            disabled={!canEdit}
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
                         {/* HSN Code — pick from HSN master only */}
                         <td className="px-3 py-2">
                           <select
+                            disabled={!canEdit}
                             value={it.hsnCode}
                             onChange={e => {
                               const code = e.target.value;
@@ -1512,6 +1572,7 @@ export default function InvoiceForm() {
                         {/* GST % — derived from HSN, read-only */}
                         <td className="px-3 py-2">
                           <input
+                            disabled={!canEdit}
                             type="number"
                             value={it.hsnGstPct}
                             readOnly
@@ -1536,11 +1597,13 @@ export default function InvoiceForm() {
                           {toInvCcy(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
                         {/* Delete */}
+                        {canDelete && (
                         <td className="px-2 py-2">
                           <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
                             <Trash2 size={12} />
                           </button>
                         </td>
+                        )}
                       </tr>
                     </Fragment>
                   );
@@ -1577,6 +1640,7 @@ export default function InvoiceForm() {
             currencyCode={form.currencyCode}
             exchangeRate={parseFloat(form.exchangeRateSnapshot || "1")}
             currentStatus={form.invoiceStatus}
+            invoiceType={form.invoiceType}
             onStatusChange={(status, received, pending) => {
               setF("invoiceStatus", status);
               setF("receivedAmount", String(received));
@@ -1594,6 +1658,7 @@ export default function InvoiceForm() {
             Cancel
           </button>
           <div className="flex items-center gap-3">
+            {canEdit && (
             <button
               onClick={() => handleSave("Draft")}
               disabled={saving}
@@ -1602,12 +1667,14 @@ export default function InvoiceForm() {
               {saving ? <span className="h-3.5 w-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> : <FileText size={14} />}
               Save as Draft
             </button>
+            )}
             <button
               onClick={() => setShowPreview(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition"
             >
               <Eye size={14} /> Preview Invoice
             </button>
+            {canEdit && (
             <button
               onClick={() => handleSave()}
               disabled={saving}
@@ -1617,6 +1684,7 @@ export default function InvoiceForm() {
               {saving ? <span className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />}
               {isEdit ? "Save Changes" : "Generate Invoice"}
             </button>
+            )}
           </div>
         </div>
 
@@ -1638,7 +1706,15 @@ export default function InvoiceForm() {
             clientEmail: form.clientEmail,
             clientPhone: form.clientPhone,
             clientState: form.clientState,
-            items: items.map(i => ({ description: i.description, hsnCode: i.hsnCode, quantity: i.quantity, unit: i.unit, unitPrice: i.unitPrice, total: i.total })),
+            showHsnOnInvoice: showHsnOnInvoice,
+            items: items.map(i => ({
+              description: i.description,
+              hsnCode: showHsnOnInvoice ? i.hsnCode : "",
+              quantity: i.quantity,
+              unit: i.unit,
+              unitPrice: i.unitPrice,
+              total: i.total
+            })),
             cgstRate: parseFloat(form.cgstRate || "0"),
             sgstRate: parseFloat(form.sgstRate || "0"),
             discountType: form.discountType,

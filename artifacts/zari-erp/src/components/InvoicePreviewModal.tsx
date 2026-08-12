@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { X, Printer, Loader2 } from "lucide-react";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
 
 const G = "#C6AF4B";
 const CURRENCY_SYMBOLS: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "د.إ", SAR: "﷼" };
@@ -569,6 +570,7 @@ export default function InvoicePreviewModal({ invoiceId, formSnapshot, onClose }
   const [template, setTemplate] = useState<Template>({ layout: "classic", payment_terms: "", notes: "" });
   const [loading, setLoading] = useState(!formSnapshot);
   const printRef = useRef<HTMLDivElement>(null);
+    const { canDownload } = useFormAccessContext();
 
   useEffect(() => {
     async function load() {
@@ -682,6 +684,7 @@ export default function InvoicePreviewModal({ invoiceId, formSnapshot, onClose }
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 capitalize">{template.layout}</span>
           </div>
           <div className="flex items-center gap-2">
+            { canDownload && (
             <button
               onClick={handlePrint}
               disabled={loading || !inv}
@@ -690,7 +693,7 @@ export default function InvoicePreviewModal({ invoiceId, formSnapshot, onClose }
             >
               <Printer size={14} />
               Download / Print PDF
-            </button>
+            </button>)}
             <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
               <X size={18} />
             </button>

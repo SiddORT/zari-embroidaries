@@ -10,6 +10,8 @@ import { useAllClients } from "@/hooks/useClients";
 import { useUnitTypes } from "@/hooks/useLookups";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 const G = "#C6AF4B";
 const card = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
@@ -49,6 +51,7 @@ export default function QuotationForm() {
   const isEdit = !!id && id !== "new";
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canEdit, canDelete } = useFormAccessContext(); // Permission Context
 
   const token = localStorage.getItem("zarierp_token");
   const { data: user, isLoading: loadingUser } = useGetMe({ query: { enabled: !!token } as any });
@@ -293,482 +296,484 @@ export default function QuotationForm() {
           </div>
         </div>
 
-        {/* ─── Client Details ─────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Client Details</h2>
+        <FormAccessGate readOnly={!canEdit}>
+          {/* ─── Client Details ─────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Client Details</h2>
 
-          {/* Client Dropdown */}
-          <div className="max-w-md mb-4">
-            <label className={labelCls}>Select Client <span className="text-red-500 ml-0.5">*</span></label>
-            <select
-              className={inputCls}
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-            >
-              <option value="">— Select a client —</option>
-              {allClients.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.brandName} ({c.clientCode})
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* Client Dropdown */}
+            <div className="max-w-md mb-4">
+              <label className={labelCls}>Select Client <span className="text-red-500 ml-0.5">*</span></label>
+              <select
+                className={inputCls}
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+              >
+                <option value="">— Select a client —</option>
+                {allClients.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.brandName} ({c.clientCode})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Client Detail Card (read-only, shown after selection) */}
-          {/* {selectedClient && (
-            <div className="border border-[#C6AF4B]/20 rounded-xl bg-[#C6AF4B]/[0.04] p-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div>
-                  <p className="font-bold text-gray-900 text-base">{selectedClient.brandName}</p>
-                  <p className="text-xs text-gray-400 font-mono">{selectedClient.clientCode}</p>
-                </div>
-                {clientState && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    clientState.toLowerCase() === "maharashtra"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-indigo-100 text-indigo-700"
-                  }`}>
-                    {gstTaxType}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 text-sm">
-                <div className="flex items-start gap-2">
-                  <User size={13} className="text-gray-400 mt-0.5 shrink-0" />
+            {/* Client Detail Card (read-only, shown after selection) */}
+            {/* {selectedClient && (
+              <div className="border border-[#C6AF4B]/20 rounded-xl bg-[#C6AF4B]/[0.04] p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
                   <div>
-                    <p className="text-xs text-gray-400">Contact Person</p>
-                    <p className="font-medium text-gray-800">{selectedClient.contactName}</p>
+                    <p className="font-bold text-gray-900 text-base">{selectedClient.brandName}</p>
+                    <p className="text-xs text-gray-400 font-mono">{selectedClient.clientCode}</p>
                   </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400">Phone</p>
-                    <p className="font-medium text-gray-800">{selectedClient.contactNo}</p>
-                    {selectedClient.altContactNo && <p className="text-xs text-gray-500">{selectedClient.altContactNo}</p>}
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Mail size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400">Email</p>
-                    <p className="font-medium text-gray-800 break-all">{selectedClient.email}</p>
-                    {selectedClient.altEmail && <p className="text-xs text-gray-500 break-all">{selectedClient.altEmail}</p>}
-                  </div>
-                </div>
-                {clientState && (
-                  <div className="flex items-start gap-2">
-                    <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-400">State / City</p>
-                      <p className="font-medium text-gray-800">
-                        {[
-                          selectedClient.addresses?.find((a) => a.isBillingDefault)?.city ?? selectedClient.addresses?.[0]?.city,
-                          clientState,
-                        ].filter(Boolean).join(", ")}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {selectedClient.invoiceCurrency && (
-                  <div className="flex items-start gap-2">
-                    <CreditCard size={13} className="text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-400">Invoice Currency</p>
-                      <p className="font-medium text-gray-800">{selectedClient.invoiceCurrency}</p>
-                    </div>
-                  </div>
-                )}
-                {selectedClient.country && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-400 text-xs mt-0.5 shrink-0">🌐</span>
-                    <div>
-                      <p className="text-xs text-gray-400">Country</p>
-                      <p className="font-medium text-gray-800">{selectedClient.country}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )} */}
-        </div>
-
-        {/* ─── Requirement Details ────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Requirement Details</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <div className="col-span-2">
-              <label className={labelCls}>Requirement Summary</label>
-              <textarea rows={3} className={inputCls} placeholder="Brief description of the embroidery requirement…"
-                value={requirementSummary} onChange={(e) => setRequirementSummary(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelCls}>Estimated Weight (kg)</label>
-              <input type="number" min="0" step="0.01" className={inputCls}
-                onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-                value={estimatedWeight} onChange={numChange(setEstimatedWeight)} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Internal Notes</label>
-              <textarea rows={2} className={inputCls} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelCls}>Client Notes (visible to client)</label>
-              <textarea rows={2} className={inputCls} value={clientNotes} onChange={(e) => setClientNotes(e.target.value)} />
-            </div>
-          </div>
-        </div>
-
-        {/* ─── Designs / Reference Images ─────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Designs / Reference Images</h2>
-            <button onClick={() => setDesigns((prev) => [...prev, emptyDesign()])}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition">
-              <Plus size={13} /> Add Design
-            </button>
-          </div>
-          <div className="space-y-4">
-            {designs.map((d, i) => (
-              <div key={i} className="border border-gray-100 rounded-xl p-4 bg-gray-50/40">
-                <div className="flex items-start justify-between mb-3">
-                  <span className="text-xs font-semibold text-gray-500">Design {i + 1}</span>
-                  {designs.length > 1 && (
-                    <button onClick={() => setDesigns((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">
-                      <X size={14} />
-                    </button>
+                  {clientState && (
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      clientState.toLowerCase() === "maharashtra"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-indigo-100 text-indigo-700"
+                    }`}>
+                      {gstTaxType}
+                    </span>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className={labelCls}>Design Name <span className="text-red-500 ml-0.5">*</span></label>
-                    <input type="text" className={inputCls} placeholder="e.g. Floral Embroidery on Kurta"
-                      value={d.designName}
-                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designName: e.target.value } : x))} />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <User size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">Contact Person</p>
+                      <p className="font-medium text-gray-800">{selectedClient.contactName}</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className={labelCls}>HSN Code</label>
-                    <select className={inputCls} value={d.hsnCode}
-                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
-                      <option value="">— Select HSN —</option>
-                      {allHsn.map((h) => (
-                        <option key={h.id} value={h.hsnCode}>
-                          {h.hsnCode}{h.govtDescription ? ` — ${h.govtDescription.length > 40 ? h.govtDescription.slice(0, 40) + "…" : h.govtDescription}` : ""} ({h.gstPercentage}%)
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex items-start gap-2">
+                    <Phone size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">Phone</p>
+                      <p className="font-medium text-gray-800">{selectedClient.contactNo}</p>
+                      {selectedClient.altContactNo && <p className="text-xs text-gray-500">{selectedClient.altContactNo}</p>}
+                    </div>
                   </div>
-                  <div className="sm:col-span-3">
-                    <label className={labelCls}>Remarks</label>
-                    <input type="text" className={inputCls} placeholder="Additional notes about this design"
-                      value={d.remarks}
-                      onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, remarks: e.target.value } : x))} />
+                  <div className="flex items-start gap-2">
+                    <Mail size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">Email</p>
+                      <p className="font-medium text-gray-800 break-all">{selectedClient.email}</p>
+                      {selectedClient.altEmail && <p className="text-xs text-gray-500 break-all">{selectedClient.altEmail}</p>}
+                    </div>
                   </div>
-                  <div className="sm:col-span-3">
-                    <label className={labelCls}>Reference Image</label>
-                    {d.designImage ? (
-                      <div className="flex items-center gap-3">
-                        <img src={d.designImage} alt="design" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
-                        <button onClick={() => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designImage: "" } : x))}
-                          className="text-red-400 hover:text-red-600 text-xs">
-                          Remove
-                        </button>
+                  {clientState && (
+                    <div className="flex items-start gap-2">
+                      <MapPin size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-400">State / City</p>
+                        <p className="font-medium text-gray-800">
+                          {[
+                            selectedClient.addresses?.find((a) => a.isBillingDefault)?.city ?? selectedClient.addresses?.[0]?.city,
+                            clientState,
+                          ].filter(Boolean).join(", ")}
+                        </p>
                       </div>
-                    ) : (
-                      <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 cursor-pointer hover:bg-[#C6AF4B]/5 text-sm text-gray-500 w-fit">
-                        <Upload size={14} />
-                        <span>Upload Image</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleDesignImage(i, e)} />
-                      </label>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {selectedClient.invoiceCurrency && (
+                    <div className="flex items-start gap-2">
+                      <CreditCard size={13} className="text-gray-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-400">Invoice Currency</p>
+                        <p className="font-medium text-gray-800">{selectedClient.invoiceCurrency}</p>
+                      </div>
+                    </div>
+                  )}
+                  {selectedClient.country && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-400 text-xs mt-0.5 shrink-0">🌐</span>
+                      <div>
+                        <p className="text-xs text-gray-400">Country</p>
+                        <p className="font-medium text-gray-800">{selectedClient.country}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── Custom Charges ──────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Custom Charges</h2>
-            <button onClick={() => setCharges((prev) => [...prev, emptyCharge()])}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition">
-              <Plus size={13} /> Add Charge
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[680px]">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2">Charge Name</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-44">HSN Code</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-24">Unit</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-20">Qty</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-28">Price</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 pb-2 w-24">Amount</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {charges.map((c, i) => {
-                  const amt = (parseFloat(c.quantity) || 0) * (parseFloat(c.price) || 0);
-                  return (
-                    <tr key={i} className="border-b border-gray-50">
-                      <td className="pr-2 py-1.5">
-                        <input type="text" className={inputCls} placeholder="e.g. Embroidery Charges"
-                          value={c.chargeName}
-                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, chargeName: e.target.value } : x))} />
-                      </td>
-                      <td className="pr-2 py-1.5">
-                        <select className={inputCls} value={c.hsnCode}
-                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
-                          <option value="">— HSN —</option>
-                          {allHsn.map((h) => (
-                            <option key={h.id} value={h.hsnCode}>
-                              {h.hsnCode} ({h.gstPercentage}%)
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="pr-2 py-1.5">
-                        <select className={inputCls} value={c.unit}
-                          onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))}>
-                          <option value="">— Unit —</option>
-                          {unitOptions.map((u) => (
-                            <option key={u} value={u}>{u}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="pr-2 py-1.5">
-                        <input type="number" min="0" step="0.01" className={inputCls} value={c.quantity}
-                          onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-                          onChange={(e) => {
-                            let v = e.target.value;
-                            if (v && parseFloat(v) < 0) v = "0";
-                            setCharges((p) => p.map((x, j) => j === i ? { ...x, quantity: v } : x));
-                          }} />
-                      </td>
-                      <td className="pr-2 py-1.5">
-                        <input type="number" min="0" step="0.01" className={inputCls} value={c.price}
-                          onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-                          onChange={(e) => {
-                            let v = e.target.value;
-                            if (v && parseFloat(v) < 0) v = "0";
-                            setCharges((p) => p.map((x, j) => j === i ? { ...x, price: v } : x));
-                          }} />
-                      </td>
-                      <td className="text-right py-1.5 font-semibold text-gray-800">{fmt(amt)}</td>
-                      <td className="py-1.5 pl-2">
-                        {charges.length > 1 && (
-                          <button onClick={() => setCharges((p) => p.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            )} */}
           </div>
 
-          {/* Shipping */}
-          <div className="flex justify-end mt-4">
-            <div className="flex items-end gap-3">
-              <div className="w-36">
-                <label className={labelCls}>Weight (kg)</label>
+          {/* ─── Requirement Details ────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <h2 className="text-sm font-bold mb-4 uppercase tracking-wide" style={{ color: G }}>Requirement Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div className="col-span-2">
+                <label className={labelCls}>Requirement Summary</label>
+                <textarea rows={3} className={inputCls} placeholder="Brief description of the embroidery requirement…"
+                  value={requirementSummary} onChange={(e) => setRequirementSummary(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Estimated Weight (kg)</label>
                 <input type="number" min="0" step="0.01" className={inputCls}
                   onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
                   value={estimatedWeight} onChange={numChange(setEstimatedWeight)} />
               </div>
-              <div className="w-36">
-                <label className={labelCls}>Rate / kg</label>
-                <input type="number" min="0" step="0.01" className={inputCls}
-                  onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-                  value={shippingRatePerKg} onChange={numChange(setShippingRatePerKg)} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Internal Notes</label>
+                <textarea rows={2} className={inputCls} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
               </div>
-              <div className="w-36">
-                <label className={labelCls}>Shipping Total</label>
-                <div className="px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 text-gray-700 font-semibold">
-                  {fmt(estimatedShippingCharges)}
-                </div>
+              <div>
+                <label className={labelCls}>Client Notes (visible to client)</label>
+                <textarea rows={2} className={inputCls} value={clientNotes} onChange={(e) => setClientNotes(e.target.value)} />
               </div>
             </div>
           </div>
 
-          {/* Totals */}
-          <div className="mt-4 border-t border-gray-100 pt-4">
-            <div className="flex flex-col items-end gap-2 text-sm">
-              <div className="flex justify-between w-72">
-                <span className="text-gray-700 font-medium">Subtotal</span>
-                <span className="font-semibold text-gray-900">{fmt(subtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between w-72 gap-2">
-                <div className="flex items-center gap-2 flex-1">
-                  <select
-                    className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-900 font-medium"
-                    value={gstTaxType} onChange={(e) => setGstTaxType(e.target.value)}>
-                    <option value="GST">GST</option>
-                    <option value="CGST+SGST">CGST+SGST</option>
-                    <option value="IGST">IGST</option>
-                  </select>
-                  <div className="flex items-center gap-1">
-                    <input type="number" min="0" max="100" step="0.01"
-                      className="w-16 text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-900"
-                      onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
-                      value={gstRate} onChange={numChange(setGstRate)} />
-                    <span className="text-gray-700 text-xs">%</span>
-                  </div>
-                </div>
-                <span className="font-semibold text-gray-900">{fmt(gstAmount)}</span>
-              </div>
-              <div className="flex justify-between w-72">
-                <span className="text-gray-700 font-medium">Shipping</span>
-                <span className="font-semibold text-gray-900">{fmt(shipping)}</span>
-              </div>
-              <div className="flex justify-between w-72 pt-1 border-t border-gray-200 mt-1">
-                <span className="font-bold text-gray-900">Total</span>
-                <span className="font-bold text-[#C6AF4B] text-lg">{fmt(total)}</span>
-              </div>
+          {/* ─── Designs / Reference Images ─────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Designs / Reference Images</h2>
+              <button onClick={() => setDesigns((prev) => [...prev, emptyDesign()])}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition">
+                <Plus size={13} /> Add Design
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* ─── Cover Page ──────────────────────────────────────────────────── */}
-        <div className={`${card} p-5`}>
-          <h2 className="text-sm font-bold uppercase tracking-wide mb-4" style={{ color: G }}>Cover Page Style</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {[
-              {
-                id: "classic",
-                label: "Classic",
-                preview: (
-                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
-                    <div className="h-8 w-full" style={{ background: "#C6AF4B" }} />
-                    <div className="p-1.5 space-y-1">
-                      <div className="h-1.5 w-3/4 rounded bg-gray-300" />
-                      <div className="h-1.5 w-1/2 rounded bg-gray-200" />
-                      <div className="h-1.5 w-2/3 rounded bg-gray-200" />
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: "modern",
-                label: "Modern",
-                preview: (
-                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
-                    <div className="h-20 w-full flex flex-col justify-end p-2" style={{ background: "linear-gradient(135deg,#1a1a2e 60%,#C6AF4B)" }}>
-                      <div className="h-1.5 w-3/4 rounded bg-white/60 mb-1" />
-                      <div className="h-1 w-1/2 rounded bg-white/30" />
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: "corporate",
-                label: "Corporate",
-                preview: (
-                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
-                    <div className="h-10 w-full bg-gray-900 flex items-center px-2">
-                      <div className="h-2 w-2 rounded-full bg-[#C6AF4B] mr-1.5" />
-                      <div className="h-1.5 w-1/2 rounded bg-white/50" />
-                    </div>
-                    <div className="p-1.5 space-y-1 bg-gray-50">
-                      <div className="h-1.5 w-3/4 rounded bg-gray-300" />
-                      <div className="h-1.5 w-1/2 rounded bg-gray-200" />
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: "minimal",
-                label: "Minimal",
-                preview: (
-                  <div className="h-20 rounded-lg overflow-hidden border border-gray-100 bg-white flex flex-col items-center justify-center gap-1.5 p-2">
-                    <div className="h-1.5 w-12 rounded bg-gray-800" />
-                    <div className="h-px w-16 bg-[#C6AF4B]" />
-                    <div className="h-1 w-8 rounded bg-gray-300" />
-                    <div className="h-1 w-10 rounded bg-gray-200" />
-                  </div>
-                ),
-              },
-              {
-                id: "custom",
-                label: "Custom Image",
-                preview: (
-                  <div className="h-20 rounded-lg overflow-hidden border border-dashed border-[#C6AF4B]/60 bg-[#C6AF4B]/5 flex flex-col items-center justify-center gap-1">
-                    {coverPageImage ? (
-                      <img src={coverPageImage} alt="cover" className="h-full w-full object-cover" />
-                    ) : (
-                      <>
-                        <Upload size={18} className="text-[#C6AF4B]" />
-                        <span className="text-[10px] text-gray-500">Upload image</span>
-                      </>
+            <div className="space-y-4">
+              {designs.map((d, i) => (
+                <div key={i} className="border border-gray-100 rounded-xl p-4 bg-gray-50/40">
+                  <div className="flex items-start justify-between mb-3">
+                    <span className="text-xs font-semibold text-gray-500">Design {i + 1}</span>
+                    {designs.length > 1 && (
+                      <button onClick={() => setDesigns((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">
+                        <X size={14} />
+                      </button>
                     )}
                   </div>
-                ),
-              },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setCoverPage(opt.id)}
-                className={`rounded-xl border-2 p-2 text-left transition focus:outline-none ${
-                  coverPage === opt.id
-                    ? "border-[#C6AF4B] shadow-md"
-                    : "border-gray-200 hover:border-[#C6AF4B]/40"
-                }`}
-              >
-                {opt.preview}
-                <p className={`text-xs font-semibold mt-2 text-center ${coverPage === opt.id ? "text-[#C6AF4B]" : "text-gray-600"}`}>
-                  {opt.label}
-                </p>
-              </button>
-            ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className={labelCls}>Design Name <span className="text-red-500 ml-0.5">*</span></label>
+                      <input type="text" className={inputCls} placeholder="e.g. Floral Embroidery on Kurta"
+                        value={d.designName}
+                        onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designName: e.target.value } : x))} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>HSN Code</label>
+                      <select className={inputCls} value={d.hsnCode}
+                        onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
+                        <option value="">— Select HSN —</option>
+                        {allHsn.map((h) => (
+                          <option key={h.id} value={h.hsnCode}>
+                            {h.hsnCode}{h.govtDescription ? ` — ${h.govtDescription.length > 40 ? h.govtDescription.slice(0, 40) + "…" : h.govtDescription}` : ""} ({h.gstPercentage}%)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className={labelCls}>Remarks</label>
+                      <input type="text" className={inputCls} placeholder="Additional notes about this design"
+                        value={d.remarks}
+                        onChange={(e) => setDesigns((p) => p.map((x, j) => j === i ? { ...x, remarks: e.target.value } : x))} />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className={labelCls}>Reference Image</label>
+                      {d.designImage ? (
+                        <div className="flex items-center gap-3">
+                          <img src={d.designImage} alt="design" className="h-16 w-16 object-cover rounded-lg border border-gray-200" />
+                          <button onClick={() => setDesigns((p) => p.map((x, j) => j === i ? { ...x, designImage: "" } : x))}
+                            className="text-red-400 hover:text-red-600 text-xs">
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 cursor-pointer hover:bg-[#C6AF4B]/5 text-sm text-gray-500 w-fit">
+                          <Upload size={14} />
+                          <span>Upload Image</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleDesignImage(i, e)} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {coverPage === "custom" && (
-            <div className="mt-4">
-              <label className={labelCls}>Cover Page Image</label>
-              <div className="flex items-start gap-4">
-                <label className="flex flex-col items-center justify-center w-40 h-28 rounded-xl border-2 border-dashed border-[#C6AF4B]/50 bg-[#C6AF4B]/5 cursor-pointer hover:bg-[#C6AF4B]/10 transition">
-                  <Upload size={20} className="text-[#C6AF4B] mb-1" />
-                  <span className="text-xs text-gray-500 text-center px-2">Click to upload<br/>JPG, PNG, WEBP</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => setCoverPageImage(reader.result as string);
-                      reader.readAsDataURL(file);
-                    }}
-                  />
-                </label>
-                {coverPageImage && (
-                  <div className="relative">
-                    <img src={coverPageImage} alt="cover preview" className="h-28 w-auto rounded-xl border border-gray-200 object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setCoverPageImage("")}
-                      className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 shadow hover:bg-red-50"
-                    >
-                      <X size={12} className="text-red-500" />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-2">This image will be used as the full cover page of the PDF. Best size: A4 portrait (595 × 842 px or higher).</p>
+          {/* ─── Custom Charges ──────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: G }}>Custom Charges</h2>
+              <button onClick={() => setCharges((prev) => [...prev, emptyCharge()])}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#C6AF4B]/40 hover:bg-[#C6AF4B]/10 text-[#C6AF4B] transition">
+                <Plus size={13} /> Add Charge
+              </button>
             </div>
-          )}
-        </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[680px]">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2">Charge Name</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-44">HSN Code</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-24">Unit</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-20">Qty</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-2 w-28">Price</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 pb-2 w-24">Amount</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {charges.map((c, i) => {
+                    const amt = (parseFloat(c.quantity) || 0) * (parseFloat(c.price) || 0);
+                    return (
+                      <tr key={i} className="border-b border-gray-50">
+                        <td className="pr-2 py-1.5">
+                          <input type="text" className={inputCls} placeholder="e.g. Embroidery Charges"
+                            value={c.chargeName}
+                            onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, chargeName: e.target.value } : x))} />
+                        </td>
+                        <td className="pr-2 py-1.5">
+                          <select className={inputCls} value={c.hsnCode}
+                            onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, hsnCode: e.target.value } : x))}>
+                            <option value="">— HSN —</option>
+                            {allHsn.map((h) => (
+                              <option key={h.id} value={h.hsnCode}>
+                                {h.hsnCode} ({h.gstPercentage}%)
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="pr-2 py-1.5">
+                          <select className={inputCls} value={c.unit}
+                            onChange={(e) => setCharges((p) => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))}>
+                            <option value="">— Unit —</option>
+                            {unitOptions.map((u) => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="pr-2 py-1.5">
+                          <input type="number" min="0" step="0.01" className={inputCls} value={c.quantity}
+                            onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                            onChange={(e) => {
+                              let v = e.target.value;
+                              if (v && parseFloat(v) < 0) v = "0";
+                              setCharges((p) => p.map((x, j) => j === i ? { ...x, quantity: v } : x));
+                            }} />
+                        </td>
+                        <td className="pr-2 py-1.5">
+                          <input type="number" min="0" step="0.01" className={inputCls} value={c.price}
+                            onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                            onChange={(e) => {
+                              let v = e.target.value;
+                              if (v && parseFloat(v) < 0) v = "0";
+                              setCharges((p) => p.map((x, j) => j === i ? { ...x, price: v } : x));
+                            }} />
+                        </td>
+                        <td className="text-right py-1.5 font-semibold text-gray-800">{fmt(amt)}</td>
+                        <td className="py-1.5 pl-2">
+                          {charges.length > 1 && (
+                            <button onClick={() => setCharges((p) => p.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Shipping */}
+            <div className="flex justify-end mt-4">
+              <div className="flex items-end gap-3">
+                <div className="w-36">
+                  <label className={labelCls}>Weight (kg)</label>
+                  <input type="number" min="0" step="0.01" className={inputCls}
+                    onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                    value={estimatedWeight} onChange={numChange(setEstimatedWeight)} />
+                </div>
+                <div className="w-36">
+                  <label className={labelCls}>Rate / kg</label>
+                  <input type="number" min="0" step="0.01" className={inputCls}
+                    onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                    value={shippingRatePerKg} onChange={numChange(setShippingRatePerKg)} />
+                </div>
+                <div className="w-36">
+                  <label className={labelCls}>Shipping Total</label>
+                  <div className="px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 text-gray-700 font-semibold">
+                    {fmt(estimatedShippingCharges)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <div className="flex flex-col items-end gap-2 text-sm">
+                <div className="flex justify-between w-72">
+                  <span className="text-gray-700 font-medium">Subtotal</span>
+                  <span className="font-semibold text-gray-900">{fmt(subtotal)}</span>
+                </div>
+                <div className="flex items-center justify-between w-72 gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <select
+                      className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-900 font-medium"
+                      value={gstTaxType} onChange={(e) => setGstTaxType(e.target.value)}>
+                      <option value="GST">GST</option>
+                      <option value="CGST+SGST">CGST+SGST</option>
+                      <option value="IGST">IGST</option>
+                    </select>
+                    <div className="flex items-center gap-1">
+                      <input type="number" min="0" max="100" step="0.01"
+                        className="w-16 text-xs rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30 bg-white text-gray-900"
+                        onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                        value={gstRate} onChange={numChange(setGstRate)} />
+                      <span className="text-gray-700 text-xs">%</span>
+                    </div>
+                  </div>
+                  <span className="font-semibold text-gray-900">{fmt(gstAmount)}</span>
+                </div>
+                <div className="flex justify-between w-72">
+                  <span className="text-gray-700 font-medium">Shipping</span>
+                  <span className="font-semibold text-gray-900">{fmt(shipping)}</span>
+                </div>
+                <div className="flex justify-between w-72 pt-1 border-t border-gray-200 mt-1">
+                  <span className="font-bold text-gray-900">Total</span>
+                  <span className="font-bold text-[#C6AF4B] text-lg">{fmt(total)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Cover Page ──────────────────────────────────────────────────── */}
+          <div className={`${card} p-5`}>
+            <h2 className="text-sm font-bold uppercase tracking-wide mb-4" style={{ color: G }}>Cover Page Style</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {[
+                {
+                  id: "classic",
+                  label: "Classic",
+                  preview: (
+                    <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
+                      <div className="h-8 w-full" style={{ background: "#C6AF4B" }} />
+                      <div className="p-1.5 space-y-1">
+                        <div className="h-1.5 w-3/4 rounded bg-gray-300" />
+                        <div className="h-1.5 w-1/2 rounded bg-gray-200" />
+                        <div className="h-1.5 w-2/3 rounded bg-gray-200" />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "modern",
+                  label: "Modern",
+                  preview: (
+                    <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
+                      <div className="h-20 w-full flex flex-col justify-end p-2" style={{ background: "linear-gradient(135deg,#1a1a2e 60%,#C6AF4B)" }}>
+                        <div className="h-1.5 w-3/4 rounded bg-white/60 mb-1" />
+                        <div className="h-1 w-1/2 rounded bg-white/30" />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "corporate",
+                  label: "Corporate",
+                  preview: (
+                    <div className="h-20 rounded-lg overflow-hidden border border-gray-100">
+                      <div className="h-10 w-full bg-gray-900 flex items-center px-2">
+                        <div className="h-2 w-2 rounded-full bg-[#C6AF4B] mr-1.5" />
+                        <div className="h-1.5 w-1/2 rounded bg-white/50" />
+                      </div>
+                      <div className="p-1.5 space-y-1 bg-gray-50">
+                        <div className="h-1.5 w-3/4 rounded bg-gray-300" />
+                        <div className="h-1.5 w-1/2 rounded bg-gray-200" />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "minimal",
+                  label: "Minimal",
+                  preview: (
+                    <div className="h-20 rounded-lg overflow-hidden border border-gray-100 bg-white flex flex-col items-center justify-center gap-1.5 p-2">
+                      <div className="h-1.5 w-12 rounded bg-gray-800" />
+                      <div className="h-px w-16 bg-[#C6AF4B]" />
+                      <div className="h-1 w-8 rounded bg-gray-300" />
+                      <div className="h-1 w-10 rounded bg-gray-200" />
+                    </div>
+                  ),
+                },
+                {
+                  id: "custom",
+                  label: "Custom Image",
+                  preview: (
+                    <div className="h-20 rounded-lg overflow-hidden border border-dashed border-[#C6AF4B]/60 bg-[#C6AF4B]/5 flex flex-col items-center justify-center gap-1">
+                      {coverPageImage ? (
+                        <img src={coverPageImage} alt="cover" className="h-full w-full object-cover" />
+                      ) : (
+                        <>
+                          <Upload size={18} className="text-[#C6AF4B]" />
+                          <span className="text-[10px] text-gray-500">Upload image</span>
+                        </>
+                      )}
+                    </div>
+                  ),
+                },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setCoverPage(opt.id)}
+                  className={`rounded-xl border-2 p-2 text-left transition focus:outline-none ${
+                    coverPage === opt.id
+                      ? "border-[#C6AF4B] shadow-md"
+                      : "border-gray-200 hover:border-[#C6AF4B]/40"
+                  }`}
+                >
+                  {opt.preview}
+                  <p className={`text-xs font-semibold mt-2 text-center ${coverPage === opt.id ? "text-[#C6AF4B]" : "text-gray-600"}`}>
+                    {opt.label}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            {coverPage === "custom" && (
+              <div className="mt-4">
+                <label className={labelCls}>Cover Page Image</label>
+                <div className="flex items-start gap-4">
+                  <label className="flex flex-col items-center justify-center w-40 h-28 rounded-xl border-2 border-dashed border-[#C6AF4B]/50 bg-[#C6AF4B]/5 cursor-pointer hover:bg-[#C6AF4B]/10 transition">
+                    <Upload size={20} className="text-[#C6AF4B] mb-1" />
+                    <span className="text-xs text-gray-500 text-center px-2">Click to upload<br/>JPG, PNG, WEBP</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setCoverPageImage(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  {coverPageImage && (
+                    <div className="relative">
+                      <img src={coverPageImage} alt="cover preview" className="h-28 w-auto rounded-xl border border-gray-200 object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setCoverPageImage("")}
+                        className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 shadow hover:bg-red-50"
+                      >
+                        <X size={12} className="text-red-500" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">This image will be used as the full cover page of the PDF. Best size: A4 portrait (595 × 842 px or higher).</p>
+              </div>
+            )}
+          </div>
+        </FormAccessGate>
 
         {/* ─── Actions ─────────────────────────────────────────────────────── */}
         <div className="flex justify-end gap-3">
@@ -776,7 +781,7 @@ export default function QuotationForm() {
             className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-gray-50 text-gray-700">
             Cancel
           </button>
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || !canEdit}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm disabled:opacity-50 transition-all"
             style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
             <Save size={15} />

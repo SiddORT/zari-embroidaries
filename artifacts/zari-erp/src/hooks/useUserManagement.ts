@@ -8,6 +8,7 @@ export interface UserRecord {
   username: string;
   email: string;
   role: string;
+  roleId: number;
   isActive: boolean;
   inviteToken: string | null;
   inviteTokenExpiry: string | null;
@@ -42,7 +43,7 @@ export function useUsers() {
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { email: string; username: string; role: string }) =>
+    mutationFn: (body: { email: string; username: string; role: string; roleId: number;  }) =>
       customFetch<{ data: UserRecord; inviteToken: string; inviteUrl: string; emailSent: boolean }>(`${BASE}/users`, {
         method: "POST", body: JSON.stringify(body),
       }),
@@ -53,7 +54,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; username?: string; email?: string; role?: string; isActive?: boolean }) =>
+    mutationFn: ({ id, ...body }: { id: number; username?: string; email?: string; role?: string; roleId: number; isActive?: boolean }) =>
       customFetch<{ data: UserRecord }>(`${BASE}/users/${id}`, {
         method: "PUT", body: JSON.stringify(body),
       }),

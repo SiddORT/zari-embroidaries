@@ -6,6 +6,8 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { hashPassword } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { sendInviteEmail, sendAdminPasswordResetEmail } from "../lib/mailer";
+import { checkPermission } from "../middlewares/checkPermission";
+import { USER_MANAGEMENT } from "../constants/permissions";
 
 function buildInviteUrl(token: string): string {
   const domain =
@@ -100,10 +102,11 @@ export const ALL_PERMISSIONS = [
   { key: "style_orders:delete",    label: "Style Orders",  resource: "style_orders",  action: "delete",   menu: "Orders", subgroup: null },
   { key: "style_orders:download",  label: "Style Orders",  resource: "style_orders",  action: "download", menu: "Orders", subgroup: null },
 
-  { key: "artwork:view",           label: "Artwork",        resource: "artwork",        action: "view",     menu: "Orders", subgroup: null },
-  { key: "artwork:add_edit",       label: "Artwork",        resource: "artwork",        action: "add_edit", menu: "Orders", subgroup: null },
-  { key: "artwork:delete",         label: "Artwork",        resource: "artwork",        action: "delete",   menu: "Orders", subgroup: null },
-  { key: "artwork:download",       label: "Artwork",        resource: "artwork",        action: "download", menu: "Orders", subgroup: null },
+  // As Artwork is not directly accessible through top navbar
+  // { key: "artwork:view",           label: "Artwork",        resource: "artwork",        action: "view",     menu: "Orders", subgroup: null },
+  // { key: "artwork:add_edit",       label: "Artwork",        resource: "artwork",        action: "add_edit", menu: "Orders", subgroup: null },
+  // { key: "artwork:delete",         label: "Artwork",        resource: "artwork",        action: "delete",   menu: "Orders", subgroup: null },
+  // { key: "artwork:download",       label: "Artwork",        resource: "artwork",        action: "download", menu: "Orders", subgroup: null },
 
   { key: "quotation:view",         label: "Quotation",      resource: "quotation",      action: "view",     menu: "Orders", subgroup: null },
   { key: "quotation:add_edit",     label: "Quotation",      resource: "quotation",      action: "add_edit", menu: "Orders", subgroup: null },
@@ -122,8 +125,8 @@ export const ALL_PERMISSIONS = [
 
   { key: "stock:ledger:view",                 label: "Stock Ledger",        resource: "stock:ledger",            action: "view",     menu: "Stock", subgroup: "Inventory" },
   { key: "stock:ledger:download",             label: "Stock Ledger",        resource: "stock:ledger",            action: "download", menu: "Stock", subgroup: "Inventory" },
-
-  { key: "stock:reservations:view",           label: "Reservations",        resource: "stock:reservations",      action: "view",     menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:ledger:add_edit",             label: "Stock Ledger",        resource: "stock:ledger",            action: "add_edit", menu: "Stock", subgroup: "Inventory" },
+  { key: "stock:ledger:delete",               label: "Stock Ledger",        resource: "stock:ledger",            action: "delete",   menu: "Stock", subgroup: "Inventory" },
 
   { key: "stock:adjustments:view",            label: "Stock Adjustments",   resource: "stock:adjustments",       action: "view",     menu: "Stock", subgroup: "Inventory" },
   { key: "stock:adjustments:add_edit",        label: "Stock Adjustments",   resource: "stock:adjustments",       action: "add_edit", menu: "Stock", subgroup: "Inventory" },
@@ -137,6 +140,7 @@ export const ALL_PERMISSIONS = [
   { key: "stock:purchase_receipts:view",      label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "view",     menu: "Stock", subgroup: "Procurement" },
   { key: "stock:purchase_receipts:add_edit",  label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "add_edit", menu: "Stock", subgroup: "Procurement" },
   { key: "stock:purchase_receipts:delete",    label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "delete",   menu: "Stock", subgroup: "Procurement" },
+  { key: "stock:purchase_receipts:download",  label: "Purchase Receipts",   resource: "stock:purchase_receipts", action: "download", menu: "Stock", subgroup: "Procurement" },
 
   /* ── Logistics ──────────────────────────────────────────── */
   { key: "logistics:shipments:view",          label: "Shipments",           resource: "logistics:shipments",     action: "view",     menu: "Logistics", subgroup: null },
@@ -156,9 +160,11 @@ export const ALL_PERMISSIONS = [
   { key: "accounts:vendor_ledgers:download",  label: "Ledgers",             resource: "accounts:vendor_ledgers",     action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:purchases:view",           label: "Purchases",           resource: "accounts:purchases",          action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:purchases:add_edit",       label: "Purchases",           resource: "accounts:purchases",          action: "add_edit", menu: "Accounts", subgroup: null },
   { key: "accounts:purchases:download",       label: "Purchases",           resource: "accounts:purchases",          action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:sales:view",               label: "Sales",               resource: "accounts:sales",              action: "view",     menu: "Accounts", subgroup: null },
+  { key: "accounts:sales:add_edit",           label: "Sales",               resource: "accounts:sales",              action: "add_edit", menu: "Accounts", subgroup: null },
   { key: "accounts:sales:download",           label: "Sales",               resource: "accounts:sales",              action: "download", menu: "Accounts", subgroup: null },
 
   { key: "accounts:invoices:view",            label: "Invoices",            resource: "accounts:invoices",           action: "view",     menu: "Accounts", subgroup: null },
@@ -235,6 +241,7 @@ export const ALL_PERMISSIONS = [
   { key: "settings:warehouses:view",       label: "Warehouses",        resource: "settings:warehouses",       action: "view",     menu: "Admin", subgroup: "Settings" },
   { key: "settings:warehouses:add_edit",   label: "Warehouses",        resource: "settings:warehouses",       action: "add_edit", menu: "Admin", subgroup: "Settings" },
   { key: "settings:warehouses:delete",     label: "Warehouses",        resource: "settings:warehouses",       action: "delete",   menu: "Admin", subgroup: "Settings" },
+  { key: "settings:warehouses:download",   label: "Warehouses",        resource: "settings:warehouses",       action: "download", menu: "Admin", subgroup: "Settings" },
 
   { key: "settings:templates:view",        label: "Invoice Templates", resource: "settings:templates",        action: "view",     menu: "Admin", subgroup: "Settings" },
   { key: "settings:templates:add_edit",    label: "Invoice Templates", resource: "settings:templates",        action: "add_edit", menu: "Admin", subgroup: "Settings" },
@@ -315,13 +322,16 @@ router.get("/user-management/permissions", requireAdmin, (_req, res): void => {
   res.json({ data: ALL_PERMISSIONS });
 });
 
-router.get("/user-management/users", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/user-management/users", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.VIEW] }), 
+  async (_req, res): Promise<void> => {
   const users = await db
     .select({
       id: usersTable.id,
       username: usersTable.username,
       email: usersTable.email,
       role: usersTable.role,
+      roleId: usersTable.roleId,
       isActive: usersTable.isActive,
       inviteToken: usersTable.inviteToken,
       inviteTokenExpiry: usersTable.inviteTokenExpiry,
@@ -333,8 +343,10 @@ router.get("/user-management/users", requireAdmin, async (_req, res): Promise<vo
   res.json({ data: users });
 });
 
-router.post("/user-management/users", requireAdmin, async (req, res): Promise<void> => {
-  const { email, username, role } = req.body as { email: string; username: string; role: string };
+router.post("/user-management/users", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
+  const { email, username, role, roleId } = req.body as { email: string; username: string; role: string; roleId: number };
   if (!email || !username || !role) {
     res.status(400).json({ error: "email, username and role are required" });
     return;
@@ -354,13 +366,14 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
     email: email.toLowerCase(),
     username,
     role,
+    roleId,
     hashedPassword: tempHash,
     isActive: false,
     inviteToken,
     inviteTokenExpiry,
   }).returning({
     id: usersTable.id, username: usersTable.username, email: usersTable.email,
-    role: usersTable.role, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
+    role: usersTable.role, roleId: usersTable.roleId, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
     inviteToken: usersTable.inviteToken, inviteTokenExpiry: usersTable.inviteTokenExpiry,
   });
 
@@ -379,9 +392,11 @@ router.post("/user-management/users", requireAdmin, async (req, res): Promise<vo
   res.status(201).json({ data: user, inviteToken, inviteUrl, emailSent: true });
 });
 
-router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
+router.put("/user-management/users/:id", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
-  const { username, email, role, isActive } = req.body as { username?: string; email?: string; role?: string; isActive?: boolean };
+  const { username, email, role, roleId, isActive } = req.body as { username?: string; email?: string; role?: string; roleId: number; isActive?: boolean };
 
   const [target] = await db.select({ email: usersTable.email }).from(usersTable).where(and(eq(usersTable.id, id), eq(usersTable.isDeleted, false)));
   if (target?.email === SUPERUSER_EMAIL) {
@@ -405,6 +420,7 @@ router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise
   if (email !== undefined) updates.email = email.trim().toLowerCase();
   if (role !== undefined) updates.role = role;
   if (isActive !== undefined) updates.isActive = isActive;
+  if (roleId !== undefined) updates.roleId = roleId;
 
   const [user] = await db
     .update(usersTable)
@@ -412,14 +428,16 @@ router.put("/user-management/users/:id", requireAdmin, async (req, res): Promise
     .where(eq(usersTable.id, id))
     .returning({
       id: usersTable.id, username: usersTable.username, email: usersTable.email,
-      role: usersTable.role, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
+      role: usersTable.role, roleId:usersTable.roleId, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
     });
 
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json({ data: user });
 });
 
-router.delete("/user-management/users/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/user-management/users/:id", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.DELETE] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const authUser = (req as typeof req & { user?: { userId: number } }).user;
   if (authUser?.userId === id) {
@@ -435,7 +453,9 @@ router.delete("/user-management/users/:id", requireAdmin, async (req, res): Prom
   res.json({ message: "User deleted" });
 });
 
-router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req, res): Promise<void> => {
+router.post("/user-management/users/:id/resend-invite", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const inviteToken = crypto.randomBytes(32).toString("hex");
   const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -459,7 +479,9 @@ router.post("/user-management/users/:id/resend-invite", requireAdmin, async (req
   }
 });
 
-router.post("/user-management/users/:id/send-reset", requireAdmin, async (req, res): Promise<void> => {
+router.post("/user-management/users/:id/send-reset", requireAdmin, 
+  checkPermission({ any: [USER_MANAGEMENT.ADD_EDIT] }), 
+  async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id));
   const authUser = (req as typeof req & { user?: { userId: number } }).user;
   if (authUser?.userId === id) {

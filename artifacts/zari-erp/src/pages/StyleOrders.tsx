@@ -10,6 +10,8 @@ import CancelOrderModal from "@/components/ui/CancelOrderModal";
 import { useStyleOrderList, useDeleteStyleOrder, useCancelStyleOrder, useCreateStyleOrder, type StyleOrderRecord } from "@/hooks/useStyleOrders";
 import { SmallSearchSelect } from "@/components/ui/SearchableSelect";
 import { customFetch } from "@workspace/api-client-react";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { STYLE_ORDERS } from "@/constants/permissions";
 
 const ORDER_STATUSES = ["Draft", "Issued", "In Production", "In Review", "Pending Approval", "Completed", "Rejected", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
@@ -71,15 +73,19 @@ function PriorityDot({ priority }: { priority: string }) {
 
 const CANCELLABLE = new Set(["Issued", "In Production", "In Review", "Pending Approval", "Completed"]);
 
-function OrderCard({ order, onView, onDelete, onCancel, onCopy }: {
+function OrderCard({ order, onView, onDelete, onCancel, onCopy, canView, canAddEdit, canDelete, canCancel }: {
   order: StyleOrderRecord;
   onView: () => void;
   onDelete: () => void;
   onCancel: () => void;
   onCopy: () => void;
+  canView: boolean;
+  canAddEdit: boolean;
+  canDelete: boolean;
+  canCancel: boolean;
 }) {
   const isDraft = order.orderStatus === "Draft";
-  const canCancel = CANCELLABLE.has(order.orderStatus);
+  const canCancelOrder = CANCELLABLE.has(order.orderStatus);
 
   return (
     <div className={CARD}>
@@ -139,19 +145,21 @@ function OrderCard({ order, onView, onDelete, onCancel, onCopy }: {
           <button onClick={onView}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-gray-900 hover:bg-black transition-colors"
             style={{ color: G }}>
-            <Eye className="h-3.5 w-3.5" /> View / Edit
+            <Eye className="h-3.5 w-3.5" /> {!canAddEdit ? "View" : "View / Edit"}
           </button>
-          <button onClick={onCopy} title="Copy order"
-            className="p-2 rounded-xl text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors border border-gray-100">
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-          {isDraft && (
+          {canAddEdit && (
+            <button onClick={onCopy} title="Copy order"
+              className="p-2 rounded-xl text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors border border-gray-100">
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {canDelete && isDraft && (
             <button onClick={onDelete} title="Delete draft"
               className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-gray-100">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
-          {canCancel && (
+          {canCancel && canCancelOrder && (
             <button onClick={onCancel} title="Cancel order"
               className="p-2 rounded-xl text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors border border-gray-100">
               <XCircle className="h-3.5 w-3.5" />
@@ -188,6 +196,12 @@ export default function StyleOrders() {
   const deleteOrder = useDeleteStyleOrder();
   const cancelOrder = useCancelStyleOrder();
   const copyOrder = useCreateStyleOrder();
+
+  const { can } = useMyPermissions();
+  const canView = can(STYLE_ORDERS.VIEW);
+  const canAddEdit = can(STYLE_ORDERS.ADD_EDIT);
+  const canDelete = can(STYLE_ORDERS.DELETE);
+  const canCancel = canDelete;
 
   const orders = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -310,13 +324,15 @@ export default function StyleOrders() {
                 <LayoutList className="h-4 w-4" />
               </button>
             </div>
-            <button
-              onClick={() => setLocation("/style-orders/new")}
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all"
-            >
-              <Plus className="h-4 w-4" /> New Style Order
-            </button>
+            {canAddEdit && (
+              <button
+                onClick={() => setLocation("/style-orders/new")}
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all"
+              >
+                <Plus className="h-4 w-4" /> New Style Order
+              </button>
+            )}
           </div>
         </div>
 
@@ -404,6 +420,10 @@ export default function StyleOrders() {
                 onDelete={() => setDeleteId(order.id)}
                 onCancel={() => setCancelId(order.id)}
                 onCopy={() => void handleCopy(order)}
+                canView={canView}
+                canAddEdit={canAddEdit}
+                canDelete={canDelete}
+                canCancel={canCancel}
               />
             ))}
           </div>
@@ -437,20 +457,23 @@ export default function StyleOrders() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => setLocation(`/style-orders/${order.id}`)}
+                          title={canAddEdit ? "Edit order" : "View order"}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors">
                           <Eye className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => void handleCopy(order)} title="Copy order"
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
-                          <Copy className="h-3.5 w-3.5" />
-                        </button>
-                        {order.orderStatus === "Draft" && (
+                        {canAddEdit && (
+                          <button onClick={() => void handleCopy(order)} title="Copy order"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {canDelete && order.orderStatus === "Draft" && (
                           <button onClick={() => setDeleteId(order.id)} title="Delete draft"
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        {CANCELLABLE.has(order.orderStatus) && (
+                        {canCancel && CANCELLABLE.has(order.orderStatus) && (
                           <button onClick={() => setCancelId(order.id)} title="Cancel order"
                             className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors">
                             <XCircle className="h-3.5 w-3.5" />

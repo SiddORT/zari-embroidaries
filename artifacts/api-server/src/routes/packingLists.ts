@@ -5,6 +5,8 @@ import path from "path";
 import fs from "fs";
 import { uploadMiddleware, uploadFile, deleteUpload, resolveUploadAbsPath } from "../utils/uploadHelper";
 import { nextSequenceNumber } from "../utils/sequence";
+import { checkPermission } from "../middlewares/checkPermission";
+import { LOGISTICS_PACKING_LISTS } from "../constants/permissions";
 
 type AuthRequest = Request & { user?: { userId: number; email: string; name?: string; role: string } };
 
@@ -163,7 +165,9 @@ router.get("/eligible-orders-for-packing", requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/packing-lists
-router.get("/packing-lists", requireAuth, async (req, res) => {
+router.get("/packing-lists", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.VIEW] }),  
+  async (req, res) => {
   try {
     const { client_id, shipment_id, status, page = "1", limit = "25" } = req.query;
     const conditions: string[] = ["pl.is_deleted = false"];
@@ -209,7 +213,9 @@ router.get("/packing-lists", requireAuth, async (req, res) => {
 });
 
 // GET /api/packing-lists/:id
-router.get("/packing-lists/:id", requireAuth, async (req, res) => {
+router.get("/packing-lists/:id", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.VIEW] }),  
+  async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT pl.*,
@@ -334,7 +340,9 @@ async function insertPackageItem(pkgId: number, item: any): Promise<void> {
 }
 
 // POST /api/packing-lists
-router.post("/packing-lists", requireAuth, async (req: AuthRequest, res) => {
+router.post("/packing-lists", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.ADD_EDIT] }), 
+  async (req: AuthRequest, res) => {
   try {
     const {
       client_id, delivery_address_id, shipment_id,
@@ -413,7 +421,9 @@ router.post("/packing-lists", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/packing-lists/:id  (header + packages full replace)
-router.put("/packing-lists/:id", requireAuth, async (req, res) => {
+router.put("/packing-lists/:id", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.ADD_EDIT] }), 
+  async (req, res) => {
   try {
     const deletedByUser = (req.user as any)?.email ?? "system";
     const existing = await pool.query(`SELECT * FROM packing_lists WHERE id = $1 AND is_deleted = false`, [req.params.id]);
@@ -517,7 +527,9 @@ router.put("/packing-lists/:id", requireAuth, async (req, res) => {
 });
 
 // DELETE /api/packing-lists/:id
-router.delete("/packing-lists/:id", requireAuth, async (req, res) => {
+router.delete("/packing-lists/:id", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.DELETE] }), 
+  async (req, res) => {
   try {
     const deletedByUser = (req.user as any)?.email ?? "system";
     const { rowCount } = await pool.query(
@@ -542,7 +554,9 @@ router.delete("/packing-lists/:id", requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/packing-lists/:id/packages
-router.post("/packing-lists/:id/packages", requireAuth, async (req, res) => {
+router.post("/packing-lists/:id/packages", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.ADD_EDIT] }), 
+  async (req, res) => {
   try {
     const pl = await pool.query(`SELECT * FROM packing_lists WHERE id = $1 AND is_deleted = false`, [req.params.id]);
     if (!pl.rows.length) return res.status(404).json({ error: "Packing list not found" });
@@ -566,7 +580,9 @@ router.post("/packing-lists/:id/packages", requireAuth, async (req, res) => {
 });
 
 // PUT /api/packing-lists/:id/packages/:pkgId
-router.put("/packing-lists/:id/packages/:pkgId", requireAuth, async (req, res) => {
+router.put("/packing-lists/:id/packages/:pkgId", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.ADD_EDIT] }), 
+  async (req, res) => {
   try {
     const { length, width, height, net_weight, gross_weight, shipment_id } = req.body;
     const r = await pool.query(
@@ -587,7 +603,9 @@ router.put("/packing-lists/:id/packages/:pkgId", requireAuth, async (req, res) =
 });
 
 // DELETE /api/packing-lists/:id/packages/:pkgId
-router.delete("/packing-lists/:id/packages/:pkgId", requireAuth, async (req, res) => {
+router.delete("/packing-lists/:id/packages/:pkgId", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.DELETE] }), 
+  async (req, res) => {
   try {
     const deletedByUser = (req.user as any)?.email ?? "system";
     const { rowCount } = await pool.query(
@@ -605,7 +623,9 @@ router.delete("/packing-lists/:id/packages/:pkgId", requireAuth, async (req, res
 // ═══════════════════════════════════════════════════════════════
 
 // GET /api/packing-lists/inventory/search?type=material|fabric&q=...
-router.get("/packing-lists/inventory/search", requireAuth, async (req, res) => {
+router.get("/packing-lists/inventory/search", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.VIEW] }), 
+  async (req, res) => {
   try {
     const { type, q = "" } = req.query as { type?: string; q?: string };
     const search = `%${q}%`;
@@ -771,7 +791,9 @@ router.post("/packing-lists/:id/packages/:pkgId/items", requireAuth, async (req,
 });
 
 // PATCH /api/packing-lists/:id/packages/:pkgId/items/:itemId
-router.patch("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, async (req, res) => {
+router.patch("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.ADD_EDIT] }), 
+  async (req, res) => {
   try {
     const { quantity, unit, item_weight, description } = req.body;
     const r = await pool.query(
@@ -789,7 +811,9 @@ router.patch("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, as
 });
 
 // DELETE /api/packing-lists/:id/packages/:pkgId/items/:itemId
-router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, async (req, res) => {
+router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.DELETE] }), 
+  async (req, res) => {
   try {
     const deletedByUser = (req.user as any)?.email ?? "system";
     const itemRes = await pool.query(
@@ -843,7 +867,9 @@ router.get("/packing-lists/item-images/:filename", async (req, res) => {
   } catch (e) { return err(res, e, "Failed to serve image"); }
 });
 
-router.get("/packing-lists/order-artwork-image", requireAuth, async (req, res) => {
+router.get("/packing-lists/order-artwork-image", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.VIEW] }), 
+  async (req, res) => {
   try {
     const { type, item_id } = req.query as { type: string; item_id: string };
     if (!type || !item_id) return res.status(400).json({ error: "type and item_id required" });
@@ -877,6 +903,7 @@ router.get("/packing-lists/order-artwork-image", requireAuth, async (req, res) =
 router.post(
   "/packing-lists/:id/packages/:pkgId/items/:itemId/image",
   requireAuth,
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.ADD_EDIT] }),
   uploadMiddleware.single("image"),
   async (req: any, res) => {
     try {
@@ -903,7 +930,9 @@ router.post(
   }
 );
 
-router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId/image", requireAuth, async (req, res) => {
+router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId/image", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.DELETE] }), 
+  async (req, res) => {
   try {
     const old = await pool.query(`SELECT item_image_url FROM packing_package_items WHERE id = $1 AND package_id = $2 AND is_deleted = false`, [req.params.itemId, req.params.pkgId]);
     if (old.rows[0]?.item_image_url) {
@@ -922,7 +951,9 @@ router.delete("/packing-lists/:id/packages/:pkgId/items/:itemId/image", requireA
 // ELIGIBLE ORDERS FOR EXISTING PACKING LIST
 // ═══════════════════════════════════════════════════════════════
 
-router.get("/packing-lists/:id/eligible-orders", requireAuth, async (req, res) => {
+router.get("/packing-lists/:id/eligible-orders", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.VIEW] }), 
+  async (req, res) => {
   try {
     const pl = await pool.query(`SELECT * FROM packing_lists WHERE id = $1 AND is_deleted = false`, [req.params.id]);
     if (!pl.rows.length) return res.status(404).json({ error: "Not found" });
@@ -972,7 +1003,9 @@ router.get("/packing-lists/:id/eligible-orders", requireAuth, async (req, res) =
 // PDF HTML — Per-package layout
 // ═══════════════════════════════════════════════════════════════
 
-router.get("/packing-lists/:id/pdf-html", requireAuth, async (req, res) => {
+router.get("/packing-lists/:id/pdf-html", requireAuth, 
+  checkPermission({ any: [LOGISTICS_PACKING_LISTS.VIEW] }), 
+  async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT pl.*,

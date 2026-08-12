@@ -2,13 +2,15 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Pencil, Trash2, Plus, FileSpreadsheet, FileDown, FileUp, ChevronDown, Loader2,
+  Pencil, Trash2, Plus, FileSpreadsheet, FileDown, FileUp, ChevronDown, Loader2, Eye,
 } from "lucide-react";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 
 import AppLayout from "@/components/layout/AppLayout";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { MASTERS_STYLES } from "@/constants/permissions";
 import SearchBar from "@/components/master/SearchBar";
 import MasterTable, { type Column, type TableRow } from "@/components/master/MasterTable";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -95,6 +97,13 @@ export default function StyleMaster() {
   const toggleStatus = useToggleStyleStatus();
   const deleteMutation = useDeleteStyle();
   const importMutation = useImportStyles();
+
+  const { can } = useMyPermissions();
+  const canView = can(MASTERS_STYLES.VIEW);
+  const canAddEdit = can(MASTERS_STYLES.ADD_EDIT);
+  const canDelete = can(MASTERS_STYLES.DELETE);
+  const canExport = can(MASTERS_STYLES.DOWNLOAD);
+  const canImport = canAddEdit;
 
   const { data: warehouseLocations = [] } = useWarehouseLocations();
   const clientOptions = ((clientsData ?? []) as ClientRecord[]).map(c => c.brandName);
@@ -247,7 +256,7 @@ export default function StyleMaster() {
     { key: "isActive", label: "Status", render: r => {
       const rec = asStyle(r);
       return (
-        <button type="button" onClick={() => setStatusConfirm({ id: rec.id, isActive: rec.isActive })}
+        <button type="button" onClick={() => canAddEdit && setStatusConfirm({ id: rec.id, isActive: rec.isActive })}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${rec.isActive ? "bg-gray-900" : "bg-gray-300"}`}>
           <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${rec.isActive ? "translate-x-[18px]" : "translate-x-0.5"}`} />
         </button>
@@ -262,13 +271,23 @@ export default function StyleMaster() {
         const rec = asStyle(r);
         return (
           <div className="flex gap-2">
-            <button onClick={() => setLocation(`/masters/styles/${rec.id}/edit`)} className="p-1 rounded hover:bg-gray-100 text-gray-600"><Pencil size={15} /></button>
-            <button onClick={() => setDeleteId(rec.id)} className="p-1 rounded hover:bg-red-50 text-red-500"><Trash2 size={15} /></button>
+            {(canView) && (
+              <button onClick={() => setLocation(`/masters/styles/${rec.id}/edit`)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="View"><Eye size={15} /></button>
+            )}
+            {canAddEdit && (
+              <button onClick={() => setLocation(`/masters/styles/${rec.id}/edit`)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title="Edit"><Pencil size={15} /></button>
+            )}
+            {canDelete && (
+              <button onClick={() => setDeleteId(rec.id)} className="p-1 rounded hover:bg-red-50 text-red-500" title="Delete"><Trash2 size={15} /></button>
+            )}
           </div>
         );
       },
     },
   ];
+
+  const showActions = canView || canAddEdit || canDelete;
+  const filteredColumns = showActions ? columns : columns.filter((c) => c.key !== "actions");
 
   if (!user) return null;
 
@@ -285,48 +304,54 @@ export default function StyleMaster() {
           <div className="flex items-center gap-2">
 
             {/* Import Dropdown */}
-            <div className="relative">
-              <button onClick={() => { setImportDropOpen(o => !o); setExportDropOpen(false); }}
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-[#C9B45C]/50 bg-white text-gray-700 hover:border-[#C9B45C] hover:bg-amber-50/40 transition">
-                <FileSpreadsheet size={15} className="text-[#C9B45C]" /> Import <ChevronDown size={13} className="text-gray-400" />
-              </button>
-              {importDropOpen && (
-                <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
-                  <button onClick={downloadSample}
-                    className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                    <FileDown size={14} className="text-gray-400" /> Download Sample
-                  </button>
-                  <label className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
-                    <FileUp size={14} className="text-gray-400" /> Upload Excel
-                    <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
-                  </label>
-                </div>
-              )}
-            </div>
+            {canImport && (
+              <div className="relative">
+                <button onClick={() => { setImportDropOpen(o => !o); setExportDropOpen(false); }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-[#C9B45C]/50 bg-white text-gray-700 hover:border-[#C9B45C] hover:bg-amber-50/40 transition">
+                  <FileSpreadsheet size={15} className="text-[#C9B45C]" /> Import <ChevronDown size={13} className="text-gray-400" />
+                </button>
+                {importDropOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                    <button onClick={downloadSample}
+                      className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                      <FileDown size={14} className="text-gray-400" /> Download Sample
+                    </button>
+                    <label className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                      <FileUp size={14} className="text-gray-400" /> Upload Excel
+                      <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Export Dropdown */}
-            <div className="relative">
-              <button onClick={() => { setExportDropOpen(o => !o); setImportDropOpen(false); }} disabled={exporting}
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-[#C9B45C]/50 bg-white text-gray-700 hover:border-[#C9B45C] hover:bg-amber-50/40 transition disabled:opacity-50">
-                {exporting ? <Loader2 size={15} className="animate-spin text-[#C9B45C]" /> : <FileDown size={15} className="text-[#C9B45C]" />}
-                Export <ChevronDown size={13} className="text-gray-400" />
-              </button>
-              {exportDropOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
-                  <button onClick={handleExportAll}
-                    className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                    <FileDown size={14} className="text-gray-400" /> Export as Excel
-                  </button>
-                </div>
-              )}
-            </div>
+            {canExport && (
+              <div className="relative">
+                <button onClick={() => { setExportDropOpen(o => !o); setImportDropOpen(false); }} disabled={exporting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-[#C9B45C]/50 bg-white text-gray-700 hover:border-[#C9B45C] hover:bg-amber-50/40 transition disabled:opacity-50">
+                  {exporting ? <Loader2 size={15} className="animate-spin text-[#C9B45C]" /> : <FileDown size={15} className="text-[#C9B45C]" />}
+                  Export <ChevronDown size={13} className="text-gray-400" />
+                </button>
+                {exportDropOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                    <button onClick={handleExportAll}
+                      className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                      <FileDown size={14} className="text-gray-400" /> Export as Excel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Add Style */}
-            <button onClick={() => setLocation("/masters/styles/new")}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
-              <Plus size={14} /> Add Style
-            </button>
+            {canAddEdit && (
+              <button onClick={() => setLocation("/masters/styles/new")}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
+                <Plus size={14} /> Add Style
+              </button>
+            )}
           </div>
         </div>
 
@@ -393,7 +418,7 @@ export default function StyleMaster() {
         </div>
 
         {/* ── Table ── */}
-        <MasterTable columns={columns} rows={rows} loading={isLoading}
+        <MasterTable columns={filteredColumns} rows={rows} loading={isLoading}
           rowKey={row => (row as unknown as { id: number }).id}
           pagination={{ page, limit, total: data?.total ?? 0, onPageChange: setPage, onLimitChange: l => { setLimit(l); setPage(1); } }} />
 

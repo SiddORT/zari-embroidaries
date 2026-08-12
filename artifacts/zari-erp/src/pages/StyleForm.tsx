@@ -23,6 +23,9 @@ import { useAllStyleCategories, type StyleCategoryRecord } from "@/hooks/useStyl
 import { useSwatchCategories, useUnitTypes } from "@/hooks/useLookups";
 import { useAllFabrics } from "@/hooks/useFabrics";
 import { useWarehouseLocations } from "@/hooks/useWarehouseLocations";
+import { MASTERS_STYLES } from "@/constants/permissions";
+import { useFormAccess } from "@/hooks/useFormAccess";
+import { FormAccessGate } from "@/components/FormAccessGate";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 const URL_REGEX = /^https?:\/\/.+/i;
@@ -354,6 +357,7 @@ export default function StyleForm() {
   const params = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { canEdit } = useFormAccess(MASTERS_STYLES.BASE);
 
   const isNew = !params.id || currentPath.endsWith("/new");
   const numId = isNew ? null : parseInt(params.id ?? "", 10);
@@ -535,210 +539,221 @@ export default function StyleForm() {
             </button>
             <span className="text-gray-300">/</span>
             <h1 className="text-lg font-bold text-gray-900">
-              {isNew ? "New Style" : `Edit Style — ${existing?.styleNo ?? ""}`}
+              {!canEdit ? (
+                `Style — ${existing?.styleNo ?? ""}`
+              ) : isNew ? (
+                "New Style"
+              ) : (
+                `Edit Style — ${existing?.styleNo ?? ""}`
+              )}
             </h1>
           </div>
+          <FormAccessGate readOnly={!canEdit}>
           <button type="button" onClick={handleSubmit} disabled={submitting}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
             style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
             {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
             {submitting ? "Saving…" : isNew ? "Create Style" : "Save Changes"}
           </button>
+          </FormAccessGate>
         </div>
 
         {/* ── Form Card ── */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/60 rounded-t-2xl">
-            <p className="text-xs text-gray-500">Fields marked <span className="text-red-500">*</span> are required</p>
-          </div>
+          <FormAccessGate readOnly={!canEdit}>
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/60 rounded-t-2xl">
+              <p className="text-xs text-gray-500">Fields marked <span className="text-red-500">*</span> are required</p>
+            </div>
 
-          <div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-              {/* ── Left: Fields (2/3) ── */}
-              <div className="lg:col-span-2 space-y-6">
+                {/* ── Left: Fields (2/3) ── */}
+                <div className="lg:col-span-2 space-y-6">
 
-                {/* Basic Info */}
-                <div>
-                  <SectionHeader title="Basic Information" />
-                  <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                  {/* Basic Info */}
+                  <div>
+                    <SectionHeader title="Basic Information" />
+                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
 
-                    <FieldWrap label="Client" required error={errors.client}>
-                      <SearchableSelect value={form.client} onChange={v => setField("client", v)}
-                        options={clientOptions} placeholder="Select client" clearable 
-                        disabled={!isNew}
-                        />
-                    </FieldWrap>
+                      <FieldWrap label="Client" required error={errors.client}>
+                        <SearchableSelect value={form.client} onChange={v => setField("client", v)}
+                          options={clientOptions} placeholder="Select client" clearable 
+                          disabled={!isNew}
+                          />
+                      </FieldWrap>
 
-                    {/* Style No — always read-only */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Style No
-                      </label>
+                      {/* Style No — always read-only */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Style No
+                        </label>
 
-                      <div className="flex">
-                        <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-100 text-gray-600 text-sm whitespace-nowrap">
-                          {clientPrefix || "Select Client"}-
-                        </span>
+                        <div className="flex">
+                          <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-100 text-gray-600 text-sm whitespace-nowrap">
+                            {clientPrefix || "Select Client"}-
+                          </span>
 
+                          <input
+                            type="text"
+                            value={form.styleNo}
+                            onChange={(e) => setField("styleNo", e.target.value)}
+                            disabled={!isNew}
+                            className="flex-1 rounded-r-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                            placeholder="STYLE001"
+                          />
+                        </div>
+                      </div>
+
+                      <FieldWrap label="Style Category" required error={errors.styleCategory}>
+                        <SearchableSelect value={form.styleCategory} onChange={v => setField("styleCategory", v)}
+                          options={styleCatOptions.map(o => o.value)}
+                          placeholder="Select category" clearable />
+                      </FieldWrap>
+
+                      <FieldWrap label="Description / Style Name" required error={errors.description}>
                         <input
                           type="text"
-                          value={form.styleNo}
-                          onChange={(e) => setField("styleNo", e.target.value)}
-                          disabled={!isNew}
-                          className="flex-1 rounded-r-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                          placeholder="STYLE001"
-                        />
-                      </div>
-                    </div>
-
-                    <FieldWrap label="Style Category" required error={errors.styleCategory}>
-                      <SearchableSelect value={form.styleCategory} onChange={v => setField("styleCategory", v)}
-                        options={styleCatOptions.map(o => o.value)}
-                        placeholder="Select category" clearable />
-                    </FieldWrap>
-
-                    <FieldWrap label="Description / Style Name" required error={errors.description}>
-                      <input
-                        type="text"
-                        value={form.description}
-                        onChange={e => setField("description", e.target.value)}
-                        placeholder="Style description or name"
-                        maxLength={200}
-                        className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.description ? "border-red-400" : "border-gray-300"}`}
-                      />
-                    </FieldWrap>
-
-                    <FieldWrap label="Place of Issue" required error={errors.placeOfIssue}>
-                      <SearchableSelect value={form.placeOfIssue} onChange={v => setField("placeOfIssue", v)}
-                        options={placeOptions} placeholder="Select place" clearable />
-                    </FieldWrap>
-
-                    <InputField label="Invoice No" value={form.invoiceNo}
-                      onChange={e => setField("invoiceNo", e.target.value)}
-                      placeholder="Invoice number" error={errors.invoiceNo} maxLength={100} />
-
-                    <InputField label="Vendor PO No" value={form.vendorPoNo}
-                      onChange={e => setField("vendorPoNo", e.target.value)}
-                      placeholder="Vendor PO number" error={errors.vendorPoNo} maxLength={100} />
-
-                    <FieldWrap label="Shipping Date" error={errors.shippingDate}>
-                      <input
-                        type="date"
-                        value={form.shippingDate}
-                        min={new Date().toISOString().split("T")[0]}
-                        onChange={e => setField("shippingDate", e.target.value)}
-                        className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.shippingDate ? "border-red-400" : "border-gray-300"}`}
-                      />
-                    </FieldWrap>
-
-                    <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Swatch Tags
-                    </label>
-
-                    <TagInput
-                      value={form.tags}
-                      onChange={tags => setField("tags", tags)}
-                      placeholder="Add a tag..."
-                    />
-                  </div>
-
-                    {/* <div className="col-span-2">
-                      <FieldWrap label="Attach Link" error={errors.attachLink}>
-                        <input
-                          type="url"
-                          value={form.attachLink}
-                          onChange={e => setField("attachLink", e.target.value)}
-                          placeholder="https://…"
-                          className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.attachLink ? "border-red-400" : "border-gray-300"}`}
+                          value={form.description}
+                          onChange={e => setField("description", e.target.value)}
+                          placeholder="Style description or name"
+                          maxLength={200}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.description ? "border-red-400" : "border-gray-300"}`}
                         />
                       </FieldWrap>
-                    </div> */}
 
-                  </div>
-                </div>
+                      <FieldWrap label="Place of Issue" required error={errors.placeOfIssue}>
+                        <SearchableSelect value={form.placeOfIssue} onChange={v => setField("placeOfIssue", v)}
+                          options={placeOptions} placeholder="Select place" clearable />
+                      </FieldWrap>
 
-                {/* Active Status */}
-                <div className="flex items-center gap-3 pt-1">
-                  <label className="text-sm font-medium text-gray-700">Active</label>
-                  <button type="button" onClick={() => setField("isActive", !form.isActive)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}>
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`} />
-                  </button>
-                  <span className="text-sm text-gray-500">{form.isActive ? "Active" : "Inactive"}</span>
-                </div>
+                      <InputField label="Invoice No" value={form.invoiceNo}
+                        onChange={e => setField("invoiceNo", e.target.value)}
+                        placeholder="Invoice number" error={errors.invoiceNo} maxLength={100} />
 
-              </div>
+                      <InputField label="Vendor PO No" value={form.vendorPoNo}
+                        onChange={e => setField("vendorPoNo", e.target.value)}
+                        placeholder="Vendor PO number" error={errors.vendorPoNo} maxLength={100} />
 
-              {/* ── Right: Swatch + Media (1/3) ── */}
-              <div className="space-y-6">
-
-                {/* Reference Swatch */}
-                <div>
-                  <SectionHeader title="Reference Swatch" />
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <SearchableSelect
-                          value={form.referenceSwatchId}
-                          onChange={v => setField("referenceSwatchId", v)}
-                          options={swatchOptions.map(o => o.value)}
-                          placeholder="Search and select a swatch…"
-                          clearable
+                      <FieldWrap label="Shipping Date" error={errors.shippingDate}>
+                        <input
+                          type="date"
+                          value={form.shippingDate}
+                          min={new Date().toISOString().split("T")[0]}
+                          onChange={e => setField("shippingDate", e.target.value)}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.shippingDate ? "border-red-400" : "border-gray-300"}`}
                         />
-                        {form.referenceSwatchId && (
-                          <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                            <Link2 size={11} />
-                            Linked: <span className="font-mono font-semibold">{form.referenceSwatchId}</span>
-                          </p>
-                        )}
-                      </div>
+                      </FieldWrap>
+
+                      <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Swatch Tags
+                      </label>
+
+                      <TagInput
+                        value={form.tags}
+                        onChange={tags => setField("tags", tags)}
+                        placeholder="Add a tag..."
+                      />
                     </div>
-                    <button type="button" onClick={() => setCreateSwatchOpen(true)}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-dashed border-[#C6AF4B] text-[#C6AF4B] hover:bg-amber-50 transition">
-                      <Plus size={13} /> Create &amp; Link New Swatch
-                    </button>
+
+                      {/* <div className="col-span-2">
+                        <FieldWrap label="Attach Link" error={errors.attachLink}>
+                          <input
+                            type="url"
+                            value={form.attachLink}
+                            onChange={e => setField("attachLink", e.target.value)}
+                            placeholder="https://…"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.attachLink ? "border-red-400" : "border-gray-300"}`}
+                          />
+                        </FieldWrap>
+                      </div> */}
+
+                    </div>
                   </div>
+
+                  {/* Active Status */}
+                  <div className="flex items-center gap-3 pt-1">
+                    <label className="text-sm font-medium text-gray-700">Active</label>
+                    <button type="button" onClick={() => setField("isActive", !form.isActive)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isActive ? "bg-gray-900" : "bg-gray-300"}`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.isActive ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                    <span className="text-sm text-gray-500">{form.isActive ? "Active" : "Inactive"}</span>
+                  </div>
+
                 </div>
 
-                {/* Media */}
-                <div>
-                  <SectionHeader title="Artworks & Final Media" />
-                  {!isNew && numId ? (
-                    <MediaUploadSection
-                      entityType="styles"
-                      entityId={numId}
-                      wipMedia={wipMedia}
-                      finalMedia={finalMedia}
-                      onUpdate={({ wipMedia: wip, finalMedia: fin }) => { setWipMedia(wip); setFinalMedia(fin); }}
-                    />
-                  ) : (
-                    <div className="space-y-4">
-                      <LocalMediaPanel label="Artworks" pending={pendingWip}
-                        onAdd={files => addPending("wip", files)} onRemove={id => removePending("wip", id)} />
-                      <LocalMediaPanel label="Final Media" pending={pendingFinal}
-                        onAdd={files => addPending("final", files)} onRemove={id => removePending("final", id)} />
+                {/* ── Right: Swatch + Media (1/3) ── */}
+                <div className="space-y-6">
+
+                  {/* Reference Swatch */}
+                  <div>
+                    <SectionHeader title="Reference Swatch" />
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <SearchableSelect
+                            value={form.referenceSwatchId}
+                            onChange={v => setField("referenceSwatchId", v)}
+                            options={swatchOptions.map(o => o.value)}
+                            placeholder="Search and select a swatch…"
+                            clearable
+                          />
+                          {form.referenceSwatchId && (
+                            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                              <Link2 size={11} />
+                              Linked: <span className="font-mono font-semibold">{form.referenceSwatchId}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setCreateSwatchOpen(true)}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-dashed border-[#C6AF4B] text-[#C6AF4B] hover:bg-amber-50 transition">
+                        <Plus size={13} /> Create &amp; Link New Swatch
+                      </button>
                     </div>
-                  )}
-                </div>
+                  </div>
 
+                  {/* Media */}
+                  <div>
+                    <SectionHeader title="Artworks & Final Media" />
+                    {!isNew && numId ? (
+                      <MediaUploadSection
+                        entityType="styles"
+                        entityId={numId}
+                        wipMedia={wipMedia}
+                        finalMedia={finalMedia}
+                        onUpdate={({ wipMedia: wip, finalMedia: fin }) => { setWipMedia(wip); setFinalMedia(fin); }}
+                      />
+                    ) : (
+                      <div className="space-y-4">
+                        <LocalMediaPanel label="Artworks" pending={pendingWip}
+                          onAdd={files => addPending("wip", files)} onRemove={id => removePending("wip", id)} />
+                        <LocalMediaPanel label="Final Media" pending={pendingFinal}
+                          onAdd={files => addPending("final", files)} onRemove={id => removePending("final", id)} />
+                      </div>
+                    )}
+                  </div>
+
+                </div>
               </div>
             </div>
-          </div>
-
+          </FormAccessGate>
           {/* ── Footer Actions ── */}
           <div className="px-6 py-4 border-t border-gray-200 rounded-b-2xl flex justify-end gap-3">
             <button type="button" onClick={() => setLocation("/masters/styles")}
               className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               Cancel
             </button>
-            <button type="button" onClick={handleSubmit} disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl text-white disabled:opacity-50 transition-all"
-              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
-              {submitting ? "Saving…" : (isNew ? "Create Style" : "Save Changes")}
-            </button>
+            <FormAccessGate readOnly={!canEdit}>
+              <button type="button" onClick={handleSubmit} disabled={submitting}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl text-white disabled:opacity-50 transition-all"
+                style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                {submitting ? "Saving…" : (isNew ? "Create Style" : "Save Changes")}
+              </button>
+            </FormAccessGate>
           </div>
         </div>
       </div>
