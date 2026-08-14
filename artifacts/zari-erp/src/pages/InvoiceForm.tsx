@@ -144,10 +144,29 @@ function InvoicePaymentsPanel({
 }) {
   const { toast } = useToast();
   
-  const { data, isLoading, refetch } = useInvoicePaymentsByReference(referenceType, referenceId);
+  // const { data, isLoading, refetch } = useInvoicePaymentsByReference(referenceType, referenceId);
   const addPmt = useAddInvoicePayment();
   const deletePmt = useDeleteInvoicePayment();
   const { canDelete } = useFormAccessContext();
+
+  const invoicePayments = useInvoicePaymentsList(invoiceId);
+
+  const referencePayments = useInvoicePaymentsByReference(
+    referenceType,
+    referenceId
+  );
+
+  const data = invoiceId
+    ? invoicePayments.data
+    : referencePayments.data;
+
+  const isLoading = invoiceId
+    ? invoicePayments.isLoading
+    : referencePayments.isLoading;
+
+  const refetch = invoiceId
+    ? invoicePayments.refetch
+    : referencePayments.refetch;
 
   const payments = data?.data ?? [];
   const fx = exchangeRate > 0 ? exchangeRate : 1;
@@ -451,7 +470,7 @@ export default function InvoiceForm() {
   const [materialMaster, setMaterialMaster] = useState<MaterialMaster[]>([]);
   const [paymentReferenceId, setPaymentReferenceId] = useState("");
 
-  const [form, setForm] = useState({
+  const INITIAL_FORM_STATE = {
     invoiceNo: "",
     invoiceDirection: "Client",
     invoiceType: "Final Invoice",
@@ -492,7 +511,54 @@ export default function InvoiceForm() {
     trackingNumber: "",
     dispatchDate: "",
     expectedDelivery: "",
-  });
+  };
+  // Takes an invoice object from the API and returns the form fields
+  function mapInvoiceToForm(inv: any){
+    return {
+      invoiceNo: inv.invoiceNo ?? "",
+      invoiceDirection: inv.invoiceDirection ?? "Client",
+      invoiceType: inv.invoiceType ?? "Final Invoice",
+      invoiceStatus: inv.invoiceStatus ?? "Draft",
+      clientId: inv.clientId ? String(inv.clientId) : "",
+      vendorId: inv.vendorId ? String(inv.vendorId) : "",
+      referenceType: inv.referenceType ?? "Manual",
+      referenceId: inv.referenceId ?? "",
+      swatchOrderId: inv.swatchOrderId ?? "",
+      styleOrderId: inv.styleOrderId ?? "",
+      currencyCode: inv.currencyCode ?? "INR",
+      exchangeRateSnapshot: inv.exchangeRateSnapshot ? String(inv.exchangeRateSnapshot) : "1",
+      invoiceDate: inv.invoiceDate ? String(inv.invoiceDate).slice(0, 10) : "",
+      dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : "",
+      clientName: inv.clientName ?? "",
+      clientAddress: inv.clientAddress ?? "",
+      clientGstin: inv.clientGstin ?? "",
+      clientEmail: inv.clientEmail ?? "",
+      clientPhone: inv.clientPhone ?? "",
+      clientState: inv.clientState ?? "",
+      discountType: inv.discountType ?? "flat",
+      discountValue: inv.discountValue !== undefined ? String(inv.discountValue) : "0",
+      cgstRate: inv.cgstRate !== undefined ? String(inv.cgstRate) : "0",
+      sgstRate: inv.sgstRate !== undefined ? String(inv.sgstRate) : "0",
+      shippingAmount: inv.shippingAmount !== undefined ? String(inv.shippingAmount) : "0",
+      adjustmentAmount: inv.adjustmentAmount !== undefined ? String(inv.adjustmentAmount) : "0",
+      receivedAmount: inv.receivedAmount !== undefined ? String(inv.receivedAmount) : "0",
+      bankName: inv.bankName ?? "",
+      bankAccount: inv.bankAccount ?? "",
+      bankIfsc: inv.bankIfsc ?? "",
+      bankBranch: inv.bankBranch ?? "",
+      bankUpi: inv.bankUpi ?? "",
+      paymentTerms: inv.paymentTerms ?? "",
+      remarks: inv.remarks ?? "",
+      notes: inv.notes ?? "",
+      shippingAddress: inv.shippingAddress ?? "",
+      carrier: inv.carrier ?? "",
+      trackingNumber: inv.trackingNumber ?? "",
+      dispatchDate: inv.dispatchDate ? String(inv.dispatchDate).slice(0, 10) : "",
+      expectedDelivery: inv.expectedDelivery ? String(inv.expectedDelivery).slice(0, 10) : "",
+    };
+  }
+  const [form, setForm] = useState(INITIAL_FORM_STATE);
+
 
   const [items, setItems] = useState<LineItem[]>([]);
   const savedInvoiceRef = useRef<string | null>(null);
@@ -612,48 +678,7 @@ export default function InvoiceForm() {
     customFetch<any>(`/api/invoices/${params.id}`).then(j => {
       const inv = j.data;
       if (!inv) return;
-      setForm({
-        invoiceNo: inv.invoiceNo ?? "",
-        invoiceDirection: inv.invoiceDirection ?? "Client",
-        invoiceType: inv.invoiceType ?? "Final Invoice",
-        invoiceStatus: inv.invoiceStatus ?? "Draft",
-        clientId: String(inv.clientId ?? ""),
-        vendorId: String(inv.vendorId ?? ""),
-        referenceType: inv.referenceType ?? "Manual",
-        referenceId: inv.referenceId ?? "",
-        swatchOrderId: inv.swatchOrderId ?? "",
-        styleOrderId: inv.styleOrderId ?? "",
-        currencyCode: inv.currencyCode ?? "INR",
-        exchangeRateSnapshot: String(inv.exchangeRateSnapshot ?? "1"),
-        invoiceDate: (inv.invoiceDate ?? "").slice(0, 10),
-        dueDate: (inv.dueDate ?? "").slice(0, 10),
-        clientName: inv.clientName ?? "",
-        clientAddress: inv.clientAddress ?? "",
-        clientGstin: inv.clientGstin ?? "",
-        clientEmail: inv.clientEmail ?? "",
-        clientPhone: inv.clientPhone ?? "",
-        clientState: inv.clientState ?? "",
-        discountType: inv.discountType ?? "flat",
-        discountValue: String(inv.discountValue ?? "0"),
-        cgstRate: String(inv.cgstRate ?? "0"),
-        sgstRate: String(inv.sgstRate ?? "0"),
-        shippingAmount: String(inv.shippingAmount ?? "0"),
-        adjustmentAmount: String(inv.adjustmentAmount ?? "0"),
-        receivedAmount: String(inv.receivedAmount ?? "0"),
-        bankName: inv.bankName ?? "",
-        bankAccount: inv.bankAccount ?? "",
-        bankIfsc: inv.bankIfsc ?? "",
-        bankBranch: inv.bankBranch ?? "",
-        bankUpi: inv.bankUpi ?? "",
-        paymentTerms: inv.paymentTerms ?? "",
-        remarks: inv.remarks ?? "",
-        notes: inv.notes ?? "",
-        shippingAddress: inv.shippingAddress ?? "",
-        carrier: inv.carrier ?? "",
-        trackingNumber: inv.trackingNumber ?? "",
-        dispatchDate: (inv.dispatchDate ?? "").slice(0, 10),
-        expectedDelivery: (inv.expectedDelivery ?? "").slice(0, 10),
-      });
+      setForm(mapInvoiceToForm(inv));
       if (Array.isArray(inv.items) && inv.items.length > 0) setItems(inv.items);
     }).catch(() => {});
   }, [isEdit, params.id]);
@@ -663,54 +688,40 @@ export default function InvoiceForm() {
    */
   async function fetchInvoiceByReference(refType: string, refId: string | number) {
     try {
-      const res = await customFetch<any>(`/api/invoices/reference/${refType}/${refId}`);
-      const inv = res.data ?? null;
-      if (inv && (inv.id || inv.invoiceNo || (Array.isArray(inv.items) && inv.items.length > 0))) {
-        setForm(f => ({
-          ...f,
-          invoiceDirection: inv.invoiceDirection ?? f.invoiceDirection,
-          invoiceType: inv.invoiceType ?? f.invoiceType,
-          invoiceStatus: inv.invoiceStatus ?? f.invoiceStatus,
-          clientId: inv.clientId ? String(inv.clientId) : f.clientId,
-          vendorId: inv.vendorId ? String(inv.vendorId) : f.vendorId,
-          currencyCode: inv.currencyCode ?? f.currencyCode,
-          exchangeRateSnapshot: inv.exchangeRateSnapshot ? String(inv.exchangeRateSnapshot) : f.exchangeRateSnapshot,
-          invoiceDate: inv.invoiceDate ? String(inv.invoiceDate).slice(0, 10) : f.invoiceDate,
-          dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : f.dueDate,
-          clientName: inv.clientName ?? f.clientName,
-          clientAddress: inv.clientAddress ?? f.clientAddress,
-          clientGstin: inv.clientGstin ?? f.clientGstin,
-          clientEmail: inv.clientEmail ?? f.clientEmail,
-          clientPhone: inv.clientPhone ?? f.clientPhone,
-          clientState: inv.clientState ?? f.clientState,
-          discountType: inv.discountType ?? f.discountType,
-          discountValue: inv.discountValue !== undefined ? String(inv.discountValue) : f.discountValue,
-          cgstRate: inv.cgstRate !== undefined ? String(inv.cgstRate) : f.cgstRate,
-          sgstRate: inv.sgstRate !== undefined ? String(inv.sgstRate) : f.sgstRate,
-          shippingAmount: inv.shippingAmount !== undefined ? String(inv.shippingAmount) : f.shippingAmount,
-          adjustmentAmount: inv.adjustmentAmount !== undefined ? String(inv.adjustmentAmount) : f.adjustmentAmount,
-          receivedAmount: inv.receivedAmount !== undefined ? String(inv.receivedAmount) : f.receivedAmount,
-          bankName: inv.bankName ?? f.bankName,
-          bankAccount: inv.bankAccount ?? f.bankAccount,
-          bankIfsc: inv.bankIfsc ?? f.bankIfsc,
-          bankBranch: inv.bankBranch ?? f.bankBranch,
-          bankUpi: inv.bankUpi ?? f.bankUpi,
-          paymentTerms: inv.paymentTerms ?? f.paymentTerms,
-          remarks: inv.remarks ?? f.remarks,
-          notes: inv.notes ?? f.notes,
-          shippingAddress: inv.shippingAddress ?? f.shippingAddress,
-          carrier: inv.carrier ?? f.carrier,
-          trackingNumber: inv.trackingNumber ?? f.trackingNumber,
-          dispatchDate: inv.dispatchDate ? String(inv.dispatchDate).slice(0, 10) : f.dispatchDate,
-          expectedDelivery: inv.expectedDelivery ? String(inv.expectedDelivery).slice(0, 10) : f.expectedDelivery,
+      if(refId === null || refId ===""){
+        setForm(prev => ({
+          ...INITIAL_FORM_STATE,
+          invoiceNo: prev.invoiceNo,
+          referenceType: prev.referenceType,  
+          referenceId: prev.referenceId,      
         }));
-        if (Array.isArray(inv.items) && inv.items.length > 0) {
-          setItems(inv.items);
+        setItems([]);
+      }else{
+        const res = await customFetch<any>(`/api/invoices/reference/${refType}/${refId}`);
+        const inv = res.data;
+
+        if (inv && (inv.id || inv.invoiceNo || (Array.isArray(inv.items) && inv.items.length > 0))) {
+          setForm(f => {
+            const mapped = mapInvoiceToForm(inv);
+            return {
+              ...mapped,
+              invoiceNo: f.invoiceNo,
+            };
+          });          
+          setItems(Array.isArray(inv.items) ? inv.items : []);
+          toast({ title: `Invoice data loaded for ${refType}` });
+        }else{
+          setForm(prev => ({
+            ...INITIAL_FORM_STATE,
+            invoiceNo: prev.invoiceNo,
+            referenceType: prev.referenceType,  
+            referenceId: prev.referenceId,      
+          }));
+          setItems([]);
         }
-        toast({ title: `Invoice data loaded for ${refType}` });
       }
     } catch (e: any) {
-      // Invoice doesn't exist yet for this reference ID; no action required
+      toast({ title: "Something went wrong", variant: "destructive" });
     }
   }
 
@@ -1100,13 +1111,17 @@ export default function InvoiceForm() {
                   <select
                     value={form.referenceType}
                     onChange={e => {
-                      setForm(f => ({
-                        ...f,
+                      setForm(prev => ({
+                        ...INITIAL_FORM_STATE,
+                        invoiceNo: prev.invoiceNo,
                         referenceType: e.target.value,
                         referenceId: "",
                         swatchOrderId: "",
                         styleOrderId: "",
                       }));
+
+                      setItems([]);
+                      setPaymentReferenceId("");
                     }}
                     className={selClass}
                   >                    
@@ -1160,10 +1175,8 @@ export default function InvoiceForm() {
                         if (e.key === "Enter") {
                           e.preventDefault();
                           const value = form.referenceId.trim();
-                          if (value) {
-                            fetchInvoiceByReference(form.referenceType, value);
-                            setPaymentReferenceId(value);
-                          }
+                          fetchInvoiceByReference(form.referenceType, value);
+                          setPaymentReferenceId(value);
                         }
                       }}
                       className={inp}
@@ -1700,10 +1713,12 @@ export default function InvoiceForm() {
         </div>
 
         {/* Payments Panel - Show when we have a reference */}
-        {form.referenceId && form.referenceType && (
+      
+
+        {((form.referenceId && form.referenceType) || (isEdit && params.id)) && (
           <InvoicePaymentsPanel
             isEdit={isEdit}
-            invoiceId={parseInt(form.invoiceNo)}
+            invoiceId={params.id ? parseInt(params.id, 10) : 0}
             referenceType={form.referenceType}
             referenceId={paymentReferenceId}
             direction={form.invoiceDirection}
