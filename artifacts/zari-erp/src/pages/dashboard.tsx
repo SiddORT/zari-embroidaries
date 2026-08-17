@@ -14,6 +14,8 @@ import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-rea
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
+import { useToast } from "@/hooks/use-toast";
 
 const G       = "#C6AF4B";
 const G_LIGHT = "#D4C870";
@@ -127,6 +129,9 @@ export default function Dashboard() {
     query: { enabled: !!authToken, queryKey: getGetMeQueryKey(), retry: false },
   });
 
+  const { toast } = useToast();
+  const { can } = useMyPermissions();
+  const canViewLogs = can("settings:activity_logs:view");
   const logoutMutation = useLogout();
 
   const [overview, setOverview] = useState<any>(null);
@@ -559,10 +564,18 @@ export default function Dashboard() {
                   ))}
               </div>
             </div>
-            <button onClick={() => setLocation("/settings?tab=logs")}
+            <button
+              onClick={() => {
+                if (!canViewLogs) {
+                  toast({ title: "You don't have access to this module", variant: "destructive" });
+                  return;
+                }
+                setLocation("/settings?tab=logs");
+              }}
               className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 hover:bg-amber-50"
-              style={{ border: `1px solid ${G}30`, color: G_DIM }}>
-              <ScrollText className="h-3.5 w-3.5" /> View All Logs
+              style={{ border: `1px solid ${G}30`, color: G_DIM }}
+            >
+            <ScrollText className="h-3.5 w-3.5" /> View All Logs
             </button>
           </div>
         </div>
