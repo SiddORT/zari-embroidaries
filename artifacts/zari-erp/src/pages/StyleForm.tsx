@@ -107,11 +107,11 @@ const NUMERIC_REGEX = /^[0-9]+(\.[0-9]{1,2})?$/;
 interface SwatchMiniForm {
   swatchName: string; client: string; swatchCategory: string; fabric: string;
   location: string; swatchDate: string; length: string; width: string;
-  unitType: string; hours: string;
+  unitType: string; hours: string; swatchCode: string;
 }
 const EMPTY_SWATCH: SwatchMiniForm = {
   swatchName: "", client: "", swatchCategory: "", fabric: "",
-  location: "", swatchDate: "", length: "", width: "", unitType: "", hours: "",
+  location: "", swatchDate: "", length: "", width: "", unitType: "", hours: "", swatchCode: "",
 };
 type SwatchMiniErrors = Partial<Record<keyof SwatchMiniForm, string>>;
 
@@ -121,11 +121,17 @@ interface CreateSwatchMiniModalProps {
   prefillClient?: string;
   onCreated: (swatchCode: string, swatchName: string) => void;
 }
-function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: CreateSwatchMiniModalProps) {
-  const [form, setFormM] = useState<SwatchMiniForm>(EMPTY_SWATCH);
+function CreateSwatchMiniModal({
+  open,
+  onClose,
+  prefillClient,
+  onCreated,
+}: CreateSwatchMiniModalProps) {
+  const [form, setForm] = useState<SwatchMiniForm>(EMPTY_SWATCH);
   const [errors, setErrors] = useState<SwatchMiniErrors>({});
   const nameRef = useRef<HTMLInputElement>(null);
 
+  // ── Data ──
   const { data: clientsData } = useAllClients();
   const { data: swatchCatsData } = useSwatchCategories();
   const { data: fabricsData } = useAllFabrics();
@@ -133,18 +139,22 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
   const { data: warehouseLocations = [] } = useWarehouseLocations();
   const createSwatch = useCreateSwatch();
 
+  // ── Derived options ──
   const clientOptions = ((clientsData ?? []) as ClientRecord[]).map(c => c.brandName);
   const catOptions = (swatchCatsData ?? []).filter(c => c.isActive).map(c => c.name);
   const fabricOptions = (fabricsData ?? []).map(f => `${f.fabricType} – ${f.quality}`.trim());
   const unitOptions = (unitTypesData ?? []).filter(u => u.isActive).map(u => u.name);
   const activeWarehouses = warehouseLocations.filter(w => w.isActive);
-  const placeOptions = [...activeWarehouses.map(w => w.name)];
+  const placeOptions = activeWarehouses.map(w => w.name);
+
+  // Derived location type
   const miniLocType = form.location === "Client" ? "Client" : "Inhouse";
   const miniWarehouseVal = miniLocType === "Inhouse" ? form.location : "";
 
+  // ── Reset on open ──
   useEffect(() => {
     if (open) {
-      setFormM({ ...EMPTY_SWATCH, client: prefillClient ?? "" });
+      setForm({ ...EMPTY_SWATCH, client: prefillClient ?? "" });
       setErrors({});
       setTimeout(() => nameRef.current?.focus(), 60);
     }
@@ -152,9 +162,14 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
 
   if (!open) return null;
 
+  // ── Helpers ──
   function setF<K extends keyof SwatchMiniForm>(key: K, val: string) {
-    setFormM(f => ({ ...f, [key]: val }));
-    setErrors(e => { const n = { ...e }; delete n[key]; return n; });
+    setForm(f => ({ ...f, [key]: val }));
+    setErrors(e => {
+      const n = { ...e };
+      delete n[key];
+      return n;
+    });
   }
 
   function validate(): boolean {
@@ -162,19 +177,31 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
     if (!form.swatchName.trim()) e.swatchName = "Swatch Name is required.";
     if (form.swatchDate) {
       const d = new Date(form.swatchDate);
-      const today = new Date(); today.setHours(23, 59, 59, 999);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
       if (d > today) e.swatchDate = "Future dates are not allowed.";
     }
     if (form.length && !NUMERIC_REGEX.test(form.length.trim())) e.length = "Must be a positive number.";
     if (form.width && !NUMERIC_REGEX.test(form.width.trim())) e.width = "Must be a positive number.";
     if (form.hours && !NUMERIC_REGEX.test(form.hours.trim())) e.hours = "Must be a positive number.";
+    // ── New validation for swatchCode ──
+    if (!form.swatchCode.trim()) e.swatchCode = "Swatch Code suffix is required.";
+
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
+  // ── Submit ──
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+
+    // Build full swatch code with client prefix
+    const selectedClient = (clientsData ?? []).find(c => c.brandName === form.client);
+    const prefix = selectedClient?.customClientCode ?? "";
+    const suffix = form.swatchCode.trim();
+    const fullSwatchCode = prefix && suffix ? `${prefix}-${suffix}` : suffix; // if no prefix, just suffix
+
     try {
       const record = await createSwatch.mutateAsync({
         swatchName: form.swatchName.trim(),
@@ -189,7 +216,11 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
         hours: form.hours.trim() || undefined,
         attachments: [],
         isActive: true,
-      } as unknown as Parameters<typeof createSwatch.mutateAsync>[0]) as unknown as { swatchCode: string; swatchName: string };
+        swatchCode: fullSwatchCode,   // <-- now sent
+        tags: [],                     // optional, if needed
+      } as any);
+
+      // Assume the API returns an object with swatchCode and swatchName
       onCreated(record.swatchCode, record.swatchName);
       onClose();
     } catch {
@@ -197,7 +228,8 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
     }
   }
 
-  const sel = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900";
+  const sel =
+    "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900";
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
@@ -208,44 +240,106 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
             <Link2 size={15} className="text-[#C6AF4B]" />
             <h3 className="text-base font-semibold text-gray-900">Create &amp; Link New Swatch</h3>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"><X size={16} /></button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"
+          >
+            <X size={16} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <p className="text-xs text-gray-400">Fields marked <span className="text-red-500">*</span> are required. A swatch code will be auto-generated.</p>
+          {/* ─── Updated helper text ─── */}
+          <p className="text-xs text-gray-400">
+            Fields marked <span className="text-red-500">*</span> are required.
+          </p>
 
           <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-
             {/* Swatch Name */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Swatch Name <span className="text-red-500">*</span></label>
-              <input ref={nameRef} type="text" value={form.swatchName}
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Swatch Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={nameRef}
+                type="text"
+                value={form.swatchName}
                 onChange={e => setF("swatchName", e.target.value.slice(0, 50))}
                 placeholder="Enter swatch name"
                 maxLength={50}
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.swatchName ? "border-red-400" : "border-gray-300"}`} />
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.swatchName ? "border-red-400" : "border-gray-300"
+                  }`}
+              />
               {errors.swatchName && <p className="text-xs text-red-500 mt-1">{errors.swatchName}</p>}
+            </div>
+
+            {/* ─── NEW: Swatch Code ─── */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Swatch Code <span className="text-red-500">*</span>
+              </label>
+              <div className="flex">
+                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-100 text-gray-600 text-sm whitespace-nowrap">
+                  {(() => {
+                    const selectedClient = (clientsData ?? []).find(
+                      c => c.brandName === form.client
+                    );
+                    return selectedClient?.customClientCode
+                      ? `${selectedClient.customClientCode}-`
+                      : "Client-";
+                  })()}
+                </span>
+                <input
+                  type="text"
+                  value={form.swatchCode}
+                  onChange={e => setF("swatchCode", e.target.value.toUpperCase())}
+                  placeholder="e.g. SWA001"
+                  maxLength={20}
+                  className={`flex-1 border rounded-r-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.swatchCode ? "border-red-400" : "border-gray-300"
+                    }`}
+                />
+              </div>
+              {errors.swatchCode && <p className="text-xs text-red-500 mt-1">{errors.swatchCode}</p>}
+              <p className="text-xs text-gray-400 mt-1">
+                The suffix will be combined with the client prefix automatically.
+              </p>
             </div>
 
             {/* Client */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
-              <SearchableSelect value={form.client} onChange={v => setF("client", v)}
-                options={clientOptions} placeholder="Select client" clearable />
+              <SearchableSelect
+                value={form.client}
+                onChange={v => setF("client", v)}
+                options={clientOptions}
+                placeholder="Select client"
+                clearable
+              />
             </div>
 
             {/* Category */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Swatch Category</label>
-              <SearchableSelect value={form.swatchCategory} onChange={v => setF("swatchCategory", v)}
-                options={catOptions} placeholder="— None —" clearable />
+              <SearchableSelect
+                value={form.swatchCategory}
+                onChange={v => setF("swatchCategory", v)}
+                options={catOptions}
+                placeholder="— None —"
+                clearable
+              />
             </div>
 
             {/* Base Fabric */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Base Fabric</label>
-              <SearchableSelect value={form.fabric} onChange={v => setF("fabric", v)}
-                options={fabricOptions} placeholder="Select fabric" clearable />
+              <SearchableSelect
+                value={form.fabric}
+                onChange={v => setF("fabric", v)}
+                options={fabricOptions}
+                placeholder="Select fabric"
+                clearable
+              />
             </div>
 
             {/* Location */}
@@ -253,77 +347,120 @@ function CreateSwatchMiniModal({ open, onClose, prefillClient, onCreated }: Crea
               <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
               <div className="flex rounded-lg border border-gray-300 overflow-hidden mb-2">
                 {(["Inhouse", "Client"] as const).map(t => (
-                  <button key={t} type="button"
+                  <button
+                    key={t}
+                    type="button"
                     onClick={() => setF("location", t === "Client" ? "Client" : "")}
-                    className={`flex-1 py-2 text-sm font-medium transition-colors ${miniLocType === t ? "bg-gray-100 text-gray-800 font-semibold" : "bg-white text-gray-400 hover:bg-gray-50"}`}>
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${miniLocType === t
+                        ? "bg-gray-100 text-gray-800 font-semibold"
+                        : "bg-white text-gray-400 hover:bg-gray-50"
+                      }`}
+                  >
                     {t === "Client" ? "To Client" : "Inhouse"}
                   </button>
                 ))}
               </div>
               {miniLocType === "Inhouse" && (
-                <SearchableSelect value={miniWarehouseVal} onChange={v => setF("location", v)}
-                  options={activeWarehouses.map(w => w.name)} placeholder="— Select warehouse —" clearable />
+                <SearchableSelect
+                  value={miniWarehouseVal}
+                  onChange={v => setF("location", v)}
+                  options={placeOptions}
+                  placeholder="— Select warehouse —"
+                  clearable
+                />
               )}
             </div>
 
             {/* Swatch Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Swatch Date</label>
-              <input type="date" value={form.swatchDate}
+              <input
+                type="date"
+                value={form.swatchDate}
                 max={new Date().toISOString().split("T")[0]}
                 onChange={e => setF("swatchDate", e.target.value)}
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.swatchDate ? "border-red-400" : "border-gray-300"}`} />
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.swatchDate ? "border-red-400" : "border-gray-300"
+                  }`}
+              />
               {errors.swatchDate && <p className="text-xs text-red-500 mt-1">{errors.swatchDate}</p>}
             </div>
 
             {/* Hours */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
-              <input type="text" value={form.hours}
+              <input
+                type="text"
+                value={form.hours}
                 onChange={e => setF("hours", e.target.value)}
                 placeholder="e.g. 4.5"
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.hours ? "border-red-400" : "border-gray-300"}`} />
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.hours ? "border-red-400" : "border-gray-300"
+                  }`}
+              />
               {errors.hours && <p className="text-xs text-red-500 mt-1">{errors.hours}</p>}
             </div>
 
             {/* Length */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Length</label>
-              <input type="text" value={form.length} maxLength={20}
+              <input
+                type="text"
+                value={form.length}
+                maxLength={20}
                 onChange={e => setF("length", e.target.value)}
                 placeholder="e.g. 120"
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.length ? "border-red-400" : "border-gray-300"}`} />
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.length ? "border-red-400" : "border-gray-300"
+                  }`}
+              />
               {errors.length && <p className="text-xs text-red-500 mt-1">{errors.length}</p>}
             </div>
 
             {/* Width */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Width</label>
-              <input type="text" value={form.width} maxLength={20}
+              <input
+                type="text"
+                value={form.width}
+                maxLength={20}
                 onChange={e => setF("width", e.target.value)}
                 placeholder="e.g. 60"
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.width ? "border-red-400" : "border-gray-300"}`} />
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 ${errors.width ? "border-red-400" : "border-gray-300"
+                  }`}
+              />
               {errors.width && <p className="text-xs text-red-500 mt-1">{errors.width}</p>}
             </div>
 
             {/* Unit Type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type</label>
-              <SearchableSelect value={form.unitType} onChange={v => setF("unitType", v)}
-                options={unitOptions} placeholder="— None —" clearable />
+              <SearchableSelect
+                value={form.unitType}
+                onChange={v => setF("unitType", v)}
+                options={unitOptions}
+                placeholder="— None —"
+                clearable
+              />
             </div>
-
           </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-            <button type="button" onClick={onClose}
-              className="px-5 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={createSwatch.isPending}
-              className="flex items-center gap-2 px-5 py-2 text-sm rounded-lg bg-gray-900 text-[#C6AF4B] hover:bg-gray-800 disabled:opacity-60 transition">
-              {createSwatch.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+            <button
+              type="submit"
+              disabled={createSwatch.isPending}
+              className="flex items-center gap-2 px-5 py-2 text-sm rounded-lg bg-gray-900 text-[#C6AF4B] hover:bg-gray-800 disabled:opacity-60 transition"
+            >
+              {createSwatch.isPending ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Plus size={13} />
+              )}
               {createSwatch.isPending ? "Creating…" : "Create & Link Swatch"}
             </button>
           </div>
@@ -404,16 +541,16 @@ export default function StyleForm() {
 
   useEffect(() => {
     if (!isNew && existing && !populated) {
-      const styleSuffix = existing.styleNo?.includes("-") ? existing.styleNo.substring(existing.styleNo.indexOf("-") + 1): existing.styleNo ?? "";
+      const styleSuffix = existing.styleNo?.includes("-") ? existing.styleNo.substring(existing.styleNo.indexOf("-") + 1) : existing.styleNo ?? "";
       setForm({
-        client: existing.client, 
+        client: existing.client,
         styleNo: styleSuffix,
         styleCategory: existing.styleCategory ?? "",
         invoiceNo: existing.invoiceNo ?? "", description: existing.description ?? "",
         attachLink: existing.attachLink ?? "", placeOfIssue: existing.placeOfIssue ?? "",
         vendorPoNo: existing.vendorPoNo ?? "", shippingDate: existing.shippingDate ?? "",
         referenceSwatchId: existing.referenceSwatchId ?? "", isActive: existing.isActive,
-        tags : (existing.tags as string[]) ?? [],
+        tags: (existing.tags as string[]) ?? [],
       });
       setWipMedia((existing.wipMedia as MediaItem[]) ?? []);
       setFinalMedia((existing.finalMedia as MediaItem[]) ?? []);
@@ -477,15 +614,15 @@ export default function StyleForm() {
     try {
       if (!isNew && numId) {
         const payload = {
-            ...form,
-            styleNo: clientPrefix
-                ? `${clientPrefix}-${form.styleNo}`
-                : form.styleNo,
+          ...form,
+          styleNo: clientPrefix
+            ? `${clientPrefix}-${form.styleNo}`
+            : form.styleNo,
         };
 
         await updateMutation.mutateAsync({
-            id: numId,
-            data: payload,
+          id: numId,
+          data: payload,
         });
         if (pendingWip.length > 0) await uploadPendingToServer(numId, pendingWip, "wip");
         if (pendingFinal.length > 0) await uploadPendingToServer(numId, pendingFinal, "final");
@@ -549,12 +686,12 @@ export default function StyleForm() {
             </h1>
           </div>
           <FormAccessGate readOnly={!canEdit}>
-          <button type="button" onClick={handleSubmit} disabled={submitting}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-            style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
-            {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
-            {submitting ? "Saving…" : isNew ? "Create Style" : "Save Changes"}
-          </button>
+            <button type="button" onClick={handleSubmit} disabled={submitting}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+              style={{ background: "linear-gradient(135deg, #C6AF4B, #a8922e)" }}>
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+              {submitting ? "Saving…" : isNew ? "Create Style" : "Save Changes"}
+            </button>
           </FormAccessGate>
         </div>
 
@@ -578,9 +715,9 @@ export default function StyleForm() {
 
                       <FieldWrap label="Client" required error={errors.client}>
                         <SearchableSelect value={form.client} onChange={v => setField("client", v)}
-                          options={clientOptions} placeholder="Select client" clearable 
+                          options={clientOptions} placeholder="Select client" clearable
                           disabled={!isNew}
-                          />
+                        />
                       </FieldWrap>
 
                       {/* Style No — always read-only */}
@@ -646,16 +783,16 @@ export default function StyleForm() {
                       </FieldWrap>
 
                       <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Swatch Tags
-                      </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Swatch Tags
+                        </label>
 
-                      <TagInput
-                        value={form.tags}
-                        onChange={tags => setField("tags", tags)}
-                        placeholder="Add a tag..."
-                      />
-                    </div>
+                        <TagInput
+                          value={form.tags}
+                          onChange={tags => setField("tags", tags)}
+                          placeholder="Add a tag..."
+                        />
+                      </div>
 
                       {/* <div className="col-span-2">
                         <FieldWrap label="Attach Link" error={errors.attachLink}>
