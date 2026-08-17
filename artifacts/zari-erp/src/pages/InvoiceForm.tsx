@@ -1110,6 +1110,7 @@ export default function InvoiceForm() {
                   <label className={lbl}>Reference Type</label>
                   <select
                     value={form.referenceType}
+                    disabled={isEdit}
                     onChange={e => {
                       setForm(prev => ({
                         ...INITIAL_FORM_STATE,
@@ -1133,6 +1134,7 @@ export default function InvoiceForm() {
                   {(form.referenceType === "Swatch" || form.referenceType === "Style") ? (
                     <select
                       value={form.referenceId}
+                      disabled={isEdit}
                       onChange={e => {
                         const value = e.target.value;
                         const selected = refOrderOptions.find(o => o.value === value);
@@ -1161,6 +1163,7 @@ export default function InvoiceForm() {
                   ) : (
                     <input
                       value={form.referenceId}
+                      disabled={isEdit}
                       onChange={e => {
                         const value = e.target.value;
                         // Only update the reference ID, don't fetch
