@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 
 const BASE = "/api";
 
@@ -81,6 +82,32 @@ export function useInvoicePaymentsList(invoiceId: number | null) {
   });
 }
 
+// In your hooks/useInvoicePayments.ts
+export function useInvoicePaymentsByReference(
+  referenceType: string | null,
+  referenceId: string | null
+) {
+  return useQuery<{ data: InvoicePayment[] }>({
+    queryKey: [
+      "invoice-payments-reference",
+      referenceType,
+      referenceId
+    ],
+
+    queryFn: () => {
+      if (!referenceType || !referenceId) {
+        return Promise.resolve({ data: [] });
+      }
+
+      return apiFetch(
+        `/invoice-payments/reference/${encodeURIComponent(referenceType)}/${encodeURIComponent(referenceId)}`
+      );
+    },
+
+    enabled: !!referenceType && !!referenceId,
+  });
+}
+
 export function useAddInvoicePayment() {
   const qc = useQueryClient();
   return useMutation({
@@ -102,5 +129,25 @@ export function useDeleteInvoicePayment() {
       qc.invalidateQueries({ queryKey: ["invoice-payments"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
     },
+  });
+}
+
+export function useSwatchInvoicePayments(swatchOrderId: number) {
+  return useQuery({
+    queryKey: ["invoice-payments-swatch", swatchOrderId],
+    queryFn: () =>
+      customFetch<{ data: InvoicePayment[] }>(`/api/invoice-payments/swatch/${swatchOrderId}`)
+        .then(r => r.data),
+    enabled: !!swatchOrderId,
+  });
+}
+
+export function useStyleInvoicePayments(styleOrderId: number) {
+  return useQuery({
+    queryKey: ["invoice-payments-style", styleOrderId],
+    queryFn: () =>
+      customFetch<{ data: InvoicePayment[] }>(`/api/invoice-payments/style/${styleOrderId}`)
+        .then(r => r.data),
+    enabled: !!styleOrderId,
   });
 }

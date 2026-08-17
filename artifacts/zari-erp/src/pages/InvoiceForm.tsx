@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useLocation, useParams } from "wouter";
-import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download, Wallet, X, ChevronDown, ChevronRight, Loader2, AlertCircle, Clock } from "lucide-react";
+import { Save, ArrowLeft, Plus, Trash2, CheckCircle2, Eye, FileText, Download, Wallet, X, ChevronDown, ChevronRight, Loader2, AlertCircle, Clock, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/layout/AppLayout";
 import InvoicePreviewModal from "@/components/InvoicePreviewModal";
 import type { PreviewInvoice } from "@/components/InvoicePreviewModal";
-import { useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
+import { useInvoicePaymentsByReference, useInvoicePaymentsList, useAddInvoicePayment, useDeleteInvoicePayment } from "@/hooks/useInvoicePayments";
 import type { InvoicePayment } from "@/hooks/useInvoicePayments";
 import { useFormAccessContext } from "@/contexts/FormAccessContext";
 import { FormAccessGate } from "@/components/FormAccessGate";
@@ -81,10 +81,8 @@ function calcTotals(items: LineItem[], shipping: number, adjustment: number, dis
   const rawDiscount = discountType === "percent"
     ? (subtotal * Math.min(100, Math.max(0, discountValue))) / 100
     : Math.max(0, discountValue);
-  // Cap flat discount at subtotal so taxable never goes negative
   const discount = Math.min(rawDiscount, subtotal);
   const taxable = subtotal - discount;
-  // GST is per-item HSN rate, scaled proportionally by the discount
   const scale = subtotal > 0 ? taxable / subtotal : 0;
   const itemGstTotal = items.reduce((s, i) => {
     const pct = parseFloat(i.hsnGstPct || "0");
@@ -97,7 +95,6 @@ function calcTotals(items: LineItem[], shipping: number, adjustment: number, dis
   return { subtotal, discount, taxable, cgstAmt, sgstAmt, itemGstTotal, total };
 }
 
-/* ─── Invoice Payments Panel (shown on saved invoices) ────────────────────── */
 const PAYMENT_TYPES_INV  = ["Cash", "Bank Transfer", "UPI", "Cheque", "Online Gateway", "Adjustment", "Other"] as const;
 const PAYMENT_STATUSES_INV = ["Completed", "Processing", "Failed"] as const;
 const CURRENCIES_INV = ["INR", "USD", "EUR", "GBP", "AED", "JPY", "CNY"];
@@ -121,44 +118,84 @@ function fmtDt(d: string | null | undefined) {
 }
 
 function InvoicePaymentsPanel({
-  invoiceId, direction, totalAmount, currencyCode, exchangeRate, currentStatus, invoiceType,
-  onStatusChange,
+  isEdit,
+  invoiceId,
+  referenceType,
+  referenceId,
+  direction,
+  totalAmount,
+  currencyCode,
+  exchangeRate,
+  currentStatus,
+  invoiceType,
+  onStatusChange
 }: {
-  invoiceId: number; direction: string; totalAmount: number;
-  currencyCode: string; exchangeRate: number; currentStatus: string;
+  isEdit: boolean;
+  invoiceId: number;
+  referenceType: string;
+  referenceId: string;
+  direction: string;
+  totalAmount: number;
+  currencyCode: string;
+  exchangeRate: number;
+  currentStatus: string;
   invoiceType: string;
   onStatusChange: (status: string, received: number, pending: number) => void;
 }) {
   const { toast } = useToast();
-  const { data, isLoading, refetch } = useInvoicePaymentsList(invoiceId);
-  const addPmt   = useAddInvoicePayment();
+  
+  // const { data, isLoading, refetch } = useInvoicePaymentsByReference(referenceType, referenceId);
+  const addPmt = useAddInvoicePayment();
   const deletePmt = useDeleteInvoicePayment();
-  const { canEdit, canDelete } = useFormAccessContext();
+  const { canDelete } = useFormAccessContext();
+
+  const invoicePayments = useInvoicePaymentsList(invoiceId);
+
+  const referencePayments = useInvoicePaymentsByReference(
+    referenceType,
+    referenceId
+  );
+
+  const data = invoiceId
+    ? invoicePayments.data
+    : referencePayments.data;
+
+  const isLoading = invoiceId
+    ? invoicePayments.isLoading
+    : referencePayments.isLoading;
+
+  const refetch = invoiceId
+    ? invoicePayments.refetch
+    : referencePayments.refetch;
 
   const payments = data?.data ?? [];
-  // Convert each payment's INR base back to invoice currency so comparisons stay in one currency
   const fx = exchangeRate > 0 ? exchangeRate : 1;
   const totalReceived = payments.filter(p => p.payment_status === "Completed")
     .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0);
   const pendingAmt = Math.max(0, totalAmount - totalReceived);
   const pct = totalAmount > 0 ? Math.min(100, (totalReceived / totalAmount) * 100) : 0;
-
-  const [showModal, setShowModal]   = useState(false);
-  const [expanded, setExpanded]     = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    payment_type: "Bank Transfer", payment_amount: "",
+    payment_type: "Bank Transfer",
+    payment_amount: "",
     currency_code: currencyCode || "INR",
     exchange_rate_snapshot: String(exchangeRate || 1),
-    transaction_reference: "", payment_status: "Completed",
-    payment_date: today, remarks: "",
+    transaction_reference: "",
+    payment_status: "Completed",
+    payment_date: today,
+    remarks: "",
   });
 
-  function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })); }
+  function setF(k: string, v: string) {
+    setForm(p => ({ ...p, [k]: v }));
+  }
 
   function openModal() {
     setForm(p => ({
-      ...p, currency_code: currencyCode || "INR",
+      ...p,
+      currency_code: currencyCode || "INR",
       exchange_rate_snapshot: String(exchangeRate || 1),
       payment_amount: fmtN(pendingAmt).replace(/,/g, ""),
     }));
@@ -171,13 +208,17 @@ function InvoicePaymentsPanel({
     if (!amt || amt <= 0) return toast({ title: "Enter a valid amount", variant: "destructive" });
     try {
       const res = await addPmt.mutateAsync({
-        invoice_id: invoiceId, ...form,
+        invoice_id: invoiceId,
+        reference_type: referenceType,
+        reference_id: referenceId,
+        ...form,
         payment_amount: amt,
         exchange_rate_snapshot: parseFloat(form.exchange_rate_snapshot),
       });
       onStatusChange(res.invoice_status, res.received_amount, res.pending_amount);
       setShowModal(false);
       toast({ title: direction === "Vendor" ? "Payment recorded" : "Payment received" });
+      refetch(); // Refresh the payments list
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -189,6 +230,7 @@ function InvoicePaymentsPanel({
       const res = await deletePmt.mutateAsync(p.payment_id);
       onStatusChange(res.invoice_status ?? currentStatus, res.received_amount ?? 0, res.pending_amount ?? 0);
       toast({ title: "Payment deleted" });
+      refetch(); // Refresh the payments list
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -200,7 +242,6 @@ function InvoicePaymentsPanel({
 
   return (
     <div className="rounded-2xl bg-white border border-[#C6AF4B]/20 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-[#F8F6F0]">
         <button onClick={() => setExpanded(p => !p)} className="flex items-center gap-2 text-left group">
           {expanded ? <ChevronDown size={15} className="text-gray-400" /> : <ChevronRight size={15} className="text-gray-400" />}
@@ -213,7 +254,6 @@ function InvoicePaymentsPanel({
           )}
         </button>
 
-        {/* Summary strip */}
         <div className="flex items-center gap-6">
           <div className="text-right">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Total</p>
@@ -249,7 +289,6 @@ function InvoicePaymentsPanel({
         </div>
       </div>
 
-      {/* Payment history */}
       {expanded && (
         <div className="px-5 pb-4 pt-3">
           {isLoading ? (
@@ -270,9 +309,7 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
-                  {canDelete && (
-                    <th className="py-2 w-6"></th>
-                  )}
+                  {canDelete && <th className="py-2 w-6"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -280,30 +317,31 @@ function InvoicePaymentsPanel({
                   const pmtInInvCcy = parseFloat(String(p.base_currency_amount ?? 0)) / fx;
                   const showOriginal = p.currency_code !== currencyCode;
                   return (
-                  <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
-                    <td className="py-2 text-gray-400">{i + 1}</td>
-                    <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
-                    <td className="py-2 text-gray-700">{p.payment_type}</td>
-                    <td className="py-2 text-right tabular-nums">
-                      <span className="font-medium text-gray-900">{currencyCode} {fmtN(pmtInInvCcy)}</span>
-                      {showOriginal && (
-                        <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
+                    <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
+                      <td className="py-2 text-gray-400">{i + 1}</td>
+                      <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
+                      <td className="py-2 text-gray-700">{p.payment_type}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        <span className="font-medium text-gray-900">{currencyCode} {fmtN(pmtInInvCcy)}</span>
+                        {showOriginal && (
+                          <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
+                          {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
+                        </span>
+                      </td>
+                      <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
+                      {canDelete && (
+                        <td className="py-2">
+                          <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending || !isEdit}
+                            className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <Trash2 size={11} />
+                          </button>
+                        </td>
                       )}
-                    </td>
-                    <td className="py-2">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
-                        {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
-                      </span>
-                    </td>
-                    <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
-                    {canDelete && (
-                    <td className="py-2">
-                      <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending}
-                        className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
-                        <Trash2 size={11} />
-                      </button>
-                    </td>)}
-                  </tr>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -312,7 +350,6 @@ function InvoicePaymentsPanel({
         </div>
       )}
 
-      {/* Payment Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setShowModal(false)}>
           <div className="rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -431,8 +468,9 @@ export default function InvoiceForm() {
   const [showHsnOnInvoice, setShowHsnOnInvoice] = useState(true);
   const [fabricMaster, setFabricMaster] = useState<FabricMaster[]>([]);
   const [materialMaster, setMaterialMaster] = useState<MaterialMaster[]>([]);
+  const [paymentReferenceId, setPaymentReferenceId] = useState("");
 
-  const [form, setForm] = useState({
+  const INITIAL_FORM_STATE = {
     invoiceNo: "",
     invoiceDirection: "Client",
     invoiceType: "Final Invoice",
@@ -473,7 +511,54 @@ export default function InvoiceForm() {
     trackingNumber: "",
     dispatchDate: "",
     expectedDelivery: "",
-  });
+  };
+  // Takes an invoice object from the API and returns the form fields
+  function mapInvoiceToForm(inv: any){
+    return {
+      invoiceNo: inv.invoiceNo ?? "",
+      invoiceDirection: inv.invoiceDirection ?? "Client",
+      invoiceType: inv.invoiceType ?? "Final Invoice",
+      invoiceStatus: inv.invoiceStatus ?? "Draft",
+      clientId: inv.clientId ? String(inv.clientId) : "",
+      vendorId: inv.vendorId ? String(inv.vendorId) : "",
+      referenceType: inv.referenceType ?? "Manual",
+      referenceId: inv.referenceId ?? "",
+      swatchOrderId: inv.swatchOrderId ?? "",
+      styleOrderId: inv.styleOrderId ?? "",
+      currencyCode: inv.currencyCode ?? "INR",
+      exchangeRateSnapshot: inv.exchangeRateSnapshot ? String(inv.exchangeRateSnapshot) : "1",
+      invoiceDate: inv.invoiceDate ? String(inv.invoiceDate).slice(0, 10) : "",
+      dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : "",
+      clientName: inv.clientName ?? "",
+      clientAddress: inv.clientAddress ?? "",
+      clientGstin: inv.clientGstin ?? "",
+      clientEmail: inv.clientEmail ?? "",
+      clientPhone: inv.clientPhone ?? "",
+      clientState: inv.clientState ?? "",
+      discountType: inv.discountType ?? "flat",
+      discountValue: inv.discountValue !== undefined ? String(inv.discountValue) : "0",
+      cgstRate: inv.cgstRate !== undefined ? String(inv.cgstRate) : "0",
+      sgstRate: inv.sgstRate !== undefined ? String(inv.sgstRate) : "0",
+      shippingAmount: inv.shippingAmount !== undefined ? String(inv.shippingAmount) : "0",
+      adjustmentAmount: inv.adjustmentAmount !== undefined ? String(inv.adjustmentAmount) : "0",
+      receivedAmount: inv.receivedAmount !== undefined ? String(inv.receivedAmount) : "0",
+      bankName: inv.bankName ?? "",
+      bankAccount: inv.bankAccount ?? "",
+      bankIfsc: inv.bankIfsc ?? "",
+      bankBranch: inv.bankBranch ?? "",
+      bankUpi: inv.bankUpi ?? "",
+      paymentTerms: inv.paymentTerms ?? "",
+      remarks: inv.remarks ?? "",
+      notes: inv.notes ?? "",
+      shippingAddress: inv.shippingAddress ?? "",
+      carrier: inv.carrier ?? "",
+      trackingNumber: inv.trackingNumber ?? "",
+      dispatchDate: inv.dispatchDate ? String(inv.dispatchDate).slice(0, 10) : "",
+      expectedDelivery: inv.expectedDelivery ? String(inv.expectedDelivery).slice(0, 10) : "",
+    };
+  }
+  const [form, setForm] = useState(INITIAL_FORM_STATE);
+
 
   const [items, setItems] = useState<LineItem[]>([]);
   const savedInvoiceRef = useRef<string | null>(null);
@@ -497,7 +582,6 @@ export default function InvoiceForm() {
     if (form.cgstRate !== next || form.sgstRate !== next) {
       setForm(f => ({ ...f, cgstRate: next, sgstRate: next }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totals.itemGstTotal, totals.taxable]);
 
   const rate = parseFloat(form.exchangeRateSnapshot || "1");
@@ -507,7 +591,6 @@ export default function InvoiceForm() {
   const sym = CURRENCY_SYMBOLS[form.currencyCode] ?? form.currencyCode;
   const toInvCcy = (inrVal: number) => (rate > 0 ? inrVal / rate : inrVal);
 
-  // Load supporting data
   useEffect(() => {
     customFetch<any>("/api/clients?limit=500").then(j => setClients(j.data ?? [])).catch(() => {});
     customFetch<any>("/api/vendors?limit=500").then(j => setVendors(j.data ?? [])).catch(() => {});
@@ -518,7 +601,6 @@ export default function InvoiceForm() {
       const all = j.data ?? [];
       const active = all.filter((c: any) => c.is_active || c.is_base);
       setCurrencies(active);
-      // For new invoices, default to the base currency
       if (!isEdit) {
         const base = active.find((c: any) => c.is_base);
         if (base) setForm(f => ({ ...f, currencyCode: base.code }));
@@ -529,10 +611,8 @@ export default function InvoiceForm() {
       for (const r of (j.data ?? [])) map[r.currency_code] = parseFloat(r.rate);
       setExchangeRates(map);
     }).catch(() => {});
-    // Fetch saved bank accounts, auto-fill the default one for new invoices
+    
     if (!isEdit) {
-      // GST is derived per-item from HSN — no global auto-fill
-
       customFetch<any>("/api/settings/bank-accounts").then(j => {
         const accounts: BankAccount[] = j.data ?? [];
         setBankAccounts(accounts);
@@ -553,11 +633,10 @@ export default function InvoiceForm() {
     }
   }, [isEdit]);
 
-  // Load order options when reference type is Swatch or Style
   useEffect(() => {
     if (form.referenceType !== "Swatch" && form.referenceType !== "Style") {
       setRefOrderOptions([]);
-      setRefOrderFullData([]);          // keep this clean too
+      setRefOrderFullData([]);
       return;
     }
     setRefOrdersLoading(true);
@@ -582,18 +661,15 @@ export default function InvoiceForm() {
     }).finally(() => setRefOrdersLoading(false));
   }, [form.referenceType]);
 
-  // Auto-set exchange rate when currency changes
   useEffect(() => {
     if (form.currencyCode === "INR") {
       setForm(f => ({ ...f, exchangeRateSnapshot: "1" }));
     } else if (exchangeRates[form.currencyCode]) {
       const rate = exchangeRates[form.currencyCode];
-      // rate is 1 INR = X foreign; we want 1 foreign = ? INR => 1/rate
       setForm(f => ({ ...f, exchangeRateSnapshot: (1 / rate).toFixed(4) }));
     }
   }, [form.currencyCode, exchangeRates]);
 
-  // Load existing invoice if editing
   useEffect(() => {
     if (!isEdit) {
       customFetch<any>("/api/invoices/next-number").then(j => setForm(f => ({ ...f, invoiceNo: j.data ?? "" }))).catch(() => {});
@@ -602,59 +678,58 @@ export default function InvoiceForm() {
     customFetch<any>(`/api/invoices/${params.id}`).then(j => {
       const inv = j.data;
       if (!inv) return;
-      setForm({
-        invoiceNo: inv.invoiceNo ?? "",
-        invoiceDirection: inv.invoiceDirection ?? "Client",
-        invoiceType: inv.invoiceType ?? "Final Invoice",
-        invoiceStatus: inv.invoiceStatus ?? "Draft",
-        clientId: String(inv.clientId ?? ""),
-        vendorId: String(inv.vendorId ?? ""),
-        referenceType: inv.referenceType ?? "Manual",
-        referenceId: inv.referenceId ?? "",
-        swatchOrderId: inv.swatchOrderId ?? "",
-        styleOrderId: inv.styleOrderId ?? "",
-        currencyCode: inv.currencyCode ?? "INR",
-        exchangeRateSnapshot: String(inv.exchangeRateSnapshot ?? "1"),
-        invoiceDate: (inv.invoiceDate ?? "").slice(0, 10),
-        dueDate: (inv.dueDate ?? "").slice(0, 10),
-        clientName: inv.clientName ?? "",
-        clientAddress: inv.clientAddress ?? "",
-        clientGstin: inv.clientGstin ?? "",
-        clientEmail: inv.clientEmail ?? "",
-        clientPhone: inv.clientPhone ?? "",
-        clientState: inv.clientState ?? "",
-        discountType: inv.discountType ?? "flat",
-        discountValue: String(inv.discountValue ?? "0"),
-        cgstRate: String(inv.cgstRate ?? "0"),
-        sgstRate: String(inv.sgstRate ?? "0"),
-        shippingAmount: String(inv.shippingAmount ?? "0"),
-        adjustmentAmount: String(inv.adjustmentAmount ?? "0"),
-        receivedAmount: String(inv.receivedAmount ?? "0"),
-        bankName: inv.bankName ?? "",
-        bankAccount: inv.bankAccount ?? "",
-        bankIfsc: inv.bankIfsc ?? "",
-        bankBranch: inv.bankBranch ?? "",
-        bankUpi: inv.bankUpi ?? "",
-        paymentTerms: inv.paymentTerms ?? "",
-        remarks: inv.remarks ?? "",
-        notes: inv.notes ?? "",
-        shippingAddress: inv.shippingAddress ?? "",
-        carrier: inv.carrier ?? "",
-        trackingNumber: inv.trackingNumber ?? "",
-        dispatchDate: (inv.dispatchDate ?? "").slice(0, 10),
-        expectedDelivery: (inv.expectedDelivery ?? "").slice(0, 10),
-      });
+      setForm(mapInvoiceToForm(inv));
       if (Array.isArray(inv.items) && inv.items.length > 0) setItems(inv.items);
     }).catch(() => {});
   }, [isEdit, params.id]);
 
-  // ── Dirty tracking ────────────────────────────────────────────────────────
+  /**
+   * Fetches existing invoice data for a selected swatch or style order ID.
+   */
+  async function fetchInvoiceByReference(refType: string, refId: string | number) {
+    try {
+      if(refId === null || refId ===""){
+        setForm(prev => ({
+          ...INITIAL_FORM_STATE,
+          invoiceNo: prev.invoiceNo,
+          referenceType: prev.referenceType,  
+          referenceId: prev.referenceId,      
+        }));
+        setItems([]);
+      }else{
+        const res = await customFetch<any>(`/api/invoices/reference/${refType}/${refId}`);
+        const inv = res.data;
+
+        if (inv && (inv.id || inv.invoiceNo || (Array.isArray(inv.items) && inv.items.length > 0))) {
+          setForm(f => {
+            const mapped = mapInvoiceToForm(inv);
+            return {
+              ...mapped,
+              invoiceNo: f.invoiceNo,
+            };
+          });          
+          setItems(Array.isArray(inv.items) ? inv.items : []);
+          toast({ title: `Invoice data loaded for ${refType}` });
+        }else{
+          setForm(prev => ({
+            ...INITIAL_FORM_STATE,
+            invoiceNo: prev.invoiceNo,
+            referenceType: prev.referenceType,  
+            referenceId: prev.referenceId,      
+          }));
+          setItems([]);
+        }
+      }
+    } catch (e: any) {
+      toast({ title: "Something went wrong", variant: "destructive" });
+    }
+  }
+
   const invoiceSnapshot = JSON.stringify({ form, items });
   useEffect(() => {
     if (savedInvoiceRef.current === null && form.invoiceNo) {
       savedInvoiceRef.current = JSON.stringify({ form, items });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.invoiceNo]);
   const isDirty = savedInvoiceRef.current !== null && invoiceSnapshot !== savedInvoiceRef.current;
   const handleSaveForGuard = useCallback(async () => { await handleSave(); }, [form, items]);
@@ -710,8 +785,6 @@ export default function InvoiceForm() {
 
     setSaving(true);
     try {
-      // Derive CGST/SGST rate as a % of TAXABLE (post-discount) base, since
-      // any consumer computing tax as `taxable * rate` must reproduce itemGstTotal.
       const derivedHalfRate = totals.taxable > 0
         ? ((totals.itemGstTotal / totals.taxable) * 100) / 2
         : 0;
@@ -778,7 +851,6 @@ export default function InvoiceForm() {
         showHsn: !!(r.hsnCode),
       }));
 
-      // If order has a shipping record, append it as a line item
       const shippingAmt = parseFloat(j.shippingAmount ?? "0") || 0;
       if (shippingAmt > 0) {
         loaded.push({
@@ -811,7 +883,6 @@ export default function InvoiceForm() {
   }
 
   function handleLoadFromCostSheet() {
-    // Section 6 — duplicate prevention: if items already exist, confirm before replacing
     if (items.length > 0) {
       setShowCostSheetConfirm(true);
     } else {
@@ -1039,14 +1110,19 @@ export default function InvoiceForm() {
                   <label className={lbl}>Reference Type</label>
                   <select
                     value={form.referenceType}
+                    disabled={isEdit}
                     onChange={e => {
-                      setForm(f => ({
-                        ...f,
+                      setForm(prev => ({
+                        ...INITIAL_FORM_STATE,
+                        invoiceNo: prev.invoiceNo,
                         referenceType: e.target.value,
                         referenceId: "",
                         swatchOrderId: "",
                         styleOrderId: "",
                       }));
+
+                      setItems([]);
+                      setPaymentReferenceId("");
                     }}
                     className={selClass}
                   >                    
@@ -1058,6 +1134,7 @@ export default function InvoiceForm() {
                   {(form.referenceType === "Swatch" || form.referenceType === "Style") ? (
                     <select
                       value={form.referenceId}
+                      disabled={isEdit}
                       onChange={e => {
                         const value = e.target.value;
                         const selected = refOrderOptions.find(o => o.value === value);
@@ -1068,6 +1145,11 @@ export default function InvoiceForm() {
                           swatchOrderId: f.referenceType === "Swatch" ? dataId : "",
                           styleOrderId: f.referenceType === "Style" ? dataId : "",
                         }));
+                        // Fetch existing invoice data for the selected swatch or style ID
+                        if (dataId) {
+                          fetchInvoiceByReference(form.referenceType, value);
+                          setPaymentReferenceId(value);
+                        }
                       }}
                       className={selClass}
                     >
@@ -1081,13 +1163,24 @@ export default function InvoiceForm() {
                   ) : (
                     <input
                       value={form.referenceId}
+                      disabled={isEdit}
                       onChange={e => {
+                        const value = e.target.value;
+                        // Only update the reference ID, don't fetch
                         setForm(f => ({
                           ...f,
-                          referenceId: e.target.value,
+                          referenceId: value,
                           swatchOrderId: "",
                           styleOrderId: "",
                         }));
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const value = form.referenceId.trim();
+                          fetchInvoiceByReference(form.referenceType, value);
+                          setPaymentReferenceId(value);
+                        }
                       }}
                       className={inp}
                       placeholder={`Enter ${REF_LABELS[form.referenceType] ?? "Reference ID"}`}
@@ -1285,7 +1378,6 @@ export default function InvoiceForm() {
                     <span>Discount</span><span>− {totals.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                {/* GST — auto-derived from per-item HSN rates */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-600">CGST <span className="text-[10px] text-gray-400">(auto)</span></label>
@@ -1458,7 +1550,6 @@ export default function InvoiceForm() {
                   return (
                     <Fragment key={it.id}>
                       <tr className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
-                        {/* Description */}
                         <td className="px-3 py-2">
                           {it.category === "Fabric" ? (
                             <select
@@ -1512,7 +1603,6 @@ export default function InvoiceForm() {
                             <input value={it.description} onChange={e => updateItem(it.id, "description", e.target.value)} disabled={!canEdit} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B]" placeholder="Item description" />
                           )}
                         </td>
-                        {/* Category */}
                         <td className="px-3 py-2">
                           <select
                             value={it.category}
@@ -1526,7 +1616,6 @@ export default function InvoiceForm() {
                             {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </td>
-                        {/* Qty */}
                         <td className="px-3 py-2">
                           <input
                             type="number" min="0" step="0.01"
@@ -1537,7 +1626,6 @@ export default function InvoiceForm() {
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
-                        {/* Rate */}
                         <td className="px-3 py-2">
                           <input
                             type="number" min="0" step="0.01"
@@ -1548,7 +1636,6 @@ export default function InvoiceForm() {
                             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:border-[#C6AF4B] text-right"
                           />
                         </td>
-                        {/* HSN Code — pick from HSN master only */}
                         <td className="px-3 py-2">
                           <select
                             disabled={!canEdit}
@@ -1569,7 +1656,6 @@ export default function InvoiceForm() {
                             ))}
                           </select>
                         </td>
-                        {/* GST % — derived from HSN, read-only */}
                         <td className="px-3 py-2">
                           <input
                             disabled={!canEdit}
@@ -1581,25 +1667,24 @@ export default function InvoiceForm() {
                             placeholder="—"
                           />
                         </td>
-                        {/* GST Amount */}
                         <td className="px-3 py-2 text-right text-xs text-gray-600">
                           {gstPct > 0
                             ? <span className="font-medium text-amber-700">{toInvCcy(itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             : <span className="text-gray-300">—</span>
                           }
                         </td>
-                        {/* Amount */}
                         <td className="px-3 py-2 font-semibold text-gray-900 text-right text-xs">
                           {toInvCcy(it.total).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
-                        {/* Total w/ GST */}
                         <td className="px-3 py-2 text-right text-xs font-bold text-[#C9B45C]">
                           {toInvCcy(it.total + itemGst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </td>
-                        {/* Delete */}
                         {canDelete && (
                         <td className="px-2 py-2">
-                          <button onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                          <button 
+                          disabled={!isEdit}
+                          onClick={() => setItems(prev => prev.filter(x => x.id !== it.id))} 
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
                             <Trash2 size={12} />
                           </button>
                         </td>
@@ -1610,7 +1695,6 @@ export default function InvoiceForm() {
                 })}
               </tbody>
               {items.length > 0 && (() => {
-                // Footer matches sidebar/persisted totals (includes shipping + adjustment)
                 const totalAmt = totals.subtotal;
                 const totalGst = totals.itemGstTotal;
                 const grandTotal = totals.total;
@@ -1631,10 +1715,15 @@ export default function InvoiceForm() {
           </div>
         </div>
 
-        {/* Payments Panel — shown on all saved invoices */}
-        {isEdit && params.id && (
+        {/* Payments Panel - Show when we have a reference */}
+      
+
+        {((form.referenceId && form.referenceType) || (isEdit && params.id)) && (
           <InvoicePaymentsPanel
-            invoiceId={parseInt(params.id)}
+            isEdit={isEdit}
+            invoiceId={params.id ? parseInt(params.id, 10) : 0}
+            referenceType={form.referenceType}
+            referenceId={paymentReferenceId}
             direction={form.invoiceDirection}
             totalAmount={toInvCcy(totals.total)}
             currencyCode={form.currencyCode}
@@ -1648,7 +1737,6 @@ export default function InvoiceForm() {
             }}
           />
         )}
-
         {/* Action Buttons */}
         <div className="flex items-center justify-between gap-3 pt-1 pb-4">
           <button
@@ -1741,7 +1829,7 @@ export default function InvoiceForm() {
         />
       )}
 
-      {/* Cost Sheet Duplicate Confirmation Modal */}
+      {/* Cost Sheet Confirmation Modal */}
       {showCostSheetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-md mx-4 p-6">

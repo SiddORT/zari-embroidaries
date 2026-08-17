@@ -773,8 +773,7 @@ function PermissionsPanel({ role, allPermissions, onSave, saving }: {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const { canEdit, canDelete } = useFormAccessContext();
-
-  const initialPerms = useMemo(() => [...new Set(role.permissions)].sort().join(","), [role.id]);
+  const initialPerms = useMemo(() => [...new Set(role.permissions)].sort().join(","),   [role.id, role.permissions]);
   const isDirty = [...selected].sort().join(",") !== initialPerms;
 
   const tree = useMemo(() => buildResourceTree(allPermissions), [allPermissions]);

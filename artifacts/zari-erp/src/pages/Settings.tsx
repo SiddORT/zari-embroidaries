@@ -21,7 +21,7 @@ const G = "#C6AF4B";
 type Tab = "profile" | "currency" | "banks" | "gst" | "logs" | "warehouses" | "templates" | "reports" | "download_logs" | "api_docs";
 
 const STATUS_COLORS: Record<string, string> = {
-  Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Inactive: "bg-gray-50 text-gray-500 border-gray-200",
 };
 
@@ -41,7 +41,7 @@ interface ExchangeRate {
 }
 
 export default function Settings() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const token = localStorage.getItem("zarierp_token");
@@ -54,7 +54,7 @@ export default function Settings() {
     if (!token) return;
     customFetch<{ data: string[] }>("/api/settings/my-permissions")
       .then(r => setMyPerms(new Set(r.data)))
-      .catch(() => {});
+      .catch(() => { });
   }, [token]);
   const can = (key: string) => isAdmin || myPerms.has(key);
 
@@ -80,7 +80,41 @@ export default function Settings() {
     isAdmin && "api_docs",
   ].filter(Boolean) as Tab[];
 
-  const [tab, setTab] = useState<Tab>(accessibleTabs[0] || "profile");
+  const getTabFromUrl = (): Tab | null => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab");
+
+    if (
+      requestedTab &&
+      accessibleTabs.includes(requestedTab as Tab)
+    ) {
+      return requestedTab as Tab;
+    }
+
+    return null;
+  };
+
+  const [tab, setTab] = useState<Tab>(
+    getTabFromUrl() || accessibleTabs[0] || "profile"
+  );
+
+  const handleTabChange = (newTab: Tab) => {
+    setTab(newTab);
+    setLocation(`/settings?tab=${newTab}`);
+  };
+
+  useEffect(() => {
+    const urlTab = getTabFromUrl();
+
+    if (urlTab) {
+      setTab(urlTab);
+    } else if (
+      accessibleTabs.length > 0 &&
+      !accessibleTabs.includes(tab)
+    ) {
+      setTab(accessibleTabs[0]);
+    }
+  }, [location, myPerms, isAdmin]);
 
   useEffect(() => {
     if (accessibleTabs.length > 0 && !accessibleTabs.includes(tab)) {
@@ -106,31 +140,31 @@ export default function Settings() {
           <aside className="w-52 shrink-0">
             <div className={`${card} p-2 space-y-0.5`}>
               {can("settings:profile:view") && (
-                <NavItem icon={<User size={16} />} label="Profile" active={tab === "profile"} onClick={() => setTab("profile")} />
+                <NavItem icon={<User size={16} />} label="Profile" active={tab === "profile"} onClick={() => handleTabChange("profile")} />
               )}
               {can("settings:currency:view") && (
-                <NavItem icon={<Globe size={16} />} label="Currency" active={tab === "currency"} onClick={() => setTab("currency")} />
+                <NavItem icon={<Globe size={16} />} label="Currency" active={tab === "currency"} onClick={() => handleTabChange("currency")} />
               )}
               {can("settings:banks:view") && (
-                <NavItem icon={<Landmark size={16} />} label="Bank Details" active={tab === "banks"} onClick={() => setTab("banks")} />
+                <NavItem icon={<Landmark size={16} />} label="Bank Details" active={tab === "banks"} onClick={() => handleTabChange("banks")} />
               )}
               {can("settings:gst:view") && (
-                <NavItem icon={<Receipt size={16} />} label="GST Settings" active={tab === "gst"} onClick={() => setTab("gst")} />
+                <NavItem icon={<Receipt size={16} />} label="GST Settings" active={tab === "gst"} onClick={() => handleTabChange("gst")} />
               )}
               {can("settings:activity_logs:view") && (
-                <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => setTab("logs")} />
+                <NavItem icon={<Activity size={16} />} label="Activity Logs" active={tab === "logs"} onClick={() => handleTabChange("logs")} />
               )}
               {can("settings:warehouses:view") && (
-                <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => setTab("warehouses")} />
+                <NavItem icon={<Warehouse size={16} />} label="Warehouses" active={tab === "warehouses"} onClick={() => handleTabChange("warehouses")} />
               )}
               {can("settings:templates:view") && (
-                <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => setTab("templates")} />
+                <NavItem icon={<Layers size={16} />} label="Invoice Templates" active={tab === "templates"} onClick={() => handleTabChange("templates")} />
               )}
               {can("settings:download_logs:view") && (
-                <NavItem icon={<Download size={16} />} label="Download Logs" active={tab === "download_logs"} onClick={() => setTab("download_logs")} />
+                <NavItem icon={<Download size={16} />} label="Download Logs" active={tab === "download_logs"} onClick={() => handleTabChange("download_logs")} />
               )}
               {isAdmin && (
-                <NavItem icon={<Code2 size={16} />} label="API Documentation" active={tab === "api_docs"} onClick={() => setTab("api_docs")} />
+                <NavItem icon={<Code2 size={16} />} label="API Documentation" active={tab === "api_docs"} onClick={() => handleTabChange("api_docs")} />
               )}
             </div>
           </aside>
@@ -139,15 +173,15 @@ export default function Settings() {
           <div className="flex-1 min-w-0">
             {tab === "profile" && can("settings:profile:view") && <ProfileTab card={card} inp={inp} label={label} toast={toast} userId={user?.id} canEdit={can("settings:profile:add_edit")} />}
             {tab === "currency" && can("settings:currency:view") && <CurrencyTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:currency:add_edit")} />}
-            {tab === "banks" && can("settings:banks:view") && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:banks:add_edit")} 
-            canDelete={can("settings:banks:delete")}
+            {tab === "banks" && can("settings:banks:view") && <BankDetailsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:banks:add_edit")}
+              canDelete={can("settings:banks:delete")}
             />}
             {tab === "gst" && can("settings:gst:view") && <GSTSettingsTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:gst:add_edit")} />}
             {tab === "logs" && can("settings:activity_logs:view") && <ActivityLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} canDownload={can("settings:activity_logs:download")} />}
-            {tab === "warehouses" && can("settings:warehouses:view") && <WarehouseTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:warehouses:add_edit")} 
-            canDelete={can("settings:warehouses:delete")}
-            canDownload={can("settings:warehouses:download")} />}
-            {tab === "templates" && can("settings:templates:view") && <InvoiceTemplatesTab card={card} toast={toast} canEdit={can("settings:templates:add_edit")}/>}
+            {tab === "warehouses" && can("settings:warehouses:view") && <WarehouseTab card={card} inp={inp} label={label} toast={toast} canEdit={can("settings:warehouses:add_edit")}
+              canDelete={can("settings:warehouses:delete")}
+              canDownload={can("settings:warehouses:download")} />}
+            {tab === "templates" && can("settings:templates:view") && <InvoiceTemplatesTab card={card} toast={toast} canEdit={can("settings:templates:add_edit")} />}
             {tab === "download_logs" && can("settings:download_logs:view") && <DownloadLogsTab card={card} isAdmin={isAdmin} currentUserEmail={user?.email ?? ""} canDownload={can("settings:download_logs:download")} />}
             {tab === "api_docs" && isAdmin && <ApiDocsTab card={card} />}
           </div>
@@ -161,11 +195,10 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode; labe
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-        active
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active
           ? "bg-gray-900 text-[#C6AF4B]"
           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-      }`}
+        }`}
     >
       {icon}
       {label}
@@ -186,7 +219,7 @@ function fmtDateTime(d: string) {
 // PROFILE TAB
 // ─────────────────────────────────────────────────────────
 
-function ProfileTab({ card, inp, label, toast, userId , canEdit}: any) {
+function ProfileTab({ card, inp, label, toast, userId, canEdit }: any) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [form, setForm] = useState({ name: "", phone_number: "" });
   const [saving, setSaving] = useState(false);
@@ -210,7 +243,7 @@ function ProfileTab({ card, inp, label, toast, userId , canEdit}: any) {
         setForm({ name: j.data.name ?? "", phone_number: j.data.phone_number ?? "" });
         setPhotoPreview(j.data.profile_photo ?? null);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [userId]);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -293,69 +326,69 @@ function ProfileTab({ card, inp, label, toast, userId , canEdit}: any) {
         </div>
 
         <FormAccessGate readOnly={!canEdit}>
-        {/* Photo */}
-        <div className="flex items-center gap-5 mb-6">
-          <div className="relative">
-            {photoPreview ? (
-              <img src={photoPreview} alt="Profile" className="h-20 w-20 rounded-full object-cover border-2 border-[#C6AF4B]/30" />
-            ) : (
-              <div className="h-20 w-20 rounded-full flex items-center justify-center text-2xl font-bold shrink-0" style={{ backgroundColor: "#111", color: G }}>
-                {initials}
-              </div>
-            )}
-            <button
-              onClick={() => photoRef.current?.click()}
-              className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center hover:bg-gray-700 transition shadow-md"
-              title="Change photo"
-            >
-              <Camera size={13} className="text-[#C6AF4B]" />
-            </button>
-            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">{form.name || profile?.email}</p>
-            <p className="text-xs text-gray-400 mt-0.5 capitalize">{profile?.role}</p>
-            <button
-              onClick={() => photoRef.current?.click()}
-              className="mt-2 text-xs text-[#C6AF4B] hover:text-amber-600 font-medium transition"
-            >
-              {photoPreview ? "Replace photo" : "Upload photo"}
-            </button>
-            {photoPreview && (
+          {/* Photo */}
+          <div className="flex items-center gap-5 mb-6">
+            <div className="relative">
+              {photoPreview ? (
+                <img src={photoPreview} alt="Profile" className="h-20 w-20 rounded-full object-cover border-2 border-[#C6AF4B]/30" />
+              ) : (
+                <div className="h-20 w-20 rounded-full flex items-center justify-center text-2xl font-bold shrink-0" style={{ backgroundColor: "#111", color: G }}>
+                  {initials}
+                </div>
+              )}
               <button
-                onClick={() => { setPhotoPreview(null); setPhotoData(null); }}
-                className="ml-3 text-xs text-red-400 hover:text-red-600 font-medium transition"
+                onClick={() => photoRef.current?.click()}
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center hover:bg-gray-700 transition shadow-md"
+                title="Change photo"
               >
-                Remove
+                <Camera size={13} className="text-[#C6AF4B]" />
               </button>
-            )}
+              <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">{form.name || profile?.email}</p>
+              <p className="text-xs text-gray-400 mt-0.5 capitalize">{profile?.role}</p>
+              <button
+                onClick={() => photoRef.current?.click()}
+                className="mt-2 text-xs text-[#C6AF4B] hover:text-amber-600 font-medium transition"
+              >
+                {photoPreview ? "Replace photo" : "Upload photo"}
+              </button>
+              {photoPreview && (
+                <button
+                  onClick={() => { setPhotoPreview(null); setPhotoData(null); }}
+                  className="ml-3 text-xs text-red-400 hover:text-red-600 font-medium transition"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
-        </div>
         </FormAccessGate>
 
         <div className="space-y-4">
           <FormAccessGate readOnly={!canEdit}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Full Name <span className="text-red-500 ml-0.5">*</span></label>
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="Your full name" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>Full Name <span className="text-red-500 ml-0.5">*</span></label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="Your full name" />
+              </div>
+              <div>
+                <label className={label}>Phone Number</label>
+                <input value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))} className={inp} placeholder="+91 9876543210" />
+              </div>
             </div>
             <div>
-              <label className={label}>Phone Number</label>
-              <input value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))} className={inp} placeholder="+91 9876543210" />
+              <label className={label}>Email Address</label>
+              <input value={profile?.email ?? ""} disabled className={inp} />
+              <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
             </div>
-          </div>
-          <div>
-            <label className={label}>Email Address</label>
-            <input value={profile?.email ?? ""} disabled className={inp} />
-            <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
-          </div>
 
-          {profileSuccess && (
-            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm">
-              <CheckCircle2 size={16} /> Profile updated successfully
-            </div>
-          )}
+            {profileSuccess && (
+              <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm">
+                <CheckCircle2 size={16} /> Profile updated successfully
+              </div>
+            )}
           </FormAccessGate>
 
           <div className="flex justify-end">
@@ -381,70 +414,70 @@ function ProfileTab({ card, inp, label, toast, userId , canEdit}: any) {
 
         <div className="space-y-4">
           <FormAccessGate readOnly={!canEdit}>
-          <div>
-            <label className={label}>Current Password <span className="text-red-500 ml-0.5">*</span></label>
-            <div className="relative">
-              <input
-                type={showCurrent ? "text" : "password"}
-                value={pwForm.current_password}
-                onChange={e => setPwForm(f => ({ ...f, current_password: e.target.value }))}
-                className={inp + " pr-10"}
-                placeholder="Enter current password"
-              />
-              <button onClick={() => setShowCurrent(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showCurrent ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={label}>New Password <span className="text-red-500 ml-0.5">*</span></label>
+              <label className={label}>Current Password <span className="text-red-500 ml-0.5">*</span></label>
               <div className="relative">
                 <input
-                  type={showNew ? "text" : "password"}
-                  value={pwForm.new_password}
-                  onChange={e => setPwForm(f => ({ ...f, new_password: e.target.value }))}
+                  type={showCurrent ? "text" : "password"}
+                  value={pwForm.current_password}
+                  onChange={e => setPwForm(f => ({ ...f, current_password: e.target.value }))}
                   className={inp + " pr-10"}
-                  placeholder="Min 8 characters"
+                  placeholder="Enter current password"
                 />
-                <button onClick={() => setShowNew(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
+                <button onClick={() => setShowCurrent(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showCurrent ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              {pwForm.new_password && pwForm.new_password.length < 8 && (
-                <p className="text-xs text-amber-600 mt-1">At least 8 characters required</p>
-              )}
             </div>
-            <div>
-              <label className={label}>Confirm New Password <span className="text-red-500 ml-0.5">*</span></label>
-              <div className="relative">
-                <input
-                  type={showConfirm ? "text" : "password"}
-                  value={pwForm.confirm_password}
-                  onChange={e => setPwForm(f => ({ ...f, confirm_password: e.target.value }))}
-                  className={inp + " pr-10"}
-                  placeholder="Repeat new password"
-                />
-                <button onClick={() => setShowConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>New Password <span className="text-red-500 ml-0.5">*</span></label>
+                <div className="relative">
+                  <input
+                    type={showNew ? "text" : "password"}
+                    value={pwForm.new_password}
+                    onChange={e => setPwForm(f => ({ ...f, new_password: e.target.value }))}
+                    className={inp + " pr-10"}
+                    placeholder="Min 8 characters"
+                  />
+                  <button onClick={() => setShowNew(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {pwForm.new_password && pwForm.new_password.length < 8 && (
+                  <p className="text-xs text-amber-600 mt-1">At least 8 characters required</p>
+                )}
               </div>
-              {pwForm.confirm_password && pwForm.new_password !== pwForm.confirm_password && (
-                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
-              )}
+              <div>
+                <label className={label}>Confirm New Password <span className="text-red-500 ml-0.5">*</span></label>
+                <div className="relative">
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={pwForm.confirm_password}
+                    onChange={e => setPwForm(f => ({ ...f, confirm_password: e.target.value }))}
+                    className={inp + " pr-10"}
+                    placeholder="Repeat new password"
+                  />
+                  <button onClick={() => setShowConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {pwForm.confirm_password && pwForm.new_password !== pwForm.confirm_password && (
+                  <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                )}
+              </div>
             </div>
-          </div>
 
-          {pwError && (
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm">
-              <AlertCircle size={16} /> {pwError}
-            </div>
-          )}
-          {pwSuccess && (
-            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm">
-              <CheckCircle2 size={16} /> Password updated successfully
-            </div>
-          )}
+            {pwError && (
+              <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm">
+                <AlertCircle size={16} /> {pwError}
+              </div>
+            )}
+            {pwSuccess && (
+              <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm">
+                <CheckCircle2 size={16} /> Password updated successfully
+              </div>
+            )}
           </FormAccessGate>
           <div className="flex justify-end">
             <button
@@ -506,7 +539,7 @@ function CurrencyTab({ card, inp, label, toast, canEdit }: any) {
     try {
       const j = await customFetch<any>("/api/settings/currencies");
       setCurrencies(j.data);
-    } catch {} finally { setLoading(false); }
+    } catch { } finally { setLoading(false); }
   }, []);
 
   const loadRates = useCallback(async () => {
@@ -514,7 +547,7 @@ function CurrencyTab({ card, inp, label, toast, canEdit }: any) {
     try {
       const j = await customFetch<any>("/api/settings/exchange-rates");
       setRates(j.data);
-    } catch {} finally { setRatesLoading(false); }
+    } catch { } finally { setRatesLoading(false); }
   }, []);
 
   useEffect(() => { loadCurrencies(); loadRates(); }, []);
@@ -575,11 +608,10 @@ function CurrencyTab({ card, inp, label, toast, canEdit }: any) {
   const tabBtn = (id: "currencies" | "rates", label: string) => (
     <button
       onClick={() => setInnerTab(id)}
-      className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl border-b-2 transition-colors ${
-        innerTab === id
+      className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl border-b-2 transition-colors ${innerTab === id
           ? "border-[#C6AF4B] text-[#C6AF4B] bg-[#C6AF4B]/5"
           : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-      }`}
+        }`}
     >
       {label}
     </button>
@@ -607,16 +639,16 @@ function CurrencyTab({ card, inp, label, toast, canEdit }: any) {
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <select
-                  value={baseCurrency?.code ?? ""}
-                  disabled
-                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-500 bg-gray-100 cursor-not-allowed"
-                >
-                  {baseCurrency && (
-                    <option value={baseCurrency.code}>
-                      {baseCurrency.code} — {baseCurrency.name} ({baseCurrency.symbol})
-                    </option>
-                  )}
-                </select>
+                value={baseCurrency?.code ?? ""}
+                disabled
+                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-500 bg-gray-100 cursor-not-allowed"
+              >
+                {baseCurrency && (
+                  <option value={baseCurrency.code}>
+                    {baseCurrency.code} — {baseCurrency.name} ({baseCurrency.symbol})
+                  </option>
+                )}
+              </select>
             </div>
             {baseCurrency && (
               <div className="px-4 py-2 rounded-xl border border-[#C6AF4B]/30 bg-[#C6AF4B]/8 text-center min-w-[60px]">
@@ -691,11 +723,10 @@ function CurrencyTab({ card, inp, label, toast, canEdit }: any) {
                           <button
                             onClick={() => handleToggle(c.code)}
                             disabled={toggling === c.code || !canEdit}
-                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
-                              c.is_active
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${c.is_active
                                 ? "border-gray-200 text-gray-600 hover:bg-gray-50"
                                 : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-                            }`}
+                              }`}
                           >
                             {toggling === c.code ? "…" : c.is_active ? "Deactivate" : "Activate"}
                           </button>
@@ -986,38 +1017,38 @@ function BankDetailsTab({ card, inp, label, toast, canEdit, canDelete }: any) {
         <div className={`${card} p-5`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">{editId ? "Edit Bank Account" : "Add Bank Account"}</h3>
-            <button onClick={() => setShowForm(false)} 
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+            <button onClick={() => setShowForm(false)}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
               <X size={16} />
             </button>
           </div>
           <FormAccessGate readOnly={!canEdit}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={lbl}>Bank Name <span className="text-red-500 ml-0.5">*</span></label>
-              <input className={inpClass} value={form.bank_name} onChange={e => setF("bank_name", e.target.value)} placeholder="e.g. HDFC Bank" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={lbl}>Bank Name <span className="text-red-500 ml-0.5">*</span></label>
+                <input className={inpClass} value={form.bank_name} onChange={e => setF("bank_name", e.target.value)} placeholder="e.g. HDFC Bank" />
+              </div>
+              <div>
+                <label className={lbl}>Account Holder Name</label>
+                <input className={inpClass} value={form.account_name} onChange={e => setF("account_name", e.target.value)} placeholder="Name on account" />
+              </div>
+              <div>
+                <label className={lbl}>Account Number <span className="text-red-500 ml-0.5">*</span></label>
+                <input className={inpClass} value={form.account_no} onChange={e => setF("account_no", e.target.value)} placeholder="e.g. 0012345678900" />
+              </div>
+              <div>
+                <label className={lbl}>IFSC Code</label>
+                <input className={inpClass} value={form.ifsc_code} onChange={e => setF("ifsc_code", e.target.value.toUpperCase())} placeholder="e.g. HDFC0001234" />
+              </div>
+              <div>
+                <label className={lbl}>Branch</label>
+                <input className={inpClass} value={form.branch} onChange={e => setF("branch", e.target.value)} placeholder="e.g. Surat Main Branch" />
+              </div>
+              <div>
+                <label className={lbl}>UPI ID</label>
+                <input className={inpClass} value={form.bank_upi} onChange={e => setF("bank_upi", e.target.value)} placeholder="e.g. business@hdfc" />
+              </div>
             </div>
-            <div>
-              <label className={lbl}>Account Holder Name</label>
-              <input className={inpClass} value={form.account_name} onChange={e => setF("account_name", e.target.value)} placeholder="Name on account" />
-            </div>
-            <div>
-              <label className={lbl}>Account Number <span className="text-red-500 ml-0.5">*</span></label>
-              <input className={inpClass} value={form.account_no} onChange={e => setF("account_no", e.target.value)} placeholder="e.g. 0012345678900" />
-            </div>
-            <div>
-              <label className={lbl}>IFSC Code</label>
-              <input className={inpClass} value={form.ifsc_code} onChange={e => setF("ifsc_code", e.target.value.toUpperCase())} placeholder="e.g. HDFC0001234" />
-            </div>
-            <div>
-              <label className={lbl}>Branch</label>
-              <input className={inpClass} value={form.branch} onChange={e => setF("branch", e.target.value)} placeholder="e.g. Surat Main Branch" />
-            </div>
-            <div>
-              <label className={lbl}>UPI ID</label>
-              <input className={inpClass} value={form.bank_upi} onChange={e => setF("bank_upi", e.target.value)} placeholder="e.g. business@hdfc" />
-            </div>
-          </div>
           </FormAccessGate>
           <div className="flex items-center gap-3 mt-4">
             <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1050,9 +1081,9 @@ function BankDetailsTab({ card, inp, label, toast, canEdit, canDelete }: any) {
           <div className="p-14 text-center">
             <CreditCard size={36} className="mx-auto text-gray-200 mb-3" />
             <p className="text-gray-400 text-sm">No bank accounts added yet.</p>
-            <button onClick={openNew} 
-            disabled={!canEdit}
-            className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first bank account</button>
+            <button onClick={openNew}
+              disabled={!canEdit}
+              className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first bank account</button>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -1129,9 +1160,9 @@ interface ActivityLog {
 }
 
 const METHOD_COLORS: Record<string, string> = {
-  POST:   "bg-emerald-50 text-emerald-700 border-emerald-200",
-  PUT:    "bg-blue-50 text-blue-700 border-blue-200",
-  PATCH:  "bg-amber-50 text-amber-700 border-amber-200",
+  POST: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  PUT: "bg-blue-50 text-blue-700 border-blue-200",
+  PATCH: "bg-amber-50 text-amber-700 border-amber-200",
   DELETE: "bg-red-50 text-red-600 border-red-200",
 };
 
@@ -1246,7 +1277,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) 
       const j = await r.json();
       setLogs(j.data ?? []);
       setTotal(j.total ?? 0);
-    } catch {}
+    } catch { }
     finally { setLoading(false); }
   }, [token, filters, page]);
 
@@ -1256,7 +1287,7 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) 
       const r = await fetch("/api/settings/activity-logs/users", { headers: hdrs });
       const j = await r.json();
       setUsers(j.data ?? []);
-    } catch {}
+    } catch { }
   }, [token, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
@@ -1284,8 +1315,8 @@ function ActivityLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) 
       const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-      a.download = `activity-logs-${new Date().toISOString().slice(0,10)}.csv`; a.click();
-    } catch {}
+      a.download = `activity-logs-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    } catch { }
     finally { setExporting(false); }
   }
 
@@ -1681,76 +1712,76 @@ function WarehouseTab({ card, inp, label, toast, canEdit, canDelete, canDownload
             <button onClick={() => setShowForm(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X size={16} /></button>
           </div>
           <FormAccessGate readOnly={!canEdit}>
-          {/* Basic info */}
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="col-span-2">
-              <label className={lbl}>Warehouse Name <span className="text-red-500 ml-0.5">*</span></label>
-              <input className={inpClass} value={form.name} onChange={e => setF("name", e.target.value)} placeholder="e.g. Surat Main Warehouse" />
+            {/* Basic info */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="col-span-2">
+                <label className={lbl}>Warehouse Name <span className="text-red-500 ml-0.5">*</span></label>
+                <input className={inpClass} value={form.name} onChange={e => setF("name", e.target.value)} placeholder="e.g. Surat Main Warehouse" />
+              </div>
+              <div>
+                <label className={lbl}>Code / Short Name</label>
+                <input className={inpClass} value={form.code} onChange={e => setF("code", e.target.value.toUpperCase())} placeholder="e.g. SRT-01" />
+              </div>
             </div>
-            <div>
-              <label className={lbl}>Code / Short Name</label>
-              <input className={inpClass} value={form.code} onChange={e => setF("code", e.target.value.toUpperCase())} placeholder="e.g. SRT-01" />
-            </div>
-          </div>
 
-          {/* Address */}
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5"><MapPin size={12} /> Address</p>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className={lbl}>Address Line 1</label>
-              <input className={inpClass} value={form.address_line1} onChange={e => setF("address_line1", e.target.value)} placeholder="Street / Building" />
+            {/* Address */}
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5"><MapPin size={12} /> Address</p>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className={lbl}>Address Line 1</label>
+                <input className={inpClass} value={form.address_line1} onChange={e => setF("address_line1", e.target.value)} placeholder="Street / Building" />
+              </div>
+              <div>
+                <label className={lbl}>Address Line 2</label>
+                <input className={inpClass} value={form.address_line2} onChange={e => setF("address_line2", e.target.value)} placeholder="Area / Landmark" />
+              </div>
+              <div>
+                <label className={lbl}>City</label>
+                <input className={inpClass} value={form.city} onChange={e => setF("city", e.target.value)} placeholder="e.g. Surat" />
+              </div>
+              <div>
+                <label className={lbl}>State</label>
+                <input className={inpClass} value={form.state} onChange={e => setF("state", e.target.value)} placeholder="e.g. Gujarat" />
+              </div>
+              <div>
+                <label className={lbl}>Pincode</label>
+                <input className={inpClass} value={form.pincode} onChange={e => setF("pincode", e.target.value)} placeholder="e.g. 395003" />
+              </div>
+              <div>
+                <label className={lbl}>Country</label>
+                <input className={inpClass} value={form.country} onChange={e => setF("country", e.target.value)} placeholder="India" />
+              </div>
             </div>
-            <div>
-              <label className={lbl}>Address Line 2</label>
-              <input className={inpClass} value={form.address_line2} onChange={e => setF("address_line2", e.target.value)} placeholder="Area / Landmark" />
-            </div>
-            <div>
-              <label className={lbl}>City</label>
-              <input className={inpClass} value={form.city} onChange={e => setF("city", e.target.value)} placeholder="e.g. Surat" />
-            </div>
-            <div>
-              <label className={lbl}>State</label>
-              <input className={inpClass} value={form.state} onChange={e => setF("state", e.target.value)} placeholder="e.g. Gujarat" />
-            </div>
-            <div>
-              <label className={lbl}>Pincode</label>
-              <input className={inpClass} value={form.pincode} onChange={e => setF("pincode", e.target.value)} placeholder="e.g. 395003" />
-            </div>
-            <div>
-              <label className={lbl}>Country</label>
-              <input className={inpClass} value={form.country} onChange={e => setF("country", e.target.value)} placeholder="India" />
-            </div>
-          </div>
 
-          {/* Contact */}
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5"><Phone size={12} /> Contact Details</p>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className={lbl}>Contact Person</label>
-              <input className={inpClass} value={form.contact_name} onChange={e => setF("contact_name", e.target.value)} placeholder="Full name" />
+            {/* Contact */}
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5"><Phone size={12} /> Contact Details</p>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className={lbl}>Contact Person</label>
+                <input className={inpClass} value={form.contact_name} onChange={e => setF("contact_name", e.target.value)} placeholder="Full name" />
+              </div>
+              <div>
+                <label className={lbl}>Contact Phone</label>
+                <input className={inpClass} value={form.contact_phone} onChange={e => setF("contact_phone", e.target.value)} placeholder="+91 9999999999" />
+              </div>
+              <div>
+                <label className={lbl}>Contact Email</label>
+                <input className={inpClass} value={form.contact_email} onChange={e => setF("contact_email", e.target.value)} placeholder="warehouse@example.com" />
+              </div>
             </div>
-            <div>
-              <label className={lbl}>Contact Phone</label>
-              <input className={inpClass} value={form.contact_phone} onChange={e => setF("contact_phone", e.target.value)} placeholder="+91 9999999999" />
-            </div>
-            <div>
-              <label className={lbl}>Contact Email</label>
-              <input className={inpClass} value={form.contact_email} onChange={e => setF("contact_email", e.target.value)} placeholder="warehouse@example.com" />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={lbl}>Notes</label>
-              <textarea className={`${inpClass} resize-none`} rows={2} value={form.notes} onChange={e => setF("notes", e.target.value)} placeholder="Optional notes about this warehouse" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={lbl}>Notes</label>
+                <textarea className={`${inpClass} resize-none`} rows={2} value={form.notes} onChange={e => setF("notes", e.target.value)} placeholder="Optional notes about this warehouse" />
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={form.is_active} onChange={e => setF("is_active", e.target.checked)} className="w-4 h-4 rounded accent-[#C6AF4B]" />
+                  <span className="text-sm font-medium text-gray-700">Active warehouse</span>
+                </label>
+              </div>
             </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={form.is_active} onChange={e => setF("is_active", e.target.checked)} className="w-4 h-4 rounded accent-[#C6AF4B]" />
-                <span className="text-sm font-medium text-gray-700">Active warehouse</span>
-              </label>
-            </div>
-          </div>
           </FormAccessGate>
 
           <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
@@ -1771,9 +1802,9 @@ function WarehouseTab({ card, inp, label, toast, canEdit, canDelete, canDownload
         <div className={`${card} p-14 text-center`}>
           <Warehouse size={36} className="mx-auto text-gray-200 mb-3" />
           <p className="text-gray-400 text-sm">No warehouses added yet.</p>
-          <button onClick={openNew} 
-          disabled={!canEdit}
-          className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first warehouse</button>
+          <button onClick={openNew}
+            disabled={!canEdit}
+            className="mt-4 text-sm font-medium underline" style={{ color: G }}>Add your first warehouse</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -1849,13 +1880,13 @@ function WarehouseTab({ card, inp, label, toast, canEdit, canDelete, canDownload
 // ─────────────────────────────────────────────────────────
 
 const INDIAN_STATES = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
-  "Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka",
-  "Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram",
-  "Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
-  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
-  "Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry",
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
+  "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
 ];
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
@@ -1890,28 +1921,28 @@ const EMPTY_GST: GSTForm = {
 };
 
 const DIAL_CODES = [
-  { flag: "🇮🇳", dial: "+91",  label: "India" },
-  { flag: "🇺🇸", dial: "+1",   label: "USA" },
-  { flag: "🇬🇧", dial: "+44",  label: "UK" },
+  { flag: "🇮🇳", dial: "+91", label: "India" },
+  { flag: "🇺🇸", dial: "+1", label: "USA" },
+  { flag: "🇬🇧", dial: "+44", label: "UK" },
   { flag: "🇦🇪", dial: "+971", label: "UAE" },
   { flag: "🇸🇦", dial: "+966", label: "Saudi Arabia" },
-  { flag: "🇦🇺", dial: "+61",  label: "Australia" },
-  { flag: "🇨🇦", dial: "+1",   label: "Canada" },
-  { flag: "🇨🇳", dial: "+86",  label: "China" },
-  { flag: "🇩🇪", dial: "+49",  label: "Germany" },
-  { flag: "🇫🇷", dial: "+33",  label: "France" },
-  { flag: "🇮🇹", dial: "+39",  label: "Italy" },
-  { flag: "🇯🇵", dial: "+81",  label: "Japan" },
-  { flag: "🇰🇷", dial: "+82",  label: "South Korea" },
-  { flag: "🇲🇾", dial: "+60",  label: "Malaysia" },
-  { flag: "🇸🇬", dial: "+65",  label: "Singapore" },
-  { flag: "🇵🇰", dial: "+92",  label: "Pakistan" },
+  { flag: "🇦🇺", dial: "+61", label: "Australia" },
+  { flag: "🇨🇦", dial: "+1", label: "Canada" },
+  { flag: "🇨🇳", dial: "+86", label: "China" },
+  { flag: "🇩🇪", dial: "+49", label: "Germany" },
+  { flag: "🇫🇷", dial: "+33", label: "France" },
+  { flag: "🇮🇹", dial: "+39", label: "Italy" },
+  { flag: "🇯🇵", dial: "+81", label: "Japan" },
+  { flag: "🇰🇷", dial: "+82", label: "South Korea" },
+  { flag: "🇲🇾", dial: "+60", label: "Malaysia" },
+  { flag: "🇸🇬", dial: "+65", label: "Singapore" },
+  { flag: "🇵🇰", dial: "+92", label: "Pakistan" },
   { flag: "🇧🇩", dial: "+880", label: "Bangladesh" },
   { flag: "🇳🇵", dial: "+977", label: "Nepal" },
-  { flag: "🇱🇰", dial: "+94",  label: "Sri Lanka" },
-  { flag: "🇿🇦", dial: "+27",  label: "South Africa" },
-  { flag: "🇧🇷", dial: "+55",  label: "Brazil" },
-  { flag: "🇲🇽", dial: "+52",  label: "Mexico" },
+  { flag: "🇱🇰", dial: "+94", label: "Sri Lanka" },
+  { flag: "🇿🇦", dial: "+27", label: "South Africa" },
+  { flag: "🇧🇷", dial: "+55", label: "Brazil" },
+  { flag: "🇲🇽", dial: "+52", label: "Mexico" },
 ];
 
 function parsePhone(phone: string): { code: string; number: string } {
@@ -1945,21 +1976,21 @@ function GSTSettingsTab({ card, inp, label, toast, canEdit }: any) {
           setPhoneCode(parsed.code);
           setPhoneNumber(parsed.number);
           setForm({
-            company_name:             j.data.company_name ?? "ZARI EMBROIDERIES",
-            company_address:          j.data.company_address ?? "",
-            company_phone:            j.data.company_phone ?? "",
-            company_email:            j.data.company_email ?? "",
-            company_gstin:            j.data.company_gstin ?? "",
-            company_state:            j.data.company_state ?? "",
-            company_country:          j.data.company_country ?? "India",
+            company_name: j.data.company_name ?? "ZARI EMBROIDERIES",
+            company_address: j.data.company_address ?? "",
+            company_phone: j.data.company_phone ?? "",
+            company_email: j.data.company_email ?? "",
+            company_gstin: j.data.company_gstin ?? "",
+            company_state: j.data.company_state ?? "",
+            company_country: j.data.company_country ?? "India",
             export_under_lut_enabled: !!j.data.export_under_lut_enabled,
-            reverse_charge_enabled:   !!j.data.reverse_charge_enabled,
-            gst_mode:                 j.data.gst_mode ?? "Auto Detect",
+            reverse_charge_enabled: !!j.data.reverse_charge_enabled,
+            gst_mode: j.data.gst_mode ?? "Auto Detect",
             default_service_gst_rate: String(j.data.default_service_gst_rate ?? "18"),
           });
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -2010,11 +2041,10 @@ function GSTSettingsTab({ card, inp, label, toast, canEdit }: any) {
       id={id}
       type="button"
       onClick={() => onChange(!value)}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-        value
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${value
           ? "bg-emerald-50 border-emerald-300 text-emerald-700"
           : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-      }`}
+        }`}
     >
       {value
         ? <ToggleRight size={18} className="text-emerald-600" />
@@ -2043,211 +2073,209 @@ function GSTSettingsTab({ card, inp, label, toast, canEdit }: any) {
           </div>
         </div>
         <FormAccessGate readOnly={!canEdit}>
-        <div className="space-y-5 pt-1">
+          <div className="space-y-5 pt-1">
 
-          {/* Company Name + GSTIN */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Company Name <span className="text-red-400">*</span></label>
-              <input
-                value={form.company_name}
-                onChange={e => f("company_name", e.target.value)}
-                className={`${inp} font-semibold`}
-                placeholder="ZARI EMBROIDERIES"
-              />
-              <p className="text-xs text-gray-400 mt-1">Shown on all invoices and PDFs</p>
-            </div>
-            <div>
-              <label className={label}>Company GSTIN</label>
-              <input
-                value={form.company_gstin}
-                onChange={e => f("company_gstin", e.target.value.toUpperCase())}
-                className={`${inp} font-mono tracking-wider uppercase ${errors.company_gstin ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
-                placeholder="27ABCDE1234F1Z5"
-                maxLength={15}
-              />
-              {errors.company_gstin
-                ? <p className="text-xs text-red-500 mt-1">{errors.company_gstin}</p>
-                : <p className="text-xs text-gray-400 mt-1">Leave blank if not registered for GST</p>
-              }
-            </div>
-          </div>
-
-          {/* Address */}
-          <div>
-            <label className={label}>Company Address</label>
-            <textarea
-              rows={2}
-              value={form.company_address}
-              onChange={e => f("company_address", e.target.value)}
-              className={`${inp} resize-none`}
-              placeholder="e.g. Plot No. 12, MIDC, Bhiwandi, Thane — 421 302"
-            />
-            <p className="text-xs text-gray-400 mt-1">Full address printed on invoice header</p>
-          </div>
-
-          {/* Phone + Email */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Company Phone</label>
-              <div className="flex gap-0 rounded-xl border border-gray-200 overflow-hidden focus-within:border-[#C6AF4B] bg-white transition">
-                <select
-                  value={phoneCode}
-                  onChange={e => setPhoneCode(e.target.value)}
-                  className="bg-gray-50 border-0 border-r border-gray-200 px-2 py-2.5 text-sm text-gray-700 focus:outline-none cursor-pointer shrink-0"
-                  style={{ minWidth: 110 }}
-                >
-                  {DIAL_CODES.map(dc => (
-                    <option key={`${dc.dial}-${dc.label}`} value={dc.dial}>
-                      {dc.flag} {dc.dial} {dc.label}
-                    </option>
-                  ))}
-                </select>
+            {/* Company Name + GSTIN */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>Company Name <span className="text-red-400">*</span></label>
                 <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={e => setPhoneNumber(e.target.value.replace(/[^0-9\s\-]/g, ""))}
-                  className="flex-1 border-0 px-3 py-2.5 text-sm text-gray-900 focus:outline-none bg-white"
-                  placeholder="98765 43210"
+                  value={form.company_name}
+                  onChange={e => f("company_name", e.target.value)}
+                  className={`${inp} font-semibold`}
+                  placeholder="ZARI EMBROIDERIES"
+                />
+                <p className="text-xs text-gray-400 mt-1">Shown on all invoices and PDFs</p>
+              </div>
+              <div>
+                <label className={label}>Company GSTIN</label>
+                <input
+                  value={form.company_gstin}
+                  onChange={e => f("company_gstin", e.target.value.toUpperCase())}
+                  className={`${inp} font-mono tracking-wider uppercase ${errors.company_gstin ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
+                  placeholder="27ABCDE1234F1Z5"
+                  maxLength={15}
+                />
+                {errors.company_gstin
+                  ? <p className="text-xs text-red-500 mt-1">{errors.company_gstin}</p>
+                  : <p className="text-xs text-gray-400 mt-1">Leave blank if not registered for GST</p>
+                }
+              </div>
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className={label}>Company Address</label>
+              <textarea
+                rows={2}
+                value={form.company_address}
+                onChange={e => f("company_address", e.target.value)}
+                className={`${inp} resize-none`}
+                placeholder="e.g. Plot No. 12, MIDC, Bhiwandi, Thane — 421 302"
+              />
+              <p className="text-xs text-gray-400 mt-1">Full address printed on invoice header</p>
+            </div>
+
+            {/* Phone + Email */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>Company Phone</label>
+                <div className="flex gap-0 rounded-xl border border-gray-200 overflow-hidden focus-within:border-[#C6AF4B] bg-white transition">
+                  <select
+                    value={phoneCode}
+                    onChange={e => setPhoneCode(e.target.value)}
+                    className="bg-gray-50 border-0 border-r border-gray-200 px-2 py-2.5 text-sm text-gray-700 focus:outline-none cursor-pointer shrink-0"
+                    style={{ minWidth: 110 }}
+                  >
+                    {DIAL_CODES.map(dc => (
+                      <option key={`${dc.dial}-${dc.label}`} value={dc.dial}>
+                        {dc.flag} {dc.dial} {dc.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={e => setPhoneNumber(e.target.value.replace(/[^0-9\s\-]/g, ""))}
+                    className="flex-1 border-0 px-3 py-2.5 text-sm text-gray-900 focus:outline-none bg-white"
+                    placeholder="98765 43210"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={label}>Company Email</label>
+                <input
+                  type="email"
+                  value={form.company_email}
+                  onChange={e => f("company_email", e.target.value)}
+                  className={inp}
+                  placeholder="accounts@zariembroideries.com"
                 />
               </div>
             </div>
-            <div>
-              <label className={label}>Company Email</label>
-              <input
-                type="email"
-                value={form.company_email}
-                onChange={e => f("company_email", e.target.value)}
-                className={inp}
-                placeholder="accounts@zariembroideries.com"
-              />
-            </div>
-          </div>
 
-          <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">GST Configuration</p>
-          </div>
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">GST Configuration</p>
+            </div>
 
-          {/* Default GST Rate */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Default Service GST Rate (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="28"
-                step="0.01"
-                value={form.default_service_gst_rate}
-                onChange={e => f("default_service_gst_rate", e.target.value)}
-                className={`${inp} ${errors.default_service_gst_rate ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
-                placeholder="18"
-              />
-              {errors.default_service_gst_rate
-                ? <p className="text-xs text-red-500 mt-1">{errors.default_service_gst_rate}</p>
-                : <p className="text-xs text-gray-400 mt-1">Fallback rate when HSN code is absent</p>
-              }
-            </div>
-          </div>
-
-          {/* State + Country */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Company State <span className="text-red-400">*</span></label>
-              <select
-                value={form.company_state}
-                onChange={e => f("company_state", e.target.value)}
-                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 transition bg-white ${
-                  errors.company_state
-                    ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
-                    : "border-gray-200 focus:border-[#C6AF4B] focus:ring-[#C6AF4B]/20"
-                }`}
-              >
-                <option value="">Select state…</option>
-                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              {errors.company_state && <p className="text-xs text-red-500 mt-1">{errors.company_state}</p>}
-              <p className="text-xs text-gray-400 mt-1">Used to determine CGST+SGST vs IGST</p>
-            </div>
-            <div>
-              <label className={label}>Company Country <span className="text-red-400">*</span></label>
-              <input
-                value={form.company_country}
-                onChange={e => f("company_country", e.target.value)}
-                className={`${inp} ${errors.company_country ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
-                placeholder="India"
-              />
-              {errors.company_country
-                ? <p className="text-xs text-red-500 mt-1">{errors.company_country}</p>
-                : <p className="text-xs text-gray-400 mt-1">Used for export invoice GST logic</p>
-              }
-            </div>
-          </div>
-
-          {/* GST Mode */}
-          <div>
-            <label className={label}>GST Mode <span className="text-red-400">*</span></label>
-            <div className="flex gap-3">
-              {GST_MODES.map(mode => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => f("gst_mode", mode)}
-                  className={`flex-1 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                    form.gst_mode === mode
-                      ? "bg-gray-900 border-gray-900 text-[#C6AF4B]"
-                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-            {errors.gst_mode && <p className="text-xs text-red-500 mt-1">{errors.gst_mode}</p>}
-            {form.gst_mode === "Auto Detect" && (
-              <div className="flex items-start gap-2 mt-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                <Info size={14} className="text-blue-400 mt-0.5 shrink-0" />
-                <p className="text-xs text-blue-600">System automatically determines CGST+SGST or IGST based on company state vs client state, and 0% GST for exports.</p>
+            {/* Default GST Rate */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>Default Service GST Rate (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="28"
+                  step="0.01"
+                  value={form.default_service_gst_rate}
+                  onChange={e => f("default_service_gst_rate", e.target.value)}
+                  className={`${inp} ${errors.default_service_gst_rate ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
+                  placeholder="18"
+                />
+                {errors.default_service_gst_rate
+                  ? <p className="text-xs text-red-500 mt-1">{errors.default_service_gst_rate}</p>
+                  : <p className="text-xs text-gray-400 mt-1">Fallback rate when HSN code is absent</p>
+                }
               </div>
-            )}
+            </div>
+
+            {/* State + Country */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>Company State <span className="text-red-400">*</span></label>
+                <select
+                  value={form.company_state}
+                  onChange={e => f("company_state", e.target.value)}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 transition bg-white ${errors.company_state
+                      ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                      : "border-gray-200 focus:border-[#C6AF4B] focus:ring-[#C6AF4B]/20"
+                    }`}
+                >
+                  <option value="">Select state…</option>
+                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {errors.company_state && <p className="text-xs text-red-500 mt-1">{errors.company_state}</p>}
+                <p className="text-xs text-gray-400 mt-1">Used to determine CGST+SGST vs IGST</p>
+              </div>
+              <div>
+                <label className={label}>Company Country <span className="text-red-400">*</span></label>
+                <input
+                  value={form.company_country}
+                  onChange={e => f("company_country", e.target.value)}
+                  className={`${inp} ${errors.company_country ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
+                  placeholder="India"
+                />
+                {errors.company_country
+                  ? <p className="text-xs text-red-500 mt-1">{errors.company_country}</p>
+                  : <p className="text-xs text-gray-400 mt-1">Used for export invoice GST logic</p>
+                }
+              </div>
+            </div>
+
+            {/* GST Mode */}
+            <div>
+              <label className={label}>GST Mode <span className="text-red-400">*</span></label>
+              <div className="flex gap-3">
+                {GST_MODES.map(mode => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => f("gst_mode", mode)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${form.gst_mode === mode
+                        ? "bg-gray-900 border-gray-900 text-[#C6AF4B]"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              {errors.gst_mode && <p className="text-xs text-red-500 mt-1">{errors.gst_mode}</p>}
+              {form.gst_mode === "Auto Detect" && (
+                <div className="flex items-start gap-2 mt-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                  <Info size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-blue-600">System automatically determines CGST+SGST or IGST based on company state vs client state, and 0% GST for exports.</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
         </FormAccessGate>
       </div>
 
       <FormAccessGate readOnly={!canEdit}>
-      {/* Toggles card */}
-      <div className={`${card} p-6`}>
-        <div className="flex items-center gap-3 mb-5 border-b border-gray-100 pb-4">
-          <ToggleRight size={18} style={{ color: G }} />
-          <h2 className="font-bold text-gray-900 text-base">Special GST Rules</h2>
-        </div>
-
-        <div className="space-y-5">
-          {/* Export under LUT */}
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-900">Export under LUT</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                When enabled, export invoices are issued without GST payment under Letter of Undertaking. Invoice GST will be set to 0%.
-              </p>
-            </div>
-            <Toggle value={form.export_under_lut_enabled} onChange={v => f("export_under_lut_enabled", v)} id="lut" />
+        {/* Toggles card */}
+        <div className={`${card} p-6`}>
+          <div className="flex items-center gap-3 mb-5 border-b border-gray-100 pb-4">
+            <ToggleRight size={18} style={{ color: G }} />
+            <h2 className="font-bold text-gray-900 text-base">Special GST Rules</h2>
           </div>
 
-          <div className="border-t border-gray-50" />
-
-          {/* Reverse Charge */}
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-900">Reverse Charge Mechanism</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                When enabled, GST liability on vendor invoices is reversed to the buyer (applicable for unregistered vendors and specific services).
-              </p>
+          <div className="space-y-5">
+            {/* Export under LUT */}
+            <div className="flex items-start justify-between gap-6">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900">Export under LUT</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  When enabled, export invoices are issued without GST payment under Letter of Undertaking. Invoice GST will be set to 0%.
+                </p>
+              </div>
+              <Toggle value={form.export_under_lut_enabled} onChange={v => f("export_under_lut_enabled", v)} id="lut" />
             </div>
-            <Toggle value={form.reverse_charge_enabled} onChange={v => f("reverse_charge_enabled", v)} id="rcm" />
+
+            <div className="border-t border-gray-50" />
+
+            {/* Reverse Charge */}
+            <div className="flex items-start justify-between gap-6">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900">Reverse Charge Mechanism</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  When enabled, GST liability on vendor invoices is reversed to the buyer (applicable for unregistered vendors and specific services).
+                </p>
+              </div>
+              <Toggle value={form.reverse_charge_enabled} onChange={v => f("reverse_charge_enabled", v)} id="rcm" />
+            </div>
           </div>
         </div>
-      </div>
       </FormAccessGate>
 
       {/* Summary info card */}
@@ -2333,7 +2361,7 @@ function TemplatePreview({ layout }: { layout: string }) {
           </div>
         </div>
         <div className="mt-1 border border-gray-100 rounded overflow-hidden">
-          {[0,1,2].map(i => (
+          {[0, 1, 2].map(i => (
             <div key={i} className="flex gap-1 px-1 py-0.5 border-b border-gray-50">
               <div className="h-1 bg-gray-200 rounded flex-1" />
               <div className="h-1 bg-gray-100 rounded w-5" />
@@ -2359,7 +2387,7 @@ function TemplatePreview({ layout }: { layout: string }) {
         <div className="flex-1 p-2 flex flex-col gap-1">
           <div className="h-3 rounded" style={{ backgroundColor: G, opacity: 0.15 }} />
           <div className="h-px bg-gray-100 mt-1" />
-          {[0,1,2].map(i => (
+          {[0, 1, 2].map(i => (
             <div key={i} className="flex gap-1">
               <div className="h-1 bg-gray-200 rounded flex-1" />
               <div className="h-1 bg-gray-100 rounded w-4" />
@@ -2397,7 +2425,7 @@ function TemplatePreview({ layout }: { layout: string }) {
             <div className="h-0.5 bg-gray-400 rounded w-4" />
           </div>
         </div>
-        {[0,1].map(i => (
+        {[0, 1].map(i => (
           <div key={i} className="flex gap-1 px-1 py-0.5">
             <div className="h-0.5 bg-gray-200 rounded flex-1" />
             <div className="h-0.5 bg-gray-100 rounded w-4" />
@@ -2511,11 +2539,10 @@ function InvoiceTemplatesTab({ card, toast, canEdit }: any) {
                 <button
                   key={t.id}
                   onClick={() => selectTemplate(t)}
-                  className={`relative text-left rounded-2xl border-2 p-3 transition-all group ${
-                    isSelected
+                  className={`relative text-left rounded-2xl border-2 p-3 transition-all group ${isSelected
                       ? "border-[#C6AF4B] shadow-md shadow-[#C6AF4B]/20"
                       : "border-gray-200 hover:border-gray-300"
-                  }`}
+                    }`}
                 >
                   {/* Default badge */}
                   {t.is_default && (
@@ -2560,11 +2587,10 @@ function InvoiceTemplatesTab({ card, toast, canEdit }: any) {
                 <button
                   onClick={handleSetDefault}
                   disabled={settingDefault || selectedTpl.is_default || !canEdit}
-                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
-                    selectedTpl.is_default
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${selectedTpl.is_default
                       ? "border-[#C6AF4B40] text-[#C6AF4B] bg-[#C6AF4B0D] cursor-default"
                       : "border-gray-200 text-gray-600 hover:border-[#C6AF4B] hover:text-[#C6AF4B]"
-                  }`}
+                    }`}
                 >
                   {settingDefault
                     ? <span className="h-3 w-3 border border-current border-t-transparent rounded-full animate-spin" />
@@ -2661,7 +2687,7 @@ function DownloadLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) 
       const j = await r.json();
       setLogs(j.data ?? []);
       setTotal(j.total ?? 0);
-    } catch {}
+    } catch { }
     finally { setLoading(false); }
   }, [token, filters, page]);
 
@@ -2671,7 +2697,7 @@ function DownloadLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) 
       const r = await fetch("/api/settings/download-logs/users", { headers: hdrs });
       const j = await r.json();
       setUsers(j.data ?? []);
-    } catch {}
+    } catch { }
   }, [token, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
@@ -2699,7 +2725,7 @@ function DownloadLogsTab({ card, isAdmin, currentUserEmail, canDownload }: any) 
       const blob = new Blob([csv], { type: "text/csv" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
       a.download = `download-logs-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
-    } catch {}
+    } catch { }
     finally { setExporting(false); }
   }
 
@@ -2901,11 +2927,11 @@ function ApiDocsTab({ card }: { card: string }) {
   const q = nonce ? `?n=${encodeURIComponent(nonce)}` : "";
   const docsUrl = `/api/docs${q}`;
   const downloads = [
-    { label: "OpenAPI Spec (YAML)",       href: `/api/docs/openapi.yaml${q}`,   file: "ZARI_ERP_API.openapi.yaml",          desc: "Source of truth for every endpoint — import into any OpenAPI-aware tool." },
-    { label: "OpenAPI Spec (JSON)",       href: `/api/docs/openapi.json${q}`,   file: "ZARI_ERP_API.openapi.json",          desc: "Same spec in JSON — useful for Swagger UI, code generators, and Stoplight." },
-    { label: "Postman Collection",        href: `/api/docs/postman.json${q}`,   file: "ZARI_ERP_API.postman_collection.json", desc: "Pre-organised into folders. Import directly into Postman to start testing." },
-    { label: "API Reference (Markdown)",  href: `/api/docs/markdown${q}`,       file: "ZARI_ERP_API.md",                    desc: "Human-readable reference for offline review or printing." },
-    { label: "Full Docs Bundle (.zip)",   href: `/api/docs/bundle.zip${q}`,     file: "ZARI_ERP_API_docs.zip",              desc: "Everything above plus the Redoc HTML in one zip — share with developers." },
+    { label: "OpenAPI Spec (YAML)", href: `/api/docs/openapi.yaml${q}`, file: "ZARI_ERP_API.openapi.yaml", desc: "Source of truth for every endpoint — import into any OpenAPI-aware tool." },
+    { label: "OpenAPI Spec (JSON)", href: `/api/docs/openapi.json${q}`, file: "ZARI_ERP_API.openapi.json", desc: "Same spec in JSON — useful for Swagger UI, code generators, and Stoplight." },
+    { label: "Postman Collection", href: `/api/docs/postman.json${q}`, file: "ZARI_ERP_API.postman_collection.json", desc: "Pre-organised into folders. Import directly into Postman to start testing." },
+    { label: "API Reference (Markdown)", href: `/api/docs/markdown${q}`, file: "ZARI_ERP_API.md", desc: "Human-readable reference for offline review or printing." },
+    { label: "Full Docs Bundle (.zip)", href: `/api/docs/bundle.zip${q}`, file: "ZARI_ERP_API_docs.zip", desc: "Everything above plus the Redoc HTML in one zip — share with developers." },
   ];
 
   return (
@@ -2928,9 +2954,8 @@ function ApiDocsTab({ card }: { card: string }) {
             rel="noopener noreferrer"
             aria-disabled={!nonce}
             onClick={e => { if (!nonce) e.preventDefault(); }}
-            className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
-              nonce ? "bg-gray-900 text-[#C6AF4B] hover:bg-black cursor-pointer" : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
+            className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${nonce ? "bg-gray-900 text-[#C6AF4B] hover:bg-black cursor-pointer" : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              }`}
           >
             <ExternalLink size={14} />
             Open in new tab
@@ -2980,9 +3005,8 @@ function ApiDocsTab({ card }: { card: string }) {
               download={d.file}
               aria-disabled={!nonce}
               onClick={e => { if (!nonce) e.preventDefault(); }}
-              className={`group flex items-start gap-3 p-3 rounded-xl border transition ${
-                nonce ? "border-gray-200 hover:border-[#C6AF4B] hover:bg-[#fdf8e7]/40 cursor-pointer" : "border-gray-100 opacity-50 cursor-not-allowed"
-              }`}
+              className={`group flex items-start gap-3 p-3 rounded-xl border transition ${nonce ? "border-gray-200 hover:border-[#C6AF4B] hover:bg-[#fdf8e7]/40 cursor-pointer" : "border-gray-100 opacity-50 cursor-not-allowed"
+                }`}
             >
               <div className="h-9 w-9 rounded-lg bg-gray-100 group-hover:bg-white flex items-center justify-center shrink-0 transition">
                 <FileText size={15} className="text-gray-500 group-hover:text-[#C6AF4B] transition" />

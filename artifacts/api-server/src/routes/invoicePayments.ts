@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { pool } from "@workspace/db";
+import { pool, db, invoicePayments, and, eq, desc, inArray, invoicesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { recomputeInvoiceBalances } from "../lib/invoiceBalances";
 import { checkPermission } from "../middlewares/checkPermission";
-import { ACCOUNTS_PAYMENTS } from "../constants/permissions";
+import { ACCOUNTS_PAYMENTS, ACCOUNTS_INVOICES } from "../constants/permissions";
 
 const router = Router();
 
@@ -211,5 +211,161 @@ router.delete("/invoice-payments/:id", requireAuth,
     client.release();
   }
 });
+
+// --- GET /invoice-payments/swatch/:swatchOrderId
+router.get(
+  "/invoice-payments/swatch/:swatchOrderId",
+  requireAuth,
+  checkPermission({ any: [ACCOUNTS_PAYMENTS.VIEW, ACCOUNTS_INVOICES.VIEW] }),
+  async (req, res) => {
+    try {
+      const swatchOrderId = parseInt(
+        String(req.params.swatchOrderId)
+      );
+
+      if (isNaN(swatchOrderId)) {
+        return res.status(400).json({
+          error: "Invalid swatch order id",
+        });
+      }
+
+      const rows = await pool.query(
+        `
+        SELECT ip.*
+        FROM invoice_payments ip
+        INNER JOIN invoices i
+          ON i.id = ip.invoice_id
+        WHERE ip.is_deleted = false
+          AND i.is_deleted = false
+          AND i.swatch_order_id = $1
+        ORDER BY ip.payment_date DESC, ip.payment_id DESC
+        `,
+        [swatchOrderId]
+      );
+
+      return res.json({
+        data: rows.rows,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        error: err.message,
+      });
+    }
+  }
+);
+
+// --- GET /invoice-payments/style/:styleOrderId
+router.get(
+  "/invoice-payments/style/:styleOrderId",
+  requireAuth,
+  checkPermission({
+    any: [
+      ACCOUNTS_PAYMENTS.VIEW,
+      ACCOUNTS_INVOICES.VIEW
+    ],
+  }),
+  async (req, res) => {
+    try {
+      const styleOrderId = parseInt(
+        String(req.params.styleOrderId)
+      );
+
+      if (isNaN(styleOrderId)) {
+        return res.status(400).json({
+          error: "Invalid style order id",
+        });
+      }
+
+      const rows = await pool.query(
+        `
+        SELECT ip.*
+        FROM invoice_payments ip
+        INNER JOIN invoices i
+          ON i.id = ip.invoice_id
+        WHERE ip.is_deleted = false
+          AND i.is_deleted = false
+          AND i.style_order_id = $1
+        ORDER BY ip.payment_date DESC, ip.payment_id DESC
+        `,
+       [styleOrderId]
+      );
+
+      return res.json({
+        data: rows.rows,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        error: err.message,
+      });
+    }
+  }
+);
+
+// Get invoice payment for refrence
+router.get(
+  "/invoice-payments/reference/:referenceType/:referenceId",
+  requireAuth,
+  checkPermission({
+    any: [ACCOUNTS_INVOICES.VIEW],
+  }),
+  async (req, res) => {
+    const referenceType = String(req.params.referenceType);
+    const referenceId = String(req.params.referenceId);
+
+    if (!referenceType || !referenceId) {
+      return res.status(400).json({
+        error: "Invalid reference type or reference id",
+      });
+    }
+
+    try {
+      const query = `
+        SELECT 
+          ip.payment_id,
+          ip.invoice_id,
+          ip.payment_direction,
+          ip.party_id,
+          ip.payment_type,
+          ip.payment_amount,
+          ip.currency_code,
+          ip.exchange_rate_snapshot,
+          ip.base_currency_amount,
+          ip.transaction_reference,
+          ip.payment_status,
+          ip.payment_date,
+          ip.remarks,
+          ip.attachment,
+          ip.created_by,
+          ip.created_at,
+          ip.updated_at,
+          ip.is_deleted,
+          ip.deleted_by,
+          ip.deleted_at
+        FROM 
+          invoice_payments ip
+        INNER JOIN 
+          invoices i ON i.id = ip.invoice_id
+        WHERE 
+          i.reference_type = $1
+          AND i.reference_id = $2
+          AND i.is_deleted = false
+          AND ip.is_deleted = false
+        ORDER BY 
+          ip.created_at DESC
+      `;
+
+      const result = await pool.query(query, [referenceType, referenceId]);
+      
+      return res.json({
+        data: result.rows,
+      });
+    } catch (error) {
+      console.error("Error fetching invoice payments by reference:", error);
+      return res.status(500).json({
+        error: "Failed to fetch invoice payments",
+      });
+    }
+  }
+);
 
 export default router;

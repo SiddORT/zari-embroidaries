@@ -133,6 +133,41 @@ router.get("/invoices/style/:styleOrderId", requireAuth,
   return res.json({ data: rows });
 });
 
+router.get(
+  "/invoices/reference/:referenceType/:referenceId",
+  requireAuth,
+  checkPermission({
+    any: [ACCOUNTS_INVOICES.VIEW],
+  }),
+  async (req, res) => {
+    const referenceType = String(req.params.referenceType);
+    const referenceId = String(req.params.referenceId);
+
+    if (!referenceType || !referenceId) {
+      return res.status(400).json({
+        error: "Invalid reference type or reference id",
+      });
+    }
+
+    const rows = await db
+      .select()
+      .from(invoicesTable)
+      .where(
+        and(
+          eq(invoicesTable.isDeleted, false),
+          eq(invoicesTable.referenceType, referenceType),
+          eq(invoicesTable.referenceId, referenceId)
+        )
+      )
+      .orderBy(desc(invoicesTable.createdAt));
+
+      console.log(rows);
+    
+    const row = rows.length > 0 ? rows[0] : null;
+    return res.json({ data: row });
+  }
+);
+
 function validateInvoiceBody(b: any): string | null {
   if (!b || typeof b !== "object") return "Invalid invoice payload";
   if (!b.invoiceDate) return "Invoice date is required";
