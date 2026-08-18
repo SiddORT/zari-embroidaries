@@ -24,7 +24,8 @@ import { FormAccessGate } from "@/components/FormAccessGate";
 
 const G = "#C6AF4B";
 
-const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+// const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const NAME_REGEX = /^[A-Za-z0-9'.,\-()&/]+( [A-Za-z0-9'.,\-()&/]+)*$/;
 const CONTACT_DIGITS_REGEX = /^[0-9]{10}$/;
 
 function getContactDigits(val: string): string {
