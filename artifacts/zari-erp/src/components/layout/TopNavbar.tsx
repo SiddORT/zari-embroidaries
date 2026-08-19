@@ -75,6 +75,7 @@ const ACCOUNTS_ITEMS = [
 const HREF_PERMISSION_MAP: Record<string, string> = {
   "/dashboard": "dashboard",
   "/masters/hsn": "masters:hsn",
+  "/masters/tds": "masters:tds",
   "/masters/materials": "masters:materials",
   "/masters/fabric": "masters:fabric",
   "/masters/clients": "masters:clients",

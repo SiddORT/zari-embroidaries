@@ -108,7 +108,7 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/masters/tds" component={TDSMaster} />
+      <ProtectedRoute path="/masters/tds" component={TDSMaster} permission="masters:tds"/>
       <ProtectedRoute path="/dashboard" component={Dashboard} permission="dashboard" />
       <ProtectedRoute path="/masters" component={MastersRedirect} permission="masters:hsn" />
       <ProtectedRoute path="/masters/hsn" component={HSNMaster} permission="masters:hsn" />
