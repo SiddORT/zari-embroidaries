@@ -73,6 +73,9 @@ export interface PurchaseReceiptRecord {
   receivedQty: string;
   actualPrice: string;
   warehouseLocation: string;
+  totalAmount: string;
+  paidAmount: string;
+  balance: string;
   status: string;
   createdAt: string;
 }
