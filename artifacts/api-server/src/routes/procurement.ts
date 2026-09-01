@@ -192,68 +192,96 @@ router.post("/procurement/purchase-orders", requireAuth,
     const isSwatchOrStyle = referenceType === "Swatch" || referenceType === "Style";
     const effectiveReferenceId = referenceId ?? null;
 
-    // ─── RESOLVE BOM ROW IDs for Swatch/Style POs ──────────────────────────
+    // ─── RESOLVE & CREATE BOM ROWS for Swatch/Style POs ──────────────────────
     let bomRowIds: number[] = [];
     let bomItems: any[] = [];
 
     if (isSwatchOrStyle && effectiveReferenceId) {
-      const inventoryItemIds = items.map(i => i.inventoryItemId);
+      const orderIdColumn = referenceType === "Swatch" ? "swatch_order_id" : "style_order_id";
 
+      // Fetch inventory items for all PO items
+      const inventoryItemIds = items.map(i => i.inventoryItemId);
       const invRes = await client.query(
-        `SELECT id, item_code, item_name, source_type, source_id
-         FROM inventory_items
-         WHERE id = ANY($1) AND is_deleted = false`,
+        `SELECT id, item_code, item_name, source_type, source_id, unit_type, 
+                average_price, current_stock, warehouse_location
+        FROM inventory_items
+        WHERE id = ANY($1) AND is_deleted = false`,
         [inventoryItemIds]
       );
-
-      const invMap = new Map<number, { source_type: string; source_id: string; item_code: string; item_name: string }>();
+      const invMap = new Map<number, any>();
       for (const row of invRes.rows) {
-        invMap.set(row.id, {
-          source_type: row.source_type,
-          source_id: String(row.source_id),
-          item_code: row.item_code,
-          item_name: row.item_name,
-        });
+        invMap.set(row.id, row);
       }
-
-      const orderIdColumn = referenceType === "Swatch" ? "swatch_order_id" : "style_order_id";
 
       for (const item of items) {
         const inv = invMap.get(item.inventoryItemId);
         if (!inv) continue;
 
-        // Only select columns that exist in swatch_bom table
+        // Try to find existing BOM row
         const bomRes = await client.query(
-          `SELECT id, unit_type, avg_unit_price
-           FROM swatch_bom
-           WHERE ${orderIdColumn} = $1
-             AND material_type = $2
-             AND material_id::text = $3
-             AND material_code = $4
-             AND is_deleted = false
-           LIMIT 1`,
-          [effectiveReferenceId, inv.source_type, inv.source_id, item.itemCode]
+          `SELECT id
+          FROM swatch_bom
+          WHERE ${orderIdColumn} = $1
+            AND material_type = $2
+            AND material_id = $3
+            AND material_code = $4
+            AND is_deleted = false
+          LIMIT 1`,
+          [effectiveReferenceId, inv.source_type, parseInt(inv.source_id), item.itemCode]
         );
 
+        let bomRowId: number;
         if (bomRes.rows.length) {
-          const bomRow = bomRes.rows[0];
-          const bomRowId = bomRow.id;
+          bomRowId = bomRes.rows[0].id;
+        } else {
+          // ─── INSERT NEW BOM ROW with actual stock from inventory ────────────
+          const requiredQty = item.orderedQuantity;
+          const unitPrice = item.unitPrice || parseFloat(inv.average_price) || 0;
+          const estimatedAmount = requiredQty * unitPrice;
 
-          bomRowIds.push(bomRowId);
-          bomItems.push({
-            bomRowId: bomRowId,
-            materialCode: item.itemCode,
-            materialName: item.itemName,
-            unitType: bomRow.unit_type ?? "",
-            targetPrice: String(item.unitPrice ?? bomRow.avg_unit_price),
-            quantity: String(item.orderedQuantity),
-            targetVendorId: vendorId,
-            targetVendorName: vendorName,
-          });
+          const insertRes = await client.query(
+            `INSERT INTO swatch_bom
+            (${orderIdColumn}, material_type, material_id, material_code, material_name,
+              current_stock, avg_unit_price, unit_type, warehouse_location,
+              required_qty, estimated_amount, consumed_qty,
+              target_vendor_id, target_vendor_name, created_by, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+            RETURNING id`,
+            [
+              effectiveReferenceId,
+              inv.source_type,
+              parseInt(inv.source_id),
+              item.itemCode,
+              item.itemName,
+              String(inv.current_stock ?? 0),            
+              unitPrice.toFixed(2),                      
+              inv.unit_type || "",
+              inv.warehouse_location ?? null,            
+              requiredQty.toFixed(3),                    
+              estimatedAmount.toFixed(2),                
+              "0",                                       
+              vendorId,
+              vendorName,
+              userName,
+            ]
+          );
+          bomRowId = insertRes.rows[0].id;
         }
+
+        // Collect BOM row ID and BOM item data
+        bomRowIds.push(bomRowId);
+        bomItems.push({
+          bomRowId,
+          materialCode: item.itemCode,
+          materialName: item.itemName,
+          unitType: inv.unit_type || "",
+          targetPrice: String(item.unitPrice || 0),
+          quantity: String(item.orderedQuantity),
+          targetVendorId: vendorId,
+          targetVendorName: vendorName,
+        });
       }
     }
-
     const poNumber = await nextPoNumber(client);
     // ─── INSERT PO HEADER ──────────────────────────────────────────────────
     const poRes = await client.query(
