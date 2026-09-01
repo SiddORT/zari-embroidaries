@@ -154,13 +154,9 @@ export const updateTdsStatusSchema = z.object({
 
 export const tdsMasterQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-
   limit: z.coerce.number().int().positive().max(100).default(10),
-
   search: z.string().trim().optional(),
-
   status: z.enum(["all", "active", "inactive"]).optional(),
-
   paginate: z.enum(["true", "false"]).default("true"),
 });
 

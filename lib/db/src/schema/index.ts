@@ -27,3 +27,4 @@ export * from "./vendorChallans";
 export * from "./extended";
 export * from "./entityTags";
 export * from "./tdsMaster";
+export * from "./paymentTds";

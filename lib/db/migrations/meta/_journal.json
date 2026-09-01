@@ -162,6 +162,13 @@
       "when": 1787033475230,
       "tag": "0022_nostalgic_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788249340561,
+      "tag": "0026_yummy_black_knight",
+      "breakpoints": true
     }
   ]
 }

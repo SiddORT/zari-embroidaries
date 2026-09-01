@@ -1,6 +1,6 @@
 {
-  "id": "cdc6f97d-7817-4f3e-9586-04e9bb120bf4",
-  "prevId": "321f8a30-e89c-40b8-afa3-fe7b9371a4ee",
+  "id": "b563bc98-01cd-480c-a98a-6bb68087ea50",
+  "prevId": "af29f24f-ea76-431e-9949-4f5c8c1a514f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -10986,9 +10986,28 @@
           "notNull": true,
           "default": true
         },
+        "is_deleted": {
+          "name": "is_deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "deleted_by": {
+          "name": "deleted_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -11001,7 +11020,7 @@
         },
         "updated_by": {
           "name": "updated_by",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -11010,103 +11029,52 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
-        },
-        "is_deleted": {
-          "name": "is_deleted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "deleted_by": {
-          "name": "deleted_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "tds_master_deleted_by_users_id_fk": {
+          "name": "tds_master_deleted_by_users_id_fk",
+          "tableFrom": "tds_master",
+          "tableTo": "users",
+          "columnsFrom": [
+            "deleted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tds_master_created_by_users_id_fk": {
+          "name": "tds_master_created_by_users_id_fk",
+          "tableFrom": "tds_master",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tds_master_updated_by_users_id_fk": {
+          "name": "tds_master_updated_by_users_id_fk",
+          "tableFrom": "tds_master",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.vendor_tds": {
-      "name": "vendor_tds",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "vendor_id": {
-          "name": "vendor_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tds_master_id": {
-          "name": "tds_master_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "is_deleted": {
-          "name": "is_deleted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "deleted_by": {
-          "name": "deleted_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "vendor_tds_vendor_tds_unique": {
-          "name": "vendor_tds_vendor_tds_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "vendor_id",
-            "tds_master_id"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
