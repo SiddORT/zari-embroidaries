@@ -911,7 +911,13 @@ function PaymentRow({ pay, onDelete }: { pay: PrPaymentRecord; onDelete: () => v
 }
 
 // ─── PR Payments Panel (reusable) ─────────────────────────────────────────────
-function PrPaymentsPanel({ prId }: { prId: number }) {
+function PrPaymentsPanel({
+  prId,
+  isFullyPaid = false,
+}: {
+  prId: number;
+  isFullyPaid?: boolean;
+}) {
   const { toast } = useToast();
   const { data: payments = [] } = usePrPayments(prId);
   const addPay = useAddPayment();
@@ -919,8 +925,12 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [showForm, setShowForm] = useState(false);
   const [payForm, setPayForm] = useState({
-    paymentType: "Partial", paymentDate: new Date().toISOString().slice(0, 10),
-    paymentMode: "", amount: "", transactionStatus: "", paymentStatus: "Pending",
+    paymentType: "Partial",
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMode: "",
+    amount: "",
+    transactionStatus: "",
+    paymentStatus: "Pending",
     attachment: null as null | { name: string; type: string; data: string; size: number },
   });
 
@@ -928,14 +938,34 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => setPayForm(f => ({ ...f, attachment: { name: file.name, type: file.type, data: ev.target?.result as string, size: file.size } }));
+    reader.onload = (ev) =>
+      setPayForm((f) => ({
+        ...f,
+        attachment: {
+          name: file.name,
+          type: file.type,
+          data: ev.target?.result as string,
+          size: file.size,
+        },
+      }));
     reader.readAsDataURL(file);
   }
 
   async function handleAdd() {
-    if (!payForm.amount || parseFloat(payForm.amount) <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return; }
+    if (!payForm.amount || parseFloat(payForm.amount) <= 0) {
+      toast({ title: "Enter a valid amount", variant: "destructive" });
+      return;
+    }
     await addPay.mutateAsync({ prId, ...payForm });
-    setPayForm({ paymentType: "Partial", paymentDate: new Date().toISOString().slice(0, 10), paymentMode: "", amount: "", transactionStatus: "", paymentStatus: "Pending", attachment: null });
+    setPayForm({
+      paymentType: "Partial",
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMode: "",
+      amount: "",
+      transactionStatus: "",
+      paymentStatus: "Pending",
+      attachment: null,
+    });
     setShowForm(false);
     toast({ title: "Payment recorded" });
   }
@@ -946,10 +976,14 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
           Payments {payments.length > 0 && <span className="text-gray-600">({payments.length})</span>}
         </p>
-        <button onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
-          <CreditCard className="h-3 w-3" /> Record Payment
-        </button>
+        {!isFullyPaid && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors"
+          >
+            <CreditCard className="h-3 w-3" /> Record Payment
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -957,54 +991,99 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Type</label>
-              <select value={payForm.paymentType} onChange={e => setPayForm(f => ({ ...f, paymentType: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
-                {["Advance", "Partial", "Full"].map(v => <option key={v}>{v}</option>)}
+              <select
+                value={payForm.paymentType}
+                onChange={(e) => setPayForm((f) => ({ ...f, paymentType: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+              >
+                {["Advance", "Partial", "Full"].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Mode</label>
-              <input value={payForm.paymentMode} onChange={e => setPayForm(f => ({ ...f, paymentMode: e.target.value }))}
+              <input
+                value={payForm.paymentMode}
+                onChange={(e) => setPayForm((f) => ({ ...f, paymentMode: e.target.value }))}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                placeholder="Bank / UPI / Cash…" />
+                placeholder="Bank / UPI / Cash…"
+              />
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Amount</label>
-              <input type="number" min="0" step="any" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={payForm.amount}
+                onChange={(e) => setPayForm((f) => ({ ...f, amount: e.target.value }))}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                placeholder="0.00" />
+                placeholder="0.00"
+              />
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Date</label>
-              <input type="date" value={payForm.paymentDate} onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none" />
+              <input
+                type="date"
+                value={payForm.paymentDate}
+                onChange={(e) => setPayForm((f) => ({ ...f, paymentDate: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+              />
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Transaction Status</label>
-              <input value={payForm.transactionStatus} onChange={e => setPayForm(f => ({ ...f, transactionStatus: e.target.value }))}
+              <input
+                value={payForm.transactionStatus}
+                onChange={(e) => setPayForm((f) => ({ ...f, transactionStatus: e.target.value }))}
                 className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                placeholder="e.g. TXN123456" />
+                placeholder="e.g. TXN123456"
+              />
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Payment Status</label>
-              <select value={payForm.paymentStatus} onChange={e => setPayForm(f => ({ ...f, paymentStatus: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
-                {["Pending", "Processing", "Completed", "Failed"].map(v => <option key={v}>{v}</option>)}
+              <select
+                value={payForm.paymentStatus}
+                onChange={(e) => setPayForm((f) => ({ ...f, paymentStatus: e.target.value }))}
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+              >
+                {["Pending", "Processing", "Completed", "Failed"].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
               </select>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors">
-              <Paperclip className="h-3 w-3" /> {payForm.attachment ? payForm.attachment.name : "Attach file"}
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <Paperclip className="h-3 w-3" />{" "}
+              {payForm.attachment ? payForm.attachment.name : "Attach file"}
             </button>
-            {payForm.attachment && <button onClick={() => setPayForm(f => ({ ...f, attachment: null }))} className="text-gray-400 hover:text-red-500"><X className="h-3 w-3" /></button>}
+            {payForm.attachment && (
+              <button
+                onClick={() => setPayForm((f) => ({ ...f, attachment: null }))}
+                className="text-gray-400 hover:text-red-500"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
             <input ref={fileRef} type="file" className="hidden" onChange={onFile} />
-            <button onClick={handleAdd} disabled={addPay.isPending}
-              className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60">
-              {addPay.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Save
+            <button
+              onClick={handleAdd}
+              disabled={addPay.isPending}
+              className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gray-900 text-[#C9B45C] text-xs font-semibold hover:bg-black transition-colors disabled:opacity-60"
+            >
+              {addPay.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}{" "}
+              Save
             </button>
-            <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600"><X className="h-3.5 w-3.5" /></button>
+            <button
+              onClick={() => setShowForm(false)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       )}
@@ -1012,15 +1091,21 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-gray-100">
-            {["Type", "Mode", "Amount", "Date", "Txn Status", "Pay Status", "Attachment", ""].map(h => (
-              <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-1.5">{h}</th>
-            ))}
+            {["Type", "Mode", "Amount", "Date", "Txn Status", "Pay Status", "Attachment", ""].map(
+              (h) => (
+                <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-1.5">
+                  {h}
+                </th>
+              )
+            )}
           </tr>
         </thead>
         <tbody>
-          {payments.length === 0
-            ? <EmptyRow text="No payments recorded" />
-            : payments.map(p => <PaymentRow key={p.id} pay={p} onDelete={() => delPay.mutate(p.id)} />)}
+          {payments.length === 0 ? (
+            <EmptyRow text="No payments recorded" />
+          ) : (
+            payments.map((p) => <PaymentRow key={p.id} pay={p} onDelete={() => delPay.mutate(p.id)} />)
+          )}
         </tbody>
       </table>
     </div>
@@ -1028,7 +1113,23 @@ function PrPaymentsPanel({ prId }: { prId: number }) {
 }
 
 // ─── PR Table Row (flat table view) ───────────────────────────────────────────
-function PrTableRow({ pr, poNumber, vendorName, bomItems }: { pr: PurchaseReceiptRecord; poNumber: string; vendorName: string; bomItems: PoLineItem[] }) {
+function PrTableRow({
+  pr,
+  poNumber,
+  vendorName,
+  bomItems,
+  totalAmount,
+  paidAmount,
+  balance,
+}: {
+  pr: PurchaseReceiptRecord;
+  poNumber: string;
+  vendorName: string;
+  bomItems: PoLineItem[];
+  totalAmount: string | number;
+  paidAmount: string | number;
+  balance: string | number;
+}) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1039,6 +1140,12 @@ function PrTableRow({ pr, poNumber, vendorName, bomItems }: { pr: PurchaseReceip
     warehouseLocation: pr.warehouseLocation ?? "",
     receivedDate: (pr.receivedDate ?? "").slice(0, 10),
   });
+
+  const total = parseFloat(String(totalAmount)) || 0;
+  const paid = parseFloat(String(paidAmount)) || 0;
+  const bal = parseFloat(String(balance)) || 0;
+  const isFullyPaid = bal <= 0.01;
+
   function openEdit() {
     setEditForm({
       actualPrice: pr.actualPrice,
@@ -1047,73 +1154,82 @@ function PrTableRow({ pr, poNumber, vendorName, bomItems }: { pr: PurchaseReceip
     });
     setEditing(true);
   }
+
   function saveEdit() {
     updatePR.mutate(
-      { id: pr.id, actualPrice: editForm.actualPrice, warehouseLocation: editForm.warehouseLocation || undefined, receivedDate: editForm.receivedDate || undefined },
       {
-        onSuccess: () => { setEditing(false); toast({ title: "Receipt updated" }); },
-        onError: (e: any) => toast({ title: e?.message ?? "Update failed", variant: "destructive" }),
+        id: pr.id,
+        actualPrice: editForm.actualPrice,
+        warehouseLocation: editForm.warehouseLocation || undefined,
+        receivedDate: editForm.receivedDate || undefined,
       },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          toast({ title: "Receipt updated" });
+        },
+        onError: (e: any) =>
+          toast({ title: e?.message ?? "Update failed", variant: "destructive" }),
+      }
     );
   }
-  const total = (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0);
 
   return (
     <>
       <tr className="border-b border-gray-50 hover:bg-gray-50/50">
-        <td className="px-3 py-2.5 font-mono text-[10px] font-bold text-gray-700">{pr.prNumber}</td>
-        <td className="px-3 py-2.5 font-mono text-[10px] text-amber-700 font-semibold">{poNumber}</td>
+        <td className="px-3 py-2.5 font-mono text-[10px] font-bold text-gray-700">
+          {pr.prNumber}
+        </td>
+        <td className="px-3 py-2.5 font-mono text-[10px] text-amber-700 font-semibold">
+          {poNumber}
+        </td>
         <td className="px-3 py-2.5 text-gray-700 text-xs">{vendorName}</td>
-        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap text-xs">{new Date(pr.receivedDate).toLocaleDateString()}</td>
-        <td className="px-3 py-2.5 font-semibold text-gray-800 text-xs">{pr.receivedQty}</td>
-        <td className="px-3 py-2.5 text-gray-700 text-xs">{parseFloat(pr.actualPrice).toFixed(2)}</td>
-        <td className="px-3 py-2.5 font-semibold text-blue-700 text-xs">{total.toFixed(2)}</td>
-        <td className="px-3 py-2.5 max-w-[200px]">
-          {(() => {
-            const itemsToShow =
-              pr.bomRowId != null
-                ? bomItems.filter(item => item.bomRowId === pr.bomRowId)
-                : bomItems;
-
-            if (itemsToShow.length === 0) {
-              return <span className="text-gray-300 text-xs">—</span>;
-            }
-
-            return (
-              <div className="flex flex-col gap-1">
-                {itemsToShow.slice(0, 2).map((item, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    <span className="text-[9px] px-1 py-0.5 rounded font-bold shrink-0 bg-gray-100 text-gray-500 font-mono">
-                      {item.materialCode}
-                    </span>
-                    <span className="text-[10px] text-gray-700 truncate">
-                      {item.materialName}
-                    </span>
-                  </div>
-                ))}
-
-                {itemsToShow.length > 2 && (
-                  <span className="text-[10px] text-gray-400">
-                    +{itemsToShow.length - 2} more
-                  </span>
-                )}
-              </div>
-            );
-          })()}
+        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap text-xs">
+          {new Date(pr.receivedDate).toLocaleDateString()}
+        </td>
+        <td className="px-3 py-2.5 font-semibold text-gray-800 text-xs">
+          {pr.receivedQty}
+        </td>
+        <td className="px-3 py-2.5 text-gray-700 text-xs">
+          {parseFloat(pr.actualPrice).toFixed(2)}
+        </td>
+        <td className="px-3 py-2.5 font-semibold text-blue-700 text-xs">
+          {total.toFixed(2)}
+        </td>
+        <td className="px-3 py-2.5 font-semibold text-green-700 text-xs">
+          {paid.toFixed(2)}
+        </td>
+        <td className="px-3 py-2.5 font-semibold text-amber-700 text-xs">
+          {bal.toFixed(2)}
         </td>
         <td className="px-3 py-2.5">
           <div className="flex items-center gap-1">
-            <button onClick={() => setOpen(v => !v)}
-              className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${open ? "bg-gray-900 text-[#C9B45C] border-gray-900" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-              <CreditCard className="h-3 w-3" /> Payments
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border transition-colors ${
+                isFullyPaid
+                  ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                  : open
+                  ? "bg-gray-900 text-[#C9B45C] border-gray-900"
+                  : "border-gray-200 text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              <CreditCard className="h-3 w-3" />
+              {isFullyPaid ? "Paid" : "Payments"}
               {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
-            <button onClick={openEdit}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit receipt">
+            <button
+              onClick={openEdit}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              title="Edit receipt"
+            >
               <Pencil className="h-3 w-3" />
             </button>
-            <button onClick={() => deletePR.mutate(pr.id)} disabled={deletePR.isPending}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+            <button
+              onClick={() => deletePR.mutate(pr.id)}
+              disabled={deletePR.isPending}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"
+            >
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
@@ -1121,51 +1237,98 @@ function PrTableRow({ pr, poNumber, vendorName, bomItems }: { pr: PurchaseReceip
       </tr>
       {open && (
         <tr className="bg-gray-50/60 border-b border-gray-100">
-          <td colSpan={9} className="px-5 py-4">
-            <PrPaymentsPanel prId={pr.id} />
+          <td colSpan={10} className="px-5 py-4">
+            <PrPaymentsPanel prId={pr.id} isFullyPaid={isFullyPaid} />
           </td>
         </tr>
       )}
       {editing && (
-        <tr><td colSpan={9}>
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900">Edit Receipt — {pr.prNumber}</h3>
-                <button onClick={() => setEditing(false)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-500" /></button>
-              </div>
-              <div className="px-6 py-4 space-y-3">
-                <p className="text-[11px] text-gray-400">Received quantity cannot be edited; create a new receipt or delete and re-create instead.</p>
-                <div>
-                  <label className="text-[10px] text-gray-500 font-medium">Actual Price <span className="text-red-500 ml-0.5">*</span></label>
-                  <input type="number" min="0" step="any" value={editForm.actualPrice}
-                    onChange={e => setEditForm(f => ({ ...f, actualPrice: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
-                  <p className="text-[10px] text-amber-600 mt-1">Note: editing the price does not retroactively change weighted-average inventory cost.</p>
+        <tr>
+          <td colSpan={10}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Edit Receipt — {pr.prNumber}
+                  </h3>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="p-1 rounded-lg hover:bg-gray-100"
+                  >
+                    <X className="h-4 w-4 text-gray-500" />
+                  </button>
                 </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 font-medium">Received Date</label>
-                  <input type="date" value={editForm.receivedDate}
-                    onChange={e => setEditForm(f => ({ ...f, receivedDate: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                <div className="px-6 py-4 space-y-3">
+                  <p className="text-[11px] text-gray-400">
+                    Received quantity cannot be edited; create a new receipt or delete and re‑create
+                    instead.
+                  </p>
+                  <div>
+                    <label className="text-[10px] text-gray-500 font-medium">
+                      Actual Price <span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={editForm.actualPrice}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, actualPrice: e.target.value }))
+                      }
+                      className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                    />
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      Note: editing the price does not retroactively change weighted‑average
+                      inventory cost.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 font-medium">
+                      Received Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.receivedDate}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, receivedDate: e.target.value }))
+                      }
+                      className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 font-medium">
+                      Warehouse Location
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.warehouseLocation}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, warehouseLocation: e.target.value }))
+                      }
+                      className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                      placeholder="Optional"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 font-medium">Warehouse Location</label>
-                  <input type="text" value={editForm.warehouseLocation}
-                    onChange={e => setEditForm(f => ({ ...f, warehouseLocation: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" placeholder="Optional" />
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    disabled={updatePR.isPending}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-900 text-[#C9B45C] hover:bg-black disabled:opacity-50"
+                  >
+                    {updatePR.isPending ? "Saving…" : "Save Changes"}
+                  </button>
                 </div>
-              </div>
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
-                <button onClick={() => setEditing(false)} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
-                <button onClick={saveEdit} disabled={updatePR.isPending}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-900 text-[#C9B45C] hover:bg-black disabled:opacity-50">
-                  {updatePR.isPending ? "Saving…" : "Save Changes"}
-                </button>
               </div>
             </div>
-          </div>
-        </td></tr>
+          </td>
+        </tr>
       )}
     </>
   );
@@ -1973,7 +2136,10 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
     return true;
   });
 
-  const totalValue = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.receivedQty) || 0) * (parseFloat(pr.actualPrice) || 0), 0);
+  // Use totalAmount from API (computed with vendor invoice priority)
+  const totalValue = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.totalAmount) || 0), 0);
+  const totalPaid = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.paidAmount) || 0), 0);
+  const totalBalance = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.balance) || 0), 0);
 
   const getVendorName = (pr: any) => {
     if (pr.vendorName && pr.vendorName.trim() !== "") return pr.vendorName;
@@ -1984,7 +2150,9 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
       <SectionHeader icon={<FileText className="h-4 w-4" />} title="Purchase Receipts">
         {prs.length > 0 && (
           <span className="text-xs text-gray-400">
-            {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""} · Total: <span className="font-semibold text-blue-700">{totalValue.toFixed(2)}</span>
+            {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""} · Total Value: <span className="font-semibold text-blue-700">{totalValue.toFixed(2)}</span>
+            &nbsp;· Paid: <span className="font-semibold text-green-700">{totalPaid.toFixed(2)}</span>
+            &nbsp;· Balance: <span className="font-semibold text-amber-700">{totalBalance.toFixed(2)}</span>
           </span>
         )}
       </SectionHeader>
@@ -2030,23 +2198,38 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Vendor</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Date</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Rcv Qty</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Actual Price</th>
-                <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Total Value</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Price</th>
+                <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Total</th>
+                <th className="text-left text-[10px] font-semibold text-green-600 px-3 py-2 whitespace-nowrap">Paid</th>
+                <th className="text-left text-[10px] font-semibold text-amber-600 px-3 py-2 whitespace-nowrap">Balance</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Status</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {filteredPrs.map(pr => (
-                <PrTableRow key={pr.id} pr={pr} poNumber={poMap[pr.poId] ?? "—"} vendorName={getVendorName(pr)} bomItems={poItemsMap[pr.poId] ?? []} />
-              ))}
+              {filteredPrs.map(pr => {
+                return (
+                  <PrTableRow
+                    key={pr.id}
+                    pr={pr}
+                    poNumber={poMap[pr.poId] ?? "—"}
+                    vendorName={getVendorName(pr)}
+                    bomItems={poItemsMap[pr.poId] ?? []}
+                    totalAmount={pr.totalAmount}
+                    paidAmount={pr.paidAmount}
+                    balance={pr.balance}
+                  />
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 border-t border-gray-200">
                 <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">
-                  {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""} · Grand Total
+                  {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""}
                 </td>
                 <td className="px-3 py-2 font-bold text-blue-700">{totalValue.toFixed(2)}</td>
+                <td className="px-3 py-2 font-bold text-green-700">{totalPaid.toFixed(2)}</td>
+                <td className="px-3 py-2 font-bold text-amber-700">{totalBalance.toFixed(2)}</td>
                 <td colSpan={2} />
               </tr>
             </tfoot>
@@ -2735,7 +2918,7 @@ const defaultOutsourceForm = {
   issueDate: "", targetDate: "", deliveryDate: "", totalCost: "", notes: "",
 };
 
-function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
+export function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useOutsourceJobs(swatchOrderId);
   const createMutation = useCreateOutsourceJob();
@@ -2769,37 +2952,59 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
 
   function handleSave() {
     if (!form.vendorId || !form.hsnId || !form.issueDate) {
-      toast({ title: "Vendor, HSN Code and Issue Date are required", variant: "destructive" }); return;
-    }
-    if (editingId !== null) {
-      updateMutation.mutate({
-        id: editingId,
-        vendorId: parseInt(form.vendorId), vendorName: form.vendorName,
-        hsnId: parseInt(form.hsnId), hsnCode: form.hsnCode, gstPercentage: form.gstPercentage || "5",
-        issueDate: form.issueDate, targetDate: form.targetDate || null, deliveryDate: form.deliveryDate || null,
-        totalCost: form.totalCost || "0", notes: form.notes || null,
-      }, {
-        onSuccess: () => { setShowModal(false); setEditingId(null); setForm(defaultOutsourceForm); toast({ title: "Outsource job updated" }); },
-        onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-      });
+      toast({ title: "Vendor, HSN Code and Issue Date are required", variant: "destructive" });
       return;
     }
-    createMutation.mutate({
-      swatchOrderId,
-      vendorId: parseInt(form.vendorId),
-      vendorName: form.vendorName,
-      hsnId: parseInt(form.hsnId),
-      hsnCode: form.hsnCode,
-      gstPercentage: form.gstPercentage || "5",
-      issueDate: form.issueDate,
-      targetDate: form.targetDate || undefined,
-      deliveryDate: form.deliveryDate || undefined,
-      totalCost: form.totalCost || "0",
-      notes: form.notes || undefined,
-    }, {
-      onSuccess: () => { setShowModal(false); setForm(defaultOutsourceForm); toast({ title: "Outsource job added" }); },
-      onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
-    });
+    if (editingId !== null) {
+      updateMutation.mutate(
+        {
+          id: editingId,
+          vendorId: parseInt(form.vendorId),
+          vendorName: form.vendorName,
+          hsnId: parseInt(form.hsnId),
+          hsnCode: form.hsnCode,
+          gstPercentage: form.gstPercentage || "5",
+          issueDate: form.issueDate,
+          targetDate: form.targetDate || null,
+          deliveryDate: form.deliveryDate || null,
+          totalCost: form.totalCost || "0",
+          notes: form.notes || null,
+        },
+        {
+          onSuccess: () => {
+            setShowModal(false);
+            setEditingId(null);
+            setForm(defaultOutsourceForm);
+            toast({ title: "Outsource job updated" });
+          },
+          onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
+        }
+      );
+      return;
+    }
+    createMutation.mutate(
+      {
+        swatchOrderId,
+        vendorId: parseInt(form.vendorId),
+        vendorName: form.vendorName,
+        hsnId: parseInt(form.hsnId),
+        hsnCode: form.hsnCode,
+        gstPercentage: form.gstPercentage || "5",
+        issueDate: form.issueDate,
+        targetDate: form.targetDate || undefined,
+        deliveryDate: form.deliveryDate || undefined,
+        totalCost: form.totalCost || "0",
+        notes: form.notes || undefined,
+      },
+      {
+        onSuccess: () => {
+          setShowModal(false);
+          setForm(defaultOutsourceForm);
+          toast({ title: "Outsource job added" });
+        },
+        onError: (e: any) => toast({ title: e?.message ?? "Error", variant: "destructive" }),
+      }
+    );
   }
 
   const uniqueVendors = [...new Set(rows.map(r => r.vendorName))];
@@ -2814,37 +3019,72 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
       <SectionHeader icon={<Truck className="h-4 w-4" />} title="Outsource Jobs">
         <div className="flex items-center gap-2">
-          <select value={filterVendor} onChange={e => setFilterVendor(e.target.value)}
-            className="text-[10px] border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
+          <select
+            value={filterVendor}
+            onChange={(e) => setFilterVendor(e.target.value)}
+            className="text-[10px] border border-gray-200 rounded-lg px-2 py-1 text-gray-600"
+          >
             <option value="all">All Vendors</option>
-            {uniqueVendors.map(v => <option key={v} value={v}>{v}</option>)}
+            {uniqueVendors.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
           </select>
-          <button onClick={() => { setEditingId(null); setForm(defaultOutsourceForm); setShowModal(true); }}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors">
+          <button
+            onClick={() => {
+              setEditingId(null);
+              setForm(defaultOutsourceForm);
+              setShowModal(true);
+            }}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-gray-900 text-[#C9B45C] hover:bg-black transition-colors"
+          >
             <Plus className="h-3.5 w-3.5" /> Add Job
           </button>
         </div>
       </SectionHeader>
 
       {isLoading ? (
-        <div className="py-6 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" /></div>
+        <div className="py-6 text-center">
+          <Loader2 className="h-5 w-5 animate-spin mx-auto text-gray-400" />
+        </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs min-w-[960px]">
+          <table className="w-full text-xs min-w-[1100px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Vendor</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">HSN</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">GST%</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Issue Date</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Target Date</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Delivery Date</th>
-                <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Cost</th>
-                <th className="text-right text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">GST</th>
-                <th className="text-right text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">Total</th>
-                <th className="text-right text-[10px] font-semibold text-emerald-600 px-3 py-2 whitespace-nowrap">Paid</th>
-                <th className="text-right text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">Balance</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Notes</th>
+               <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap"> Vendor </th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap"> HSN </th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                  GST%
+                </th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                  Issue Date
+                </th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                  Target
+                </th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                  Delivery
+                </th>
+                <th className="text-right text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                  Cost
+                </th>
+                <th className="text-right text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">
+                  GST
+                </th>
+                <th className="text-right text-[10px] font-semibold text-amber-500 px-3 py-2 whitespace-nowrap">
+                  Total
+                </th>
+                <th className="text-right text-[10px] font-semibold text-emerald-600 px-3 py-2 whitespace-nowrap">
+                  Paid
+                </th>
+                <th className="text-right text-[10px] font-semibold text-red-500 px-3 py-2 whitespace-nowrap">
+                  Balance
+                </th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">
+                  Notes
+                </th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -2934,39 +3174,75 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
         </div>
       )}
 
+      {/* Modal – unchanged except for the TDS fields already added */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900">{editingId !== null ? "Edit" : "Add"} Outsource Job</h3>
-              <button onClick={() => { setShowModal(false); setEditingId(null); }} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-500" /></button>
+              <h3 className="text-sm font-semibold text-gray-900">
+                {editingId !== null ? "Edit" : "Add"} Outsource Job
+              </h3>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingId(null);
+                }}
+                className="p-1 rounded-lg hover:bg-gray-100"
+              >
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
             </div>
             <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
               {/* Vendor search */}
               <div>
-                <label className="text-[10px] text-gray-500 font-medium">Vendor <span className="text-red-500 ml-0.5">*</span></label>
+                <label className="text-[10px] text-gray-500 font-medium">
+                  Vendor <span className="text-red-500 ml-0.5">*</span>
+                </label>
                 <div className="relative mt-1">
-                  <input type="text" value={form.vendorId ? form.vendorName : form.vendorQuery}
-                    onChange={e => {
-                      if (form.vendorId) setForm(f => ({ ...f, vendorId: "", vendorName: "", vendorQuery: e.target.value }));
-                      else setForm(f => ({ ...f, vendorQuery: e.target.value }));
+                  <input
+                    type="text"
+                    value={form.vendorId ? form.vendorName : form.vendorQuery}
+                    onChange={(e) => {
+                      if (form.vendorId)
+                        setForm((f) => ({ ...f, vendorId: "", vendorName: "", vendorQuery: e.target.value }));
+                      else setForm((f) => ({ ...f, vendorQuery: e.target.value }));
                       setShowVendorDrop(true);
                     }}
                     onFocus={() => setShowVendorDrop(true)}
                     placeholder="Search vendor by name or code..."
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  />
                   {form.vendorId && (
-                    <button onClick={() => setForm(f => ({ ...f, vendorId: "", vendorName: "", vendorQuery: "" }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /></button>
+                    <button
+                      onClick={() =>
+                        setForm((f) => ({ ...f, vendorId: "", vendorName: "", vendorQuery: "" }))
+                      }
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   )}
                   {showVendorDrop && !form.vendorId && vendorResults.length > 0 && (
                     <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-                      {vendorResults.map(v => (
-                        <button key={v.id} type="button"
-                          onClick={() => { setForm(f => ({ ...f, vendorId: String(v.id), vendorName: v.brandName, vendorQuery: "" })); setShowVendorDrop(false); }}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                      {vendorResults.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => {
+                            setForm((f) => ({
+                              ...f,
+                              vendorId: String(v.id),
+                              vendorName: v.brandName,
+                              vendorQuery: "",
+                            }));
+                            setShowVendorDrop(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        >
                           <span className="font-medium text-gray-800">{v.brandName}</span>
-                          <span className="ml-2 text-gray-400 font-mono text-[10px]">{v.vendorCode}</span>
+                          <span className="ml-2 text-gray-400 font-mono text-[10px]">
+                            {v.vendorCode}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -2976,30 +3252,68 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
 
               {/* HSN search */}
               <div>
-                <label className="text-[10px] text-gray-500 font-medium">HSN Code <span className="text-red-500 ml-0.5">*</span></label>
+                <label className="text-[10px] text-gray-500 font-medium">
+                  HSN Code <span className="text-red-500 ml-0.5">*</span>
+                </label>
                 <div className="relative mt-1">
-                  <input type="text" value={form.hsnId ? form.hsnCode : form.hsnQuery}
-                    onChange={e => {
-                      if (form.hsnId) setForm(f => ({ ...f, hsnId: "", hsnCode: "", gstPercentage: "", hsnQuery: e.target.value }));
-                      else setForm(f => ({ ...f, hsnQuery: e.target.value }));
+                  <input
+                    type="text"
+                    value={form.hsnId ? form.hsnCode : form.hsnQuery}
+                    onChange={(e) => {
+                      if (form.hsnId)
+                        setForm((f) => ({
+                          ...f,
+                          hsnId: "",
+                          hsnCode: "",
+                          gstPercentage: "",
+                          hsnQuery: e.target.value,
+                        }));
+                      else setForm((f) => ({ ...f, hsnQuery: e.target.value }));
                       setShowHsnDrop(true);
                     }}
                     onFocus={() => setShowHsnDrop(true)}
                     placeholder="Search HSN code or description..."
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  />
                   {form.hsnId && (
-                    <button onClick={() => setForm(f => ({ ...f, hsnId: "", hsnCode: "", gstPercentage: "", hsnQuery: "" }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /></button>
+                    <button
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          hsnId: "",
+                          hsnCode: "",
+                          gstPercentage: "",
+                          hsnQuery: "",
+                        }))
+                      }
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   )}
                   {showHsnDrop && !form.hsnId && hsnResults.length > 0 && (
                     <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-                      {hsnResults.map(h => (
-                        <button key={h.id} type="button"
-                          onClick={() => { setForm(f => ({ ...f, hsnId: String(h.id), hsnCode: h.hsnCode, gstPercentage: h.gstPercentage, hsnQuery: "" })); setShowHsnDrop(false); }}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                      {hsnResults.map((h) => (
+                        <button
+                          key={h.id}
+                          type="button"
+                          onClick={() => {
+                            setForm((f) => ({
+                              ...f,
+                              hsnId: String(h.id),
+                              hsnCode: h.hsnCode,
+                              gstPercentage: h.gstPercentage,
+                              hsnQuery: "",
+                            }));
+                            setShowHsnDrop(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        >
                           <span className="font-mono font-medium text-gray-800">{h.hsnCode}</span>
                           <span className="ml-2 text-gray-400 text-[10px]">{h.govtDescription}</span>
-                          <span className="ml-1 text-blue-500 text-[10px] font-semibold">GST {h.gstPercentage}%</span>
+                          <span className="ml-1 text-blue-500 text-[10px] font-semibold">
+                            GST {h.gstPercentage}%
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -3018,43 +3332,76 @@ function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
               {/* Dates */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] text-gray-500 font-medium">Issue Date <span className="text-red-500 ml-0.5">*</span></label>
-                  <input type="date" value={form.issueDate}
-                    onChange={e => setForm(f => ({ ...f, issueDate: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                  <label className="text-[10px] text-gray-500 font-medium">
+                    Issue Date <span className="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={form.issueDate}
+                    onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
+                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Target Date</label>
-                  <input type="date" value={form.targetDate}
-                    onChange={e => setForm(f => ({ ...f, targetDate: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                  <input
+                    type="date"
+                    value={form.targetDate}
+                    onChange={(e) => setForm((f) => ({ ...f, targetDate: e.target.value }))}
+                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500 font-medium">Delivery Date</label>
-                  <input type="date" value={form.deliveryDate}
-                    onChange={e => setForm(f => ({ ...f, deliveryDate: e.target.value }))}
-                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" />
+                  <input
+                    type="date"
+                    value={form.deliveryDate}
+                    onChange={(e) => setForm((f) => ({ ...f, deliveryDate: e.target.value }))}
+                    className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Total Cost</label>
-                <input type="number" min="0" step="any" value={form.totalCost}
-                  onChange={e => setForm(f => ({ ...f, totalCost: e.target.value }))}
-                  className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" placeholder="0.00" />
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.totalCost}
+                  onChange={(e) => setForm((f) => ({ ...f, totalCost: e.target.value }))}
+                  className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  placeholder="0.00"
+                />
               </div>
               <div>
                 <label className="text-[10px] text-gray-500 font-medium">Notes</label>
-                <input type="text" value={form.notes}
-                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]" placeholder="Optional" />
+                <input
+                  type="text"
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#C9B45C]"
+                  placeholder="Optional"
+                />
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-900 text-[#C9B45C] hover:bg-black disabled:opacity-50">
-                {(createMutation.isPending || updateMutation.isPending) ? "Saving…" : (editingId !== null ? "Save Changes" : "Add Job")}
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 rounded-xl text-xs text-gray-500 border border-gray-200 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={createMutation.isPending || updateMutation.isPending}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-900 text-[#C9B45C] hover:bg-black disabled:opacity-50"
+              >
+                {createMutation.isPending || updateMutation.isPending
+                  ? "Saving…"
+                  : editingId !== null
+                  ? "Save Changes"
+                  : "Add Job"}
               </button>
             </div>
           </div>

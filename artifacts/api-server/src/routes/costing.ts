@@ -856,16 +856,17 @@ router.post("/bom", requireAuth,
     createdBy: user.email,
   }).returning();
 
+  // Commented as Reservation or Auto Reservation Feature is Excluded 
   // Section 1 — auto-reserve for Swatch BOM
-  let reservation: { status: string; reason?: string } = { status: "skipped" };
-  if (reqQty > 0) {
-    reservation = await autoReserveForBom({
-      materialType, materialId: matId, orderId, reservationType: "Swatch",
-      reqQty, bomRowId: row.id, materialName, actor,
-    });
-  }
+  // let reservation: { status: string; reason?: string } = { status: "skipped" };
+  // if (reqQty > 0) {
+  //   reservation = await autoReserveForBom({
+  //     materialType, materialId: matId, orderId, reservationType: "Swatch",
+  //     reqQty, bomRowId: row.id, materialName, actor,
+  //   });
+  // }
 
-  return res.status(201).json({ data: row, reservation });
+  return res.status(201).json({ data: row});
 });
 
 router.patch("/bom/:id", requireAuth, 
@@ -1479,11 +1480,83 @@ router.delete("/po/:id", requireAuth,
 router.get("/pr/:swatchOrderId", requireAuth, 
   checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
   async (req, res) => {
-  const rows = await db.select().from(purchaseReceiptsTable)
-    .where(and(eq(purchaseReceiptsTable.swatchOrderId, Number(String(req.params.swatchOrderId))), eq(purchaseReceiptsTable.isDeleted, false)))
-    .orderBy(purchaseReceiptsTable.createdAt);
-  return res.json({ data: rows });
-});
+    try {
+      const swatchOrderId = Number(String(req.params.swatchOrderId));
+
+      const query = `
+        WITH
+        receipt_items AS (
+          SELECT
+            pr_id,
+            SUM(quantity * unit_price) AS items_total
+          FROM purchase_receipt_items
+          WHERE is_deleted = false
+          GROUP BY pr_id
+        ),
+        receipt_payments AS (
+          SELECT
+            pr_id,
+            SUM(base_currency_amount) AS paid_amount
+          FROM pr_payments
+          WHERE is_deleted = false
+          GROUP BY pr_id
+        )
+        SELECT
+          pr.id,
+          pr.pr_number AS "prNumber",
+          pr.po_id AS "poId",
+          pr.bom_row_id AS "bomRowId",
+          pr.swatch_order_id AS "swatchOrderId",
+          pr.style_order_id AS "styleOrderId",
+          pr.vendor_name AS "vendorName",
+          pr.received_date AS "receivedDate",
+          pr.received_qty AS "receivedQty",
+          pr.actual_price AS "actualPrice",
+          pr.warehouse_location AS "warehouseLocation",
+          pr.status,
+          pr.vendor_invoice_number AS "vendorInvoiceNumber",
+          pr.vendor_invoice_date AS "vendorInvoiceDate",
+          pr.vendor_invoice_amount AS "vendorInvoiceAmount",
+          pr.vendor_invoice_file AS "vendorInvoiceFile",
+          pr.vendor_invoice_uploaded_at AS "vendorInvoiceUploadedAt",
+          pr.vendor_invoice_currency_code AS "vendorInvoiceCurrencyCode",
+          pr.vendor_invoice_exchange_rate AS "vendorInvoiceExchangeRate",
+          pr.created_by AS "createdBy",
+          pr.created_at AS "createdAt",
+          pr.updated_by AS "updatedBy",
+          pr.updated_at AS "updatedAt",
+          pr.is_deleted AS "isDeleted",
+          pr.deleted_by AS "deletedBy",
+          pr.deleted_at AS "deletedAt",
+          COALESCE(
+            pr.vendor_invoice_amount,
+            (pr.received_qty::numeric * pr.actual_price::numeric),
+            ri.items_total,
+            0
+          ) AS "totalAmount",
+          COALESCE(rp.paid_amount, 0) AS "paidAmount",
+          COALESCE(
+            pr.vendor_invoice_amount,
+            (pr.received_qty::numeric * pr.actual_price::numeric),
+            ri.items_total,
+            0
+          ) - COALESCE(rp.paid_amount, 0) AS "balance"
+        FROM purchase_receipts pr
+        LEFT JOIN receipt_items ri ON ri.pr_id = pr.id
+        LEFT JOIN receipt_payments rp ON rp.pr_id = pr.id
+        WHERE pr.swatch_order_id = $1
+          AND pr.is_deleted = false
+        ORDER BY pr.created_at ASC
+      `;
+
+      const result = await pool.query(query, [swatchOrderId]);
+      return res.json({ data: result.rows });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Failed to fetch purchase receipts" });
+    }
+  }
+);
 
 router.post("/pr", requireAuth, 
   checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
@@ -3279,176 +3352,468 @@ router.get("/costing-payments-totals", requireAuth,
 });
 
 // GET /costing/costing-payments?referenceType=outsource_job&referenceId=5
-router.get("/costing-payments", requireAuth, 
+router.get( "/costing-payments", requireAuth,
   checkPermission({ any: [STYLE_ORDERS.VIEW, SWATCH_ORDERS.VIEW] }),
   async (req, res) => {
-  try {
-    const { referenceType, referenceId } = req.query as Record<string, string>;
-    if (!referenceType || !referenceId) {
-      return res.status(400).json({ error: "referenceType and referenceId are required" });
+    try {
+      const { referenceType, referenceId } = req.query as Record<string, string>;
+      if (!referenceType || !referenceId) {
+        return res.status(400).json({ error: "referenceType and referenceId are required" });
+      }
+
+      const { rows } = await pool.query(
+        `
+        SELECT
+          p.*,
+          t.id AS tds_id,
+          t.tds_master_id,
+          t.paid_amount AS tds_paid_amount,
+          t.tds_rate,
+          t.tds_amount,
+          t.status AS tds_status,
+          t.created_at AS tds_created_at,
+          t.updated_at AS tds_updated_at
+        FROM costing_payments p
+        LEFT JOIN payment_tds t
+          ON t.payment_source_type = 'costing_payments'
+          AND t.payment_source_id = p.id
+        WHERE p.reference_type = $1
+          AND p.reference_id = $2
+          AND p.is_deleted = false
+        ORDER BY p.created_at ASC
+        `,
+        [referenceType, parseInt(referenceId)]
+      );
+
+      // Transform rows to include a nested `tds` object
+      const payments = rows.map((row) => {
+        const tds = row.tds_id
+          ? {
+              id: row.tds_id,
+              tdsMasterId: row.tds_master_id,
+              paidAmount: row.tds_paid_amount,
+              tdsRate: row.tds_rate,
+              tdsAmount: row.tds_amount,
+              status: row.tds_status,
+              createdAt: row.tds_created_at,
+              updatedAt: row.tds_updated_at,
+            }
+          : null;
+
+        // Remove the flat TDS columns from the payment object
+        delete row.tds_id;
+        delete row.tds_master_id;
+        delete row.tds_paid_amount;
+        delete row.tds_rate;
+        delete row.tds_amount;
+        delete row.tds_status;
+        delete row.tds_created_at;
+        delete row.tds_updated_at;
+
+        return {
+          ...row,
+          tds,
+        };
+      });
+
+      return res.json({ data: payments });
+    } catch (err: any) {
+      console.error("Error fetching costing payments:", err);
+      return res.status(500).json({ error: err.message });
     }
-    const { rows } = await pool.query(
-      `SELECT * FROM costing_payments
-       WHERE reference_type = $1 AND reference_id = $2 AND is_deleted = false
-       ORDER BY created_at ASC`,
-      [referenceType, parseInt(referenceId)]
-    );
-    return res.json({ data: rows });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 // POST /costing/costing-payments — upsert by (reference_type, reference_id, transaction_id)
-router.post("/costing-payments", requireAuth,
+router.post(
+  "/costing-payments",
+  requireAuth,
   checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
-  try {
-    const user = (req as any).user;
-    const {
-      vendorId, vendorName, referenceType, referenceId,
-      swatchOrderId, styleOrderId,
-      paymentType, paymentMode, paymentAmount, paymentStatus,
-      transactionId, paymentDate, remarks,
-      currencyCode, exchangeRateSnapshot,
-    } = req.body;
+    const client = await pool.connect(); 
+    try {
+      const user = (req as any).user;
+      const { vendorId, vendorName, referenceType, referenceId, swatchOrderId, styleOrderId, paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks, currencyCode, exchangeRateSnapshot, tdsMasterId, } = req.body;
 
-    if (!vendorId || !referenceType || !referenceId || !paymentAmount) {
-      return res.status(400).json({ error: "vendorId, referenceType, referenceId, paymentAmount are required" });
-    }
-
-    const payCcy  = currencyCode || "INR";
-    const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;       // pay ccy -> INR
-    const baseAmt = (parseFloat(String(paymentAmount)) * payRate).toFixed(2);   // INR anchor
-
-    // Upsert: if transaction_id is provided and a matching record exists, update it
-    if (transactionId) {
-      const existing = await pool.query(
-        `SELECT id FROM costing_payments
-         WHERE reference_type = $1 AND reference_id = $2 AND transaction_id = $3
-         LIMIT 1`,
-        [referenceType, parseInt(referenceId), transactionId]
-      );
-      if (existing.rows.length > 0) {
-        const { rows } = await pool.query(
-          `UPDATE costing_payments SET
-             vendor_id = $1, vendor_name = $2, payment_type = $3, payment_mode = $4,
-             payment_amount = $5, payment_status = $6, payment_date = $7, remarks = $8,
-             currency_code = $10, exchange_rate_snapshot = $11, base_currency_amount = $12
-           WHERE id = $9
-           RETURNING *`,
-          [
-            parseInt(vendorId), vendorName, paymentType, paymentMode,
-            parseFloat(paymentAmount), paymentStatus,
-            paymentDate ? new Date(paymentDate) : null,
-            remarks, existing.rows[0].id,
-            payCcy, payRate, baseAmt,
-          ]
-        );
-        return res.json({ data: rows[0], updated: true });
+      if (!vendorId || !referenceType || !referenceId || !paymentAmount) {
+        await client.release();
+        return res.status(400).json({
+          error: "vendorId, referenceType, referenceId, paymentAmount are required",
+        });
       }
-    }
 
-    // Insert new payment
-    const { rows } = await pool.query(
-      `INSERT INTO costing_payments
-         (vendor_id, vendor_name, reference_type, reference_id, swatch_order_id, style_order_id,
-          payment_type, payment_mode, payment_amount, currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_status, transaction_id, payment_date, remarks, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-       RETURNING *`,
-      [
-        parseInt(vendorId), vendorName, referenceType, parseInt(referenceId),
-        swatchOrderId ? parseInt(swatchOrderId) : null,
-        styleOrderId ? parseInt(styleOrderId) : null,
-        paymentType, paymentMode,
-        parseFloat(paymentAmount), payCcy, payRate, baseAmt,
-        paymentStatus || "Pending",
-        transactionId || null,
-        paymentDate ? new Date(paymentDate) : null,
-        remarks || null,
-        user?.username ?? "system",
-      ]
-    );
-    return res.status(201).json({ data: rows[0] });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+      await client.query("BEGIN");
+
+      const payCcy = currencyCode || "INR";
+      const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;
+      const baseAmt = (parseFloat(String(paymentAmount)) * payRate).toFixed(2);
+
+      let resultRow: any;
+
+      // Helper to upsert TDS (uses the same client)
+      const upsertTds = async (
+        paymentId: number,
+        vendorIdNum: number,
+        paymentDateVal: Date | string | null,
+        tdsMasterIdVal: number | undefined,
+        baseAmount: string,
+        client: any, 
+      ) => {
+        if (!tdsMasterIdVal) return;
+
+        // Fetch TDS master
+       const masterRes = await client.query( `SELECT rate_percent, threshold_amount FROM tds_master WHERE id = $1 AND status = true AND is_deleted = false`, [tdsMasterIdVal] );
+        if (masterRes.rows.length === 0) {
+          throw new Error("Invalid TDS master selected");
+        }
+        const { rate_percent, threshold_amount } = masterRes.rows[0];
+
+        const paidAmt = parseFloat(baseAmount);
+        const tdsRate = parseFloat(rate_percent);
+        const threshold = parseFloat(threshold_amount ?? "0");
+        const tdsAmount = paidAmt > threshold ? (paidAmt * tdsRate) / 100 : 0;
+
+        // Check if TDS record exists for this costing payment
+       const existing = await client.query( `SELECT id FROM payment_tds WHERE payment_source_type = 'costing_payments' AND payment_source_id = $1`, [paymentId] );
+
+        if (existing.rows.length > 0) {
+          // Update existing record
+          await client.query(
+            `UPDATE payment_tds
+             SET tds_master_id = $1,
+                 paid_amount = $2,
+                 tds_rate = $3,
+                 tds_amount = $4,
+                 updated_by = $5,
+                 updated_at = NOW()
+             WHERE id = $6`,
+            [tdsMasterIdVal, paidAmt, tdsRate, tdsAmount, user?.username || "system", existing.rows[0].id]
+          );
+        } else {
+          // Insert new TDS record
+          await client.query(
+            `INSERT INTO payment_tds
+               (tds_master_id, payment_source_type, payment_source_id,
+                payment_date, vendor_id,
+                base_document_type, base_document_id,
+                paid_amount, tds_rate, tds_amount,
+                status, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [
+              tdsMasterIdVal,
+              "costing_payments",
+              paymentId,
+              paymentDateVal || new Date(),
+              vendorIdNum,
+              referenceType || null,
+              referenceId || null,
+              paidAmt,
+              tdsRate,
+              tdsAmount,
+              "DEDUCTED",
+              user?.username || "system",
+            ]
+          );
+        }
+      };
+
+      // Upsert by transaction_id (existing logic)
+      if (transactionId) {
+        const existing = await client.query(
+          `SELECT id FROM costing_payments
+           WHERE reference_type = $1 AND reference_id = $2 AND transaction_id = $3
+           LIMIT 1`,
+          [referenceType, parseInt(referenceId), transactionId]
+        );
+        if (existing.rows.length > 0) {
+          const updateRes = await client.query(
+            `UPDATE costing_payments SET
+               vendor_id = $1, vendor_name = $2, payment_type = $3, payment_mode = $4,
+               payment_amount = $5, payment_status = $6, payment_date = $7, remarks = $8,
+               currency_code = $10, exchange_rate_snapshot = $11, base_currency_amount = $12
+             WHERE id = $9
+             RETURNING *`,
+            [
+              parseInt(vendorId),
+              vendorName,
+              paymentType,
+              paymentMode,
+              parseFloat(paymentAmount),
+              paymentStatus,
+              paymentDate ? new Date(paymentDate) : null,
+              remarks,
+              existing.rows[0].id,
+              payCcy,
+              payRate,
+              baseAmt,
+            ]
+          );
+          resultRow = updateRes.rows[0];
+
+          // Update TDS record (if any)
+          await upsertTds(
+            resultRow.id,
+            resultRow.vendor_id,
+            resultRow.payment_date || new Date(),
+            tdsMasterId,
+            resultRow.base_currency_amount,
+            client
+          );
+
+          await client.query("COMMIT");
+          client.release();
+          return res.json({ data: resultRow, updated: true });
+        }
+      }
+
+      // Insert new payment
+      const insertRes = await client.query(
+        `INSERT INTO costing_payments
+           (vendor_id, vendor_name, reference_type, reference_id, swatch_order_id, style_order_id,
+            payment_type, payment_mode, payment_amount, currency_code, exchange_rate_snapshot, base_currency_amount,
+            payment_status, transaction_id, payment_date, remarks, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         RETURNING *`,
+        [
+          parseInt(vendorId),
+          vendorName,
+          referenceType,
+          parseInt(referenceId),
+          swatchOrderId ? parseInt(swatchOrderId) : null,
+          styleOrderId ? parseInt(styleOrderId) : null,
+          paymentType,
+          paymentMode,
+          parseFloat(paymentAmount),
+          payCcy,
+          payRate,
+          baseAmt,
+          paymentStatus || "Pending",
+          transactionId || null,
+          paymentDate ? new Date(paymentDate) : null,
+          remarks || null,
+          user?.username ?? "system",
+        ]
+      );
+      resultRow = insertRes.rows[0];
+
+      // Create TDS record
+      await upsertTds(
+        resultRow.id,
+        resultRow.vendor_id,
+        resultRow.payment_date || new Date(),
+        tdsMasterId,
+        resultRow.base_currency_amount,
+        client
+      );
+
+      await client.query("COMMIT");
+      client.release();
+      return res.status(201).json({ data: resultRow });
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      client.release();
+      console.error("Error in /costing-payments:", err);
+      return res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // PATCH /costing/costing-payments/:id — update payment fields
-router.patch("/costing-payments/:id", requireAuth,
+router.patch(
+  "/costing-payments/:id",
+  requireAuth,
   checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
-  try {
-    const id = parseInt(String(req.params.id));
-    const { paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks, currencyCode, exchangeRateSnapshot } = req.body;
-    // Recompute the INR base anchor whenever EITHER amount or rate changes, deriving the
-    // missing side from the existing row so base never goes stale on a partial update.
-    const payRate = exchangeRateSnapshot != null ? (parseFloat(String(exchangeRateSnapshot)) || 1) : null;
-    let baseAmt: string | null = null;
-    if (paymentAmount != null || payRate != null) {
-      const cur = await pool.query(
-        `SELECT payment_amount, exchange_rate_snapshot FROM costing_payments WHERE id = $1`,
-        [id],
-      );
-      if (cur.rows.length) {
-        const effAmt = paymentAmount != null ? parseFloat(String(paymentAmount)) : parseFloat(cur.rows[0].payment_amount ?? "0");
-        const effRate = payRate != null ? payRate : (parseFloat(cur.rows[0].exchange_rate_snapshot ?? "1") || 1);
+    const client = await pool.connect();
+    try {
+      const id = parseInt(String(req.params.id));
+     const { paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks, currencyCode, exchangeRateSnapshot, tdsMasterId, } = req.body;
+      await client.query("BEGIN");
+
+      // 1. Fetch current payment to get vendor_id, payment_date, etc.
+      const currentRes = await client.query( `SELECT vendor_id, payment_date, payment_amount, exchange_rate_snapshot FROM costing_payments WHERE id = $1`, [id] );
+      if (currentRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(404).json({ error: "Payment not found" });
+      }
+      const current = currentRes.rows[0];
+
+      // 2. Compute new base amount if amount or rate changes
+      const payRate = exchangeRateSnapshot != null
+        ? (parseFloat(String(exchangeRateSnapshot)) || 1)
+        : null;
+      let baseAmt: string | null = null;
+      if (paymentAmount != null || payRate != null) {
+        const effAmt = paymentAmount != null
+          ? parseFloat(String(paymentAmount))
+          : parseFloat(current.payment_amount ?? "0");
+        const effRate = payRate != null
+          ? payRate
+          : (parseFloat(current.exchange_rate_snapshot ?? "1") || 1);
         baseAmt = (effAmt * effRate).toFixed(2);
       }
+
+      // 3. Update costing_payments
+      const updateRes = await client.query(
+        `UPDATE costing_payments SET
+           payment_type = COALESCE($1, payment_type),
+           payment_mode = COALESCE($2, payment_mode),
+           payment_amount = COALESCE($3, payment_amount),
+           payment_status = COALESCE($4, payment_status),
+           transaction_id = COALESCE($5, transaction_id),
+           payment_date = COALESCE($6, payment_date),
+           remarks = COALESCE($7, remarks),
+           currency_code = COALESCE($9, currency_code),
+           exchange_rate_snapshot = COALESCE($10, exchange_rate_snapshot),
+           base_currency_amount = COALESCE($11, base_currency_amount)
+         WHERE id = $8
+         RETURNING *`,
+        [
+          paymentType ?? null,
+          paymentMode ?? null,
+          paymentAmount != null ? parseFloat(paymentAmount) : null,
+          paymentStatus ?? null,
+          transactionId ?? null,
+          paymentDate ? new Date(paymentDate) : null,
+          remarks ?? null,
+          id,
+          currencyCode ?? null,
+          payRate,
+          baseAmt,
+        ]
+      );
+      const updatedPayment = updateRes.rows[0];
+
+      // 4. Handle TDS upsert if tdsMasterId is provided
+      if (tdsMasterId) {
+        // Fetch TDS master
+        const masterRes = await client.query( `SELECT rate_percent, threshold_amount FROM tds_master WHERE id = $1 AND status = true AND is_deleted = false`, [tdsMasterId] );
+        if (masterRes.rows.length === 0) {
+          throw new Error(`Invalid TDS master selected (ID: ${tdsMasterId})`);
+        }
+        const { rate_percent, threshold_amount } = masterRes.rows[0];
+        const paidAmt = parseFloat(updatedPayment.base_currency_amount || "0");
+        const tdsRate = parseFloat(rate_percent);
+        const threshold = parseFloat(threshold_amount ?? "0");
+        const tdsAmount = paidAmt > threshold ? (paidAmt * tdsRate) / 100 : 0;
+
+        // Check if TDS record exists
+        const existingTds = await client.query( `SELECT id FROM payment_tds WHERE payment_source_type = 'costing_payments' AND payment_source_id = $1`, [id] );
+
+        const tdsStatus = "DEDUCTED";
+        const user = (req as any).user?.username ?? "system";
+
+        if (existingTds.rows.length > 0) {
+          // Update existing TDS record
+          await client.query(
+            `UPDATE payment_tds
+             SET tds_master_id = $1,
+                 paid_amount = $2,
+                 tds_rate = $3,
+                 tds_amount = $4,
+                 status = $5,
+                 updated_by = $6,
+                 updated_at = NOW()
+             WHERE id = $7`,
+            [tdsMasterId, paidAmt, tdsRate, tdsAmount, tdsStatus, user, existingTds.rows[0].id]
+          );
+        } else {
+          // Insert new TDS record
+          await client.query(
+            `INSERT INTO payment_tds
+               (tds_master_id, payment_source_type, payment_source_id,
+                payment_date, vendor_id,
+                base_document_type, base_document_id,
+                paid_amount, tds_rate, tds_amount,
+                status, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [
+              tdsMasterId,
+              "costing_payments",
+              id,
+              updatedPayment.payment_date || new Date(),
+              updatedPayment.vendor_id,
+              updatedPayment.reference_type || null,
+              updatedPayment.reference_id || null,
+              paidAmt,
+              tdsRate,
+              tdsAmount,
+              tdsStatus,
+              user,
+            ]
+          );
+        }
+      }
+
+      await client.query("COMMIT");
+      client.release();
+      return res.json({ data: updatedPayment });
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      client.release();
+      console.error("Error in PATCH /costing-payments:", err);
+      return res.status(500).json({ error: err.message });
     }
-    const { rows } = await pool.query(
-      `UPDATE costing_payments SET
-         payment_type = COALESCE($1, payment_type),
-         payment_mode = COALESCE($2, payment_mode),
-         payment_amount = COALESCE($3, payment_amount),
-         payment_status = COALESCE($4, payment_status),
-         transaction_id = COALESCE($5, transaction_id),
-         payment_date = COALESCE($6, payment_date),
-         remarks = COALESCE($7, remarks),
-         currency_code = COALESCE($9, currency_code),
-         exchange_rate_snapshot = COALESCE($10, exchange_rate_snapshot),
-         base_currency_amount = COALESCE($11, base_currency_amount)
-       WHERE id = $8
-       RETURNING *`,
-      [
-        paymentType ?? null, paymentMode ?? null,
-        paymentAmount != null ? parseFloat(paymentAmount) : null,
-        paymentStatus ?? null,
-        transactionId ?? null,
-        paymentDate ? new Date(paymentDate) : null,
-        remarks ?? null,
-        id,
-        currencyCode ?? null,
-        payRate,
-        baseAmt,
-      ]
-    );
-    if (!rows.length) return res.status(404).json({ error: "Not found" });
-    return res.json({ data: rows[0] });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 // DELETE /costing/costing-payments/:id — admin only
-router.delete("/costing-payments/:id", requireAuth, 
+router.delete(
+  "/costing-payments/:id",
+  requireAuth,
   checkPermission({ any: [STYLE_ORDERS.DELETE, SWATCH_ORDERS.DELETE] }),
   async (req, res) => {
-  try {
-    const user = (req as any).user;
-    if (user?.role !== "admin") {
-      return res.status(403).json({ error: "Admin only" });
+    const client = await pool.connect();
+    try {
+      const user = (req as any).user;
+      if (user?.role !== "admin") {
+        await client.release();
+        return res.status(403).json({ error: "Admin only" });
+      }
+
+      const id = parseInt(String(req.params.id));
+      const deletedBy = user.email || user.username || "system";
+      const now = new Date();
+
+      await client.query("BEGIN");
+
+      // 1. Soft-delete the costing payment
+      const result = await client.query(
+        `UPDATE costing_payments
+         SET is_deleted = true, deleted_by = $2, deleted_at = $3
+         WHERE id = $1 AND is_deleted = false
+         RETURNING id`,
+        [id, deletedBy, now]
+      );
+
+      if (result.rowCount === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(404).json({ error: "Payment not found or already deleted" });
+      }
+
+      // 2. Soft-delete the associated payment_tds record(s)
+      await client.query(
+        `UPDATE payment_tds
+         SET is_deleted = true, deleted_by = $2, deleted_at = $3
+         WHERE payment_source_type = 'costing_payments'
+           AND payment_source_id = $1
+           AND is_deleted = false`,
+        [id, deletedBy, now]
+      );
+
+      await client.query("COMMIT");
+      client.release();
+      return res.json({ success: true });
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      client.release();
+      console.error("Error deleting payment:", err);
+      return res.status(500).json({ error: err.message });
     }
-    const id = parseInt(String(req.params.id));
-    const r = await pool.query("UPDATE costing_payments SET is_deleted = true, deleted_by = $2, deleted_at = now() WHERE id = $1 AND is_deleted = false RETURNING id", [id, user.email]);
-    if (r.rowCount === 0) return res.status(404).json({ error: "Not found" });
-    return res.json({ success: true });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 // ─── Public: one-click email approve / reject ─────────────────────────────────
 router.get("/po-action", async (req: Request, res: Response) => {

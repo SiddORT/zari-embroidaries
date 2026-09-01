@@ -73,6 +73,7 @@ import OtherExpenses from "@/pages/OtherExpenses";
 import AccountsDashboard from "@/pages/AccountsDashboard";
 import VendorChallans from "@/pages/VendorChallans";
 import VendorChallanDetail from "@/pages/VendorChallanDetail";
+import TDSMaster from "@/pages/TDSMaster";
 
 import Reports from "@/pages/Reports";
 
@@ -107,6 +108,7 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <ProtectedRoute path="/masters/tds" component={TDSMaster} permission="masters:tds"/>
       <ProtectedRoute path="/dashboard" component={Dashboard} permission="dashboard" />
       <ProtectedRoute path="/masters" component={MastersRedirect} permission="masters:hsn" />
       <ProtectedRoute path="/masters/hsn" component={HSNMaster} permission="masters:hsn" />
