@@ -22,6 +22,16 @@ export interface CostingPaymentRecord {
   payment_date: string | null;
   remarks: string | null;
   created_at: string;
+  tds?: {
+    id: number;
+    tdsMasterId: number;
+    paidAmount: string;
+    tdsRate: string;
+    tdsAmount: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string | null;
+  };
 }
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
@@ -43,7 +53,7 @@ const DEFAULT_FORM = {
   remarks:       "",
   currencyCode:  "INR",
   exchangeRateSnapshot: "1",
-  tdsMasterId: "",
+  tdsMasterId: 0,
 };
 
 interface Props {
@@ -74,7 +84,7 @@ export default function CostingPaymentsPanel({
   const [form, setForm] = useState(DEFAULT_FORM);
   const { canEdit, canDelete } = useFormAccessContext();
   const [tdsSearch, setTdsSearch] = useState("");
-  const [tdsFilteredOptions, setTdsFilteredOptions] = useState<{ value: string; label: string }[]>([]);
+  const [tdsFilteredOptions, setTdsFilteredOptions] = useState<{ value: number; label: string }[]>([]);
 
   const queryKey = ["costing-payments", referenceType, referenceId];
   const { data: payments = [], isLoading } = useQuery<CostingPaymentRecord[]>({
@@ -97,7 +107,7 @@ export default function CostingPaymentsPanel({
 
   const tdsOptions = useMemo(() => {
     return (tdsData || []).map((item) => ({
-      value: String(item.id), // ensure string
+      value: Number(item.id),
       label: `${item.serviceName} (${item.sectionCode}) – ${item.ratePercent}%`,
     }));
   }, [tdsData]);
@@ -163,7 +173,7 @@ export default function CostingPaymentsPanel({
       remarks:       p.remarks        ?? "",
       currencyCode:  (p as any).currency_code ?? "INR",
       exchangeRateSnapshot: String((p as any).exchange_rate_snapshot ?? "1"),
-      tdsMasterId: String((p as any).tds_master_id ?? ""),
+      tdsMasterId: p.tds?.tdsMasterId ?? 0,
     });
   }
 
@@ -288,7 +298,7 @@ export default function CostingPaymentsPanel({
               <label className={lblCls}>TDS</label>
               <SmallSearchSelect
                 options={tdsFilteredOptions}
-                value={form.tdsMasterId} // or editForm.tdsMasterId
+                value={form.tdsMasterId}
                 onChange={(val) => setForm(f => ({ ...f, tdsMasterId: val }))}
                 onSearch={(search) => setTdsSearch(search)}
                 placeholder="Select TDS"
@@ -384,6 +394,18 @@ export default function CostingPaymentsPanel({
                         onChange={e => setEditForm(f => ({ ...f, exchangeRateSnapshot: e.target.value }))} className={inpCls} />
                     </div>
                   )}
+                  <div>
+                    <label className={lblCls}>TDS</label>
+                    <SmallSearchSelect
+                      options={tdsFilteredOptions}
+                      value={editForm.tdsMasterId}
+                      onChange={(val) => setEditForm(f => ({ ...f, tdsMasterId: val }))}
+                      onSearch={(search) => setTdsSearch(search)}
+                      placeholder="Select TDS"
+                      disabled={!canEdit}
+                      clearable
+                    />
+                  </div>
                   <div>
                     <label className={lblCls}>Status</label>
                     <select value={editForm.paymentStatus} onChange={e => setEditForm(f => ({ ...f, paymentStatus: e.target.value }))} className={inpCls}>
