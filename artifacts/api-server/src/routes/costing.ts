@@ -1,10 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { db, pool, inArray  } from "@workspace/db";
+import { db, pool, inArray, sql  } from "@workspace/db";
 import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
   consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable, customChargesTable,
-  materialsTable, fabricsTable, vendorsTable, hsnTable, inventoryItemsTable,
-  bomChangeLogTable,purchaseReceiptItems
+  materialsTable, fabricsTable, vendorsTable, hsnTable, inventoryItemsTable,tdsMasterTable,paymentTds,
+  purchaseReceiptItems, paymentTdsItems
 } from "@workspace/db/schema";
 import { usersTable, eq, ilike, or, desc, and } from "@workspace/db";
 // import { eq, ilike, or, desc, and } from "drizzle-orm";
@@ -16,7 +16,6 @@ import { checkPermission } from "../middlewares/checkPermission";
 import { STYLE_ORDER_TABS, SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS } from "../constants/permissions";
 
 const router = Router();
-
 // ─── Shared Reservation Helper ───────────────────────────────────────────────
 // Sections 1-4, 8-10 of the Reservation Engine spec.
 // Upserts a reservation for a BOM row, validates available stock, updates
@@ -403,7 +402,7 @@ async function applyCostingInventoryUpdate(opts: {
  * Call this after applyCostingInventoryUpdate returns a result.
 */
 async function createPurchaseReceiptItem(opts: {
-  client: any; // Transactional pg client
+  client: any;
   poId: number;
   prId: number;
   inventoryItemId: number;
@@ -423,7 +422,7 @@ async function createPurchaseReceiptItem(opts: {
     prRow
   } = opts;
 
-  // Fetch the purchase_order_item for this inventory_item_id (No lock needed; PO is already locked)
+  // Fetch the purchase_order_item including gst_percent and vendor info
   const poItemRes = await client.query(
     `SELECT 
        poi.id,
@@ -431,7 +430,9 @@ async function createPurchaseReceiptItem(opts: {
        poi.item_code,
        poi.item_image,
        poi.vendor_id,
-       poi.vendor_name
+       poi.vendor_name,
+       poi.hsn_code,
+       poi.gst_percentage
      FROM purchase_order_items poi
      WHERE poi.po_id = $1 AND poi.inventory_item_id = $2 AND poi.is_deleted = false
      LIMIT 1`,
@@ -445,14 +446,17 @@ async function createPurchaseReceiptItem(opts: {
     item_image: string | null;
     vendor_id: number | null;
     vendor_name: string | null;
+    hsn_code: string | null;
+    gst_percentage: string | null;
   } | undefined;
 
   // Insert into purchase_receipt_items
   await client.query(
     `INSERT INTO purchase_receipt_items
        (pr_id, inventory_item_id, item_name, item_code, quantity, unit_price,
-        warehouse_location, po_item_id, item_image, vendor_id, vendor_name)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        warehouse_location, po_item_id, item_image, vendor_id, vendor_name,
+        hsn_code, gst_percentage)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       prId,
       inventoryItemId,
@@ -465,9 +469,12 @@ async function createPurchaseReceiptItem(opts: {
       purchaseOrderItem?.item_image ?? null,
       purchaseOrderItem?.vendor_id ?? null,
       purchaseOrderItem?.vendor_name ?? null,
+      purchaseOrderItem?.hsn_code ?? null,
+      purchaseOrderItem?.gst_percentage ?? null,
     ]
   );
 
+  // Update purchase_order_items received quantity
   if (purchaseOrderItem?.id) {
     await client.query(
       `UPDATE purchase_order_items 
@@ -477,13 +484,26 @@ async function createPurchaseReceiptItem(opts: {
       [receivedQty, purchaseOrderItem.id]
     );
   }
-  // If we found a vendor_name, update the parent purchase_receipts table
-  if (purchaseOrderItem?.vendor_name && prRow) {
-    await client.query(
-      `UPDATE purchase_receipts SET vendor_name = $1 WHERE id = $2`,
-      [purchaseOrderItem.vendor_name, prRow.id]
-    );
-  }
+
+  const gstPercent = parseFloat(purchaseOrderItem?.gst_percentage ?? "0");
+  const totalWithoutGst = receivedQty * actualPrice;
+  const totalWithGst = totalWithoutGst * (1 + (gstPercent / 100));
+  const roundedTotal = Math.round(totalWithGst * 100) / 100;
+
+  const vendorNameToUpdate = purchaseOrderItem?.vendor_name ?? null;
+
+  await client.query(
+    `UPDATE purchase_receipts
+    SET 
+      vendor_name = COALESCE($1::text, vendor_name),
+      total_amount_with_gst = $2
+    WHERE id = $3`,
+    [
+      vendorNameToUpdate,
+      roundedTotal,
+      prId
+    ]
+  );
 }
 
 async function recalcPoStatus(client: { query: typeof pool.query }, poId: number) {
@@ -1148,210 +1168,282 @@ router.get("/po/:swatchOrderId", requireAuth,
   return res.json({ data: rows });
 });
 
-router.post("/po", requireAuth, 
-  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+router.post("/po", requireAuth,
+  checkPermission({ all: [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
-  const user = (req as any).user;
-  const { swatchOrderId, vendorId, notes, bomItems } = req.body as {
-    swatchOrderId: number;
-    vendorId?: number; // Kept for backward compatibility, but now ignored if items have their own vendors
-    notes?: string;
-    bomItems?: {
-      bomRowId: number;
-      materialCode: string;
-      materialName: string;
-      unitType: string;
-      targetPrice: string;
-      quantity: string;
-      targetVendorId?: number;
-      targetVendorName?: string;
-    }[];
-  };
+    const user = (req as any).user;
+    const { swatchOrderId, vendorId, notes, bomItems } = req.body as {
+      swatchOrderId: number;
+      vendorId?: number;
+      notes?: string;
+      bomItems?: {
+        bomRowId: number;
+        materialCode: string;
+        materialName: string;
+        unitType: string;
+        targetPrice: string;
+        quantity: string;
+        targetVendorId?: number;
+        targetVendorName?: string;
+      }[];
+    };
 
-  const items = bomItems ?? [];
+    const items = bomItems ?? [];
 
-  if (!items.length) {
-    return res.status(400).json({ error: "At least one material is required" });
-  }
-
-  // ─── FETCH INVENTORY ITEM IDs BY MATERIAL CODE ───────────────────────────
-  const materialCodes = [...new Set(items.map(i => i.materialCode))];
-  const inventoryItems = materialCodes.length > 0
-    ? await db.select({ id: inventoryItemsTable.id, code: inventoryItemsTable.itemCode })
-        .from(inventoryItemsTable)
-        .where(and(inArray(inventoryItemsTable.itemCode, materialCodes), eq(inventoryItemsTable.isDeleted, false)))
-    : [];
-
-  const inventoryMap = new Map(inventoryItems.map(i => [i.code, i.id]));
-
-  // ─── START TRANSACTION ───────────────────────────────────────────────────
-  const client = await (pool as any).connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const createdPOs: any[] = [];
-
-    // ─── LOOP OVER EACH MATERIAL AND CREATE A SEPARATE PO ──────────────────
-    for (const item of items) {
-      // Determine vendor for this specific item
-      let vendorIdForPO: number | null = null;
-      let vendorNameForPO: string | null = null;
-
-      if (item.targetVendorId) {
-        // Item has its own vendor
-        const [vendor] = await db
-          .select({ id: vendorsTable.id, brandName: vendorsTable.brandName })
-          .from(vendorsTable)
-          .where(and(eq(vendorsTable.id, item.targetVendorId), eq(vendorsTable.isDeleted, false)));
-
-        if (vendor) {
-          vendorIdForPO = vendor.id;
-          vendorNameForPO = vendor.brandName;
-        } else {
-          // If vendor not found, use the provided name as fallback
-          vendorNameForPO = item.targetVendorName ?? null;
-        }
-      } else if (item.targetVendorName) {
-        // Only vendor name provided (no ID)
-        vendorNameForPO = item.targetVendorName;
-      } else if (vendorId) {
-        // Fallback to header-level vendor (legacy support)
-        const [vendor] = await db
-          .select({ id: vendorsTable.id, brandName: vendorsTable.brandName })
-          .from(vendorsTable)
-          .where(and(eq(vendorsTable.id, vendorId), eq(vendorsTable.isDeleted, false)));
-
-        if (vendor) {
-          vendorIdForPO = vendor.id;
-          vendorNameForPO = vendor.brandName;
-        }
-      }
-
-      // If still no vendor, set a placeholder
-      if (!vendorNameForPO) {
-        vendorNameForPO = "Unknown Vendor";
-      }
-
-      const inventoryItemId = inventoryMap.get(item.materialCode) ?? null;
-      const poNumber = await nextPoNumber(client);
-
-      // ─── INSERT PO HEADER (single vendor, single item) ──────────────────
-      const poResult = await client.query(
-        `INSERT INTO purchase_orders
-          (po_number, swatch_order_id, reference_type, reference_id, vendor_mode,
-            vendor_id, vendor_name, status, notes, bom_row_ids, bom_items, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-        RETURNING id, po_number, swatch_order_id, reference_type, reference_id, vendor_mode,
-                  vendor_id, vendor_name, status, notes, bom_row_ids, bom_items, created_by,
-                  created_at`,
-        [
-          poNumber,
-          Number(swatchOrderId),
-          "Swatch",
-          Number(swatchOrderId),
-          "header", // Each PO has a single vendor (header mode)
-          vendorIdForPO,
-          vendorNameForPO,
-          "Draft",
-          notes ?? null,
-          JSON.stringify([item.bomRowId]), // Single BOM row ID
-          JSON.stringify([item]), // Single BOM item
-          user.email,
-        ]
-      );
-
-      const po = poResult.rows[0];
-      createdPOs.push(po);
-
-      // ─── INSERT PO ITEM (single item per PO) ──────────────────────────
-      await client.query(
-        `INSERT INTO purchase_order_items
-           (po_id, inventory_item_id, item_name, item_code,
-            ordered_quantity, received_quantity, unit_price,
-            warehouse_location, remarks, item_image,
-            vendor_id, vendor_name)
-         VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8,$9,$10,$11)`,
-        [
-          po.id,
-          inventoryItemId,
-          item.materialName || item.materialCode,
-          item.materialCode,
-          item.quantity,
-          item.targetPrice,
-          "",
-          null,
-          null,
-          vendorIdForPO, // Same vendor as header
-          vendorNameForPO, // Same vendor as header
-        ]
-      );
+    if (!items.length) {
+      return res.status(400).json({ error: "At least one material is required" });
     }
 
-    await client.query("COMMIT");
+    // ─── FETCH INVENTORY ITEMS WITH SOURCE TYPE & ID ──────────────────────
+    const materialCodes = [...new Set(items.map(i => i.materialCode))];
+    const inventoryItems = materialCodes.length
+      ? await db
+          .select({
+            id: inventoryItemsTable.id,
+            code: inventoryItemsTable.itemCode,
+            sourceType: inventoryItemsTable.sourceType,
+            sourceId: inventoryItemsTable.sourceId,
+          })
+          .from(inventoryItemsTable)
+          .where(
+            and(
+              inArray(inventoryItemsTable.itemCode, materialCodes),
+              eq(inventoryItemsTable.isDeleted, false)
+            )
+          )
+      : [];
 
-    // ─── EMAIL NOTIFICATION (outside transaction) ──────────────────────────
-    // Send one email per created PO
-    const adminUsers = await db.select({ email: usersTable.email }).from(usersTable).where(
-      and(eq(usersTable.role, "admin"), eq(usersTable.isDeleted, false))
-    );
-    const adminEmails = adminUsers.map(u => u.email).filter(Boolean) as string[];
+    const inventoryMap = new Map(inventoryItems.map(i => [i.code, i]));
 
-    if (adminEmails.length > 0 && createdPOs.length > 0) {
-      const apiBase = process.env.API_BASE_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "zari-erp.replit.app"}`;
-      const frontendUrl = process.env.FRONTEND_URL;
-      const erpUrl = `${frontendUrl}/swatch-orders/${swatchOrderId}`;
-
-      // Send email for each PO
-      for (const po of createdPOs) {
-        const approveToken = jwt.sign(
-          { poId: po.id, action: "approve" },
-          process.env.SESSION_SECRET ?? "secret",
-          { expiresIn: "7d" }
-        );
-        const rejectToken = jwt.sign(
-          { poId: po.id, action: "reject" },
-          process.env.SESSION_SECRET ?? "secret",
-          { expiresIn: "7d" }
-        );
-
-        sendPoApprovalRequestEmail({
-          adminEmails,
-          poNumber: po.po_number,
-          vendorName: po.vendor_name ?? "Unknown Vendor",
-          createdBy: user.email,
-          referenceType: "Swatch",
-          referenceId: swatchOrderId,
-          itemCount: 1, // Each PO has exactly one item
-          erpUrl,
-          approveUrl: `${apiBase}/api/costing/po-action?token=${approveToken}`,
-          rejectUrl: `${apiBase}/api/costing/po-action?token=${rejectToken}`,
-        }).then(() => {
-            console.log("Email sent successfully");
-        })
-        .catch((err) => {
-            console.error("EMAIL FAILED");
-            console.error(err);
-        });
-      }
+    // ─── BATCH FETCH HSN/GST FROM SOURCE TABLES ───────────────────────────
+    const fabricIds: number[] = [];
+    const materialIds: number[] = [];
+    for (const rec of inventoryMap.values()) {
+      if (rec.sourceType === 'fabric') fabricIds.push(rec.sourceId);
+      else if (rec.sourceType === 'material') materialIds.push(rec.sourceId);
     }
 
-    return res.status(201).json({ 
-      data: createdPOs, 
-      message: `${createdPOs.length} purchase order(s) created successfully` 
-    });
+    // Fetch fabrics
+    const fabrics = fabricIds.length
+      ? await db
+          .select({
+            id: fabricsTable.id,
+            hsnCode: fabricsTable.hsnCode,
+            gstPercent: fabricsTable.gstPercent,
+          })
+          .from(fabricsTable)
+          .where(inArray(fabricsTable.id, fabricIds))
+      : [];
 
-  } catch (error) {
-    // ─── ROLLBACK ON ANY ERROR ─────────────────────────────────────────────
-    await client.query("ROLLBACK").catch(() => {});
-    console.error("PO creation failed:", error);
-    return res.status(500).json({ error: "Failed to create purchase order(s)", detail: (error as Error).message });
+    // Fetch materials
+    const materials = materialIds.length
+      ? await db
+          .select({
+            id: materialsTable.id,
+            hsnCode: materialsTable.hsnCode,
+            gstPercent: materialsTable.gstPercent,
+          })
+          .from(materialsTable)
+          .where(inArray(materialsTable.id, materialIds))
+      : [];
 
-  } finally {
-    // ─── ALWAYS RELEASE CLIENT ───────────────────────────────────────────────
-    client.release();
+    // Build lookup map by source ID
+    const hsnGstMap = new Map<number, { hsnCode: string; gstPercent: string }>();
+    for (const f of fabrics) {
+      hsnGstMap.set(f.id, { hsnCode: f.hsnCode, gstPercent: f.gstPercent });
+    }
+    for (const m of materials) {
+      hsnGstMap.set(m.id, { hsnCode: m.hsnCode, gstPercent: m.gstPercent });
+    }
+
+    // ─── START TRANSACTION ───────────────────────────────────────────────────
+    const client = await (pool as any).connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const createdPOs: any[] = [];
+
+      // ─── LOOP OVER EACH MATERIAL AND CREATE A SEPARATE PO ──────────────────
+      for (const item of items) {
+        // Determine vendor for this specific item
+        let vendorIdForPO: number | null = null;
+        let vendorNameForPO: string | null = null;
+
+        if (item.targetVendorId) {
+          const [vendor] = await db
+            .select({ id: vendorsTable.id, brandName: vendorsTable.brandName })
+            .from(vendorsTable)
+            .where(
+              and(
+                eq(vendorsTable.id, item.targetVendorId),
+                eq(vendorsTable.isDeleted, false)
+              )
+            );
+          if (vendor) {
+            vendorIdForPO = vendor.id;
+            vendorNameForPO = vendor.brandName;
+          } else {
+            vendorNameForPO = item.targetVendorName ?? null;
+          }
+        } else if (item.targetVendorName) {
+          vendorNameForPO = item.targetVendorName;
+        } else if (vendorId) {
+          const [vendor] = await db
+            .select({ id: vendorsTable.id, brandName: vendorsTable.brandName })
+            .from(vendorsTable)
+            .where(
+              and(
+                eq(vendorsTable.id, vendorId),
+                eq(vendorsTable.isDeleted, false)
+              )
+            );
+          if (vendor) {
+            vendorIdForPO = vendor.id;
+            vendorNameForPO = vendor.brandName;
+          }
+        }
+
+        if (!vendorNameForPO) {
+          vendorNameForPO = "Unknown Vendor";
+        }
+
+        const inventoryRecord = inventoryMap.get(item.materialCode) ?? null;
+        const inventoryItemId = inventoryRecord?.id ?? null;
+
+        // Get HSN and GST from the source table
+        let hsnCode: string | null = null;
+        let gstPercent: string | null = null;
+        if (inventoryRecord) {
+          const sourceInfo = hsnGstMap.get(inventoryRecord.sourceId);
+          if (sourceInfo) {
+            hsnCode = sourceInfo.hsnCode;
+            gstPercent = sourceInfo.gstPercent;
+          }
+        }
+
+        const poNumber = await nextPoNumber(client);
+
+        // ─── INSERT PO HEADER ────────────────────────────────────────────────
+        const poResult = await client.query(
+          `INSERT INTO purchase_orders
+            (po_number, swatch_order_id, reference_type, reference_id, vendor_mode,
+              vendor_id, vendor_name, status, notes, bom_row_ids, bom_items, created_by)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          RETURNING id, po_number, swatch_order_id, reference_type, reference_id, vendor_mode,
+                    vendor_id, vendor_name, status, notes, bom_row_ids, bom_items, created_by,
+                    created_at`,
+          [
+            poNumber,
+            Number(swatchOrderId),
+            "Swatch",
+            Number(swatchOrderId),
+            "header",
+            vendorIdForPO,
+            vendorNameForPO,
+            "Draft",
+            notes ?? null,
+            JSON.stringify([item.bomRowId]),
+            JSON.stringify([item]),
+            user.email,
+          ]
+        );
+
+        const po = poResult.rows[0];
+        createdPOs.push(po);
+
+        // ─── INSERT PO ITEM (INCLUDING HSN & GST) ──────────────────────────
+        await client.query(
+          `INSERT INTO purchase_order_items
+             (po_id, inventory_item_id, item_name, item_code,
+              ordered_quantity, received_quantity, unit_price,
+              warehouse_location, remarks, item_image,
+              vendor_id, vendor_name, hsn_code, gst_percentage)
+           VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [
+            po.id,
+            inventoryItemId,
+            item.materialName || item.materialCode,
+            item.materialCode,
+            item.quantity,
+            item.targetPrice,
+            "",
+            null,
+            null,
+            vendorIdForPO,
+            vendorNameForPO,
+            hsnCode,
+            gstPercent,
+          ]
+        );
+      }
+
+      await client.query("COMMIT");
+
+      // ─── EMAIL NOTIFICATION (outside transaction) ──────────────────────────
+      const adminUsers = await db
+        .select({ email: usersTable.email })
+        .from(usersTable)
+        .where(
+          and(eq(usersTable.role, "admin"), eq(usersTable.isDeleted, false))
+        );
+      const adminEmails = adminUsers.map(u => u.email).filter(Boolean) as string[];
+
+      if (adminEmails.length > 0 && createdPOs.length > 0) {
+        const apiBase =
+          process.env.API_BASE_URL ??
+          `https://${process.env.REPLIT_DEV_DOMAIN ?? "zari-erp.replit.app"}`;
+        const frontendUrl = process.env.FRONTEND_URL;
+        const erpUrl = `${frontendUrl}/swatch-orders/${swatchOrderId}`;
+
+        for (const po of createdPOs) {
+          const approveToken = jwt.sign(
+            { poId: po.id, action: "approve" },
+            process.env.SESSION_SECRET ?? "secret",
+            { expiresIn: "7d" }
+          );
+          const rejectToken = jwt.sign(
+            { poId: po.id, action: "reject" },
+            process.env.SESSION_SECRET ?? "secret",
+            { expiresIn: "7d" }
+          );
+
+          sendPoApprovalRequestEmail({
+            adminEmails,
+            poNumber: po.po_number,
+            vendorName: po.vendor_name ?? "Unknown Vendor",
+            createdBy: user.email,
+            referenceType: "Swatch",
+            referenceId: swatchOrderId,
+            itemCount: 1,
+            erpUrl,
+            approveUrl: `${apiBase}/api/costing/po-action?token=${approveToken}`,
+            rejectUrl: `${apiBase}/api/costing/po-action?token=${rejectToken}`,
+          })
+            .then(() => console.log("Email sent successfully"))
+            .catch((err) => {
+              console.error("EMAIL FAILED");
+              console.error(err);
+            });
+        }
+      }
+
+      return res.status(201).json({
+        data: createdPOs,
+        message: `${createdPOs.length} purchase order(s) created successfully`,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("PO creation failed:", error);
+      return res.status(500).json({
+        error: "Failed to create purchase order(s)",
+        detail: (error as Error).message,
+      });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 router.patch("/po/:id", requireAuth, 
   checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
@@ -1477,21 +1569,183 @@ router.delete("/po/:id", requireAuth,
 });
 
 // ─── PR ──────────────────────────────────────────────────────────────────────
-router.get("/pr/:swatchOrderId", requireAuth, 
-  checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
+// router.get("/pr/:swatchOrderId", requireAuth, 
+//   checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
+//   async (req, res) => {
+//     try {
+//       const swatchOrderId = Number(String(req.params.swatchOrderId));
+//       const query = `
+//         WITH
+//         receipt_items AS (
+//           SELECT
+//             pr_id,
+//             COUNT(*) AS item_count,
+//             SUM(quantity) AS total_quantity,
+//             SUM(quantity * unit_price) AS items_total,
+//             SUM(quantity * unit_price * COALESCE(gst_percentage, 0) / 100) AS items_gst_total,
+//             SUM(quantity * unit_price * (1 + COALESCE(gst_percentage, 0) / 100)) AS items_total_with_gst,
+//             JSON_AGG(
+//               JSON_BUILD_OBJECT(
+//                 'itemCode', item_code,
+//                 'itemName', item_name,
+//                 'quantity', quantity,
+//                 'unitPrice', unit_price,
+//                 'gstPercentage', COALESCE(gst_percentage, 0),
+//                 'hsnCode', hsn_code
+//               ) ORDER BY id
+//             ) FILTER (WHERE id IS NOT NULL) AS items_json
+//           FROM purchase_receipt_items
+//           WHERE is_deleted = false
+//           GROUP BY pr_id
+//         ),
+//         receipt_payments AS (
+//           SELECT
+//             pr_id,
+//             SUM(base_currency_amount) AS paid_amount
+//           FROM pr_payments
+//           WHERE is_deleted = false
+//           GROUP BY pr_id
+//         ),
+//         receipt_tds AS (
+//           SELECT
+//             pp.pr_id,
+//             COALESCE(SUM(pt.tds_amount::numeric), 0) AS tds_total
+//           FROM pr_payments pp
+//           JOIN payment_tds pt ON pt.payment_source_id = pp.id
+//             AND pt.payment_source_type = 'pr_payments'
+//             AND pt.is_deleted = false
+//           WHERE pp.is_deleted = false
+//           GROUP BY pp.pr_id
+//         )
+//         SELECT
+//           pr.id,
+//           pr.pr_number AS "prNumber",
+//           pr.po_id AS "poId",
+//           pr.bom_row_id AS "bomRowId",
+//           pr.swatch_order_id AS "swatchOrderId",
+//           pr.style_order_id AS "styleOrderId",
+//           pr.vendor_name AS "vendorName",
+//           pr.received_date AS "receivedDate",
+//           pr.received_qty AS "receivedQty",
+//           pr.actual_price AS "actualPrice",
+//           pr.warehouse_location AS "warehouseLocation",
+//           pr.status,
+//           pr.vendor_invoice_number AS "vendorInvoiceNumber",
+//           pr.vendor_invoice_date AS "vendorInvoiceDate",
+//           pr.vendor_invoice_amount AS "vendorInvoiceAmount",
+//           pr.vendor_invoice_file AS "vendorInvoiceFile",
+//           pr.vendor_invoice_uploaded_at AS "vendorInvoiceUploadedAt",
+//           pr.vendor_invoice_currency_code AS "vendorInvoiceCurrencyCode",
+//           pr.vendor_invoice_exchange_rate AS "vendorInvoiceExchangeRate",
+//           pr.created_by AS "createdBy",
+//           pr.created_at AS "createdAt",
+//           pr.updated_by AS "updatedBy",
+//           pr.updated_at AS "updatedAt",
+//           pr.is_deleted AS "isDeleted",
+//           pr.deleted_by AS "deletedBy",
+//           pr.deleted_at AS "deletedAt",
+
+//           -- Item metadata
+//           COALESCE(ri.item_count, 0)::int AS "itemCount",
+//           COALESCE(ri.total_quantity, 0) AS "totalQuantity",
+//           COALESCE(ri.items_json, '[]'::json) AS "items",
+
+//           -- Subtotal (without GST): invoice → line items → header fallback
+//           COALESCE(
+//             pr.vendor_invoice_amount,
+//             ri.items_total,
+//             (pr.received_qty::numeric * pr.actual_price::numeric),
+//             0
+//           ) AS "totalAmount",
+
+//           -- GST amount
+//           COALESCE(ri.items_gst_total, 0) AS "totalGstAmount",
+
+//           -- Total with GST: header override → computed from line items → header fallback
+//           COALESCE(
+//             NULLIF(pr.total_amount_with_gst, '')::numeric,
+//             ri.items_total_with_gst,
+//             (pr.received_qty::numeric * pr.actual_price::numeric),
+//             0
+//           ) AS "totalAmountWithGst",
+
+//           COALESCE(rp.paid_amount, 0) AS "paidAmount",
+//           COALESCE(rt.tds_total, 0) AS "tdsAmount",
+
+//           -- Balance = total with GST - paid - TDS
+//           COALESCE(
+//             NULLIF(pr.total_amount_with_gst, '')::numeric,
+//             ri.items_total_with_gst,
+//             (pr.received_qty::numeric * pr.actual_price::numeric),
+//             0
+//           ) - COALESCE(rp.paid_amount, 0) - COALESCE(rt.tds_total, 0) AS "balance"
+
+//         FROM purchase_receipts pr
+//         LEFT JOIN receipt_items ri ON ri.pr_id = pr.id
+//         LEFT JOIN receipt_payments rp ON rp.pr_id = pr.id
+//         LEFT JOIN receipt_tds rt ON rt.pr_id = pr.id
+//         WHERE pr.swatch_order_id = $1
+//           AND pr.is_deleted = false
+//         ORDER BY pr.created_at ASC
+//       `;
+
+//       const result = await pool.query(query, [swatchOrderId]);
+//       return res.json({ data: result.rows });
+//     } catch (err) {
+//       console.error(err);
+//       return res.status(500).json({ error: "Failed to fetch purchase receipts" });
+//     }
+//   }
+// );
+
+router.get("/pr/:swatchOrderId", requireAuth,
+  checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }),
   async (req, res) => {
     try {
       const swatchOrderId = Number(String(req.params.swatchOrderId));
-
       const query = `
         WITH
+        item_paid AS (
+          SELECT
+            pti.base_document_item_id AS item_id,
+            SUM(pti.paid_amount::numeric + pti.tds_amount::numeric) AS paid_gross
+          FROM payment_tds_items pti
+          WHERE pti.base_document_item_type = 'purchase_receipt_item'
+            AND pti.is_deleted = false
+          GROUP BY pti.base_document_item_id
+        ),
         receipt_items AS (
           SELECT
-            pr_id,
-            SUM(quantity * unit_price) AS items_total
-          FROM purchase_receipt_items
-          WHERE is_deleted = false
-          GROUP BY pr_id
+            pri.pr_id,
+            COUNT(*) AS item_count,
+            SUM(pri.quantity) AS total_quantity,
+            SUM(pri.quantity * pri.unit_price) AS items_total,
+            SUM(pri.quantity * pri.unit_price * COALESCE(pri.gst_percentage, 0) / 100) AS items_gst_total,
+            SUM(pri.quantity * pri.unit_price * (1 + COALESCE(pri.gst_percentage, 0) / 100)) AS items_total_with_gst,
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'itemId', pri.id,
+                'itemCode', pri.item_code,
+                'itemName', pri.item_name,
+                'quantity', pri.quantity,
+                'unitPrice', pri.unit_price,
+                'gstPercentage', COALESCE(pri.gst_percentage, 0),
+                'hsnCode', pri.hsn_code,
+                'lineTotalWithGst', pri.quantity * pri.unit_price * (1 + COALESCE(pri.gst_percentage, 0) / 100),
+                'paidAmount', COALESCE(ip.paid_gross, 0),
+                'balance', GREATEST(
+                  pri.quantity * pri.unit_price * (1 + COALESCE(pri.gst_percentage, 0) / 100) - COALESCE(ip.paid_gross, 0),
+                  0
+                ),
+                'isFullyPaid', (
+                  pri.quantity * pri.unit_price * (1 + COALESCE(pri.gst_percentage, 0) / 100) - COALESCE(ip.paid_gross, 0)
+                ) <= 0.01
+              ) ORDER BY pri.id
+            ) FILTER (WHERE pri.id IS NOT NULL) AS items_json
+          FROM purchase_receipt_items pri
+          LEFT JOIN item_paid ip ON ip.item_id = pri.id
+          WHERE pri.is_deleted = false
+          GROUP BY pri.pr_id
         ),
         receipt_payments AS (
           SELECT
@@ -1500,6 +1754,17 @@ router.get("/pr/:swatchOrderId", requireAuth,
           FROM pr_payments
           WHERE is_deleted = false
           GROUP BY pr_id
+        ),
+        receipt_tds AS (
+          SELECT
+            pp.pr_id,
+            COALESCE(SUM(pt.tds_amount::numeric), 0) AS tds_total
+          FROM pr_payments pp
+          JOIN payment_tds pt ON pt.payment_source_id = pp.id
+            AND pt.payment_source_type = 'pr_payments'
+            AND pt.is_deleted = false
+          WHERE pp.is_deleted = false
+          GROUP BY pp.pr_id
         )
         SELECT
           pr.id,
@@ -1528,27 +1793,45 @@ router.get("/pr/:swatchOrderId", requireAuth,
           pr.is_deleted AS "isDeleted",
           pr.deleted_by AS "deletedBy",
           pr.deleted_at AS "deletedAt",
+
+          COALESCE(ri.item_count, 0)::int AS "itemCount",
+          COALESCE(ri.total_quantity, 0) AS "totalQuantity",
+          COALESCE(ri.items_json, '[]'::json) AS "items",
+
           COALESCE(
             pr.vendor_invoice_amount,
-            (pr.received_qty::numeric * pr.actual_price::numeric),
             ri.items_total,
+            (pr.received_qty::numeric * pr.actual_price::numeric),
             0
           ) AS "totalAmount",
-          COALESCE(rp.paid_amount, 0) AS "paidAmount",
+
+          COALESCE(ri.items_gst_total, 0) AS "totalGstAmount",
+
           COALESCE(
-            pr.vendor_invoice_amount,
+            NULLIF(pr.total_amount_with_gst, '')::numeric,
+            ri.items_total_with_gst,
             (pr.received_qty::numeric * pr.actual_price::numeric),
-            ri.items_total,
+            0
+          ) AS "totalAmountWithGst",
+
+          COALESCE(rp.paid_amount, 0) AS "paidAmount",
+          COALESCE(rt.tds_total, 0) AS "tdsAmount",
+
+          COALESCE(
+            NULLIF(pr.total_amount_with_gst, '')::numeric,
+            ri.items_total_with_gst,
+            (pr.received_qty::numeric * pr.actual_price::numeric),
             0
           ) - COALESCE(rp.paid_amount, 0) AS "balance"
+
         FROM purchase_receipts pr
         LEFT JOIN receipt_items ri ON ri.pr_id = pr.id
         LEFT JOIN receipt_payments rp ON rp.pr_id = pr.id
+        LEFT JOIN receipt_tds rt ON rt.pr_id = pr.id
         WHERE pr.swatch_order_id = $1
           AND pr.is_deleted = false
         ORDER BY pr.created_at ASC
       `;
-
       const result = await pool.query(query, [swatchOrderId]);
       return res.json({ data: result.rows });
     } catch (err) {
@@ -1562,24 +1845,37 @@ router.post("/pr", requireAuth,
   checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
   async (req, res) => {
   const user = (req as any).user;
-  const { poId, swatchOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation } = req.body as Record<string, string | number | null>;
+  const { poId, swatchOrderId, bomRowId, receivedQty, actualPrice, warehouseLocation, vendorId } = req.body as Record<string, string | number | null>;
 
   // Parse early for calculations
   const newQty = parseFloat(String(receivedQty)) || 0;
   const resolvedBomRowId = bomRowId != null ? Number(bomRowId) : null;
+  const parsedVendorId = vendorId != null ? Number(vendorId) : null;
 
   // Get a dedicated client from the pool
   const client = await pool.connect();
 
   try {
-    // 1. Start transaction and set timeouts to prevent deadlocks
+    // 1. Start transaction and set timeouts
     await client.query('BEGIN');
-    await client.query('SET LOCAL lock_timeout = \'2s\'');      // Fail fast if locked
-    await client.query('SET LOCAL statement_timeout = \'5s\''); // Kill slow queries
+    await client.query('SET LOCAL lock_timeout = \'2s\'');
+    await client.query('SET LOCAL statement_timeout = \'5s\'');
 
-    // 2. Lock the Purchase Order (FOR UPDATE) - This is the critical guard
+    let vendorDetails: { id: number; brand_name: string } | null = null;
+    if(parsedVendorId !== null){
+      const vendor = await client.query(
+        `SELECT id, brand_name
+        FROM vendors
+        WHERE id=$1 AND is_deleted = false`,
+        [parsedVendorId]
+      );
+      vendorDetails = vendor.rows[0];
+    }
+
+
+    // 2. Lock the Purchase Order (FOR UPDATE)
     const poResult = await client.query(
-      `SELECT id, status, bom_items
+      `SELECT id, status, bom_items, vendor_name
        FROM purchase_orders
        WHERE id = $1 AND is_deleted = false
        FOR UPDATE`,
@@ -1603,7 +1899,7 @@ router.post("/pr", requireAuth,
       });
     }
 
-    // 4. Calculate "orderedQty" based on BOM (same logic as original)
+    // 4. Calculate "orderedQty" based on BOM
     let orderedQty = 0;
     if (resolvedBomRowId != null) {
       const item = bomItems.find((i: any) => i.bomRowId === resolvedBomRowId);
@@ -1612,12 +1908,12 @@ router.post("/pr", requireAuth,
       orderedQty = parseFloat(bomItems[0]?.quantity ?? "0") || 0;
     }
 
-    // 5. Lock existing PRs for this PO and calculate "alreadyReceived" INSIDE the transaction
+    // 5. Lock existing PRs and calculate already received
     const prResult = await client.query(
       `SELECT received_qty, bom_row_id
        FROM purchase_receipts
        WHERE po_id = $1 AND is_deleted = false
-       FOR UPDATE`, // Prevents concurrent PR creation
+       FOR UPDATE`,
       [Number(poId)]
     );
 
@@ -1628,7 +1924,7 @@ router.post("/pr", requireAuth,
 
     const alreadyReceived = relevantPrs.reduce((sum: number, pr: any) => sum + (parseFloat(pr.received_qty) || 0), 0);
 
-    // 6. Validate received quantity against remaining (same logic, now race-condition-safe)
+    // 6. Validate received quantity against remaining
     if (orderedQty > 0) {
       if (alreadyReceived >= orderedQty) {
         await client.query('ROLLBACK');
@@ -1636,30 +1932,23 @@ router.post("/pr", requireAuth,
           error: `This item is already fully received (${alreadyReceived} / ${orderedQty}). No further PR is allowed.`
         });
       }
-      // const remaining = orderedQty - alreadyReceived;
-      const remaining = Math.max( 0, orderedQty - alreadyReceived );
-
-      // if (newQty > remaining) {
-      //   await client.query('ROLLBACK');
-      //   return res.status(400).json({
-      //     error: `Received quantity (${newQty}) exceeds remaining ordered quantity. Max allowed: ${remaining.toFixed(4)}`
-      //   });
-      // }
     }
 
     // 7. Generate PR number and insert the new Purchase Receipt
-    const prNumber = await nextPrNumber(); // Ensure this uses a SEQUENCE to avoid conflicts
+    const prNumber = await nextPrNumber();
+    // Insert now includes vendor_id column
     const insertPrResult = await client.query(
       `INSERT INTO purchase_receipts
-       (pr_number, po_id, bom_row_id, swatch_order_id, vendor_name, received_qty, actual_price, warehouse_location, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       (pr_number, po_id, bom_row_id, swatch_order_id, vendor_name, vendor_id, received_qty, actual_price, warehouse_location, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id, pr_number`,
       [
         prNumber,
         Number(poId),
         resolvedBomRowId,
         Number(swatchOrderId),
-        "", // vendorName is updated later by createPurchaseReceiptItem
+        vendorDetails?.brand_name ?? "",
+        parsedVendorId,          
         String(receivedQty),
         String(actualPrice),
         String(warehouseLocation ?? ""),
@@ -1672,7 +1961,7 @@ router.post("/pr", requireAuth,
 
     // 8. Call Inventory Update Helper (passing the transactional client)
     const inventoryResult = await applyCostingInventoryUpdate({
-      client: client, // <-- Transactional client
+      client: client,
       prId: newPrRow.id,
       prNumber: newPrRow.pr_number,
       bomRowId: resolvedBomRowId,
@@ -1683,10 +1972,10 @@ router.post("/pr", requireAuth,
       actor: user.email,
     });
 
-    // 9. Call PR Items Helper (passing the transactional client)
+    // 9. Call PR Items Helper
     if (inventoryResult) {
       await createPurchaseReceiptItem({
-        client: client, // <-- Transactional client
+        client: client,
         poId: Number(poId),
         prId: newPrRow.id,
         inventoryItemId: inventoryResult.inventoryItemId,
@@ -1697,20 +1986,19 @@ router.post("/pr", requireAuth,
       });
     }
 
-    // 10. Update PO status if it was "Approved"
+    // 10. Update PO status
     await recalcPoStatus(client, Number(poId));
+
     // 11. Commit the entire transaction atomically
     await client.query('COMMIT');
 
     return res.status(201).json({ data: newPrRow });
 
   } catch (error) {
-    // Rollback on any exception
     await client.query('ROLLBACK');
     console.error("[PR Creation] Transaction failed:", error);
     return res.status(500).json({ error: "Internal server error during PR creation" });
   } finally {
-    // Always release the client back to the pool
     client.release();
   }
 });
@@ -1747,48 +2035,488 @@ router.delete("/pr/:id", requireAuth,
 router.get("/payments/:prId", requireAuth, 
   checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
   async (req, res) => {
-  const rows = await db.select().from(prPaymentsTable)
-    .where(and(eq(prPaymentsTable.prId, Number(String(req.params.prId))), eq(prPaymentsTable.isDeleted, false)))
+    const prId = Number(req.params.prId);
+    const rows = await db
+    .select({
+      id: prPaymentsTable.id,
+      prId: prPaymentsTable.prId,
+      paymentType: prPaymentsTable.paymentType,
+      paymentDate: prPaymentsTable.paymentDate,
+      paymentMode: prPaymentsTable.paymentMode,
+      amount: prPaymentsTable.amount,
+      currencyCode: prPaymentsTable.currencyCode,
+      exchangeRateSnapshot: prPaymentsTable.exchangeRateSnapshot,
+      baseCurrencyAmount: prPaymentsTable.baseCurrencyAmount,
+      transactionStatus: prPaymentsTable.transactionStatus,
+      paymentStatus: prPaymentsTable.paymentStatus,
+      attachment: prPaymentsTable.attachment,
+      createdBy: prPaymentsTable.createdBy,
+      createdAt: prPaymentsTable.createdAt,
+      updatedBy: prPaymentsTable.updatedBy,
+      updatedAt: prPaymentsTable.updatedAt,
+      isDeleted: prPaymentsTable.isDeleted,
+      deletedBy: prPaymentsTable.deletedBy,
+      deletedAt: prPaymentsTable.deletedAt,
+      baseAmount: paymentTds.baseAmount,
+      paidAmount: paymentTds.paidAmount,
+      tdsAmount: paymentTds.tdsAmount,
+      tdsRate: paymentTds.tdsRate,
+      tdsMasterId: paymentTds.tdsMasterId,
+      tdsStatus: paymentTds.status,
+    })
+    .from(prPaymentsTable)
+    .leftJoin(
+      paymentTds,
+      and(
+        eq(paymentTds.paymentSourceId, prPaymentsTable.id),
+        eq(paymentTds.paymentSourceType, 'pr_payments'),
+        eq(paymentTds.isDeleted, false)
+      )
+    )
+    .where(
+      and(
+        eq(prPaymentsTable.prId, prId),
+        eq(prPaymentsTable.isDeleted, false)
+      )
+    )
     .orderBy(prPaymentsTable.createdAt);
-  return res.json({ data: rows });
-});
+  
+    return res.json({ data: rows });
+  }
+);
 
-router.post("/payments", requireAuth, 
-  checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
-  async (req, res) => {
-  const user = (req as any).user;
-  const { prId, paymentType, paymentDate, paymentMode, amount, currencyCode, exchangeRateSnapshot, transactionStatus, paymentStatus, attachment } = req.body as Record<string, unknown>;
-  const savedAttachment = await persistAttachmentObject(attachment, { entity: "procurement", category: "pr-payments" });
-  const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;        // pay ccy -> INR
-  const baseAmt = (parseFloat(String(amount ?? "0")) * payRate).toFixed(2);    // INR anchor
-  const [row] = await db.insert(prPaymentsTable).values({
-    prId: Number(prId),
-    paymentType: String(paymentType),
-    paymentDate: paymentDate ? new Date(String(paymentDate)) : new Date(),
-    paymentMode: String(paymentMode ?? ""),
-    amount: String(amount),
-    currencyCode: String(currencyCode ?? "INR"),
-    exchangeRateSnapshot: String(payRate),
-    baseCurrencyAmount: baseAmt,
-    transactionStatus: String(transactionStatus ?? ""),
-    paymentStatus: String(paymentStatus ?? "Pending"),
-    attachment: savedAttachment,
-    createdBy: user.email,
-  }).returning();
-  return res.status(201).json({ data: row });
-});
+// router.post("/payments", requireAuth, 
+//   checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 
+//   async (req, res) => {
+//   const user = (req as any).user;
+//   const { prId, paymentType, paymentDate, paymentMode, amount, currencyCode, exchangeRateSnapshot, transactionStatus, paymentStatus, attachment } = req.body as Record<string, unknown>;
+//   const savedAttachment = await persistAttachmentObject(attachment, { entity: "procurement", category: "pr-payments" });
+//   const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;        // pay ccy -> INR
+//   const baseAmt = (parseFloat(String(amount ?? "0")) * payRate).toFixed(2);    // INR anchor
+//   const [row] = await db.insert(prPaymentsTable).values({
+//     prId: Number(prId),
+//     paymentType: String(paymentType),
+//     paymentDate: paymentDate ? new Date(String(paymentDate)) : new Date(),
+//     paymentMode: String(paymentMode ?? ""),
+//     amount: String(amount),
+//     currencyCode: String(currencyCode ?? "INR"),
+//     exchangeRateSnapshot: String(payRate),
+//     baseCurrencyAmount: baseAmt,
+//     transactionStatus: String(transactionStatus ?? ""),
+//     paymentStatus: String(paymentStatus ?? "Pending"),
+//     attachment: savedAttachment,
+//     createdBy: user.email,
+//   }).returning();
+//   return res.status(201).json({ data: row });
+// });
 
-router.delete("/payments/:id", requireAuth, 
-  checkPermission({ all : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.DELETE] }), 
+interface ItemBalance {
+  id: number;
+  base: number;
+  gst: number;
+  gstPct: number;
+  total: number;
+  remaining: number;
+}
+
+interface Allocation {
+  itemId: number;
+  allocBase: number;
+  allocGst: number;
+  allocGross: number;
+  tdsAmount: number;
+  paidAmount: number;
+  gstPercentage: number;
+}
+
+// ---------------------------------------------------------------------------
+// Step 1: Compute remaining balance per item on the PR
+// ---------------------------------------------------------------------------
+
+async function getItemBalances(
+  tx: any,
+  prId: number,
+  selectedItemIds?: number[]
+): Promise<ItemBalance[]> {
+  const items = await tx
+    .select({
+      id: purchaseReceiptItems.id,
+      quantity: purchaseReceiptItems.quantity,
+      unitPrice: purchaseReceiptItems.unitPrice,
+      gstPercentage: purchaseReceiptItems.gstPercentage,
+    })
+    .from(purchaseReceiptItems)
+    .where(
+      and(
+        eq(purchaseReceiptItems.prId, prId),
+        eq(purchaseReceiptItems.isDeleted, false)
+      )
+    );
+
+  if (items.length === 0) {
+    throw new Error(`No items found on Purchase Receipt ${prId}.`);
+  }
+
+  const itemIds = items.map((i: any) => i.id);
+
+  // Sum gross amount already allocated to each item across all prior payments
+  const paidRows = await tx
+    .select({
+      itemId: paymentTdsItems.baseDocumentItemId,
+      paidSoFar: sql<string>`COALESCE(SUM(${paymentTdsItems.paidAmount} + ${paymentTdsItems.tdsAmount}), 0)`,
+    })
+    .from(paymentTdsItems)
+    .where(
+      and(
+        eq(paymentTdsItems.baseDocumentItemType, "purchase_receipt_item"),
+        eq(paymentTdsItems.isDeleted, false),
+        inArray(paymentTdsItems.baseDocumentItemId, itemIds)
+      )
+    )
+    .groupBy(paymentTdsItems.baseDocumentItemId);
+
+  const paidMap = new Map<number, number>(
+    paidRows.map((r: any) => [r.itemId, parseFloat(r.paidSoFar)])
+  );
+
+  const enriched: ItemBalance[] = items.map((item: any) => {
+    const base = parseFloat(item.quantity) * parseFloat(item.unitPrice);
+    const gstPct = parseFloat(item.gstPercentage ?? "0");
+    const gst = (base * gstPct) / 100;
+    const total = base + gst;
+    const paidSoFar = paidMap.get(item.id) ?? 0;
+    return {
+      id: item.id,
+      base,
+      gst,
+      gstPct,
+      total,
+      remaining: Math.max(0, total - paidSoFar),
+    };
+  });
+
+  // Ordering: selected items first (in the order given), then remaining items by id
+  if (selectedItemIds && selectedItemIds.length > 0) {
+    const selected = selectedItemIds
+      .map((id) => enriched.find((i) => i.id === id))
+      .filter((i): i is ItemBalance => !!i);
+    const rest = enriched
+      .filter((i) => !selectedItemIds.includes(i.id))
+      .sort((a, b) => a.id - b.id);
+    return [...selected, ...rest];
+  }
+
+  return enriched.sort((a, b) => a.id - b.id);
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Waterfall allocation across ordered items
+// ---------------------------------------------------------------------------
+
+function allocateWaterfall(
+  amountToAllocate: number,
+  orderedItems: ItemBalance[],
+  tdsRate: number
+): { allocations: Allocation[]; unallocatedAmount: number } {
+  let remainingAmount = amountToAllocate;
+  const allocations: Allocation[] = [];
+
+  for (const item of orderedItems) {
+    if (remainingAmount <= 0.001) break;
+    if (item.remaining <= 0.001) continue; // already fully paid, skip
+
+    const alloc = Math.min(remainingAmount, item.remaining);
+    const allocGst = item.total > 0 ? alloc * (item.gst / item.total) : 0;
+    const allocBase = alloc - allocGst;
+    const tdsAmount = (allocBase * tdsRate) / 100;
+    const paidAmount = alloc - tdsAmount;
+
+    allocations.push({
+      itemId: item.id,
+      allocBase,
+      allocGst,
+      allocGross: alloc,
+      tdsAmount,
+      paidAmount,
+      gstPercentage: item.gstPct,
+    });
+
+    remainingAmount -= alloc;
+  }
+
+  return { allocations, unallocatedAmount: remainingAmount };
+}
+
+// ---------------------------------------------------------------------------
+// Route: POST /payments
+// ---------------------------------------------------------------------------
+
+router.post(
+  "/payments",
+  requireAuth,
+  checkPermission({ any: [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
-  const user = (req as any).user;
-  const [row] = await db.update(prPaymentsTable)
-    .set({ isDeleted: true, updatedBy: user.email, updatedAt: new Date(), deletedBy: user.email, deletedAt: new Date() })
-    .where(and(eq(prPaymentsTable.id, Number(String(req.params.id))), eq(prPaymentsTable.isDeleted, false)))
-    .returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
-  return res.json({ success: true });
-});
+    const user = (req as any).user;
+   const { prId, paymentType, paymentDate, paymentMode, amount, currencyCode, exchangeRateSnapshot, transactionStatus, paymentStatus, attachment, tdsMasterId, } = req.body;
+
+    // ---- Basic validation ----
+    if (!prId) return res.status(400).json({ error: "prId is required." });
+    if (!amount || isNaN(parseFloat(String(amount)))) {
+      return res.status(400).json({ error: "A valid amount is required." });
+    }
+
+    const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;
+    const baseAmt = (parseFloat(String(amount ?? "0")) * payRate).toFixed(2);
+    const baseAmt2 = parseFloat(baseAmt);
+
+    const savedAttachment = await persistAttachmentObject(attachment, {
+      entity: "procurement",
+      category: "pr-payments",
+    });
+
+    try {
+      const result = await db.transaction(async (tx) => {
+        // ---- 0. If "Full", strictly validate amount == total outstanding balance ----
+        if (String(paymentType).toLowerCase() === "full") {
+          const itemsForCheck = await getItemBalances(tx, Number(prId));
+          const totalRemaining = itemsForCheck.reduce((s, i) => s + i.remaining, 0);
+
+          if (Math.abs(baseAmt2 - totalRemaining) > 0.01) {
+            throw new Error(
+              `"Full" payment amount (${baseAmt2.toFixed(
+                2
+              )}) must equal the outstanding balance (${totalRemaining.toFixed(2)}).`
+            );
+          }
+        }
+
+        // ---- 1. Insert PR payment ----
+        const [payment] = await tx
+          .insert(prPaymentsTable)
+          .values({
+            prId: Number(prId),
+            paymentType: String(paymentType),
+            paymentDate: paymentDate ? new Date(String(paymentDate)) : new Date(),
+            paymentMode: String(paymentMode ?? ""),
+            amount: String(amount),
+            currencyCode: String(currencyCode ?? "INR"),
+            exchangeRateSnapshot: String(payRate),
+            baseCurrencyAmount: baseAmt,
+            transactionStatus: String(transactionStatus ?? ""),
+            paymentStatus: String(paymentStatus ?? "Pending"),
+            attachment: savedAttachment,
+            createdBy: user.email,
+          })
+          .returning();
+
+        // ---- 2. Handle TDS (if tdsMasterId provided) ----
+        if (tdsMasterId) {
+          // 2a. Get vendorId from the PR header
+          const [pr] = await tx
+            .select({ vendorId: purchaseReceiptsTable.vendorId })
+            .from(purchaseReceiptsTable)
+            .where(eq(purchaseReceiptsTable.id, Number(prId)))
+            .limit(1);
+
+          if (!pr) {
+            throw new Error(`Purchase Receipt with ID ${prId} not found.`);
+          }
+
+          const vendorId = Number(pr.vendorId);
+          if (!vendorId) {
+            throw new Error(
+              `Vendor ID is missing on PR ${prId}. Please ensure vendor is set on the purchase receipt. TDS cannot be applied.`
+            );
+          }
+
+          // 2b. Fetch TDS master
+          const [master] = await tx
+            .select({
+              ratePercent: tdsMasterTable.ratePercent,
+            })
+            .from(tdsMasterTable)
+            .where(
+              and(
+                eq(tdsMasterTable.id, Number(tdsMasterId)),
+                eq(tdsMasterTable.status, true),
+                eq(tdsMasterTable.isDeleted, false)
+              )
+            )
+            .limit(1);
+
+          if (!master) {
+            throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
+          }
+
+          const tdsRate = parseFloat(String(master.ratePercent));
+
+          // 2c. Compute item balances (always full item set, id-order) and run waterfall allocation
+          const orderedItems = await getItemBalances(tx, Number(prId));
+          const { allocations, unallocatedAmount } = allocateWaterfall(
+            baseAmt2,
+            orderedItems,
+            tdsRate
+          );
+
+          if (unallocatedAmount > 0.01) {
+            throw new Error(
+              `Amount exceeds total outstanding balance on this PR by ${unallocatedAmount.toFixed(
+                2
+              )}. Please reduce the amount or handle as an advance.`
+            );
+          }
+
+          if (allocations.length === 0) {
+            throw new Error(
+              `Nothing to allocate — all items on this PR are already fully paid.`
+            );
+          }
+
+          // 2d. Aggregate totals for the parent payment_tds row
+          const totalBase = allocations.reduce((s, a) => s + a.allocBase, 0);
+          const totalGst = allocations.reduce((s, a) => s + a.allocGst, 0);
+          const totalTds = allocations.reduce((s, a) => s + a.tdsAmount, 0);
+          const totalPaid = allocations.reduce((s, a) => s + a.paidAmount, 0);
+          const blendedGstPct = totalBase > 0 ? (totalGst / totalBase) * 100 : 0;
+
+          const [tdsRow] = await tx
+            .insert(paymentTds)
+            .values({
+              tdsMasterId: Number(tdsMasterId),
+              paymentSourceType: "pr_payments",
+              paymentSourceId: payment.id,
+              paymentDate: payment.paymentDate || new Date(),
+              vendorId,
+              baseDocumentType: "pr",
+              baseDocumentId: payment.prId,
+              grossAmount: (totalBase + totalGst).toFixed(2),
+              gstAmount: totalGst.toFixed(2),
+              gstPercentage: blendedGstPct.toFixed(2),
+              paymentCurrencyCode: String(currencyCode ?? "INR"),
+              paymentExchangeRate: payRate.toFixed(2),
+              baseAmount: totalBase.toFixed(2),
+              paidAmount: totalPaid.toFixed(2),
+              tdsRate: tdsRate.toFixed(2),
+              tdsAmount: totalTds.toFixed(2),
+              status: "DEDUCTED",
+              createdBy: user.email,
+            })
+            .returning();
+
+          // 2e. Insert one payment_tds_items row per item touched
+          await tx.insert(paymentTdsItems).values(
+            allocations.map((a) => ({
+              paymentTdsId: tdsRow.id,
+              baseDocumentItemType: "purchase_receipt_item" as const,
+              baseDocumentItemId: a.itemId,
+              baseAmount: a.allocBase.toFixed(2),
+              gstAmount: a.allocGst.toFixed(2),
+              gstPercentage: a.gstPercentage.toFixed(2),
+              tdsRate: tdsRate.toFixed(2),
+              tdsAmount: a.tdsAmount.toFixed(2),
+              paidAmount: a.paidAmount.toFixed(2),
+              createdBy: user.email,
+            }))
+          );
+        }
+
+        return payment;
+      });
+
+      return res.status(201).json({ data: result });
+    } catch (err: any) {
+      console.error("Error creating PR payment:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+
+router.delete(
+  "/payments/:id",
+  requireAuth,
+  checkPermission({ all: [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.DELETE] }),
+  async (req, res) => {
+    const user = (req as any).user;
+    const paymentId = Number(req.params.id);
+
+    try {
+      await db.transaction(async (tx) => {
+        const [updatedPayment] = await tx
+          .update(prPaymentsTable)
+          .set({
+            isDeleted: true,
+            updatedBy: user.email,
+            updatedAt: new Date(),
+            deletedBy: user.email,
+            deletedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(prPaymentsTable.id, paymentId),
+              eq(prPaymentsTable.isDeleted, false)
+            )
+          )
+          .returning();
+
+        if (!updatedPayment) {
+          throw new Error("Payment not found"); // will rollback the transaction
+        }
+
+        // 2. Find associated TDS record(s) for this payment
+        const tdsRows = await tx
+          .select({ id: paymentTds.id })
+          .from(paymentTds)
+          .where(
+            and(
+              eq(paymentTds.paymentSourceType, "pr_payments"),
+              eq(paymentTds.paymentSourceId, paymentId),
+              eq(paymentTds.isDeleted, false)
+            )
+          );
+
+        if (tdsRows.length > 0) {
+          const tdsIds = tdsRows.map((r) => r.id);
+
+          // 3. Soft-delete the child payment_tds_items rows first
+          await tx
+            .update(paymentTdsItems)
+            .set({
+              isDeleted: true,
+              updatedBy: user.email,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                inArray(paymentTdsItems.paymentTdsId, tdsIds),
+                eq(paymentTdsItems.isDeleted, false)
+              )
+            );
+
+          // 4. Soft-delete the parent payment_tds row(s)
+          await tx
+            .update(paymentTds)
+            .set({
+              isDeleted: true,
+              updatedBy: user.email,
+              updatedAt: new Date(),
+              deletedBy: user.email,
+              deletedAt: new Date(),
+            })
+            .where(inArray(paymentTds.id, tdsIds));
+        }
+      });
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      if (error.message === "Payment not found") {
+        return res.status(404).json({ error: "Not found" });
+      }
+      console.error("Error deleting payment:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
 
 // ─── Consumption Log ───────────────────────────────────────────────────────────
 router.get("/consumption/:swatchOrderId", requireAuth, 
@@ -2795,7 +3523,7 @@ router.post("/style-pr", requireAuth,
         });
       }
 
-      const remaining = Math.max( 0, orderedQty - alreadyReceived );
+      // const remaining = Math.max( 0, orderedQty - alreadyReceived );
       // if (newQty > remaining) {
       //   await client.query("ROLLBACK");
       //   return res.status(400).json({
@@ -3425,12 +4153,39 @@ router.get( "/costing-payments", requireAuth,
 );
 
 // POST /costing/costing-payments — upsert by (reference_type, reference_id, transaction_id)
+// ─── Helper: get GST percentage from the reference table ───
+async function getGstPercentage(
+  referenceType: string,
+  referenceId: number,
+  client: any
+): Promise<number> {
+  // Extend this map as you add more reference types
+  const map: Record<string, { table: string; idColumn: string; gstColumn: string }> = {
+    outsource_job: { table: 'outsource_jobs', idColumn: 'id', gstColumn: 'gst_percentage' },
+    custom_charge: { table: 'custom_charges', idColumn: 'id', gstColumn: 'gst_percentage' },
+    // style_order: { table: 'style_orders', idColumn: 'id', gstColumn: 'gst_percentage' },
+  };
+
+  const entry = map[referenceType];
+  if (!entry) return 0; // no GST defined → default to 0%
+
+  const query = `
+    SELECT ${entry.gstColumn} as gst
+    FROM ${entry.table}
+    WHERE ${entry.idColumn} = $1 AND is_deleted = false
+  `;
+  const result = await client.query(query, [referenceId]);
+  if (result.rows.length === 0) return 0;
+  const gst = parseFloat(result.rows[0].gst);
+  return isNaN(gst) ? 0 : gst;
+}
+
 router.post(
   "/costing-payments",
   requireAuth,
   checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
-    const client = await pool.connect(); 
+    const client = await pool.connect();
     try {
       const user = (req as any).user;
       const { vendorId, vendorName, referenceType, referenceId, swatchOrderId, styleOrderId, paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks, currencyCode, exchangeRateSnapshot, tdsMasterId, } = req.body;
@@ -3442,72 +4197,133 @@ router.post(
         });
       }
 
-      await client.query("BEGIN");
-
+      const vendorIdNum = parseInt(vendorId);
+      const refIdNum = parseInt(referenceId);
       const payCcy = currencyCode || "INR";
       const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;
-      const baseAmt = (parseFloat(String(paymentAmount)) * payRate).toFixed(2);
 
-      let resultRow: any;
+      // Total in base currency (inclusive of GST)
+      const totalBase = parseFloat(String(paymentAmount)) * payRate;
 
-      // Helper to upsert TDS (uses the same client)
-      const upsertTds = async (
-        paymentId: number,
-        vendorIdNum: number,
-        paymentDateVal: Date | string | null,
-        tdsMasterIdVal: number | undefined,
-        baseAmount: string,
-        client: any, 
-      ) => {
-        if (!tdsMasterIdVal) return;
+      // ── Fetch GST percentage from reference table ──
+      const gstPercent = await getGstPercentage(referenceType, refIdNum, client);
+      const gstFactor = 1 + (gstPercent / 100);
 
-        // Fetch TDS master
-       const masterRes = await client.query( `SELECT rate_percent, threshold_amount FROM tds_master WHERE id = $1 AND status = true AND is_deleted = false`, [tdsMasterIdVal] );
+      // Base cost (exclusive of GST) in base currency
+      const baseCostBase = totalBase / gstFactor;
+      const gstBase = totalBase - baseCostBase;
+
+      // ── Fetch TDS master details ──
+      let tdsRate = 0;
+      let tdsThreshold = 0;
+      if (tdsMasterId) {
+        const masterRes = await client.query(
+          `SELECT rate_percent, threshold_amount
+           FROM tds_master
+           WHERE id = $1 AND status = true AND is_deleted = false`,
+          [tdsMasterId]
+        );
         if (masterRes.rows.length === 0) {
           throw new Error("Invalid TDS master selected");
         }
-        const { rate_percent, threshold_amount } = masterRes.rows[0];
+        tdsRate = parseFloat(masterRes.rows[0].rate_percent);
+        tdsThreshold = parseFloat(masterRes.rows[0].threshold_amount);
+      }
 
-        const paidAmt = parseFloat(baseAmount);
-        const tdsRate = parseFloat(rate_percent);
-        const threshold = parseFloat(threshold_amount ?? "0");
-        const tdsAmount = paidAmt > threshold ? (paidAmt * tdsRate) / 100 : 0;
+      // Compute TDS amount (only if base cost >= threshold and rate > 0)
+      const tdsAmount = (baseCostBase * tdsRate) / 100;      
 
-        // Check if TDS record exists for this costing payment
-       const existing = await client.query( `SELECT id FROM payment_tds WHERE payment_source_type = 'costing_payments' AND payment_source_id = $1`, [paymentId] );
+      // Net payable = Total - TDS
+      const netPayable = totalBase - tdsAmount;
+
+      // ── Begin transaction ──
+      await client.query("BEGIN");
+
+      // ── Helper to upsert TDS record ──
+      const upsertTds = async (paymentId: number) => {
+        if (!tdsMasterId) return; // no TDS rule – skip
+
+        const existing = await client.query(
+          `SELECT id FROM payment_tds
+           WHERE payment_source_type = 'costing_payments'
+             AND payment_source_id = $1`,
+          [paymentId]
+        );
+
+        const baseDocType = referenceType;
+        const baseDocId = refIdNum;
+        const paymentDateObj = paymentDate ? new Date(paymentDate) : new Date();
 
         if (existing.rows.length > 0) {
-          // Update existing record
+          // ── UPDATE existing TDS record ──
           await client.query(
-            `UPDATE payment_tds
-             SET tds_master_id = $1,
-                 paid_amount = $2,
-                 tds_rate = $3,
-                 tds_amount = $4,
-                 updated_by = $5,
-                 updated_at = NOW()
-             WHERE id = $6`,
-            [tdsMasterIdVal, paidAmt, tdsRate, tdsAmount, user?.username || "system", existing.rows[0].id]
+            `UPDATE payment_tds SET
+               tds_master_id = $1,
+               payment_date = $2,
+               vendor_id = $3,
+               base_document_type = $4,
+               base_document_id = $5,
+               gross_amount = $6,
+               gst_amount = $7,
+               gst_percentage = $8,
+               payment_currency_code = $9,
+               payment_exchange_rate = $10,
+               base_amount = $11,
+               paid_amount = $12,
+               tds_rate = $13,
+               tds_amount = $14,
+               status = $15,
+               updated_by = $16,
+               updated_at = NOW()
+             WHERE id = $17`,
+            [
+              tdsMasterId,
+              paymentDateObj,
+              vendorIdNum,
+              baseDocType,
+              baseDocId,
+              totalBase,          // gross_amount
+              gstBase,            // gst_amount
+              gstPercent,         // gst_percentage
+              payCcy,
+              payRate,
+              baseCostBase,       // base_amount
+              netPayable,         // paid_amount
+              tdsRate,
+              tdsAmount,
+              "DEDUCTED",
+              user?.username || "system",
+              existing.rows[0].id,
+            ]
           );
         } else {
-          // Insert new TDS record
+          // ── INSERT new TDS record ──
           await client.query(
             `INSERT INTO payment_tds
-               (tds_master_id, payment_source_type, payment_source_id,
+               (tds_master_id,
+                payment_source_type, payment_source_id,
                 payment_date, vendor_id,
                 base_document_type, base_document_id,
-                paid_amount, tds_rate, tds_amount,
+                gross_amount, gst_amount, gst_percentage,
+                payment_currency_code, payment_exchange_rate,
+                base_amount, paid_amount, tds_rate, tds_amount,
                 status, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
             [
-              tdsMasterIdVal,
+              tdsMasterId,
               "costing_payments",
               paymentId,
-              paymentDateVal || new Date(),
+              paymentDateObj,
               vendorIdNum,
-              referenceType || null,
-              referenceId || null,
-              paidAmt,
+              baseDocType,
+              baseDocId,
+              totalBase,
+              gstBase,
+              gstPercent,
+              payCcy,
+              payRate,
+              baseCostBase,
+              netPayable,
               tdsRate,
               tdsAmount,
               "DEDUCTED",
@@ -3517,24 +4333,36 @@ router.post(
         }
       };
 
-      // Upsert by transaction_id (existing logic)
+      // ── Handle update by transactionId ──
+      let resultRow: any;
       if (transactionId) {
         const existing = await client.query(
           `SELECT id FROM costing_payments
            WHERE reference_type = $1 AND reference_id = $2 AND transaction_id = $3
            LIMIT 1`,
-          [referenceType, parseInt(referenceId), transactionId]
+          [referenceType, refIdNum, transactionId]
         );
+
         if (existing.rows.length > 0) {
           const updateRes = await client.query(
             `UPDATE costing_payments SET
-               vendor_id = $1, vendor_name = $2, payment_type = $3, payment_mode = $4,
-               payment_amount = $5, payment_status = $6, payment_date = $7, remarks = $8,
-               currency_code = $10, exchange_rate_snapshot = $11, base_currency_amount = $12
-             WHERE id = $9
+               vendor_id = $1,
+               vendor_name = $2,
+               payment_type = $3,
+               payment_mode = $4,
+               payment_amount = $5,
+               payment_status = $6,
+               payment_date = $7,
+               remarks = $8,
+               currency_code = $9,
+               exchange_rate_snapshot = $10,
+               base_currency_amount = $11,
+               updated_by = $12,
+               updated_at = NOW()
+             WHERE id = $13
              RETURNING *`,
             [
-              parseInt(vendorId),
+              vendorIdNum,
               vendorName,
               paymentType,
               paymentMode,
@@ -3542,23 +4370,17 @@ router.post(
               paymentStatus,
               paymentDate ? new Date(paymentDate) : null,
               remarks,
-              existing.rows[0].id,
               payCcy,
               payRate,
-              baseAmt,
+              totalBase,           // base_currency_amount
+              user?.username || "system",
+              existing.rows[0].id,
             ]
           );
           resultRow = updateRes.rows[0];
 
-          // Update TDS record (if any)
-          await upsertTds(
-            resultRow.id,
-            resultRow.vendor_id,
-            resultRow.payment_date || new Date(),
-            tdsMasterId,
-            resultRow.base_currency_amount,
-            client
-          );
+          // Update associated TDS record
+          await upsertTds(resultRow.id);
 
           await client.query("COMMIT");
           client.release();
@@ -3566,19 +4388,23 @@ router.post(
         }
       }
 
-      // Insert new payment
+      // ── Insert new payment ──
       const insertRes = await client.query(
         `INSERT INTO costing_payments
-           (vendor_id, vendor_name, reference_type, reference_id, swatch_order_id, style_order_id,
-            payment_type, payment_mode, payment_amount, currency_code, exchange_rate_snapshot, base_currency_amount,
-            payment_status, transaction_id, payment_date, remarks, created_by)
+           (vendor_id, vendor_name, reference_type, reference_id,
+            swatch_order_id, style_order_id,
+            payment_type, payment_mode,
+            payment_amount, currency_code, exchange_rate_snapshot,
+            base_currency_amount,
+            payment_status, transaction_id, payment_date, remarks,
+            created_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          RETURNING *`,
         [
-          parseInt(vendorId),
+          vendorIdNum,
           vendorName,
           referenceType,
-          parseInt(referenceId),
+          refIdNum,
           swatchOrderId ? parseInt(swatchOrderId) : null,
           styleOrderId ? parseInt(styleOrderId) : null,
           paymentType,
@@ -3586,25 +4412,18 @@ router.post(
           parseFloat(paymentAmount),
           payCcy,
           payRate,
-          baseAmt,
+          totalBase,
           paymentStatus || "Pending",
           transactionId || null,
           paymentDate ? new Date(paymentDate) : null,
           remarks || null,
-          user?.username ?? "system",
+          user?.username || "system",
         ]
       );
       resultRow = insertRes.rows[0];
 
-      // Create TDS record
-      await upsertTds(
-        resultRow.id,
-        resultRow.vendor_id,
-        resultRow.payment_date || new Date(),
-        tdsMasterId,
-        resultRow.base_currency_amount,
-        client
-      );
+      // Insert TDS record
+      await upsertTds(resultRow.id);
 
       await client.query("COMMIT");
       client.release();
@@ -3627,11 +4446,28 @@ router.patch(
     const client = await pool.connect();
     try {
       const id = parseInt(String(req.params.id));
-     const { paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks, currencyCode, exchangeRateSnapshot, tdsMasterId, } = req.body;
+      const {
+        paymentType,
+        paymentMode,
+        paymentAmount,
+        paymentStatus,
+        transactionId,
+        paymentDate,
+        remarks,
+        currencyCode,
+        exchangeRateSnapshot,
+        tdsMasterId,
+      } = req.body;
+
       await client.query("BEGIN");
 
-      // 1. Fetch current payment to get vendor_id, payment_date, etc.
-      const currentRes = await client.query( `SELECT vendor_id, payment_date, payment_amount, exchange_rate_snapshot FROM costing_payments WHERE id = $1`, [id] );
+      // 1. Fetch current payment details
+      const currentRes = await client.query(
+        `SELECT vendor_id, reference_type, reference_id, payment_date,
+                payment_amount, exchange_rate_snapshot, currency_code
+         FROM costing_payments WHERE id = $1`,
+        [id]
+      );
       if (currentRes.rows.length === 0) {
         await client.query("ROLLBACK");
         client.release();
@@ -3639,22 +4475,46 @@ router.patch(
       }
       const current = currentRes.rows[0];
 
-      // 2. Compute new base amount if amount or rate changes
-      const payRate = exchangeRateSnapshot != null
-        ? (parseFloat(String(exchangeRateSnapshot)) || 1)
-        : null;
-      let baseAmt: string | null = null;
-      if (paymentAmount != null || payRate != null) {
-        const effAmt = paymentAmount != null
-          ? parseFloat(String(paymentAmount))
-          : parseFloat(current.payment_amount ?? "0");
-        const effRate = payRate != null
-          ? payRate
-          : (parseFloat(current.exchange_rate_snapshot ?? "1") || 1);
-        baseAmt = (effAmt * effRate).toFixed(2);
+      // 2. Compute effective amount & rate
+      const effAmt = paymentAmount != null
+        ? parseFloat(String(paymentAmount))
+        : parseFloat(current.payment_amount ?? "0");
+      const effRate = exchangeRateSnapshot != null
+        ? parseFloat(String(exchangeRateSnapshot)) || 1
+        : parseFloat(current.exchange_rate_snapshot ?? "1") || 1;
+
+      const payCcy = currencyCode ?? current.currency_code ?? "INR";
+      const totalBase = effAmt * effRate; // total inclusive GST in base currency
+
+      // 3. Fetch GST percentage from the reference table
+      const gstPercent = await getGstPercentage(
+        current.reference_type,
+        current.reference_id,
+        client
+      );
+      const gstFactor = 1 + (gstPercent / 100);
+      const baseCostBase = totalBase / gstFactor; // exclusive GST
+      const gstBase = totalBase - baseCostBase;
+
+      // 4. TDS calculation (no threshold)
+      let tdsRate = 0;
+      let tdsAmount = 0;
+      let netPayable = totalBase; // default = gross
+      if (tdsMasterId) {
+        const masterRes = await client.query(
+          `SELECT rate_percent FROM tds_master
+           WHERE id = $1 AND status = true AND is_deleted = false`,
+          [tdsMasterId]
+        );
+        if (masterRes.rows.length === 0) {
+          throw new Error(`Invalid TDS master (ID: ${tdsMasterId})`);
+        }
+        tdsRate = parseFloat(masterRes.rows[0].rate_percent);
+        tdsAmount = (baseCostBase * tdsRate) / 100;
+        netPayable = totalBase - tdsAmount;
       }
 
-      // 3. Update costing_payments
+      // 5. Update costing_payments (only its own columns)
       const updateRes = await client.query(
         `UPDATE costing_payments SET
            payment_type = COALESCE($1, payment_type),
@@ -3678,73 +4538,106 @@ router.patch(
           paymentDate ? new Date(paymentDate) : null,
           remarks ?? null,
           id,
-          currencyCode ?? null,
-          payRate,
-          baseAmt,
+          payCcy,
+          effRate,
+          totalBase, // base_currency_amount
         ]
       );
       const updatedPayment = updateRes.rows[0];
 
-      // 4. Handle TDS upsert if tdsMasterId is provided
+      // 6. Upsert TDS record (only if tdsMasterId provided)
       if (tdsMasterId) {
-        // Fetch TDS master
-        const masterRes = await client.query( `SELECT rate_percent, threshold_amount FROM tds_master WHERE id = $1 AND status = true AND is_deleted = false`, [tdsMasterId] );
-        if (masterRes.rows.length === 0) {
-          throw new Error(`Invalid TDS master selected (ID: ${tdsMasterId})`);
-        }
-        const { rate_percent, threshold_amount } = masterRes.rows[0];
-        const paidAmt = parseFloat(updatedPayment.base_currency_amount || "0");
-        const tdsRate = parseFloat(rate_percent);
-        const threshold = parseFloat(threshold_amount ?? "0");
-        const tdsAmount = paidAmt > threshold ? (paidAmt * tdsRate) / 100 : 0;
+        const user = (req as any).user?.username ?? "system";
+        const paymentDateObj = updatedPayment.payment_date || new Date();
 
         // Check if TDS record exists
-        const existingTds = await client.query( `SELECT id FROM payment_tds WHERE payment_source_type = 'costing_payments' AND payment_source_id = $1`, [id] );
-
-        const tdsStatus = "DEDUCTED";
-        const user = (req as any).user?.username ?? "system";
+        const existingTds = await client.query(
+          `SELECT id FROM payment_tds
+           WHERE payment_source_type = 'costing_payments'
+             AND payment_source_id = $1`,
+          [id]
+        );
 
         if (existingTds.rows.length > 0) {
           // Update existing TDS record
           await client.query(
-            `UPDATE payment_tds
-             SET tds_master_id = $1,
-                 paid_amount = $2,
-                 tds_rate = $3,
-                 tds_amount = $4,
-                 status = $5,
-                 updated_by = $6,
-                 updated_at = NOW()
-             WHERE id = $7`,
-            [tdsMasterId, paidAmt, tdsRate, tdsAmount, tdsStatus, user, existingTds.rows[0].id]
+            `UPDATE payment_tds SET
+               tds_master_id = $1,
+               payment_date = $2,
+               vendor_id = $3,
+               base_document_type = $4,
+               base_document_id = $5,
+               gross_amount = $6,
+               gst_amount = $7,
+               gst_percentage = $8,
+               payment_currency_code = $9,
+               payment_exchange_rate = $10,
+               base_amount = $11,
+               paid_amount = $12,
+               tds_rate = $13,
+               tds_amount = $14,
+               status = $15,
+               updated_by = $16,
+               updated_at = NOW()
+             WHERE id = $17`,
+            [
+              tdsMasterId,
+              paymentDateObj,
+              updatedPayment.vendor_id,
+              updatedPayment.reference_type || null,
+              updatedPayment.reference_id || null,
+              totalBase,          // gross_amount
+              gstBase,            // gst_amount
+              gstPercent,         // gst_percentage
+              payCcy,
+              effRate,
+              baseCostBase,       // base_amount
+              netPayable,         // paid_amount
+              tdsRate,
+              tdsAmount,
+              "DEDUCTED",
+              user,
+              existingTds.rows[0].id,
+            ]
           );
         } else {
           // Insert new TDS record
           await client.query(
             `INSERT INTO payment_tds
-               (tds_master_id, payment_source_type, payment_source_id,
+               (tds_master_id,
+                payment_source_type, payment_source_id,
                 payment_date, vendor_id,
                 base_document_type, base_document_id,
-                paid_amount, tds_rate, tds_amount,
+                gross_amount, gst_amount, gst_percentage,
+                payment_currency_code, payment_exchange_rate,
+                base_amount, paid_amount, tds_rate, tds_amount,
                 status, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
             [
               tdsMasterId,
               "costing_payments",
               id,
-              updatedPayment.payment_date || new Date(),
+              paymentDateObj,
               updatedPayment.vendor_id,
               updatedPayment.reference_type || null,
               updatedPayment.reference_id || null,
-              paidAmt,
+              totalBase,
+              gstBase,
+              gstPercent,
+              payCcy,
+              effRate,
+              baseCostBase,
+              netPayable,
               tdsRate,
               tdsAmount,
-              tdsStatus,
+              "DEDUCTED",
               user,
             ]
           );
         }
       }
+      // If tdsMasterId is not provided, we do NOT delete existing TDS records.
+      // (You may add logic to soft‑delete them if needed.)
 
       await client.query("COMMIT");
       client.release();

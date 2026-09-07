@@ -169,6 +169,69 @@
       "when": 1788249340561,
       "tag": "0026_yummy_black_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788329359138,
+      "tag": "0027_open_vampiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788500827084,
+      "tag": "0029_shallow_darwin",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788604303960,
+      "tag": "0030_yummy_naoko",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788636605132,
+      "tag": "0031_sharp_retro_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788637220099,
+      "tag": "0032_shocking_mimic",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788684805702,
+      "tag": "0033_fast_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788761802503,
+      "tag": "0034_romantic_cerebro",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788769405287,
+      "tag": "0035_magenta_rumiko_fujikawa",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788774651164,
+      "tag": "0036_cynical_leper_queen",
+      "breakpoints": true
     }
   ]
 }

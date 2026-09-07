@@ -1,0 +1,1 @@
+ALTER TABLE "vendor_ledger_charges" ADD COLUMN "order_id" integer;

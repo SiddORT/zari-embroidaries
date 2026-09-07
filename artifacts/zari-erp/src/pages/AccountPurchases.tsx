@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Search, CreditCard, X, CheckCircle2, Clock, AlertTriangle,
   Package, Wallet, RefreshCw, ArrowRight, Filter,
@@ -11,6 +11,8 @@ import TopNavbar from "@/components/layout/TopNavbar";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { SmallSearchSelect, type SmallSearchSelectOption } from "@/components/ui/SearchableSelect";
+import { useTDSMasterList, type TDSMasterRecord } from "@/hooks/useTDSMaster";
 
 /* ── theme ─────────────────────────────────────────── */
 const G    = "#C6AF4B";
@@ -100,24 +102,92 @@ function KpiCard({ icon, label, value, sub, accent = G, loading }: {
   );
 }
 
-/* ── PaymentModal ────────────────────────────────────── */
+// ── Wrapper for searchable TDS dropdown ────────────────────────────────
+function SearchableTdsSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  clearable,
+}: {
+  options: SmallSearchSelectOption[];
+  value?: string | number | null;
+  onChange: (val: any) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  clearable?: boolean;
+}) {
+  const [filteredOptions, setFilteredOptions] = useState(options);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredOptions(options);
+    }
+  }, [options]);
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+    if (!search.trim()) {
+      setFilteredOptions(options);
+    } else {
+      const lower = search.toLowerCase();
+      setFilteredOptions(
+        options.filter((opt) => opt.label.toLowerCase().includes(lower))
+      );
+    }
+  };
+
+  const handleChange = (val: any) => {
+    // Reset filter on selection so full list is available next open
+    setSearchTerm("");
+    setFilteredOptions(options);
+    onChange(val);
+  };
+
+  return (
+    <SmallSearchSelect
+      options={filteredOptions}
+      value={value}
+      onChange={handleChange}
+      onSearch={handleSearch}
+      placeholder={placeholder}
+      disabled={disabled}
+      clearable={clearable}
+    />
+  );
+}
+
+// ── Payment Modal ─────────────────────────────────────────────────────────
 function PaymentModal({ row, onClose, onSuccess }: {
   row: any; onClose: () => void; onSuccess: () => void;
 }) {
   const { fmt: dcFmt } = useCurrency();
   const fmtAmt = (v: any) => dcFmt(parseFloat(v ?? 0));
-  const fmtFx = (v: any, ccy: string) => {
-    const n = parseFloat(String(v ?? 0));
-    if (ccy && ccy !== "INR") {
-      const CURRENCY_SYMBOL: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "د.إ " };
-      const s = CURRENCY_SYMBOL[ccy.toUpperCase()] ?? `${ccy} `;
-      return `${s}${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-    return dcFmt(n);
-  };
   const { toast } = useToast();
+
+  // ── TDS options ───────────────────────────────────────────────────────
+  const { data: tdsData, isLoading: tdsLoading } = useTDSMasterList({
+    search: "",
+    status: "active",
+    page: 1,
+    limit: 100,
+  });
+
+  const tdsOptions = useMemo<SmallSearchSelectOption[]>(() => {
+    if (!tdsData) return [];
+    return tdsData.data.map((item: TDSMasterRecord) => ({
+      value: item.id,
+      label: `${item.serviceName} (${item.sectionCode}) - ${item.ratePercent}%`,
+    }));
+  }, [tdsData]);
+
+  // ── Bill details ──────────────────────────────────────────────────────
   const billCcy = row.currency_code || "INR";
   const billRate = parseFloat(row.exchange_rate_snapshot ?? "1") || 1;
+  const pendingAmt = parseFloat(row.pending_amount ?? row.amount ?? 0);
+
   const [form, setForm] = useState({
     payment_amount: "",
     payment_type: "Bank Transfer",
@@ -126,13 +196,12 @@ function PaymentModal({ row, onClose, onSuccess }: {
     remarks: "",
     currency_code: billCcy,
     exchange_rate_snapshot: String(billRate),
+    tds_master_id: null as number | null,  // 👈 new field
   });
   const [saving, setSaving] = useState(false);
 
-  const pendingAmt = parseFloat(row.pending_amount ?? row.amount ?? 0);
-
-  /* Overpayment guard — convert entered amount to bill currency via INR anchor */
-  const payAmt  = parseFloat(form.payment_amount) || 0;
+  // ── Overpayment guard ─────────────────────────────────────────────────
+  const payAmt = parseFloat(form.payment_amount) || 0;
   const payRate = parseFloat(form.exchange_rate_snapshot) || 1;
   const amtInBillCcy = payAmt > 0 ? (payAmt * payRate) / billRate : 0;
   const isOverpayment = payAmt > 0 && amtInBillCcy > pendingAmt + 0.01;
@@ -142,15 +211,27 @@ function PaymentModal({ row, onClose, onSuccess }: {
     return `${billCcy} ${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
+  function fmtFx(v: any, ccy: string) {
+    const n = parseFloat(String(v ?? 0));
+    if (ccy && ccy !== "INR") {
+      const CURRENCY_SYMBOL: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "د.إ " };
+      const s = CURRENCY_SYMBOL[ccy.toUpperCase()] ?? `${ccy} `;
+      return `${s}${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return fmtAmt(n);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const amt = parseFloat(form.payment_amount);
     if (!amt || amt <= 0) {
-      toast({ title: "Enter a valid payment amount", variant: "destructive" }); return;
+      toast({ title: "Enter a valid payment amount", variant: "destructive" });
+      return;
     }
     const payRate2 = parseFloat(form.exchange_rate_snapshot) || 1;
     if (form.currency_code !== "INR" && payRate2 <= 0) {
-      toast({ title: "Enter a valid exchange rate", variant: "destructive" }); return;
+      toast({ title: "Enter a valid exchange rate", variant: "destructive" });
+      return;
     }
     if (isOverpayment) {
       toast({
@@ -166,9 +247,12 @@ function PaymentModal({ row, onClose, onSuccess }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ref_type: row.ref_type, source_id: row.source_id,
-          vendor_name: row.vendor_name, vendor_id: row.vendor_id_text,
+          ref_type: row.ref_type,
+          source_id: row.source_id,
+          vendor_name: row.vendor_name,
+          vendor_id: row.vendor_id_text,
           ...form,
+          // Ensure tds_master_id is sent (null allowed)
         }),
       });
       toast({
@@ -180,9 +264,12 @@ function PaymentModal({ row, onClose, onSuccess }: {
     } catch (err: any) {
       const msg = err?.data?.error ?? err?.message ?? "Payment failed";
       toast({ title: "Payment Error", description: msg, variant: "destructive" });
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={onClose} />
@@ -193,12 +280,12 @@ function PaymentModal({ row, onClose, onSuccess }: {
             <h2 className="text-base font-bold" style={{ color: SL }}>Record Vendor Payment</h2>
             <p className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{row.vendor_name} · {row.ref_type}</p>
           </div>
-          <button onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
             <X size={16} className="text-gray-500" />
           </button>
         </div>
 
+        {/* Pending balance info */}
         {pendingAmt > 0 && (
           <div className="mx-5 mt-4 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
             <AlertTriangle size={14} className="text-amber-600 shrink-0" />
@@ -228,57 +315,91 @@ function PaymentModal({ row, onClose, onSuccess }: {
               <label className={LBL}>Amount <span className="text-red-500 ml-0.5">*</span></label>
               <input
                 type="number" min="0.01" step="0.01" required className={INP}
-                placeholder={`Max ${fmtBillAmt(pendingAmt)}`} value={form.payment_amount}
-                onChange={e => setForm(p => ({ ...p, payment_amount: e.target.value }))} />
+                placeholder={`Max ${fmtBillAmt(pendingAmt)}`}
+                value={form.payment_amount}
+                onChange={e => setForm(p => ({ ...p, payment_amount: e.target.value }))}
+              />
             </div>
             <div>
               <label className={LBL}>Date <span className="text-red-500 ml-0.5">*</span></label>
-              <input type="date" required className={INP} value={form.payment_date}
-                onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} />
+              <input
+                type="date" required className={INP}
+                value={form.payment_date}
+                onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))}
+              />
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={LBL}>Currency</label>
               <select className={INP} value={form.currency_code}
-                onChange={e => setForm(p => ({ ...p, currency_code: e.target.value, exchange_rate_snapshot: e.target.value === "INR" ? "1" : p.exchange_rate_snapshot }))}>
+                onChange={e => setForm(p => ({
+                  ...p,
+                  currency_code: e.target.value,
+                  exchange_rate_snapshot: e.target.value === "INR" ? "1" : p.exchange_rate_snapshot
+                }))}
+              >
                 {CURRENCIES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
             {form.currency_code !== "INR" && (
               <div>
                 <label className={LBL}>Exchange Rate (1 {form.currency_code} = ? INR)</label>
-                <input type="number" min="0.0001" step="0.0001" className={INP}
+                <input
+                  type="number" min="0.0001" step="0.0001" className={INP}
                   value={form.exchange_rate_snapshot}
-                  onChange={e => setForm(p => ({ ...p, exchange_rate_snapshot: e.target.value }))} />
+                  onChange={e => setForm(p => ({ ...p, exchange_rate_snapshot: e.target.value }))}
+                />
               </div>
             )}
           </div>
+
           {form.currency_code !== "INR" && parseFloat(form.payment_amount) > 0 && (
             <p className="text-xs text-gray-500 -mt-1">
               ≈ {fmtAmt(parseFloat(form.payment_amount) * (parseFloat(form.exchange_rate_snapshot) || 1))} (INR)
               {billCcy !== "INR" && amtInBillCcy > 0 && ` · ${fmtBillAmt(amtInBillCcy)} in bill currency`}
             </p>
           )}
+
           <div>
             <label className={LBL}>Payment Mode</label>
             <select className={INP} value={form.payment_type}
-              onChange={e => setForm(p => ({ ...p, payment_type: e.target.value }))}>
+              onChange={e => setForm(p => ({ ...p, payment_type: e.target.value }))}
+            >
               {PAYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
+
+          {/* ── TDS dropdown ── */}
+          <div>
+            <label className={LBL}>TDS</label>
+            <SearchableTdsSelect
+              options={tdsOptions}
+              value={form.tds_master_id}
+              onChange={(val) => setForm(p => ({ ...p, tds_master_id: val ? Number(val) : null }))}
+              placeholder="Select TDS"
+              clearable
+              disabled={tdsLoading}
+            />
+          </div>
+
           <div>
             <label className={LBL}>Transaction Reference / UTR</label>
             <input className={INP} placeholder="UTR / Cheque No."
               value={form.transaction_reference}
-              onChange={e => setForm(p => ({ ...p, transaction_reference: e.target.value }))} />
+              onChange={e => setForm(p => ({ ...p, transaction_reference: e.target.value }))}
+            />
           </div>
+
           <div>
             <label className={LBL}>Remarks</label>
             <textarea rows={2} className={INP} placeholder="Optional notes"
               value={form.remarks}
-              onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))} />
+              onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))}
+            />
           </div>
+
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">

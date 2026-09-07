@@ -634,8 +634,8 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
             COALESCE(so.order_code, sw.order_code, po.po_number, pr.pr_number) AS order_code,
             COALESCE(
               pr.vendor_invoice_amount,
-              (pr.received_qty::numeric * pr.actual_price::numeric),
-              items.total_amount,
+              items.total_with_gst,                                    
+              (pr.received_qty::numeric * pr.actual_price::numeric),   
               0
             ) AS total_amount,
             0::numeric                     AS credit
@@ -644,7 +644,10 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
           LEFT JOIN style_orders so ON po.style_order_id = so.id AND so.is_deleted = false
           LEFT JOIN swatch_orders sw ON po.swatch_order_id = sw.id AND sw.is_deleted = false
           LEFT JOIN (
-            SELECT pr_id, SUM(quantity * unit_price) AS total_amount
+            SELECT
+              pr_id,
+              SUM(quantity * unit_price) AS base_total,
+              SUM(quantity * unit_price * (1 + COALESCE(gst_percentage, 0) / 100)) AS total_with_gst
             FROM purchase_receipt_items
             WHERE is_deleted = false
             GROUP BY pr_id
@@ -808,7 +811,11 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
       `SELECT
         COALESCE((SELECT SUM(total_cost::numeric)              FROM outsource_jobs           WHERE vendor_id = $1 AND is_deleted = false), 0)
       + COALESCE((SELECT SUM(total_amount::numeric)            FROM custom_charges           WHERE vendor_id = $1 AND is_deleted = false), 0)
-      + COALESCE((SELECT SUM(amount::numeric)                  FROM vendor_ledger_charges    WHERE vendor_id = $1 AND is_deleted = false), 0)
+      + COALESCE((
+          SELECT SUM(amount::numeric + (amount::numeric * COALESCE(gst_percentage::numeric, 0) / 100))
+          FROM vendor_ledger_charges
+          WHERE vendor_id = $1 AND is_deleted = false
+        ), 0)
       + COALESCE((SELECT SUM(outsource_payment_amount::numeric)
                     FROM artworks
                     WHERE outsource_vendor_id IS NOT NULL AND outsource_vendor_id <> ''
@@ -823,7 +830,7 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
                     FROM style_order_artworks
                     WHERE toile_vendor_id IS NOT NULL AND toile_vendor_id <> ''
                       AND ((toile_making_cost IS NOT NULL AND toile_making_cost <> '')
-                           OR (toile_cost IS NOT NULL AND toile_cost <> ''))
+                          OR (toile_cost IS NOT NULL AND toile_cost <> ''))
                       AND toile_vendor_id::integer = $1 AND is_deleted = false), 0)
       + COALESCE((SELECT SUM(pattern_payment_amount::numeric)
                     FROM style_order_artworks
@@ -866,7 +873,6 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
         error: `Payment amount (₹${amt.toFixed(2)}) cannot exceed outstanding balance (₹${outstanding.toFixed(2)})`,
       });
 
-    // --- Check for allocations ---
     const allocations = (req.body as any).allocations;
 
     // Fallback: no allocations → single vendor_payments insert (existing behaviour)
@@ -1027,11 +1033,66 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
               user?.username ?? "system"
             ]
           );
-        } 
-        else {
-          const notes = data.notes
-            ? data.notes + ` (against ${entryType} ${entryId})`
-            : `Payment for ${entryType} ${entryId}`;
+        } else if (entryType === 'ledger_charge') {
+          const ledgerRes = await client.query(
+            `SELECT id, amount, gst_percentage, order_type, order_id
+            FROM vendor_ledger_charges
+            WHERE id = $1 AND vendor_id = $2 AND is_deleted = false`,
+            [entryId, vendorId]
+          );
+          if (ledgerRes.rows.length === 0) {
+              throw new Error(`Ledger charge ${entryId} not found or does not belong to vendor`);
+          }
+          const ledger = ledgerRes.rows[0];
+          const baseAmount = parseFloat(ledger.amount);
+          const gstPct = parseFloat(ledger.gst_percentage || '0');
+          const totalAmount = baseAmount + (baseAmount * gstPct / 100);
+          const currentPaid = parseFloat(ledger.paid_amount || '0');
+          const newPaid = currentPaid + allocAmt;
+
+          let newStatus = 'Unpaid';
+          if (newPaid >= totalAmount - 0.01) {
+              newStatus = 'Paid';
+          } else if (newPaid > 0) {
+              newStatus = 'Partially Paid';
+          } else {
+              newStatus = 'Unpaid';
+          }
+          // Update ledger charge
+          await client.query(
+            `UPDATE other_expenses
+            SET paid_amount = $1, payment_status = $2, updated_at = NOW()
+            WHERE expense_id = $3`,
+            [String(newPaid), newStatus, ledger.order_id]
+          );
+
+          // Insert payment record (into vendor_payments)
+          const notes = data.notes ? data.notes + ` (against ledger charge ${entryId})` : `Ledger charge payment ${entryId}`;
+          await client.query(
+              `INSERT INTO vendor_payments
+                (vendor_id, vendor_name, payment_date, amount,
+                  currency_code, exchange_rate_snapshot, base_currency_amount,
+                  payment_mode, reference_no, notes, order_type,
+                  style_order_id, style_order_code, swatch_order_id, swatch_order_code,
+                  created_by)
+              VALUES ($1, $2, $3, $4, $5, $6, $7,
+                      $8, $9, $10, $11,
+                      $12, $13, $14, $15, $16)`,
+              [
+                 vendorId, data.vendorName,
+                  data.paymentDate ? new Date(data.paymentDate) : new Date(),
+                 allocAmt, 'INR', '1', String(allocAmt),
+                  data.paymentMode, data.referenceNo || null, notes,
+                  'ledger_charge',   // order_type
+                  null, // style_order_id
+                  null, // style_order_code
+                  null, // swatch_order_id
+                  null, // swatch_order_code
+                  user?.username ?? "system"
+              ]
+          );
+        } else {
+          const notes = data.notes ? data.notes + ` (against ${entryType} ${entryId})` : `Payment for ${entryType} ${entryId}`;
 
           await client.query(
             `INSERT INTO vendor_payments

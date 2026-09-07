@@ -109,6 +109,8 @@ export default function VendorLedgerDetail() {
   const [deleteEntry, setDeleteEntry] = useState<LedgerEntry | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [selectionRestored, setSelectionRestored] = useState(false);
+
   useEffect(() => {
     if (!token || isError) { localStorage.removeItem("zarierp_token"); setLocation("/login"); }
   }, [token, isError, setLocation]);
@@ -170,6 +172,31 @@ export default function VendorLedgerDetail() {
     [selectedKeys, entries]
   );
 
+  useEffect(() => {
+    // Only attempt restore once, when entries are loaded
+    if (entries.length === 0 || selectionRestored) return;
+
+    const stored = sessionStorage.getItem("paymentSelection");
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        // Ensure the stored vendor matches the current vendor
+        if (data.vendor && data.vendor.id === vendorId) {
+          // Find which stored entries exist in the current entries list
+          const keys = data.entries
+            .map((e: LedgerEntry) => rowKey(e))
+            .filter((key: string) => entries.some(e => rowKey(e) === key));
+          if (keys.length > 0) {
+            setSelectedKeys(new Set(keys));
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to restore selection", e);
+      }
+    }
+    setSelectionRestored(true);
+  }, [entries, vendorId, selectionRestored]);
+
   function toggleRow(entry: LedgerEntry) {
     const k = rowKey(entry);
     setSelectedKeys(prev => {
@@ -215,6 +242,24 @@ export default function VendorLedgerDetail() {
     }));
     setPayModal(true);
   }
+
+  // New Page Redirection Implementation for Payment from Selection
+  // function openPayFromSelection() {
+  //   if (selectedEntries.length === 0) return;
+  //   if (!vendor) {
+  //     toast({ title: "Vendor information not available", variant: "destructive" });
+  //     return;
+  //   }
+  //   sessionStorage.setItem(
+  //     "paymentSelection",
+  //     JSON.stringify({
+  //       entries: selectedEntries,
+  //       vendor: vendor,
+  //       timestamp: Date.now(),
+  //     })
+  //   );
+  //   setLocation(`/accounts/ledgers/${vendor.id}/payment`);
+  // }
 
   function openPayGeneral() {
     setPayFromSelection(false);

@@ -73,11 +73,28 @@ export interface PurchaseReceiptRecord {
   receivedQty: string;
   actualPrice: string;
   warehouseLocation: string;
-  totalAmount: string;
+  totalAmount: string; 
   paidAmount: string;
+  tdsAmount: string;
   balance: string;
   status: string;
   createdAt: string;
+
+  itemCount: number;
+  totalQuantity: string | number | null;
+  totalGstAmount: string | number;
+  totalAmountWithGst: string | number;
+  items: Array<{
+    itemId: number;
+    itemCode: string;
+    itemName: string;
+    balance: number;
+    quantity: number | string;
+    unitPrice: number | string;
+    gstPercentage: number | string;
+    hsnCode?: string;
+    isFullyPaid: boolean;
+  }>;
 }
 
 export interface PrPaymentRecord {
@@ -87,6 +104,9 @@ export interface PrPaymentRecord {
   paymentDate: string;
   paymentMode: string;
   amount: string;
+  baseAmount: string;
+  paidAmount: string;
+  tdsAmount: string;
   transactionStatus: string;
   paymentStatus: string;
   attachment: { name: string; type: string; data: string; size: number } | null;

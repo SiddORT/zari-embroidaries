@@ -123,7 +123,7 @@ export default function CostingPaymentsPanel({
     }
   }, [tdsSearch, tdsOptions]);
 
-
+  const totalTds = payments.reduce( (s, p) => s + (p.tds ? parseFloat(p.tds.tdsAmount) : 0), 0 );
   const totalPaid = payments.reduce((s, p) => s + parseFloat((p as any).base_currency_amount || p.payment_amount || "0"), 0);
   const hasCompleted = payments.some(p => p.payment_status === "Completed");
 
@@ -439,7 +439,7 @@ export default function CostingPaymentsPanel({
               </div>
             ) : (
               <div key={p.id} className="flex items-start gap-2 px-2.5 py-2 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 min-w-0">
+                <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-0.5 min-w-0">
                   <div>
                     <p className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold">Type / Mode</p>
                     <p className="text-[10px] text-gray-700 font-medium">{p.payment_type ?? "—"} {p.payment_mode ? `· ${p.payment_mode}` : ""}</p>
@@ -448,10 +448,26 @@ export default function CostingPaymentsPanel({
                     <p className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold">Amount</p>
                     <p className="text-[10px] font-bold text-amber-700">
                       {((p as any).currency_code && (p as any).currency_code !== "INR") ? `${(p as any).currency_code} ` : "₹"}
-                      {parseFloat(p.payment_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      {p.tds
+                        ? parseFloat(p.tds.paidAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })
+                        : parseFloat((p as any).base_currency_amount ?? p.payment_amount ?? "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })
+                      }
                     </p>
                     {(p as any).currency_code && (p as any).currency_code !== "INR" && (
                       <p className="text-[9px] text-gray-400">≈ ₹{parseFloat((p as any).base_currency_amount ?? "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold">TDS</p>
+                    {p.tds ? (
+                      <p className="text-[10px] text-gray-700 font-medium">
+                        {((p as any).currency_code && (p as any).currency_code !== "INR")
+                          ? `${(p as any).currency_code} `
+                          : "₹"}
+                        {parseFloat(p.tds.tdsAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-gray-400">—</p>
                     )}
                   </div>
                   <div>
@@ -468,7 +484,7 @@ export default function CostingPaymentsPanel({
                     </p>
                   </div>
                   {p.remarks && (
-                    <div className="col-span-2 sm:col-span-4">
+                    <div className="col-span-2 sm:col-span-5">
                       <p className="text-[9px] text-gray-400">Note: {p.remarks}</p>
                     </div>
                   )}

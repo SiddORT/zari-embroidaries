@@ -1,7 +1,25 @@
-import { pgTable, serial, integer, varchar, timestamp, numeric, text, boolean, } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, varchar, timestamp, numeric, text, boolean, pgEnum } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { tdsMasterTable } from "./tdsMaster"; 
 import { vendorsTable } from "./vendors"; 
+
+export const paymentSourceTypeEnum = pgEnum("payment_source_type_enum", [
+  "pr_payments",
+  "costing_payments",
+]);
+
+export const baseDocumentTypeEnum = pgEnum("base_document_type_enum", [
+  "pr",
+  "outsource_job",
+  "custom_charge"
+]);
+
+export const paymentTdsStatusEnum = pgEnum("payment_tds_status_enum", [
+  "DEDUCTED",
+  "DEPOSITED",
+  "FILED",
+  "REVERSED",
+]);
 
 export const paymentTds = pgTable(
   "payment_tds",
@@ -14,29 +32,41 @@ export const paymentTds = pgTable(
       .references(() => tdsMasterTable.id, { onDelete: "restrict" }),
 
     // Payment that triggered the TDS
-    paymentSourceType: varchar("payment_source_type", { length: 50 })
-      .notNull(),
+    paymentSourceType: paymentSourceTypeEnum("payment_source_type").notNull(),
+
     paymentSourceId: integer("payment_source_id").notNull(),
     paymentDate: timestamp("payment_date", { withTimezone: true }).notNull(),
 
     // Vendor
     vendorId: integer("vendor_id")
       .notNull()
-      .references(() => vendorsTable.id, { onDelete: "restrict" }), // optional vendor FK
+      .references(() => vendorsTable.id, { onDelete: "restrict" }), 
 
     // Source document that the payment relates to
-    baseDocumentType: varchar("base_document_type", { length: 50 }),
+    baseDocumentType: baseDocumentTypeEnum("base_document_type"),
     baseDocumentId: integer("base_document_id"),
 
+    grossAmount: numeric("gross_amount", { precision: 15, scale: 2 })
+      .notNull()
+      .default("0"), // Total before TDS = baseAmount + gstAmount
+    gstAmount: numeric("gst_amount", { precision: 15, scale: 2 })
+      .notNull()
+      .default("0"), // GST stripped out of the gross amount
+    gstPercentage: numeric("gst_percentage", { precision: 5, scale: 2 })
+      .notNull()
+      .default("0"), // Snapshot of the GST% applied at payment time
+ 
+    paymentCurrencyCode: varchar("payment_currency_code", { length: 10 }),
+    paymentExchangeRate: numeric("payment_exchange_rate", { precision: 15, scale: 6 }),
+
     // TDS calculation snapshot
+    baseAmount: numeric("base_amount", { precision: 15, scale: 2 }).notNull(),
     paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).notNull(),
     tdsRate: numeric("tds_rate", { precision: 5, scale: 2 }).notNull(),
     tdsAmount: numeric("tds_amount", { precision: 15, scale: 2 }).notNull(),
 
     // TDS status
-    status: varchar("status", { length: 20 })
-      .notNull()
-      .default("DEDUCTED"),
+    status: paymentTdsStatusEnum("status").notNull().default("DEDUCTED"),
 
     // Audit
     createdBy: text("created_by").notNull(),
@@ -50,7 +80,6 @@ export const paymentTds = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
 );
-
 
 
 export const paymentTdsRelations = relations(paymentTds, ({ one }) => ({

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { SmallSearchSelect } from "@/components/ui/SearchableSelect";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -7,7 +7,7 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Loader2,
   ShoppingCart, FileText, CreditCard, X, CheckCircle2,
   ArrowRight, Paperclip, Package, Info, Download, Clock, Truck,
-  Pencil, History, FileDown,
+  Pencil, History, FileDown   
 } from "lucide-react";
 import { downloadCostingPoPdf } from "@/utils/pdfExport";
 import { logActivity } from "@/utils/logActivity";
@@ -889,7 +889,8 @@ function PaymentRow({ pay, onDelete }: { pay: PrPaymentRecord; onDelete: () => v
     <tr className="border-b border-gray-50 hover:bg-gray-50/50">
       <td className="px-3 py-2.5 text-gray-700 font-medium">{pay.paymentType}</td>
       <td className="px-3 py-2.5 text-gray-600">{pay.paymentMode || "—"}</td>
-      <td className="px-3 py-2.5 font-semibold text-gray-900">{pay.amount}</td>
+      <td className="px-3 py-2.5 font-semibold text-gray-900">{pay.paidAmount}</td>
+      <td className="px-3 py-2.5 text-purple-700"> {pay.tdsAmount ? parseFloat(pay.tdsAmount).toFixed(2) : "0.00"} </td>
       <td className="px-3 py-2.5 text-gray-500">{pay.paymentDate ? new Date(pay.paymentDate).toLocaleDateString() : "—"}</td>
       <td className="px-3 py-2.5 text-gray-500">{pay.transactionStatus || "—"}</td>
       <td className="px-3 py-2.5"><StatusBadge status={pay.paymentStatus} map={PAYMENT_STATUS_COLORS} /></td>
@@ -910,13 +911,73 @@ function PaymentRow({ pay, onDelete }: { pay: PrPaymentRecord; onDelete: () => v
   );
 }
 
+// function ItemSelector({
+//   items,
+//   selectedItemIds,
+//   onChange,
+// }: {
+//   items: Array<{ itemId: number; itemCode: string; itemName: string; balance: number; isFullyPaid: boolean }>;
+//   selectedItemIds: number[];
+//   onChange: (ids: number[]) => void;
+// }) {
+//   function toggle(itemId: number) {
+//     if (selectedItemIds.includes(itemId)) {
+//       onChange(selectedItemIds.filter((id) => id !== itemId));
+//     } else {
+//       onChange([...selectedItemIds, itemId]);
+//     }
+//   }
+
+//   return (
+//     <div className="space-y-1.5">
+//       <div className="flex items-center justify-between">
+//         <label className="text-[10px] text-gray-500 font-medium">Select Items to Pay</label>
+//         {items.length > 0 && (
+//           <span className="text-[10px] text-gray-400">
+//             {selectedItemIds.length}/{items.filter((i) => !i.isFullyPaid).length} selected
+//           </span>
+//         )}
+//       </div>
+//       <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-20 overflow-y-auto">
+//         {items.map((item) => (
+//           <label
+//             key={item.itemId}
+//             className={`flex items-center gap-2 px-2.5 py-1.5 text-xs ${
+//               item.isFullyPaid ? "opacity-40 cursor-not-allowed bg-gray-50" : "cursor-pointer hover:bg-gray-50"
+//             }`}
+//           >
+//             <input
+//               type="checkbox"
+//               disabled={item.isFullyPaid}
+//               checked={selectedItemIds.includes(item.itemId)}
+//               onChange={() => toggle(item.itemId)}
+//               className="rounded border-gray-300 shrink-0"
+//             />
+//             <span className="font-mono text-[9px] text-gray-500 shrink-0">{item.itemCode}</span>
+//             <span className="text-gray-700 flex-1 truncate">{item.itemName}</span>
+//             {item.isFullyPaid ? (
+//               <span className="text-[10px] text-green-600 font-medium shrink-0">Paid</span>
+//             ) : (
+//               <span className="text-[10px] text-amber-600 font-medium shrink-0">
+//                 Bal: {item.balance.toFixed(2)}
+//               </span>
+//             )}
+//           </label>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }
+
 // ─── PR Payments Panel (reusable) ─────────────────────────────────────────────
 function PrPaymentsPanel({
   prId,
   isFullyPaid = false,
+  // items = [],
 }: {
   prId: number;
   isFullyPaid?: boolean;
+  // items?: Array<{ itemId: number; itemCode: string; itemName: string; balance: number; isFullyPaid: boolean }>;
 }) {
   const { toast } = useToast();
   const { data: payments = [] } = usePrPayments(prId);
@@ -924,6 +985,8 @@ function PrPaymentsPanel({
   const delPay = useDeletePayment();
   const fileRef = useRef<HTMLInputElement>(null);
   const [showForm, setShowForm] = useState(false);
+  const [tdsSearch, setTdsSearch] = useState("");
+  const [tdsFilteredOptions, setTdsFilteredOptions] = useState<{ value: number; label: string }[]>([]);
   const [payForm, setPayForm] = useState({
     paymentType: "Partial",
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -932,7 +995,36 @@ function PrPaymentsPanel({
     transactionStatus: "",
     paymentStatus: "Pending",
     attachment: null as null | { name: string; type: string; data: string; size: number },
+    tdsMasterId: 0,
+    // selectedItemIds: [] as number[],
   });
+  // const isMultiItem = items.length > 1;
+
+  const { data: tdsData } = useQuery({
+    queryKey: ["tds-masters"],
+    queryFn: async () => {
+      const res = await customFetch<{ data: any[] }>("/api/tds-master?limit=100&status=active");
+      return res.data ?? [];
+    },
+  });
+
+  const tdsOptions = useMemo(() => {
+    return (tdsData || []).map((item) => ({
+      value: Number(item.id),
+      label: `${item.serviceName} (${item.sectionCode}) – ${item.ratePercent}%`,
+    }));
+  }, [tdsData]);
+
+  useEffect(() => {
+    if (!tdsSearch.trim()) {
+      setTdsFilteredOptions(tdsOptions);
+    } else {
+      const filtered = tdsOptions.filter(opt =>
+        opt.label.toLowerCase().includes(tdsSearch.toLowerCase())
+      );
+      setTdsFilteredOptions(filtered);
+    }
+  }, [tdsSearch, tdsOptions]);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -965,6 +1057,8 @@ function PrPaymentsPanel({
       transactionStatus: "",
       paymentStatus: "Pending",
       attachment: null,
+      tdsMasterId: payForm.tdsMasterId,
+      // selectedItemIds: [],
     });
     setShowForm(false);
     toast({ title: "Payment recorded" });
@@ -1003,12 +1097,15 @@ function PrPaymentsPanel({
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Mode</label>
-              <input
-                value={payForm.paymentMode}
-                onChange={(e) => setPayForm((f) => ({ ...f, paymentMode: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                placeholder="Bank / UPI / Cash…"
-              />
+              <select value={payForm.paymentMode} onChange={e => setPayForm(f => ({ ...f, paymentMode: e.target.value }))} 
+                className="mt-0.5 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-900 focus:outline-none focus:border-amber-400">
+                <option value="">Select</option>
+                <option>Cash</option>
+                <option>Bank Transfer</option>
+                <option>UPI</option>
+                <option>Cheque</option>
+                <option>Other</option>
+              </select>
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Amount</label>
@@ -1022,6 +1119,25 @@ function PrPaymentsPanel({
                 placeholder="0.00"
               />
             </div>
+            {/* {isMultiItem && payForm.paymentType === "Partial" && (
+              <ItemSelector
+                items={items}
+                selectedItemIds={payForm.selectedItemIds}
+                onChange={(ids) => setPayForm((f) => ({ ...f, selectedItemIds: ids }))}
+              />
+            )} */}
+
+            <div>
+              <label className="text-[10px] text-gray-500 font-medium">TDS</label>
+              <SmallSearchSelect
+                options={tdsFilteredOptions}
+                value={payForm.tdsMasterId}
+                onChange={(val) => setPayForm(f => ({ ...f, tdsMasterId: val }))}
+                onSearch={(search) => setTdsSearch(search)}
+                placeholder="Select TDS"
+                clearable
+              />
+            </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Date</label>
               <input
@@ -1033,12 +1149,15 @@ function PrPaymentsPanel({
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Transaction Status</label>
-              <input
-                value={payForm.transactionStatus}
-                onChange={(e) => setPayForm((f) => ({ ...f, transactionStatus: e.target.value }))}
-                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                placeholder="e.g. TXN123456"
-              />
+              <select 
+                value={payForm.transactionStatus} 
+                onChange={e => setPayForm(f => ({ ...f, transactionStatus: e.target.value }))} 
+                className="w-full mt-0.5 text-xs text-gray-900 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none">
+                <option>Pending</option>
+                <option>Processing</option>
+                <option>Completed</option>
+                <option>Failed</option>
+              </select>
             </div>
             <div>
               <label className="text-[10px] text-gray-500 font-medium">Payment Status</label>
@@ -1091,7 +1210,7 @@ function PrPaymentsPanel({
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-gray-100">
-            {["Type", "Mode", "Amount", "Date", "Txn Status", "Pay Status", "Attachment", ""].map(
+            {["Type", "Mode", "Paid Amount", "TDS", "Date", "Txn Status", "Pay Status", "Attachment", ""].map(
               (h) => (
                 <th key={h} className="text-left text-[10px] font-semibold text-gray-400 px-3 py-1.5">
                   {h}
@@ -1117,7 +1236,11 @@ function PrTableRow({
   pr,
   poNumber,
   vendorName,
-  bomItems,
+  items,
+  itemCount,
+  totalQuantity,
+  totalAmountWithGst,
+  totalGstAmount,
   totalAmount,
   paidAmount,
   balance,
@@ -1125,13 +1248,28 @@ function PrTableRow({
   pr: PurchaseReceiptRecord;
   poNumber: string;
   vendorName: string;
-  bomItems: PoLineItem[];
+  items: Array<{
+    itemId: number;
+    itemCode: string;
+    itemName: string;
+    balance: number;
+    quantity: number | string;
+    unitPrice: number | string;
+    gstPercentage: number | string;
+    hsnCode?: string;
+    isFullyPaid: boolean;
+  }>;
+  itemCount: number;
+  totalQuantity: number | string | null;
+  totalAmountWithGst: string | number;
+  totalGstAmount: string | number;
   totalAmount: string | number;
   paidAmount: string | number;
   balance: string | number;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [showItemsModal, setShowItemsModal] = useState(false);
   const [editing, setEditing] = useState(false);
   const deletePR = useDeletePR();
   const updatePR = useUpdatePR();
@@ -1141,10 +1279,12 @@ function PrTableRow({
     receivedDate: (pr.receivedDate ?? "").slice(0, 10),
   });
 
-  const total = parseFloat(String(totalAmount)) || 0;
+  const totalWithGst = parseFloat(String(totalAmountWithGst)) || 0;
   const paid = parseFloat(String(paidAmount)) || 0;
   const bal = parseFloat(String(balance)) || 0;
   const isFullyPaid = bal <= 0.01;
+  const isSingleItem = itemCount === 1;
+  const firstItem = items[0];
 
   function openEdit() {
     setEditForm({
@@ -1188,20 +1328,86 @@ function PrTableRow({
           {new Date(pr.receivedDate).toLocaleDateString()}
         </td>
         <td className="px-3 py-2.5 font-semibold text-gray-800 text-xs">
-          {pr.receivedQty}
+          {totalQuantity ?? pr.receivedQty}
         </td>
+
+        {/* Price */}
         <td className="px-3 py-2.5 text-gray-700 text-xs">
-          {parseFloat(pr.actualPrice).toFixed(2)}
+          {isSingleItem && firstItem ? (
+            parseFloat(String(firstItem.unitPrice)).toFixed(2)
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowItemsModal(true)}
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                aria-label="View items"
+              >
+                <FileText className="h-3.5 w-3.5" />
+              </button>
+              <span className="font-medium"> {parseFloat(String(totalAmount)).toFixed(2)} </span>
+            </div>
+          )}
         </td>
+
+        {/* GST */}
+        <td className="px-3 py-2.5 text-gray-700 text-xs">
+          {isSingleItem && firstItem ? (
+            <span>
+              {parseFloat(String(firstItem.gstPercentage)).toFixed(0)}% 
+              (<span className="font-medium">{parseFloat(String(totalGstAmount)).toFixed(2)}</span>)
+            </span>
+          ) : (
+            // Multiple items: show total GST amount + a button to view per‑item details
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowItemsModal(true)}
+                className="text-blue-600 hover:underline text-[10px] font-medium whitespace-nowrap"
+              >
+                  <FileText className="h-3.5 w-3.5" />
+              </button>
+              <span className="font-medium">{parseFloat(String(totalGstAmount)).toFixed(2)}</span>
+            </div>
+          )}
+        </td>
+
+        {/* Total (with GST) */}
         <td className="px-3 py-2.5 font-semibold text-blue-700 text-xs">
-          {total.toFixed(2)}
+          {totalWithGst.toFixed(2)}
         </td>
+
         <td className="px-3 py-2.5 font-semibold text-green-700 text-xs">
           {paid.toFixed(2)}
         </td>
         <td className="px-3 py-2.5 font-semibold text-amber-700 text-xs">
           {bal.toFixed(2)}
         </td>
+
+        {/* Item column — uses receipt items directly */}
+        <td className="px-3 py-2.5 max-w-[200px]">
+          {items.length === 0 ? (
+            <span className="text-gray-300 text-xs">—</span>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {items.slice(0, 2).map((item, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  <span className="text-[9px] px-1 py-0.5 rounded font-bold shrink-0 bg-gray-100 text-gray-500 font-mono">
+                    {item.itemCode}
+                  </span>
+                  <span className="text-[10px] text-gray-700 truncate">
+                    {item.itemName}
+                  </span>
+                </div>
+              ))}
+              {items.length > 2 && (
+                <span className="text-[10px] text-gray-400">
+                  +{items.length - 2} more
+                </span>
+              )}
+            </div>
+          )}
+        </td>
+
+        {/* Actions */}
         <td className="px-3 py-2.5">
           <div className="flex items-center gap-1">
             <button
@@ -1235,16 +1441,107 @@ function PrTableRow({
           </div>
         </td>
       </tr>
+
+      {/* Payment panel */}
       {open && (
         <tr className="bg-gray-50/60 border-b border-gray-100">
-          <td colSpan={10} className="px-5 py-4">
-            <PrPaymentsPanel prId={pr.id} isFullyPaid={isFullyPaid} />
+          <td colSpan={12} className="px-5 py-4">
+              <PrPaymentsPanel prId={pr.id} isFullyPaid={isFullyPaid} />
           </td>
         </tr>
       )}
+
+      {/* Items detail modal (multi-item popup) */}
+      {showItemsModal && (
+        <tr>
+          <td colSpan={12}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Receipt Items — {pr.prNumber}
+                  </h3>
+                  <button
+                    onClick={() => setShowItemsModal(false)}
+                    className="p-1 rounded-lg hover:bg-gray-100"
+                  >
+                    <X className="h-4 w-4 text-gray-500" />
+                  </button>
+                </div>
+                <div className="px-6 py-4">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left py-2 text-[10px] font-semibold text-gray-400">Item</th>
+                        <th className="text-right py-2 text-[10px] font-semibold text-gray-400">Qty</th>
+                        <th className="text-right py-2 text-[10px] font-semibold text-gray-400">Unit Price</th>
+                        <th className="text-right py-2 text-[10px] font-semibold text-gray-400">GST</th>
+                        <th className="text-right py-2 text-[10px] font-semibold text-gray-400">Line Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, i) => {
+                        const qty = parseFloat(String(item.quantity)) || 0;
+                        const price = parseFloat(String(item.unitPrice)) || 0;
+                        const gst = parseFloat(String(item.gstPercentage)) || 0;
+                        const subtotal = qty * price;
+                        const gstAmt = subtotal * gst / 100;
+                        const lineTotal = subtotal + gstAmt;
+                        return (
+                          <tr key={i} className="border-b border-gray-50">
+                            <td className="py-2">
+                              <div className="flex flex-col">
+                                <span className="font-mono text-[9px] text-gray-500">{item.itemCode}</span>
+                                <span className="text-gray-700">{item.itemName}</span>
+                                {item.hsnCode && (
+                                  <span className="text-[9px] text-gray-400">HSN: {item.hsnCode}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2 text-right text-gray-700">{qty}</td>
+                            <td className="py-2 text-right text-gray-700">{price.toFixed(2)}</td>
+                            <td className="py-2 text-right text-gray-700">{gst}%</td>
+                            <td className="py-2 text-right font-semibold text-gray-800">{lineTotal.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-gray-200">
+                        <td colSpan={4} className="py-2 text-right text-[10px] font-semibold text-gray-500">Subtotal</td>
+                        <td className="py-2 text-right font-semibold text-gray-800">
+                          {items.reduce((s, item) => {
+                            const qty = parseFloat(String(item.quantity)) || 0;
+                            const price = parseFloat(String(item.unitPrice)) || 0;
+                            return s + (qty * price);
+                          }, 0).toFixed(2)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colSpan={4} className="py-2 text-right text-[10px] font-semibold text-gray-500">Total GST</td>
+                        <td className="py-2 text-right font-semibold text-gray-800">
+                          {parseFloat(String(totalGstAmount)).toFixed(2)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colSpan={4} className="py-2 text-right text-[10px] font-bold text-gray-700">Grand Total</td>
+                        <td className="py-2 text-right font-bold text-blue-700">
+                          {totalWithGst.toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {/* Edit modal — unchanged */}
       {editing && (
         <tr>
-          <td colSpan={10}>
+          <td colSpan={12}>
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
               <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -1760,7 +2057,11 @@ function EditSwatchPoModal({ po, vendors, onClose, onSave, saving }: {
 }
 
 // ─── PO Card ─────────────────────────────────────────────────────────────────
-function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf, vendors }: { po: PurchaseOrderRecord; swatchOrderId: number; onCreatePR: (poId: number, vendorName: string, bomItems: PoLineItem[]) => void; onExportPdf: () => void; vendors: { id: number; brandName: string }[] }) {
+function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf, vendors }: 
+  { po: PurchaseOrderRecord; swatchOrderId: number; 
+    onCreatePR: (poId: number, vendorName: string, vendorId: number, bomItems: PoLineItem[]) => void;
+    onExportPdf: () => void; vendors: { id: number; brandName: string }[] }) 
+  {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -1816,7 +2117,7 @@ function PoCard({ po, swatchOrderId, onCreatePR, onExportPdf, vendors }: { po: P
             </button>
           )}
           {canCreatePR && (
-            <button onClick={() => onCreatePR(po.id, po.vendorName, po.bomItems ?? [])}
+            <button onClick={() => onCreatePR(po.id, po.vendorName, po.vendorId, po.bomItems ?? [])}
               className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-medium hover:bg-blue-100 transition-colors">
               <Plus className="h-3 w-3" /> Create PR
             </button>
@@ -1945,7 +2246,8 @@ function PoSection({ swatchOrderId, orderCode, swatchName, clientName }: {
   }
 
   const [showPoModal, setShowPoModal] = useState(false);
-  const [prModal, setPrModal] = useState<{ poId: number; vendorName: string; bomItems: PoLineItem[] } | null>(null);
+  // const [prModal, setPrModal] = useState<{ poId: number; vendorName: string; bomItems: PoLineItem[] } | null>(null);
+  const [prModal, setPrModal] = useState<{ poId: number; vendorName: string; vendorId: number; bomItems: PoLineItem[] } | null>(null);
   const [prForm, setPrForm] = useState({ bomRowId: "" as string, receivedQty: "", actualPrice: "", warehouseLocation: "" });
 
   // Compute remaining qty for the item currently selected in the PR modal
@@ -1978,7 +2280,7 @@ function PoSection({ swatchOrderId, orderCode, swatchName, clientName }: {
     //   toast({ title: `Received qty exceeds remaining. Max allowed: ${prItemStats.remaining.toFixed(2)} ${prItemStats.unitType}`, variant: "destructive" }); return;
     // }
     const bomRowId = prForm.bomRowId ? Number(prForm.bomRowId) : (prModal.bomItems.length === 1 ? prModal.bomItems[0].bomRowId : null);
-    createPR.mutate({ poId: prModal.poId, swatchOrderId, bomRowId, receivedQty: prForm.receivedQty, actualPrice: prForm.actualPrice, warehouseLocation: prForm.warehouseLocation }, {
+    createPR.mutate({ poId: prModal.poId, vendorId: prModal.vendorId, swatchOrderId, bomRowId, receivedQty: prForm.receivedQty, actualPrice: prForm.actualPrice, warehouseLocation: prForm.warehouseLocation }, {
       onSuccess: () => {
         setPrForm({ bomRowId: "", receivedQty: "", actualPrice: "", warehouseLocation: "" });
         setPrModal(null);
@@ -2006,11 +2308,11 @@ function PoSection({ swatchOrderId, orderCode, swatchName, clientName }: {
           {pos.map(po => (
             <PoCard key={po.id} po={po} swatchOrderId={swatchOrderId} vendors={vendors}
               onExportPdf={() => exportSinglePoPdf(po)}
-              onCreatePR={(poId, vendorName, bomItems) => {
-                const singleItem = bomItems.length === 1 ? String(bomItems[0].bomRowId) : "";
-                setPrForm({ bomRowId: singleItem, receivedQty: "", actualPrice: "", warehouseLocation: "" });
-                setPrModal({ poId, vendorName, bomItems });
-              }} />
+              onCreatePR={(poId, vendorName, vendorId, bomItems) => {
+              const singleItem = bomItems.length === 1 ? String(bomItems[0].bomRowId) : "";
+              setPrForm({ bomRowId: singleItem, receivedQty: "", actualPrice: "", warehouseLocation: "" });
+              setPrModal({ poId, vendorName, vendorId, bomItems });
+            }} />
           ))}
         </div>
       )}
@@ -2136,15 +2438,17 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
     return true;
   });
 
-  // Use totalAmount from API (computed with vendor invoice priority)
+  // Totals (including TDS)
   const totalValue = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.totalAmount) || 0), 0);
   const totalPaid = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.paidAmount) || 0), 0);
+  const totalTds = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.tdsAmount) || 0), 0);
   const totalBalance = filteredPrs.reduce((s, pr) => s + (parseFloat(pr.balance) || 0), 0);
 
   const getVendorName = (pr: any) => {
     if (pr.vendorName && pr.vendorName.trim() !== "") return pr.vendorName;
     return poVendorMap[pr.poId] ?? "—";
   };
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <SectionHeader icon={<FileText className="h-4 w-4" />} title="Purchase Receipts">
@@ -2199,28 +2503,31 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Date</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Rcv Qty</th>
                 <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Price</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">GST</th>
                 <th className="text-left text-[10px] font-semibold text-blue-500 px-3 py-2 whitespace-nowrap">Total</th>
                 <th className="text-left text-[10px] font-semibold text-green-600 px-3 py-2 whitespace-nowrap">Paid</th>
                 <th className="text-left text-[10px] font-semibold text-amber-600 px-3 py-2 whitespace-nowrap">Balance</th>
-                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Status</th>
+                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap">Item</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {filteredPrs.map(pr => {
-                return (
-                  <PrTableRow
-                    key={pr.id}
-                    pr={pr}
-                    poNumber={poMap[pr.poId] ?? "—"}
-                    vendorName={getVendorName(pr)}
-                    bomItems={poItemsMap[pr.poId] ?? []}
-                    totalAmount={pr.totalAmount}
-                    paidAmount={pr.paidAmount}
-                    balance={pr.balance}
-                  />
-                );
-              })}
+              {filteredPrs.map(pr => (
+                <PrTableRow
+                  key={pr.id}
+                  pr={pr}
+                  poNumber={poMap[pr.poId] ?? "—"}
+                  vendorName={getVendorName(pr)}
+                  items={pr.items ?? []}                     
+                  itemCount={pr.itemCount}                  
+                  totalQuantity={pr.totalQuantity}           
+                  totalAmountWithGst={pr.totalAmountWithGst} 
+                  totalGstAmount={pr.totalGstAmount}         
+                  paidAmount={pr.paidAmount}
+                  totalAmount={pr.totalAmount}
+                  balance={pr.balance}
+                />
+              ))}
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 border-t border-gray-200">
@@ -2918,7 +3225,7 @@ const defaultOutsourceForm = {
   issueDate: "", targetDate: "", deliveryDate: "", totalCost: "", notes: "",
 };
 
-export function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
+function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }) {
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useOutsourceJobs(swatchOrderId);
   const createMutation = useCreateOutsourceJob();
@@ -3050,7 +3357,7 @@ export function OutsourceJobSection({ swatchOrderId }: { swatchOrderId: number }
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs min-w-[1100px]">
+          <table className="w-full text-xs min-w-[960px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                <th className="text-left text-[10px] font-semibold text-gray-400 px-3 py-2 whitespace-nowrap"> Vendor </th>

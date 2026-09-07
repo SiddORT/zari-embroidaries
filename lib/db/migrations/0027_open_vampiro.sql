@@ -1,0 +1,1 @@
+ALTER TABLE "purchase_receipts" ADD COLUMN "vendor_id" integer;
