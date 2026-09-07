@@ -512,102 +512,624 @@ router.get("/top-vendors-pending", requireAuth,
 /* ══════════════════════════════════════════════════════════
    RECORD PAYMENT — unified across all source types
 ══════════════════════════════════════════════════════════ */
+// router.post("/record-payment", requireAuth, 
+//   checkPermission({ any: [ACCOUNTS_PURCHASES.ADD_EDIT] }),
+//   async (req: AuthRequest, res) => {
+//   const client = await pool.connect();
+//   try {
+//     await client.query("BEGIN");
+//     const {
+//       ref_type, source_id,
+//       vendor_name, vendor_id,
+//       payment_amount, payment_date, payment_type,
+//       transaction_reference, remarks,
+//       currency_code, exchange_rate_snapshot,
+//     } = req.body as any;
+
+//     const amt = parseFloat(payment_amount ?? "0");
+//     if (amt <= 0) throw new Error("payment_amount must be > 0");
+//     const pDate = payment_date || new Date().toISOString().slice(0, 10);
+//     const pMode = payment_type || "Bank Transfer";
+//     const payCcy  = currency_code || "INR";
+//     const payRate = parseFloat(exchange_rate_snapshot ?? "1") || 1;     // pay ccy -> INR
+//     const baseAmt = parseFloat((amt * payRate).toFixed(2));             // INR anchor
+
+//     if (ref_type === "Purchase Receipt") {
+//       /* Update vendor_invoice_ledger + insert vendor_payments */
+//       /* Note: pending_amount is a generated column (vendor_invoice_amount - paid_amount) — do NOT update it */
+//       const id = parseInt(source_id);
+//       const { rows } = await client.query(`SELECT * FROM vendor_invoice_ledger WHERE id = $1 FOR UPDATE`, [id]);
+//       if (!rows.length) throw new Error("Bill not found");
+//       const bill = rows[0];
+//       if (bill.status === "Cancelled") throw new Error("Cannot record payment on a Cancelled bill");
+//       if (bill.status === "Paid") throw new Error("Cannot record payment on a Paid bill");
+//       const billCcyCode = bill.currency_code || "INR";
+//       const billRate = parseFloat(bill.exchange_rate_snapshot ?? "1") || 1;   // bill ccy -> INR
+//       const amtInBillCcy = baseAmt / billRate;                                // bill currency
+//       const prevPaid = parseFloat(bill.paid_amount ?? "0");                   // bill currency
+//       const totalBill = parseFloat(bill.vendor_invoice_amount);              // bill currency
+//       const pendingInBillCcy = totalBill - prevPaid;
+//       if (amtInBillCcy > pendingInBillCcy + 0.01) {
+//         throw new Error(
+//           `Payment (${amtInBillCcy.toFixed(2)} ${billCcyCode}) exceeds pending balance (${pendingInBillCcy.toFixed(2)} ${billCcyCode})`
+//         );
+//       }
+//       await client.query(
+//         `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,vendor_invoice_ledger_id,created_by)
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11,$12)`,
+//         [bill.vendor_id, bill.vendor_name, pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", id, req.user?.email ?? ""]
+//       );
+//       await recomputeVendorBillBalances(client, id);
+
+//     } else if (ref_type === "Costing Outsource") {
+//       /* Insert into costing_payments — lock the job row first to serialize concurrent payments */
+//       const id = parseInt(source_id);
+//       const { rows: jobRows } = await client.query(
+//         `SELECT * FROM outsource_jobs WHERE id = $1 AND is_deleted = false FOR UPDATE`,
+//         [id]
+//       );
+//       if (!jobRows.length) throw new Error("Outsource job not found");
+//       await client.query(
+//         `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,payment_type,payment_mode,payment_amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_status,transaction_id,payment_date,remarks,created_by)
+//          VALUES ($1,$2,'outsource_job',$3,'outsource',$4,$5,$6,$7,$8,'Completed',$9,$10,$11,$12)`,
+//         [vendor_id || null, vendor_name || "", id, pMode, amt, payCcy, payRate, baseAmt, transaction_reference || "", pDate, remarks || "", req.user?.email ?? ""]
+//       );
+
+//     } else if (ref_type === "Other Expense") {
+//       /* Update other_expenses — lock the row first to serialize concurrent payments */
+//       const id = parseInt(source_id);
+//       const { rows } = await client.query(`SELECT * FROM other_expenses WHERE expense_id = $1 FOR UPDATE`, [id]);
+//       if (!rows.length) throw new Error("Expense not found");
+//       const exp = rows[0];
+//       const newPaid   = parseFloat(exp.paid_amount ?? "0") + amt;
+//       const newStatus = newPaid >= parseFloat(exp.amount) ? "Paid" : "Partially Paid";
+//       await client.query(
+//         `UPDATE other_expenses SET paid_amount=$1, payment_status=$2, updated_at=NOW() WHERE expense_id=$3`,
+//         [newPaid, newStatus, id]
+//       );
+//       await client.query(
+//         `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
+//         [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
+//       );
+
+//     } else {
+//       /* Artisan / Shipping / other — just log in vendor_payments */
+//       await client.query(
+//         `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
+//         [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
+//       );
+//     }
+
+//     await client.query("COMMIT");
+//     res.json({ message: "Vendor payment recorded successfully" });
+//   } catch (err: any) {
+//     await client.query("ROLLBACK");
+//     res.status(400).json({ error: err.message });
+//   } finally { client.release(); }
+// });
+
+// ============================================================================
+// HELPER FUNCTIONS FOR RECORD PAYMENT
+// ============================================================================
+
+interface RecordPaymentRequest {
+  ref_type: string;
+  source_id: string;
+  vendor_name: string;
+  vendor_id: number;
+  payment_amount: string;
+  payment_date: string;
+  payment_type: string;
+  transaction_reference: string;
+  remarks: string;
+  currency_code: string;
+  exchange_rate_snapshot: string;
+  tds_master_id?: number;
+}
+
+async function validatePaymentAmount(amount: number): Promise<void> {
+  if (amount <= 0) {
+    throw new Error("payment_amount must be > 0");
+  }
+}
+
+function calculatePaymentAmounts(
+  paymentAmount: string,
+  exchangeRateSnapshot: string,
+  currencyCode: string
+): { amt: number; payRate: number; baseAmt: number; payCcy: string } {
+  const amt = parseFloat(paymentAmount ?? "0");
+  const payRate = parseFloat(exchangeRateSnapshot ?? "1") || 1;
+  const baseAmt = parseFloat((amt * payRate).toFixed(2));
+  const payCcy = currencyCode || "INR";
+  
+  return { amt, payRate, baseAmt, payCcy };
+}
+
+async function insertVendorPayment(
+  client: any,
+  vendorId: number,
+  vendorName: string,
+  paymentDate: string,
+  amt: number,
+  payCcy: string,
+  payRate: number,
+  baseAmt: number,
+  paymentMode: string,
+  transactionReference: string,
+  remarks: string,
+  orderType: string,
+  vendorInvoiceLedgerId: number | null,
+  username: string
+): Promise<number> {
+  const result = await client.query(
+    `INSERT INTO vendor_payments 
+      (vendor_id, vendor_name, payment_date, amount, currency_code, 
+       exchange_rate_snapshot, base_currency_amount, payment_mode, 
+       reference_no, notes, order_type, vendor_invoice_ledger_id, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     RETURNING id`,
+    [
+      vendorId || null,
+      vendorName || "",
+      paymentDate,
+      amt,
+      payCcy,
+      payRate,
+      baseAmt,
+      paymentMode,
+      transactionReference || "",
+      remarks || "",
+      orderType,
+      vendorInvoiceLedgerId,
+      username
+    ]
+  );
+  return result.rows[0].id;
+}
+
+async function getTDSMaster(client: any, tdsMasterId: number): Promise<{ id: number; rate_percent: string }> {
+  const result = await client.query(
+    `SELECT id, rate_percent FROM tds_master 
+     WHERE id = $1 AND status = true AND is_deleted = false`,
+    [tdsMasterId]
+  );
+  if (result.rows.length === 0) {
+    throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
+  }
+  return result.rows[0];
+}
+
+async function insertPaymentTDSRecord(
+  client: any,
+  tdsMasterId: number,
+  paymentSourceType: string,
+  paymentSourceId: number,
+  paymentDate: string,
+  vendorId: number,
+  baseDocumentType: string,
+  baseDocumentId: number,
+  grossAmount: number,
+  gstAmount: number,
+  gstPercentage: number,
+  baseAmount: number,
+  paidAmount: number,
+  tdsRate: number,
+  tdsAmount: number,
+  username: string
+): Promise<void> {
+  await client.query(
+    `INSERT INTO payment_tds
+       (tds_master_id, payment_source_type, payment_source_id, payment_date,
+        vendor_id, base_document_type, base_document_id,
+        gross_amount, gst_amount, gst_percentage,
+        payment_currency_code, payment_exchange_rate, base_amount,
+        paid_amount, tds_rate, tds_amount, status, created_by)
+     VALUES ($1, $2, $3, $4, $5,
+             $6, $7,
+             $8, $9, $10,
+             'INR', 1, $11,
+             $12, $13, $14, 'DEDUCTED', $15)`,
+    [
+      tdsMasterId,
+      paymentSourceType,
+      paymentSourceId,
+      paymentDate,
+      vendorId,
+      baseDocumentType,
+      baseDocumentId,
+      grossAmount.toFixed(2),
+      gstAmount.toFixed(2),
+      gstPercentage.toFixed(2),
+      baseAmount.toFixed(2),
+      paidAmount.toFixed(2),
+      tdsRate.toFixed(2),
+      tdsAmount.toFixed(2),
+      username
+    ]
+  );
+}
+
+// ============================================================================
+// HANDLER FUNCTIONS FOR EACH REF_TYPE
+// ============================================================================
+
+async function handlePurchaseReceiptPayment(
+  client: any,
+  sourceId: string,
+  paymentData: any,
+  tdsMasterId: number | undefined,
+  username: string
+): Promise<void> {
+  const id = parseInt(sourceId);
+  
+  // Lock the bill row
+  const { rows } = await client.query(
+    `SELECT * FROM vendor_invoice_ledger WHERE id = $1 FOR UPDATE`,
+    [id]
+  );
+  if (!rows.length) throw new Error("Bill not found");
+  
+  const bill = rows[0];
+  if (bill.status === "Cancelled") throw new Error("Cannot record payment on a Cancelled bill");
+  if (bill.status === "Paid") throw new Error("Cannot record payment on a Paid bill");
+  
+  const billCcyCode = bill.currency_code || "INR";
+  const billRate = parseFloat(bill.exchange_rate_snapshot ?? "1") || 1;
+  const amtInBillCcy = paymentData.baseAmt / billRate;
+  const prevPaid = parseFloat(bill.paid_amount ?? "0");
+  const totalBill = parseFloat(bill.vendor_invoice_amount);
+  const pendingInBillCcy = totalBill - prevPaid;
+  
+  if (amtInBillCcy > pendingInBillCcy + 0.01) {
+    throw new Error(
+      `Payment (${amtInBillCcy.toFixed(2)} ${billCcyCode}) exceeds pending balance (${pendingInBillCcy.toFixed(2)} ${billCcyCode})`
+    );
+  }
+  
+  // Insert vendor payment
+  const paymentId = await insertVendorPayment(
+    client,
+    bill.vendor_id,
+    bill.vendor_name,
+    paymentData.paymentDate,
+    paymentData.amt,
+    paymentData.payCcy,
+    paymentData.payRate,
+    paymentData.baseAmt,
+    paymentData.paymentMode,
+    paymentData.transactionReference,
+    paymentData.remarks || "",
+    'general',
+    id,
+    username
+  );
+  
+  // Handle TDS if provided
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = parseFloat(tdsMaster.rate_percent);
+    
+    // Calculate GST amount from the bill
+    const gstAmount = parseFloat(bill.gst_amount || "0");
+    const gstPercentage = parseFloat(bill.gst_percentage || "0");
+    const baseAmount = totalBill - gstAmount;
+    const tdsAmount = (baseAmount * tdsRate) / 100;
+    const paidAmount = paymentData.amt - tdsAmount;
+    
+    await insertPaymentTDSRecord(
+      client,
+      tdsMasterId,
+      'vendor_payments',
+      paymentId,
+      paymentData.paymentDate,
+      bill.vendor_id,
+      'vendor_invoice_ledger',
+      id,
+      totalBill,
+      gstAmount,
+      gstPercentage,
+      baseAmount,
+      paidAmount,
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
+  
+  await recomputeVendorBillBalances(client, id);
+}
+
+async function handleCostingOutsourcePayment(
+  client: any,
+  sourceId: string,
+  vendorId: number,
+  vendorName: string,
+  paymentData: any,
+  tdsMasterId: number | undefined,
+  username: string
+): Promise<void> {
+  const id = parseInt(sourceId);
+  
+  // Lock the job row
+  const { rows: jobRows } = await client.query(
+    `SELECT * FROM outsource_jobs WHERE id = $1 AND is_deleted = false FOR UPDATE`,
+    [id]
+  );
+  if (!jobRows.length) throw new Error("Outsource job not found");
+  
+  const job = jobRows[0];
+  
+  // Insert costing payment
+  const result = await client.query(
+    `INSERT INTO costing_payments 
+      (vendor_id, vendor_name, reference_type, reference_id, payment_type, 
+       payment_mode, payment_amount, currency_code, exchange_rate_snapshot, 
+       base_currency_amount, payment_status, transaction_id, payment_date, 
+       remarks, created_by)
+     VALUES ($1, $2, 'outsource_job', $3, 'outsource', $4, $5, $6, $7, $8, 
+             'Completed', $9, $10, $11, $12)
+     RETURNING id`,
+    [
+      vendorId || null,
+      vendorName || "",
+      id,
+      paymentData.paymentMode,
+      paymentData.amt,
+      paymentData.payCcy,
+      paymentData.payRate,
+      paymentData.baseAmt,
+      paymentData.transactionReference || "",
+      paymentData.paymentDate,
+      paymentData.remarks || "",
+      username
+    ]
+  );
+  
+  const costingPaymentId = result.rows[0].id;
+  
+  // Handle TDS if provided
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = parseFloat(tdsMaster.rate_percent);
+    
+    const totalCost = parseFloat(job.total_cost || "0");
+    const gstPercentage = parseFloat(job.gst_percentage || "0");
+    const gstAmount = (totalCost * gstPercentage) / 100;
+    const baseAmount = totalCost;
+    const tdsAmount = (baseAmount * tdsRate) / 100;
+    const paidAmount = paymentData.amt - tdsAmount;
+    
+    await insertPaymentTDSRecord(
+      client,
+      tdsMasterId,
+      'costing_payments',
+      costingPaymentId,
+      paymentData.paymentDate,
+      vendorId,
+      'outsource_job',
+      id,
+      totalCost + gstAmount,
+      gstAmount,
+      gstPercentage,
+      baseAmount,
+      paidAmount,
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
+}
+
+async function handleOtherExpensePayment(
+  client: any,
+  sourceId: string,
+  vendorId: number,
+  vendorName: string,
+  paymentData: any,
+  tdsMasterId: number | undefined,
+  username: string
+): Promise<void> {
+  const id = parseInt(sourceId);
+  
+  // Lock the expense row
+  const { rows } = await client.query(
+    `SELECT * FROM other_expenses WHERE expense_id = $1 FOR UPDATE`,
+    [id]
+  );
+  if (!rows.length) throw new Error("Expense not found");
+  
+  const exp = rows[0];
+  const newPaid = parseFloat(exp.paid_amount ?? "0") + paymentData.amt;
+  const totalAmount = parseFloat(exp.amount);
+  const newStatus = newPaid >= totalAmount ? "Paid" : "Partially Paid";
+  
+  await client.query(
+    `UPDATE other_expenses SET paid_amount=$1, payment_status=$2, updated_at=NOW() WHERE expense_id=$3`,
+    [newPaid, newStatus, id]
+  );
+  
+  // Insert vendor payment
+  const paymentId = await insertVendorPayment(
+    client,
+    vendorId,
+    vendorName || "",
+    paymentData.paymentDate,
+    paymentData.amt,
+    paymentData.payCcy,
+    paymentData.payRate,
+    paymentData.baseAmt,
+    paymentData.paymentMode,
+    paymentData.transactionReference,
+    paymentData.remarks || "",
+    'general',
+    null,
+    username
+  );
+  
+  // Handle TDS if provided
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = parseFloat(tdsMaster.rate_percent);
+    
+    const gstPercentage = parseFloat(exp.gst_percentage || "0");
+    const gstAmount = (totalAmount * gstPercentage) / 100;
+    const baseAmount = totalAmount - gstAmount;
+    const tdsAmount = (baseAmount * tdsRate) / 100;
+    const paidAmount = paymentData.amt - tdsAmount;
+    
+    await insertPaymentTDSRecord(
+      client,
+      tdsMasterId,
+      'vendor_payments',
+      paymentId,
+      paymentData.paymentDate,
+      vendorId,
+      'other_expense',
+      id,
+      totalAmount,
+      gstAmount,
+      gstPercentage,
+      baseAmount,
+      paidAmount,
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
+}
+
+async function handleGenericPayment(
+  client: any,
+  vendorId: number,
+  vendorName: string,
+  paymentData: any,
+  username: string
+): Promise<void> {
+  await insertVendorPayment(
+    client,
+    vendorId,
+    vendorName || "",
+    paymentData.paymentDate,
+    paymentData.amt,
+    paymentData.payCcy,
+    paymentData.payRate,
+    paymentData.baseAmt,
+    paymentData.paymentMode,
+    paymentData.transactionReference,
+    paymentData.remarks || "",
+    'general',
+    null,
+    username
+  );
+}
+
+// ============================================================================
+// MAIN ROUTE HANDLER
+// ============================================================================
+
 router.post("/record-payment", requireAuth, 
   checkPermission({ any: [ACCOUNTS_PURCHASES.ADD_EDIT] }),
   async (req: AuthRequest, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const {
-      ref_type, source_id,
-      vendor_name, vendor_id,
-      payment_amount, payment_date, payment_type,
-      transaction_reference, remarks,
-      currency_code, exchange_rate_snapshot,
-    } = req.body as any;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      
+      const {
+        ref_type,
+        source_id,
+        vendor_name,
+        vendor_id,
+        payment_amount,
+        payment_date,
+        payment_type,
+        transaction_reference,
+        remarks,
+        currency_code,
+        exchange_rate_snapshot,
+        tds_master_id,
+      } = req.body as RecordPaymentRequest;
 
-    const amt = parseFloat(payment_amount ?? "0");
-    if (amt <= 0) throw new Error("payment_amount must be > 0");
-    const pDate = payment_date || new Date().toISOString().slice(0, 10);
-    const pMode = payment_type || "Bank Transfer";
-    const payCcy  = currency_code || "INR";
-    const payRate = parseFloat(exchange_rate_snapshot ?? "1") || 1;     // pay ccy -> INR
-    const baseAmt = parseFloat((amt * payRate).toFixed(2));             // INR anchor
+      // Validate payment amount
+      await validatePaymentAmount(parseFloat(payment_amount ?? "0"));
 
-    if (ref_type === "Purchase Receipt") {
-      /* Update vendor_invoice_ledger + insert vendor_payments */
-      /* Note: pending_amount is a generated column (vendor_invoice_amount - paid_amount) — do NOT update it */
-      const id = parseInt(source_id);
-      const { rows } = await client.query(`SELECT * FROM vendor_invoice_ledger WHERE id = $1 FOR UPDATE`, [id]);
-      if (!rows.length) throw new Error("Bill not found");
-      const bill = rows[0];
-      if (bill.status === "Cancelled") throw new Error("Cannot record payment on a Cancelled bill");
-      if (bill.status === "Paid") throw new Error("Cannot record payment on a Paid bill");
-      const billCcyCode = bill.currency_code || "INR";
-      const billRate = parseFloat(bill.exchange_rate_snapshot ?? "1") || 1;   // bill ccy -> INR
-      const amtInBillCcy = baseAmt / billRate;                                // bill currency
-      const prevPaid = parseFloat(bill.paid_amount ?? "0");                   // bill currency
-      const totalBill = parseFloat(bill.vendor_invoice_amount);              // bill currency
-      const pendingInBillCcy = totalBill - prevPaid;
-      if (amtInBillCcy > pendingInBillCcy + 0.01) {
-        throw new Error(
-          `Payment (${amtInBillCcy.toFixed(2)} ${billCcyCode}) exceeds pending balance (${pendingInBillCcy.toFixed(2)} ${billCcyCode})`
-        );
+      // Calculate payment amounts
+      const paymentData = calculatePaymentAmounts(
+        payment_amount,
+        exchange_rate_snapshot,
+        currency_code
+      );
+
+      // Add additional fields to paymentData
+      const fullPaymentData = {
+        ...paymentData,
+        paymentDate: payment_date || new Date().toISOString().slice(0, 10),
+        paymentMode: payment_type || "Bank Transfer",
+        transactionReference: transaction_reference || "",
+        remarks: remarks || "",
+      };
+
+      const username = req.user?.email ?? "";
+
+      // Route to appropriate handler based on ref_type
+      switch (ref_type) {
+        case "Purchase Receipt":
+          await handlePurchaseReceiptPayment(
+            client,
+            source_id,
+            fullPaymentData,
+            tds_master_id,
+            username
+          );
+          break;
+
+        case "Costing Outsource":
+          await handleCostingOutsourcePayment(
+            client,
+            source_id,
+            vendor_id,
+            vendor_name,
+            fullPaymentData,
+            tds_master_id,
+            username
+          );
+          break;
+
+        case "Other Expense":
+          await handleOtherExpensePayment(
+            client,
+            source_id,
+            vendor_id,
+            vendor_name,
+            fullPaymentData,
+            tds_master_id,
+            username
+          );
+          break;
+
+        default:
+          // Artisan / Shipping / other — just log in vendor_payments
+          await handleGenericPayment(
+            client,
+            vendor_id,
+            vendor_name,
+            fullPaymentData,
+            username
+          );
+          break;
       }
-      await client.query(
-        `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,vendor_invoice_ledger_id,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11,$12)`,
-        [bill.vendor_id, bill.vendor_name, pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", id, req.user?.email ?? ""]
-      );
-      await recomputeVendorBillBalances(client, id);
 
-    } else if (ref_type === "Costing Outsource") {
-      /* Insert into costing_payments — lock the job row first to serialize concurrent payments */
-      const id = parseInt(source_id);
-      const { rows: jobRows } = await client.query(
-        `SELECT * FROM outsource_jobs WHERE id = $1 AND is_deleted = false FOR UPDATE`,
-        [id]
-      );
-      if (!jobRows.length) throw new Error("Outsource job not found");
-      await client.query(
-        `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,payment_type,payment_mode,payment_amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_status,transaction_id,payment_date,remarks,created_by)
-         VALUES ($1,$2,'outsource_job',$3,'outsource',$4,$5,$6,$7,$8,'Completed',$9,$10,$11,$12)`,
-        [vendor_id || null, vendor_name || "", id, pMode, amt, payCcy, payRate, baseAmt, transaction_reference || "", pDate, remarks || "", req.user?.email ?? ""]
-      );
-
-    } else if (ref_type === "Other Expense") {
-      /* Update other_expenses — lock the row first to serialize concurrent payments */
-      const id = parseInt(source_id);
-      const { rows } = await client.query(`SELECT * FROM other_expenses WHERE expense_id = $1 FOR UPDATE`, [id]);
-      if (!rows.length) throw new Error("Expense not found");
-      const exp = rows[0];
-      const newPaid   = parseFloat(exp.paid_amount ?? "0") + amt;
-      const newStatus = newPaid >= parseFloat(exp.amount) ? "Paid" : "Partially Paid";
-      await client.query(
-        `UPDATE other_expenses SET paid_amount=$1, payment_status=$2, updated_at=NOW() WHERE expense_id=$3`,
-        [newPaid, newStatus, id]
-      );
-      await client.query(
-        `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
-        [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
-      );
-
-    } else {
-      /* Artisan / Shipping / other — just log in vendor_payments */
-      await client.query(
-        `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
-        [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
-      );
+      await client.query("COMMIT");
+      res.json({ message: "Vendor payment recorded successfully" });
+      
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: err.message });
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-    res.json({ message: "Vendor payment recorded successfully" });
-  } catch (err: any) {
-    await client.query("ROLLBACK");
-    res.status(400).json({ error: err.message });
-  } finally { client.release(); }
-});
-
+  }
+);
 export default router;
