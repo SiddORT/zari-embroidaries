@@ -232,6 +232,20 @@
       "when": 1788774651164,
       "tag": "0036_cynical_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788854462213,
+      "tag": "0037_wet_wendigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788867806526,
+      "tag": "0038_shallow_dormammu",
+      "breakpoints": true
     }
   ]
 }

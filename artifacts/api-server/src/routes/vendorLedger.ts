@@ -429,6 +429,7 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
         WHERE vendor_id = $1 AND is_deleted = false
         GROUP BY reference_type, reference_id
       ),
+
       /* ── PR payments grouped by receipt id ────────────────────── */
       pr_payment_sums AS (
         SELECT
@@ -438,31 +439,45 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
         WHERE is_deleted = false
         GROUP BY pr_id
       ),
+
+      /* ── NEW: vendor payments for challans grouped by reference_id ── */
+      challan_payment_sums AS (
+        SELECT
+          reference_id AS vendor_challan_id,
+          SUM(base_currency_amount) AS paid_amount
+        FROM vendor_payments
+        WHERE vendor_id = $1
+          AND reference_type = 'vendor_challan'
+          AND is_deleted = false
+        GROUP BY reference_id
+      ),
+
       ledger_base AS (
         SELECT
-          entry_type,
-          entry_id,
-          entry_date,
-          description,
-          order_type,
-          order_code,
-          total_amount,
-          credit,
+          entry_type, entry_id, entry_date, description,
+          order_type, order_code, total_amount, credit,
           CASE
             WHEN entry_type IN ('outsource', 'custom_charge', 'artwork_swatch', 'artwork_style') THEN
               CASE entry_type
-                WHEN 'outsource' THEN 'outsource_job'
-                WHEN 'custom_charge' THEN 'custom_charge'
-                WHEN 'artwork_swatch' THEN 'artwork_swatch'
-                WHEN 'artwork_style' THEN 'artwork_style'
+                WHEN 'outsource'       THEN 'outsource_job'
+                WHEN 'custom_charge'   THEN 'custom_charge'
+                WHEN 'artwork_swatch'  THEN 'artwork_swatch'
+                WHEN 'artwork_style'   THEN 'artwork_style'
               END
+            WHEN entry_type = 'vendor_challan' THEN 'vendor_challan'
             ELSE NULL
           END AS payment_ref_type,
           CASE
             WHEN entry_type IN ('outsource', 'custom_charge', 'artwork_swatch', 'artwork_style') THEN entry_id
+            WHEN entry_type = 'vendor_challan' THEN entry_id
             ELSE NULL
           END AS payment_ref_id,
-          entry_type IN ('outsource', 'custom_charge', 'ledger_charge', 'artwork_swatch', 'artwork_style', 'toile', 'pattern_outhouse', 'vendor_invoice', 'purchase_receipt') AS is_charge
+          entry_type IN (
+            'outsource', 'custom_charge', 'ledger_charge',
+            'artwork_swatch', 'artwork_style', 'toile',
+            'pattern_outhouse', 'vendor_invoice',
+            'purchase_receipt', 'vendor_challan'
+          ) AS is_charge
         FROM (
           /* ── Costing: outsource jobs (GST inclusive) ──────────────── */
           SELECT
@@ -634,8 +649,8 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
             COALESCE(so.order_code, sw.order_code, po.po_number, pr.pr_number) AS order_code,
             COALESCE(
               pr.vendor_invoice_amount,
-              items.total_with_gst,                                    
-              (pr.received_qty::numeric * pr.actual_price::numeric),   
+              items.total_with_gst,
+              (pr.received_qty::numeric * pr.actual_price::numeric),
               0
             ) AS total_amount,
             0::numeric                     AS credit
@@ -724,8 +739,56 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
           LEFT JOIN style_orders  so ON cp.style_order_id  = so.id AND so.is_deleted = false
           LEFT JOIN swatch_orders sw ON cp.swatch_order_id = sw.id AND sw.is_deleted = false
           WHERE cp.vendor_id = $1 AND cp.is_deleted = false
+
+          UNION ALL
+
+          SELECT
+            'vendor_challan'                    AS entry_type,
+            vc.id::text                         AS entry_id,
+            vc.challan_date::timestamptz        AS entry_date,
+            CONCAT('Vendor Challan: ', vc.challan_number,
+              COALESCE(' (' || vc.description || ')', '')) AS description,
+            'procurement'                       AS order_type,
+            vc.challan_number                   AS order_code,
+            COALESCE(
+              (SELECT SUM(
+                (i.quantity * i.rate) * (1 + COALESCE(i.gst_percentage, 0) / 100)
+              )
+              FROM vendor_challan_items i
+              WHERE i.vendor_challan_id = vc.id
+                AND i.is_deleted = false
+              ), 0
+            ) AS total_amount,
+            0::numeric                          AS credit
+          FROM vendor_challans vc
+          WHERE vc.vendor_id = $1
+            AND vc.is_deleted = false
+            AND vc.status IN ('Verified', 'Billed', 'Paid')
+
+          UNION ALL
+
+          /* ── Payments made against challans (credits) ────────── */
+          SELECT
+            'challan_payment'                  AS entry_type,
+            vp.id::text                        AS entry_id,
+            vp.payment_date                    AS entry_date,
+            CONCAT('Challan Payment — ', vp.payment_mode,
+              COALESCE(' (' || vp.reference_no || ')', ''),
+              ' for challan: ', vc.challan_number) AS description,
+            'procurement'                      AS order_type,
+            vc.challan_number                  AS order_code,
+            0::numeric                         AS total_amount,
+            vp.base_currency_amount            AS credit
+          FROM vendor_payments vp
+          JOIN vendor_challans vc ON vp.reference_id = vc.id
+          WHERE vp.vendor_id = $1
+            AND vp.reference_type = 'vendor_challan'
+            AND vp.is_deleted = false
+            AND vc.is_deleted = false
+
         ) ledger_union
       )
+
       SELECT
         entry_type,
         entry_id,
@@ -737,10 +800,12 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
         CASE
           WHEN is_charge THEN
             total_amount
-            - COALESCE(paid_amount, 0)
+            - COALESCE(payment_sums.paid_amount, 0)   
             - CASE
                 WHEN entry_type = 'purchase_receipt'
                 THEN COALESCE(pr_pay.pr_paid_amount, 0)
+                WHEN entry_type = 'vendor_challan'
+                THEN COALESCE(challan_pay.paid_amount, 0)
                 ELSE 0
               END
           ELSE 0
@@ -753,6 +818,9 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
       LEFT JOIN pr_payment_sums pr_pay
         ON entry_type = 'purchase_receipt'
         AND entry_id::integer = pr_pay.pr_id
+      LEFT JOIN challan_payment_sums challan_pay
+        ON entry_type = 'vendor_challan'
+        AND entry_id::integer = challan_pay.vendor_challan_id
       WHERE 1=1 ${dateFilter}${orderTypeFilter}
       ORDER BY entry_date ASC
     `;
@@ -1618,247 +1686,133 @@ async function handleLedgerChargePayment(
     [String(newPaid), newStatus, ledger.order_id]
   );
 
-  // If TDS is applicable, handle TDS deduction
-  if (tdsMasterId) {
-    // Get TDS master details
-    const tdsMasterRes = await client.query(
-      `SELECT rate_percent FROM tds_master 
-       WHERE id = $1 AND status = true AND is_deleted = false`,
-      [tdsMasterId]
-    );
-    
-    if (tdsMasterRes.rows.length === 0) {
-      throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
-    }
-    
-    const tdsRate = parseFloat(tdsMasterRes.rows[0].rate_percent);
-    
-    // Calculate TDS on base amount (not on GST)
-    const gstAmount = (baseAmount * gstPct) / 100;
-    const tdsAmount = (baseAmount * tdsRate) / 100;
-    const paidAmount = allocAmt - tdsAmount; // Net amount after TDS deduction
-    
-    // Insert payment record (into vendor_payments) first to get the ID
-    const notes = data.notes ? data.notes + ` (against ledger charge ${entryId})` : `Ledger charge payment ${entryId}`;
-    const paymentRes = await client.query(
-      `INSERT INTO vendor_payments
-        (vendor_id, vendor_name, payment_date, amount,
-          currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_mode, reference_no, notes, order_type,
-          style_order_id, style_order_code, swatch_order_id, swatch_order_code,
-          created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7,
-              $8, $9, $10, $11,
-              $12, $13, $14, $15, $16)
-      RETURNING id`,
-      [
-        vendorId, data.vendorName,
-        data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        allocAmt, 'INR', '1', String(allocAmt),
-        data.paymentMode, data.referenceNo || null, notes,
-        'ledger_charge',
-        null, null, null, null,
-        username
-      ]
-    );
-    
-    const paymentId = paymentRes.rows[0].id;
-    
-    // Insert payment_tds record
-    await client.query(
-      `INSERT INTO payment_tds
-         (tds_master_id, payment_source_type, payment_source_id, payment_date,
-          vendor_id, base_document_type, base_document_id,
-          gross_amount, gst_amount, gst_percentage,
-          payment_currency_code, payment_exchange_rate, base_amount,
-          paid_amount, tds_rate, tds_amount, status, created_by)
-       VALUES ($1, 'vendor_payments', $2, $3, $4,
-               'ledger_charge', $5,
-               $6, $7, $8,
-               'INR', 1, $9,
-               $10, $11, $12, 'DEDUCTED', $13)`,
-      [
-        tdsMasterId,
-        paymentId, // payment_source_id from vendor_payments
-        data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        vendorId,
-        entryId,
-        String(totalAmount), // gross_amount = base + gst
-        String(gstAmount), // gst_amount
-        String(gstPct), // gst_percentage
-        String(baseAmount), // base_amount (without GST)
-        String(paidAmount), // paid_amount = gross - TDS
-        String(tdsRate),
-        String(tdsAmount),
-        username
-      ]
-    );
-    
-  } else {
-    // No TDS - simple payment insertion
-    const notes = data.notes ? data.notes + ` (against ledger charge ${entryId})` : `Ledger charge payment ${entryId}`;
-    await client.query(
-      `INSERT INTO vendor_payments
-        (vendor_id, vendor_name, payment_date, amount,
-          currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_mode, reference_no, notes, order_type,
-          style_order_id, style_order_code, swatch_order_id, swatch_order_code,
-          created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7,
-              $8, $9, $10, $11,
-              $12, $13, $14, $15, $16)`,
-      [
-        vendorId, data.vendorName,
-        data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        allocAmt, 'INR', '1', String(allocAmt),
-        data.paymentMode, data.referenceNo || null, notes,
-        'ledger_charge',
-        null, null, null, null,
-        username
-      ]
-    );
-  }
-}
+          // Insert payment record (into vendor_payments)
+          const notes = data.notes ? data.notes + ` (against ledger charge ${entryId})` : `Ledger charge payment ${entryId}`;
+          await client.query(
+              `INSERT INTO vendor_payments
+                (vendor_id, vendor_name, payment_date, amount,
+                  currency_code, exchange_rate_snapshot, base_currency_amount,
+                  payment_mode, reference_no, notes, order_type,
+                  style_order_id, style_order_code, swatch_order_id, swatch_order_code,
+                  created_by)
+              VALUES ($1, $2, $3, $4, $5, $6, $7,
+                      $8, $9, $10, $11,
+                      $12, $13, $14, $15, $16)`,
+              [
+                 vendorId, data.vendorName,
+                  data.paymentDate ? new Date(data.paymentDate) : new Date(),
+                 allocAmt, 'INR', '1', String(allocAmt),
+                  data.paymentMode, data.referenceNo || null, notes,
+                  'ledger_charge',   // order_type
+                  null, // style_order_id
+                  null, // style_order_code
+                  null, // swatch_order_id
+                  null, // swatch_order_code
+                  user?.username ?? "system"
+              ]
+          );
+        } else if (entryType === 'vendor_challan') {
+          // 1. Fetch the vendor challan details
+          const challanRes = await client.query(
+            `SELECT id, challan_number, vendor_id, vendor_name
+            FROM vendor_challans
+            WHERE id = $1 AND vendor_id = $2 AND is_deleted = false`,
+            [entryId, vendorId]
+          );
+          if (challanRes.rows.length === 0) {
+            throw new Error(`Vendor challan ${entryId} not found or does not belong to vendor`);
+          }
+          const challan = challanRes.rows[0];
 
-async function handleGenericPayment(
-  client: any,
-  entryType: string,
-  entryId: number,
-  vendorId: number,
-  allocAmt: number,
-  data: any,
-  username: string
-): Promise<void> {
-  const notes = data.notes ? data.notes + ` (against ${entryType} ${entryId})` : `Payment for ${entryType} ${entryId}`;
-  
-  await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
-        currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes, order_type,
-        style_order_id, style_order_code, swatch_order_id, swatch_order_code,
-        created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7,
-             $8, $9, $10, $11,
-             $12, $13, $14, $15, $16)`,
-    [
-      vendorId,
-      data.vendorName,
-      data.paymentDate ? new Date(data.paymentDate) : new Date(),
-      allocAmt,
-      'INR',
-      '1',
-      String(allocAmt),
-      data.paymentMode,
-      data.referenceNo || null,
-      notes,
-      data.orderType || 'general',
-      data.styleOrderId || null,
-      data.styleOrderCode || null,
-      data.swatchOrderId || null,
-      data.swatchOrderCode || null,
-      username
-    ]
-  );
-}
+          // 2. Compute total amount (base + GST) from vendor_challan_items
+          const itemsRes = await client.query(
+            `SELECT SUM((quantity * rate) * (1 + COALESCE(gst_percentage, 0) / 100)) AS total_with_gst
+            FROM vendor_challan_items
+            WHERE vendor_challan_id = $1 AND is_deleted = false`,
+            [entryId]
+          );
+          const totalAmount = parseFloat(itemsRes.rows[0]?.total_with_gst || '0');
+          if (totalAmount === 0) {
+            throw new Error(`Vendor challan ${entryId} has no items or total amount is zero`);
+          }
 
-// ============================================================================
-// 4. MAIN ROUTE HANDLER
-// ============================================================================
+          // 3. Compute current paid amount from vendor_payments for this challan
+          const paidRes = await client.query(
+            `SELECT COALESCE(SUM(base_currency_amount), 0) AS paid_amount
+            FROM vendor_payments
+            WHERE vendor_id = $1
+              AND reference_type = 'vendor_challan'
+              AND reference_id = $2
+              AND is_deleted = false`,
+            [vendorId, entryId]
+          );
+          const currentPaid = parseFloat(paidRes.rows[0].paid_amount || '0');
+          const newPaid = currentPaid + allocAmt;
 
-router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
-  try {
-    const vendorId = parseInt(String(req.params.vendorId));
-    const user = (req as { user?: { username?: string } }).user;
-    const username = user?.username ?? "system";
-    
-    // Parse and validate request
-    const parsed = insertVendorPaymentSchema.safeParse({ ...req.body, vendorId });
-    if (!parsed.success) {
-      return res.status(400).json({ error: "Invalid data", issues: parsed.error.issues });
-    }
+          // 4. Prevent overpayment (allow a small tolerance of 0.01)
+          if (newPaid > totalAmount + 0.01) {
+            throw new Error(
+              `Payment amount exceeds remaining balance for challan ${challan.challan_number}. ` +
+              `Total: ${totalAmount}, Already paid: ${currentPaid}, Attempting to pay: ${allocAmt}`
+            );
+          }
 
-    const data = parsed.data;
-    const amt = parseFloat(String(data.amount));
-    
-    // Validate payment
-    validatePaymentAmount(amt);
-    validatePaymentDate(data.paymentDate);
-    
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      // Validate outstanding balance
-      await validateOutstandingBalance(client, vendorId, amt);
+          // 5. Insert payment record into vendor_payments with reference columns
+          const notes = data.notes
+            ? data.notes + ` (against challan ${challan.challan_number})`
+            : `Challan payment ${challan.challan_number}`;
 
-      const allocations = (req.body as any).allocations;
+          await client.query(
+            `INSERT INTO vendor_payments
+              (vendor_id, vendor_name, payment_date, amount,
+              currency_code, exchange_rate_snapshot, base_currency_amount,
+              payment_mode, reference_no, notes,
+              reference_type, reference_id,
+              created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7,
+                    $8, $9, $10,
+                    $11, $12,
+                    $13)`,
+            [
+             vendorId, challan.vendor_name, data.paymentDate ? new Date(data.paymentDate) : new Date(), allocAmt, 'INR', '1',
+             String(allocAmt), data.paymentMode, data.referenceNo || null, notes,
+              'vendor_challan',   // reference_type
+              entryId,            // reference_id (the challan ID)
+              user?.username ?? "system"
+            ]
+          );
+        } else {
+          const notes = data.notes ? data.notes + ` (against ${entryType} ${entryId})` : `Payment for ${entryType} ${entryId}`;
 
-      // Fallback: no allocations → single vendor_payments insert
-      if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
-        const rows = await db
-          .insert(vendorPaymentsTable)
-          .values({
-            vendorId: data.vendorId,
-            vendorName: data.vendorName,
-            paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
-            amount: data.amount,
-            currencyCode: "INR",
-            exchangeRateSnapshot: "1",
-            baseCurrencyAmount: String(amt),
-            paymentMode: data.paymentMode,
-            referenceNo: data.referenceNo,
-            notes: data.notes,
-            orderType: data.orderType,
-            styleOrderId: data.styleOrderId,
-            styleOrderCode: data.styleOrderCode,
-            swatchOrderId: data.swatchOrderId,
-            swatchOrderCode: data.swatchOrderCode,
-            createdBy: username,
-          })
-          .returning();
-        
-        await client.query('COMMIT');
-        return res.status(201).json(rows[0]);
-      }
-
-      // Validate allocations sum
-      validateAllocationsSum(allocations, amt);
-
-      // Process each allocation
-      for (const alloc of allocations) {
-        const entryType = alloc.entryType;
-        const entryId = alloc.entryId;
-        const allocAmt = parseFloat(alloc.amount);
-        const debit = parseFloat(alloc.debit || "0");
-        
-        if (allocAmt <= 0) continue;
-
-        // Determine payment type
-        const paymentType = (allocAmt >= debit - 0.01) ? 'Full' : 'Partial';
-
-        // Route to appropriate handler
-        switch (entryType) {
-          case 'outsource':
-              await handleOutsourcePayment(client, entryId, vendorId, allocAmt, paymentType, data, alloc, username);
-            break;
-            
-          case 'custom_charge':
-              await handleCustomChargePayment(client, entryId, vendorId, allocAmt, paymentType, data, alloc, username);
-            break;
-            
-          case 'purchase_receipt':
-            await handlePurchaseReceiptPayment(client, entryId, vendorId, allocAmt, data, alloc, username);
-            break;
-            
-          case 'ledger_charge':
-            await handleLedgerChargePayment(client, entryId, vendorId, allocAmt, data, alloc, username); 
-            break;
-            
-          default:
-            await handleGenericPayment(client, entryType, entryId, vendorId, allocAmt, data, username);
-            break;
+          await client.query(
+            `INSERT INTO vendor_payments
+               (vendor_id, vendor_name, payment_date, amount,
+                currency_code, exchange_rate_snapshot, base_currency_amount,
+                payment_mode, reference_no, notes, order_type,
+                style_order_id, style_order_code, swatch_order_id, swatch_order_code,
+                created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7,
+                     $8, $9, $10, $11,
+                     $12, $13, $14, $15, $16)`,
+            [
+              vendorId,
+              data.vendorName,
+              data.paymentDate ? new Date(data.paymentDate) : new Date(),
+              allocAmt,
+              'INR',
+              '1',
+              String(allocAmt),
+              data.paymentMode,
+              data.referenceNo || null,
+              notes,
+              data.orderType || 'general',
+              data.styleOrderId || null,
+              data.styleOrderCode || null,
+              data.swatchOrderId || null,
+              data.swatchOrderCode || null,
+              user?.username ?? "system"
+            ]
+          );
         }
       }
       await client.query('COMMIT');

@@ -29,3 +29,4 @@ export * from "./entityTags";
 export * from "./tdsMaster";
 export * from "./paymentTds";
 export * from "./paymentTdsItems";
+export * from "./vendorChallanItems";

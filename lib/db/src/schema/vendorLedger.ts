@@ -5,6 +5,8 @@ export const vendorPaymentsTable = pgTable("vendor_payments", {
   id: serial("id").primaryKey(),
   vendorId: integer("vendor_id").notNull(),
   vendorName: text("vendor_name").notNull(),
+  referenceType: text("reference_type"), // 'outsource_job' | 'custom_charge' | 'artwork_swatch' | 'artwork_style'
+  referenceId: integer("reference_id"),   // id in the source table
   paymentDate: timestamp("payment_date", { withTimezone: true }).notNull().defaultNow(),
   amount: text("amount").notNull(),
   currencyCode: text("currency_code").notNull().default("INR"),
