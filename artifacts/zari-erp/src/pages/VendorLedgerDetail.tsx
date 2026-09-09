@@ -222,44 +222,44 @@ export default function VendorLedgerDetail() {
     }
   }
 
-  function openPayFromSelection() {
-    setPayFromSelection(true);
-    // Derive order type — only "style" | "swatch" | "general" are valid on the backend enum
-    const types = Array.from(new Set(selectedEntries.map(e => e.order_type).filter(Boolean)));
-    const only = types.length === 1 ? types[0] : null;
-    const derivedType: "style" | "swatch" | "general" =
-      only === "style" || only === "swatch" ? only : "general";
-    const styleCode  = selectedEntries.find(e => e.order_type === "style"  && e.order_code)?.order_code ?? "";
-    const swatchCode = selectedEntries.find(e => e.order_type === "swatch" && e.order_code)?.order_code ?? "";
-    setPayForm(f => ({
-      ...f,
-      amount: selectedTotal.toFixed(2),
-      orderType: derivedType,
-      styleOrderCode:  derivedType === "style"  ? styleCode  : "",
-      swatchOrderCode: derivedType === "swatch" ? swatchCode : "",
-      notes: `Payment against ${selectedEntries.length} item(s): ` +
-        selectedEntries.map(e => e.description).join(", "),
-    }));
-    setPayModal(true);
-  }
+  // function openPayFromSelection() {
+  //   setPayFromSelection(true);
+  //   // Derive order type — only "style" | "swatch" | "general" are valid on the backend enum
+  //   const types = Array.from(new Set(selectedEntries.map(e => e.order_type).filter(Boolean)));
+  //   const only = types.length === 1 ? types[0] : null;
+  //   const derivedType: "style" | "swatch" | "general" =
+  //     only === "style" || only === "swatch" ? only : "general";
+  //   const styleCode  = selectedEntries.find(e => e.order_type === "style"  && e.order_code)?.order_code ?? "";
+  //   const swatchCode = selectedEntries.find(e => e.order_type === "swatch" && e.order_code)?.order_code ?? "";
+  //   setPayForm(f => ({
+  //     ...f,
+  //     amount: selectedTotal.toFixed(2),
+  //     orderType: derivedType,
+  //     styleOrderCode:  derivedType === "style"  ? styleCode  : "",
+  //     swatchOrderCode: derivedType === "swatch" ? swatchCode : "",
+  //     notes: `Payment against ${selectedEntries.length} item(s): ` +
+  //       selectedEntries.map(e => e.description).join(", "),
+  //   }));
+  //   setPayModal(true);
+  // }
 
   // New Page Redirection Implementation for Payment from Selection
-  // function openPayFromSelection() {
-  //   if (selectedEntries.length === 0) return;
-  //   if (!vendor) {
-  //     toast({ title: "Vendor information not available", variant: "destructive" });
-  //     return;
-  //   }
-  //   sessionStorage.setItem(
-  //     "paymentSelection",
-  //     JSON.stringify({
-  //       entries: selectedEntries,
-  //       vendor: vendor,
-  //       timestamp: Date.now(),
-  //     })
-  //   );
-  //   setLocation(`/accounts/ledgers/${vendor.id}/payment`);
-  // }
+  function openPayFromSelection() {
+    if (selectedEntries.length === 0) return;
+    if (!vendor) {
+      toast({ title: "Vendor information not available", variant: "destructive" });
+      return;
+    }
+    sessionStorage.setItem(
+      "paymentSelection",
+      JSON.stringify({
+        entries: selectedEntries,
+        vendor: vendor,
+        timestamp: Date.now(),
+      })
+    );
+    setLocation(`/accounts/ledgers/${vendor.id}/payment`);
+  }
 
   function openPayGeneral() {
     setPayFromSelection(false);

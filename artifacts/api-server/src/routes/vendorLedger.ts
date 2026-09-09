@@ -849,18 +849,34 @@ function validateAllocationsSum(allocations: any[], totalAmt: number): void {
   }
 }
 
-async function getTDSMaster(client: any, tdsMasterId: number): Promise<{ id: number; rate_percent: number }> {
+async function getTDSMaster(
+  client: any,
+  tdsMasterId: number
+): Promise<{
+  id: number;
+  rate_percent: number;
+  threshold_amount: number;
+}> {
   const result = await client.query(
-    `SELECT id, rate_percent::numeric as rate_percent FROM tds_master 
-     WHERE id = $1 AND status = true AND is_deleted = false`,
+    `SELECT
+       id,
+       rate_percent::numeric AS rate_percent,
+       threshold_amount::numeric AS threshold_amount
+     FROM tds_master
+     WHERE id = $1
+       AND status = true
+       AND is_deleted = false`,
     [tdsMasterId]
   );
   if (result.rows.length === 0) {
-    throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
+    throw new Error(
+      `Invalid or inactive TDS master (ID: ${tdsMasterId})`
+    );
   }
   return {
     id: result.rows[0].id,
-    rate_percent: parseFloat(result.rows[0].rate_percent)
+    rate_percent: parseFloat(result.rows[0].rate_percent),
+    threshold_amount: parseFloat(result.rows[0].threshold_amount || "0"),
   };
 }
 
@@ -1453,10 +1469,10 @@ async function handleOutsourcePayment(
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
   // Calculate base amount and GST
-  const totalCost = parseFloat(total_cost);
+  const totalAmount = allocAmt;
   const gstPct = parseFloat(gst_percentage || '0');
-  const gstAmount = (totalCost * gstPct) / 100;
-  const baseAmount = totalCost; // total_cost is the base amount excluding GST
+  const gstAmount = (totalAmount * gstPct) / 100;
+  const baseAmount = totalAmount-gstAmount; 
 
   // If TDS is applicable, handle TDS deduction
   if (tdsMasterId) {
@@ -1510,7 +1526,7 @@ async function handleOutsourcePayment(
       vendorId,
       'outsource_job',
       entryId,
-      totalCost + gstAmount, // gross_amount
+      totalAmount,
       gstAmount,
       gstPct,
       baseAmount,
@@ -1578,10 +1594,10 @@ async function handleCustomChargePayment(
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
   // Calculate base amount and GST
-  const totalAmount = parseFloat(total_amount);
+  const totalAmount = allocAmt;
   const gstPct = parseFloat(gst_percentage || '0');
   const gstAmount = (totalAmount * gstPct) / 100;
-  const baseAmount = totalAmount; // total_amount is the base amount excluding GST
+  const baseAmount = totalAmount - gstAmount;
 
   // If TDS is applicable, handle TDS deduction
   if (tdsMasterId) {
@@ -1636,7 +1652,7 @@ async function handleCustomChargePayment(
       vendorId,
       'custom_charge',
       entryId,
-      totalAmount + gstAmount, // gross_amount
+      allocAmt, 
       gstAmount,
       gstPct,
       baseAmount,
@@ -1779,122 +1795,184 @@ async function handleLedgerChargePayment(
   username: string
 ): Promise<void> {
   const ledgerRes = await client.query(
-    `SELECT id, amount, gst_percentage, order_type, order_id, paid_amount
-    FROM vendor_ledger_charges
-    WHERE id = $1 AND vendor_id = $2 AND is_deleted = false`,
+    `SELECT
+       id,
+       amount,
+       gst_percentage,
+       order_type,
+       order_id
+     FROM vendor_ledger_charges
+     WHERE id = $1
+       AND vendor_id = $2
+       AND is_deleted = false`,
     [entryId, vendorId]
   );
+
   if (ledgerRes.rows.length === 0) {
-    throw new Error(`Ledger charge ${entryId} not found or does not belong to vendor`);
+    throw new Error(
+      `Ledger charge ${entryId} not found or does not belong to vendor`
+    );
   }
-  
+
   const ledger = ledgerRes.rows[0];
-  const baseAmount = parseFloat(ledger.amount);
-  const gstPct = parseFloat(ledger.gst_percentage || '0');
-  const totalAmount = baseAmount + (baseAmount * gstPct / 100);
-  const currentPaid = parseFloat(ledger.paid_amount || '0');
-  const newPaid = currentPaid + allocAmt;
 
-  // Get TDS master ID if provided
-  const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
+  const baseAmount = parseFloat(ledger.amount || "0");
+  const gstPct = parseFloat(ledger.gst_percentage || "0");
 
-  let newStatus = 'Unpaid';
-  if (newPaid >= totalAmount - 0.01) {
-    newStatus = 'Paid';
-  } else if (newPaid > 0) {
-    newStatus = 'Partially Paid';
-  }
+  const gstAmount = (baseAmount * gstPct) / 100;
+  const totalAmount = baseAmount + gstAmount;
 
-  // Update ledger charge
-  await client.query(
-    `UPDATE other_expenses
-    SET paid_amount = $1, payment_status = $2, updated_at = NOW()
-    WHERE expense_id = $3`,
-    [String(newPaid), newStatus, ledger.order_id]
+  const paymentSumRes = await client.query(
+    `SELECT COALESCE(SUM(amount::numeric), 0) AS current_paid
+    FROM vendor_payments
+    WHERE reference_type = 'ledger_charge'
+      AND reference_id = $1
+      AND vendor_id = $2`,
+    [entryId, vendorId]
   );
 
-  // If TDS is applicable, handle TDS deduction
-  if (tdsMasterId) {
-    // Get TDS master details
-    const tdsMaster = await getTDSMaster(client, tdsMasterId);
-    const tdsRate = parseFloat(String(tdsMaster.rate_percent));
-    
-    // Calculate TDS on base amount (not on GST)
-    const gstAmount = (baseAmount * gstPct) / 100;
-    const tdsAmount = (baseAmount * tdsRate) / 100;
-    const paidAmount = allocAmt - tdsAmount; // Net amount after TDS deduction
-    
-    // Insert payment record (into vendor_payments) first to get the ID
-    const notes = data.notes ? data.notes + ` (against ledger charge ${entryId})` : `Ledger charge payment ${entryId}`;
-    const paymentRes = await client.query(
-      `INSERT INTO vendor_payments
-        (vendor_id, vendor_name, payment_date, amount,
-          currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_mode, reference_no, notes, order_type,
-          style_order_id, style_order_code, swatch_order_id, swatch_order_code,
-          created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7,
-              $8, $9, $10, $11,
-              $12, $13, $14, $15, $16)
-      RETURNING id`,
-      [
-        vendorId, data.vendorName,
-        data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        allocAmt, 'INR', '1', String(allocAmt),
-        data.paymentMode, data.referenceNo || null, notes,
-        'ledger_charge',
-        null, null, null, null,
-        username
-      ]
-    );
-    
-    const paymentId = paymentRes.rows[0].id;
-    
-    // Insert payment_tds record using unified function
-    await insertPaymentTDSRecord(
-      client,
-      tdsMasterId,
-      'vendor_payments',
-      paymentId,
-      data.paymentDate,
-      vendorId,
-      'ledger_charge',
-      entryId,
-      totalAmount, // gross_amount
-      gstAmount,
-      gstPct,
-      baseAmount,
-      paidAmount,
-      tdsRate,
-      tdsAmount,
-      username
-    );
-    
-  } else {
-    // No TDS - simple payment insertion
-    const notes = data.notes ? data.notes + ` (against ledger charge ${entryId})` : `Ledger charge payment ${entryId}`;
-    await client.query(
-      `INSERT INTO vendor_payments
-        (vendor_id, vendor_name, payment_date, amount,
-          currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_mode, reference_no, notes, order_type,
-          style_order_id, style_order_code, swatch_order_id, swatch_order_code,
-          created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7,
-              $8, $9, $10, $11,
-              $12, $13, $14, $15, $16)`,
-      [
-        vendorId, data.vendorName,
-        data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        allocAmt, 'INR', '1', String(allocAmt),
-        data.paymentMode, data.referenceNo || null, notes,
-        'ledger_charge',
-        null, null, null, null,
-        username
-      ]
-    );
+
+  const currentPaid = parseFloat(
+    paymentSumRes.rows[0]?.current_paid || "0"
+  );
+
+  const newPaid = currentPaid + allocAmt;
+
+  let newStatus = "Unpaid";
+
+  if (newPaid >= totalAmount - 0.01) {
+    newStatus = "Paid";
+  } else if (newPaid > 0) {
+    newStatus = "Partially Paid";
   }
+
+  const tdsMasterId =
+    alloc.tdsMasterId ||
+    data.tdsMasterId ||
+    null;
+
+  const notes = data.notes
+    ? `${data.notes} (against ledger charge ${entryId})`
+    : `Ledger charge payment ${entryId}`;
+
+  const paymentRes = await client.query(
+    `INSERT INTO vendor_payments (
+       vendor_id,
+       vendor_name,
+       payment_date,
+       amount,
+       currency_code,
+       exchange_rate_snapshot,
+       base_currency_amount,
+       payment_mode,
+       reference_no,
+       notes,
+       order_type,
+       reference_type,
+       reference_id,
+       style_order_id,
+       style_order_code,
+       swatch_order_id,
+       swatch_order_code,
+       created_by
+     )
+     VALUES (
+       $1, $2, $3, $4, $5, $6, $7,
+       $8, $9, $10, $11, $12, $13,
+       $14, $15, $16, $17, $18
+     )
+     RETURNING id`,
+    [
+      vendorId,
+      data.vendorName,
+      data.paymentDate
+        ? new Date(data.paymentDate)
+        : new Date(),
+      allocAmt,
+      "INR",
+      "1",
+      String(allocAmt),
+      data.paymentMode,
+      data.referenceNo || null,
+      notes,
+      "ledger_charge",
+      "ledger_charge",
+      entryId,
+      null,
+      null,
+      null,
+      null,
+      username
+    ]
+  );
+
+  const paymentId = paymentRes.rows[0].id;
+
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(
+      client,
+      tdsMasterId
+    );
+
+    const tdsRate = tdsMaster.rate_percent;
+    const thresholdAmount = tdsMaster.threshold_amount;
+
+    const allocatedBaseAmount = Number(
+      (allocAmt / (1 + gstPct / 100)).toFixed(2)
+    );
+
+    const shouldApplyTDS =
+      allocatedBaseAmount >= thresholdAmount;
+
+    if (shouldApplyTDS) {
+      const tdsAmount = Number(
+        ((allocatedBaseAmount * tdsRate) / 100).toFixed(2)
+      );
+
+      const paidAmount = Number(
+        (allocAmt - tdsAmount).toFixed(2)
+      );
+
+      const allocatedGstAmount = Number(
+        (allocAmt - allocatedBaseAmount).toFixed(2)
+      );
+
+      await insertPaymentTDSRecord(
+        client,
+        tdsMasterId,
+        "vendor_payments",
+        paymentId,
+        data.paymentDate,
+        vendorId,
+        "ledger_charge",
+        entryId,
+        allocAmt,
+        allocatedGstAmount,
+        gstPct,
+        allocatedBaseAmount,
+        paidAmount,
+        tdsRate,
+        tdsAmount,
+        username
+      );
+    }
+  }
+
+  await client.query(
+    `UPDATE other_expenses
+     SET
+       paid_amount = $1,
+       payment_status = $2,
+       updated_at = NOW()
+     WHERE expense_id = $3`,
+    [
+      String(newPaid),
+      newStatus,
+      ledger.order_id
+    ]
+  );
 }
+
 
 async function handleVendorChallanPayment(
   client: any,
@@ -2224,21 +2302,70 @@ router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
     await client.query("BEGIN");
     const del = await client.query(
       `UPDATE vendor_payments
-          SET is_deleted = true, deleted_by = $2, deleted_at = NOW()
-        WHERE id = $1 AND is_deleted = false
-        RETURNING vendor_invoice_ledger_id`,
-      [id, (req.user as { email?: string } | undefined)?.email ?? "system"]
+          SET is_deleted = true,
+              deleted_by = $2,
+              deleted_at = NOW()
+        WHERE id = $1
+          AND is_deleted = false
+        RETURNING vendor_invoice_ledger_id, amount, reference_type, reference_id`,
+      [
+        id,
+        (req.user as { email?: string } | undefined)?.email ?? "system",
+      ]
     );
     if (!del.rows.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Not found" });
     }
-    // If the payment was applied to a vendor bill, recompute that bill's
-    // paid/pending/status from the remaining non-deleted linked payments.
-    const billId = del.rows[0].vendor_invoice_ledger_id as number | null;
+
+    const deletedPayment = del.rows[0];
+
+    const billId = deletedPayment.vendor_invoice_ledger_id as number | null;
+
     if (billId) {
       await recomputeVendorBillBalances(client, billId);
     }
+
+    if (
+      deletedPayment.reference_type === "ledger_charge" &&
+      deletedPayment.reference_id
+    ) {
+      const ledgerChargeRes = await client.query(
+        `SELECT order_type, order_id
+           FROM vendor_ledger_charges
+          WHERE id = $1`,
+        [deletedPayment.reference_id]
+      );
+
+      if (ledgerChargeRes.rows.length) {
+        const ledgerCharge = ledgerChargeRes.rows[0];
+
+        if (
+          ledgerCharge.order_type === "other_expenses" &&
+          ledgerCharge.order_id
+        ) {
+          await client.query(
+            `UPDATE other_expenses
+                SET paid_amount = GREATEST(
+                  0,
+                  COALESCE(paid_amount::numeric, 0) - COALESCE($1::numeric, 0)
+                ),
+                payment_status = CASE
+                  WHEN COALESCE(paid_amount::numeric, 0) - COALESCE($1::numeric, 0) <= 0
+                    THEN 'Unpaid'
+                  ELSE 'Partially Paid'
+                END,
+                updated_at = NOW()
+              WHERE expense_id = $2`,
+            [
+              deletedPayment.amount,
+              ledgerCharge.order_id,
+            ]
+          );
+        }
+      }
+    }
+
     await client.query("COMMIT");
     return res.json({ success: true });
   } catch (err) {
