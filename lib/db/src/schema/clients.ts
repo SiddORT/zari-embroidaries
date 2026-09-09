@@ -63,7 +63,8 @@ const clientAddressSchema = z.object({
   isDeliveryDefault: z.boolean().optional().default(false),
 });
 
-const NAME_PATTERN = /^[A-Za-z]+( [A-Za-z]+)*$/;
+// const NAME_PATTERN = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const NAME_PATTERN = /^[A-Za-z0-9'.,\-()&/]+( [A-Za-z0-9'.,\-()&/]+)*$/;
 
 export const insertClientSchema = z.object({
   brandName: z.string().min(1, "Brand Name is required").max(100).regex(NAME_PATTERN, "Client Name must contain only letters and spaces (max 100 characters)."),

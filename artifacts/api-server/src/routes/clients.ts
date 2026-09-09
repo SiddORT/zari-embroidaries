@@ -13,7 +13,8 @@ import type { Request } from "express";
 const router: IRouter = Router();
 type AuthRequest = Request & { user?: { userId: number; email: string; role: string } };
 
-const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+// const NAME_REGEX = /^[A-Za-z]+( [A-Za-z]+)*$/;
+const NAME_REGEX = /^[A-Za-z0-9'.,\-()&/]+( [A-Za-z0-9'.,\-()&/]+)*$/;
 const CONTACT_DIGITS_REGEX = /^[0-9]{10}$/;
 
 function buildWhere(search: string, status: string) {
