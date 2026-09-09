@@ -19,6 +19,7 @@ export const paymentTdsStatusEnum = pgEnum("payment_tds_status_enum", [
   "DEPOSITED",
   "FILED",
   "REVERSED",
+  "NOT_APPLICABLE",
 ]);
 
 export const paymentTds = pgTable(

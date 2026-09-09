@@ -754,6 +754,14 @@ export function useCreateStyleOutsourceJob() {
   });
 }
 
+export function useUpdateStyleOutsourceJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Record<string, unknown>) => customFetch<{ data: StyleOutsourceJobRecord }>( `/api/costing/style-outsource-jobs/${id}`, { method: "PUT", body: JSON.stringify(body), } ),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-outsource-jobs"] }); },
+  });
+}
+
 export function useDeleteStyleOutsourceJob() {
   const qc = useQueryClient();
   return useMutation({
@@ -780,6 +788,14 @@ export function useCreateStyleCustomCharge() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) => customFetch<{ data: StyleCustomChargeRecord }>("/api/costing/style-custom-charges", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-custom-charges"] }); },
+  });
+}
+
+export function useUpdateStyleCustomCharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Record<string, unknown>) => customFetch<{ data: StyleCustomChargeRecord }>( `/api/costing/style-custom-charges/${id}`, { method: "PUT", body: JSON.stringify(body), } ),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["style-custom-charges"] }); },
   });
 }
