@@ -1,0 +1,1 @@
+ALTER TYPE "public"."base_document_item_type_enum" ADD VALUE 'vendor_challan_item';

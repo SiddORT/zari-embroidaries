@@ -303,8 +303,7 @@ router.get("/unified-liabilities", requireAuth,
   checkPermission({ any: [ACCOUNTS_PURCHASES.VIEW] }),
   async (req, res) => {
   try {
-    const { from_date, to_date, vendor_id, ref_type, status, department,
-            search, ref_no, page = "1", limit = "50" } = req.query as Record<string, string>;
+    const { from_date, to_date, vendor_id, ref_type, status, department, search, ref_no, page = "1", limit = "50" } = req.query as Record<string, string>;
     const vid     = vendor_id ? parseInt(vendor_id) : null;
     const offset  = (parseInt(page) - 1) * parseInt(limit);
     const pLimit  = parseInt(limit);
@@ -335,15 +334,15 @@ router.get("/unified-liabilities", requireAuth,
 
     const { rows } = await pool.query(`
       WITH all_liabilities AS (
-        /* 1. PR Vendor Invoice Bills */
+        /* 1. Vendor Invoice Bills */
         SELECT
-          'Purchase Receipt'::text            AS ref_type,
+          'Vendor Invoice'::text              AS ref_type,
           vil.id::text                        AS source_id,
           COALESCE(vil.vendor_invoice_date, vil.created_at::date)::text AS date,
           COALESCE(vil.linked_po_number, vil.pr_number, '')  AS ref_number,
           COALESCE(vil.vendor_name, '—')      AS vendor_name,
           vil.vendor_id::text                 AS vendor_id_text,
-          'Purchase Receipt Vendor Bills'     AS department,
+          'Vendor Invoice'                    AS department,
           vil.vendor_invoice_amount::numeric  AS amount,
           vil.paid_amount::numeric            AS paid_amount,
           vil.pending_amount::numeric         AS pending_amount,
@@ -357,21 +356,25 @@ router.get("/unified-liabilities", requireAuth,
 
         UNION ALL
 
-        /* 2. Outsource Jobs */
+        /* 2. Outsource Jobs (base + GST from header) */
         SELECT
           'Costing Outsource'::text           AS ref_type,
           oj.id::text                         AS source_id,
-          oj.issue_date::text                 AS date,
+          oj.issue_date                       AS date,
           COALESCE(sw.order_code, st.order_code, 'OJ-' || oj.id::text) AS ref_number,
           COALESCE(oj.vendor_name, '—')       AS vendor_name,
           oj.vendor_id::text                  AS vendor_id_text,
           'Costing Outsource'                 AS department,
-          oj.total_cost::numeric              AS amount,
+          (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100)) AS amount,
           COALESCE(cp.paid, 0)                AS paid_amount,
-          GREATEST(0, oj.total_cost::numeric - COALESCE(cp.paid, 0)) AS pending_amount,
+          GREATEST(
+            0,
+            (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100))
+              - COALESCE(cp.paid, 0)
+          )                                   AS pending_amount,
           CASE
-            WHEN COALESCE(cp.paid, 0) >= oj.total_cost::numeric THEN 'Paid'
-            WHEN COALESCE(cp.paid, 0) > 0                       THEN 'Partially Paid'
+            WHEN COALESCE(cp.paid, 0) >= (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100)) THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
             ELSE 'Unpaid'
           END AS status,
           'INR'::text AS currency_code,
@@ -381,10 +384,12 @@ router.get("/unified-liabilities", requireAuth,
         LEFT JOIN style_orders  st ON st.id = oj.style_order_id
         LEFT JOIN (
           SELECT reference_id, SUM(base_currency_amount) AS paid
-          FROM costing_payments WHERE reference_type = 'outsource_job'
+          FROM costing_payments
+          WHERE reference_type = 'outsource_job'
+            AND is_deleted = false
           GROUP BY reference_id
         ) cp ON cp.reference_id = oj.id
-        WHERE 1=1
+        WHERE oj.is_deleted = false
           ${df("oj.issue_date", from_date, to_date)}
           ${vf("oj.vendor_id")}
 
@@ -394,7 +399,7 @@ router.get("/unified-liabilities", requireAuth,
         SELECT
           'Other Expense'::text               AS ref_type,
           oe.expense_id::text                 AS source_id,
-          oe.expense_date::text               AS date,
+          oe.expense_date                     AS date,
           oe.expense_number                   AS ref_number,
           COALESCE(oe.vendor_name, 'N/A')     AS vendor_name,
           oe.vendor_id::text                  AS vendor_id_text,
@@ -410,7 +415,7 @@ router.get("/unified-liabilities", requireAuth,
           'INR'::text AS currency_code,
           1::numeric  AS exchange_rate_snapshot
         FROM other_expenses oe
-        WHERE 1=1
+        WHERE oe.is_deleted = false
           ${df("oe.expense_date", from_date, to_date)}
           ${vid ? `AND oe.vendor_id = ${vid}` : ""}
 
@@ -460,6 +465,266 @@ router.get("/unified-liabilities", requireAuth,
         WHERE osd.final_shipping_amount IS NOT NULL AND osd.final_shipping_amount > 0
           ${df("osd.shipment_date", from_date, to_date)}
           ${vid ? `AND osd.shipping_vendor_id = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 6. Custom Charges (base + GST from header) */
+        SELECT
+          'Custom Charge'::text               AS ref_type,
+          cc.id::text                         AS source_id,
+          cc.created_at::text                 AS date,
+          COALESCE(sw.order_code, st.order_code, 'CC-' || cc.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          cc.vendor_id::text                  AS vendor_id_text,
+          'Costing Custom Charge'             AS department,
+          (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100)) AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(
+            0,
+            (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100))
+              - COALESCE(cp.paid, 0)
+          )                                   AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100)) THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM custom_charges cc
+        LEFT JOIN swatch_orders sw ON sw.id = cc.swatch_order_id
+        LEFT JOIN style_orders  st ON st.id = cc.style_order_id
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'custom_charge'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = cc.id
+        WHERE cc.is_deleted = false
+          ${df("cc.created_at", from_date, to_date)}
+          ${vf("cc.vendor_id")}
+
+        UNION ALL
+
+        /* 7. Purchase Receipts (Goods Received) */
+        SELECT
+          'Purchase Receipt'::text            AS ref_type,
+          pr.id::text                         AS source_id,
+          COALESCE(pr.received_date, pr.created_at)::text AS date,
+          pr.pr_number                        AS ref_number,
+          COALESCE(pr.vendor_name, '—')       AS vendor_name,
+          COALESCE(pr.vendor_id, po.vendor_id)::text AS vendor_id_text,
+          'Purchase Receipt'                  AS department,
+          COALESCE(
+            pr.vendor_invoice_amount::numeric,
+            pr.total_amount_with_gst::numeric,
+            items.total_with_gst,
+            (pr.received_qty::numeric * pr.actual_price::numeric),
+            0
+          )                                   AS amount,
+          COALESCE(pp.paid, 0)                AS paid_amount,
+          GREATEST(
+            0,
+            COALESCE(
+              pr.vendor_invoice_amount::numeric,
+              pr.total_amount_with_gst::numeric,
+              items.total_with_gst,
+              (pr.received_qty::numeric * pr.actual_price::numeric),
+              0
+            ) - COALESCE(pp.paid, 0)
+          )                                   AS pending_amount,
+          CASE
+            WHEN COALESCE(pp.paid, 0) >= COALESCE(
+              pr.vendor_invoice_amount::numeric,
+              pr.total_amount_with_gst::numeric,
+              items.total_with_gst,
+              (pr.received_qty::numeric * pr.actual_price::numeric),
+              0
+            ) THEN 'Paid'
+            WHEN COALESCE(pp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM purchase_receipts pr
+        LEFT JOIN purchase_orders po ON pr.po_id = po.id AND po.is_deleted = false
+        LEFT JOIN (
+          SELECT
+            pr_id,
+            SUM(quantity * unit_price * (1 + COALESCE(gst_percentage, 0) / 100)) AS total_with_gst
+          FROM purchase_receipt_items
+          WHERE is_deleted = false
+          GROUP BY pr_id
+        ) items ON items.pr_id = pr.id
+        LEFT JOIN (
+          SELECT pr_id, SUM(base_currency_amount) AS paid
+          FROM pr_payments
+          WHERE is_deleted = false
+          GROUP BY pr_id
+        ) pp ON pp.pr_id = pr.id
+        WHERE pr.is_deleted = false
+          ${df("COALESCE(pr.received_date, pr.created_at)", from_date, to_date)}
+          ${vid ? `AND COALESCE(pr.vendor_id, po.vendor_id) = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 8. Vendor Challans (Verified only, base + GST from items) */
+        SELECT
+          'Vendor Challan'::text              AS ref_type,
+          vc.id::text                         AS source_id,
+          COALESCE(vc.challan_date::timestamptz, vc.created_at)::text AS date,
+          vc.challan_number                   AS ref_number,
+          COALESCE(vc.vendor_name, '—')       AS vendor_name,
+          vc.vendor_id::text                  AS vendor_id_text,
+          'Vendor Challan'                    AS department,
+          COALESCE(items.amount, 0)           AS amount,
+          COALESCE(vp.paid, 0)                AS paid_amount,
+          GREATEST(0, COALESCE(items.amount, 0) - COALESCE(vp.paid, 0)) AS pending_amount,
+          CASE
+            WHEN COALESCE(vp.paid, 0) >= COALESCE(items.amount, 0) THEN 'Paid'
+            WHEN COALESCE(vp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM vendor_challans vc
+        LEFT JOIN (
+          SELECT
+            vendor_challan_id,
+            SUM(amount * (1 + COALESCE(gst_percentage, 0) / 100)) AS amount
+          FROM vendor_challan_items
+          WHERE is_deleted = false
+          GROUP BY vendor_challan_id
+        ) items ON items.vendor_challan_id = vc.id
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM vendor_payments
+          WHERE reference_type = 'vendor_challan'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) vp ON vp.reference_id = vc.id
+        WHERE vc.is_deleted = false
+          AND vc.status = 'Verified'
+          ${df("COALESCE(vc.challan_date::timestamptz, vc.created_at)", from_date, to_date)}
+          ${vf("vc.vendor_id")}
+
+        UNION ALL
+
+        /* 9. Artwork — Swatch */
+        SELECT
+          'Artwork (Swatch)'::text            AS ref_type,
+          a.id::text                          AS source_id,
+          a.created_at::text                  AS date,
+          COALESCE(a.artwork_code, 'ART-' || a.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          a.outsource_vendor_id::text         AS vendor_id_text,
+          'Artwork (Swatch)'                  AS department,
+          a.outsource_payment_amount::numeric AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(0, a.outsource_payment_amount::numeric - COALESCE(cp.paid, 0)) AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= a.outsource_payment_amount::numeric THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM artworks a
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'artwork_swatch'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = a.id
+        WHERE a.outsource_vendor_id IS NOT NULL
+          AND a.outsource_vendor_id <> ''
+          AND a.outsource_payment_amount IS NOT NULL
+          AND a.outsource_payment_amount <> ''
+          AND a.is_deleted = false
+          ${df("a.created_at", from_date, to_date)}
+          ${vid ? `AND a.outsource_vendor_id::integer = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 10. Artwork — Style */
+        SELECT
+          'Artwork (Style)'::text             AS ref_type,
+          soa.id::text                        AS source_id,
+          soa.created_at::text                AS date,
+          COALESCE(soa.artwork_code, 'ART-' || soa.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          soa.outsource_vendor_id::text       AS vendor_id_text,
+          'Artwork (Style)'                   AS department,
+          soa.outsource_payment_amount::numeric AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(0, soa.outsource_payment_amount::numeric - COALESCE(cp.paid, 0)) AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= soa.outsource_payment_amount::numeric THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM style_order_artworks soa
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'artwork_style'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = soa.id
+        WHERE soa.outsource_vendor_id IS NOT NULL
+          AND soa.outsource_vendor_id <> ''
+          AND soa.outsource_payment_amount IS NOT NULL
+          AND soa.outsource_payment_amount <> ''
+          AND soa.is_deleted = false
+          ${df("soa.created_at", from_date, to_date)}
+          ${vid ? `AND soa.outsource_vendor_id::integer = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 11. Toile Work */
+        SELECT
+          'Toile'::text                       AS ref_type,
+          soa.id::text                        AS source_id,
+          soa.created_at::text                AS date,
+          COALESCE(soa.artwork_code, 'TOI-' || soa.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          soa.toile_vendor_id::text           AS vendor_id_text,
+          'Toile Work'                        AS department,
+          COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(
+            0,
+            COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
+              - COALESCE(cp.paid, 0)
+          )                                   AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM style_order_artworks soa
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'toile'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = soa.id
+        WHERE soa.toile_vendor_id IS NOT NULL
+          AND soa.toile_vendor_id <> ''
+          AND (
+            (soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
+            OR (soa.toile_cost IS NOT NULL AND soa.toile_cost <> '')
+          )
+          AND soa.is_deleted = false
+          ${df("soa.created_at", from_date, to_date)}
+          ${vid ? `AND soa.toile_vendor_id::integer = ${vid}` : ""}
       )
       SELECT *, COUNT(*) OVER () AS total_count
       FROM all_liabilities
@@ -512,102 +777,624 @@ router.get("/top-vendors-pending", requireAuth,
 /* ══════════════════════════════════════════════════════════
    RECORD PAYMENT — unified across all source types
 ══════════════════════════════════════════════════════════ */
+// router.post("/record-payment", requireAuth, 
+//   checkPermission({ any: [ACCOUNTS_PURCHASES.ADD_EDIT] }),
+//   async (req: AuthRequest, res) => {
+//   const client = await pool.connect();
+//   try {
+//     await client.query("BEGIN");
+//     const {
+//       ref_type, source_id,
+//       vendor_name, vendor_id,
+//       payment_amount, payment_date, payment_type,
+//       transaction_reference, remarks,
+//       currency_code, exchange_rate_snapshot,
+//     } = req.body as any;
+
+//     const amt = parseFloat(payment_amount ?? "0");
+//     if (amt <= 0) throw new Error("payment_amount must be > 0");
+//     const pDate = payment_date || new Date().toISOString().slice(0, 10);
+//     const pMode = payment_type || "Bank Transfer";
+//     const payCcy  = currency_code || "INR";
+//     const payRate = parseFloat(exchange_rate_snapshot ?? "1") || 1;     // pay ccy -> INR
+//     const baseAmt = parseFloat((amt * payRate).toFixed(2));             // INR anchor
+
+//     if (ref_type === "Purchase Receipt") {
+//       /* Update vendor_invoice_ledger + insert vendor_payments */
+//       /* Note: pending_amount is a generated column (vendor_invoice_amount - paid_amount) — do NOT update it */
+//       const id = parseInt(source_id);
+//       const { rows } = await client.query(`SELECT * FROM vendor_invoice_ledger WHERE id = $1 FOR UPDATE`, [id]);
+//       if (!rows.length) throw new Error("Bill not found");
+//       const bill = rows[0];
+//       if (bill.status === "Cancelled") throw new Error("Cannot record payment on a Cancelled bill");
+//       if (bill.status === "Paid") throw new Error("Cannot record payment on a Paid bill");
+//       const billCcyCode = bill.currency_code || "INR";
+//       const billRate = parseFloat(bill.exchange_rate_snapshot ?? "1") || 1;   // bill ccy -> INR
+//       const amtInBillCcy = baseAmt / billRate;                                // bill currency
+//       const prevPaid = parseFloat(bill.paid_amount ?? "0");                   // bill currency
+//       const totalBill = parseFloat(bill.vendor_invoice_amount);              // bill currency
+//       const pendingInBillCcy = totalBill - prevPaid;
+//       if (amtInBillCcy > pendingInBillCcy + 0.01) {
+//         throw new Error(
+//           `Payment (${amtInBillCcy.toFixed(2)} ${billCcyCode}) exceeds pending balance (${pendingInBillCcy.toFixed(2)} ${billCcyCode})`
+//         );
+//       }
+//       await client.query(
+//         `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,vendor_invoice_ledger_id,created_by)
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11,$12)`,
+//         [bill.vendor_id, bill.vendor_name, pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", id, req.user?.email ?? ""]
+//       );
+//       await recomputeVendorBillBalances(client, id);
+
+//     } else if (ref_type === "Costing Outsource") {
+//       /* Insert into costing_payments — lock the job row first to serialize concurrent payments */
+//       const id = parseInt(source_id);
+//       const { rows: jobRows } = await client.query(
+//         `SELECT * FROM outsource_jobs WHERE id = $1 AND is_deleted = false FOR UPDATE`,
+//         [id]
+//       );
+//       if (!jobRows.length) throw new Error("Outsource job not found");
+//       await client.query(
+//         `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,payment_type,payment_mode,payment_amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_status,transaction_id,payment_date,remarks,created_by)
+//          VALUES ($1,$2,'outsource_job',$3,'outsource',$4,$5,$6,$7,$8,'Completed',$9,$10,$11,$12)`,
+//         [vendor_id || null, vendor_name || "", id, pMode, amt, payCcy, payRate, baseAmt, transaction_reference || "", pDate, remarks || "", req.user?.email ?? ""]
+//       );
+
+//     } else if (ref_type === "Other Expense") {
+//       /* Update other_expenses — lock the row first to serialize concurrent payments */
+//       const id = parseInt(source_id);
+//       const { rows } = await client.query(`SELECT * FROM other_expenses WHERE expense_id = $1 FOR UPDATE`, [id]);
+//       if (!rows.length) throw new Error("Expense not found");
+//       const exp = rows[0];
+//       const newPaid   = parseFloat(exp.paid_amount ?? "0") + amt;
+//       const newStatus = newPaid >= parseFloat(exp.amount) ? "Paid" : "Partially Paid";
+//       await client.query(
+//         `UPDATE other_expenses SET paid_amount=$1, payment_status=$2, updated_at=NOW() WHERE expense_id=$3`,
+//         [newPaid, newStatus, id]
+//       );
+//       await client.query(
+//         `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
+//         [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
+//       );
+
+//     } else {
+//       /* Artisan / Shipping / other — just log in vendor_payments */
+//       await client.query(
+//         `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
+//         [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
+//       );
+//     }
+
+//     await client.query("COMMIT");
+//     res.json({ message: "Vendor payment recorded successfully" });
+//   } catch (err: any) {
+//     await client.query("ROLLBACK");
+//     res.status(400).json({ error: err.message });
+//   } finally { client.release(); }
+// });
+
+// ============================================================================
+// HELPER FUNCTIONS FOR RECORD PAYMENT
+// ============================================================================
+
+interface RecordPaymentRequest {
+  ref_type: string;
+  source_id: string;
+  vendor_name: string;
+  vendor_id: number;
+  payment_amount: string;
+  payment_date: string;
+  payment_type: string;
+  transaction_reference: string;
+  remarks: string;
+  currency_code: string;
+  exchange_rate_snapshot: string;
+  tds_master_id?: number;
+}
+
+async function validatePaymentAmount(amount: number): Promise<void> {
+  if (amount <= 0) {
+    throw new Error("payment_amount must be > 0");
+  }
+}
+
+function calculatePaymentAmounts(
+  paymentAmount: string,
+  exchangeRateSnapshot: string,
+  currencyCode: string
+): { amt: number; payRate: number; baseAmt: number; payCcy: string } {
+  const amt = parseFloat(paymentAmount ?? "0");
+  const payRate = parseFloat(exchangeRateSnapshot ?? "1") || 1;
+  const baseAmt = parseFloat((amt * payRate).toFixed(2));
+  const payCcy = currencyCode || "INR";
+  
+  return { amt, payRate, baseAmt, payCcy };
+}
+
+async function insertVendorPayment(
+  client: any,
+  vendorId: number,
+  vendorName: string,
+  paymentDate: string,
+  amt: number,
+  payCcy: string,
+  payRate: number,
+  baseAmt: number,
+  paymentMode: string,
+  transactionReference: string,
+  remarks: string,
+  orderType: string,
+  vendorInvoiceLedgerId: number | null,
+  username: string
+): Promise<number> {
+  const result = await client.query(
+    `INSERT INTO vendor_payments 
+      (vendor_id, vendor_name, payment_date, amount, currency_code, 
+       exchange_rate_snapshot, base_currency_amount, payment_mode, 
+       reference_no, notes, order_type, vendor_invoice_ledger_id, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     RETURNING id`,
+    [
+      vendorId || null,
+      vendorName || "",
+      paymentDate,
+      amt,
+      payCcy,
+      payRate,
+      baseAmt,
+      paymentMode,
+      transactionReference || "",
+      remarks || "",
+      orderType,
+      vendorInvoiceLedgerId,
+      username
+    ]
+  );
+  return result.rows[0].id;
+}
+
+async function getTDSMaster(client: any, tdsMasterId: number): Promise<{ id: number; rate_percent: string }> {
+  const result = await client.query(
+    `SELECT id, rate_percent FROM tds_master 
+     WHERE id = $1 AND status = true AND is_deleted = false`,
+    [tdsMasterId]
+  );
+  if (result.rows.length === 0) {
+    throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
+  }
+  return result.rows[0];
+}
+
+async function insertPaymentTDSRecord(
+  client: any,
+  tdsMasterId: number,
+  paymentSourceType: string,
+  paymentSourceId: number,
+  paymentDate: string,
+  vendorId: number,
+  baseDocumentType: string,
+  baseDocumentId: number,
+  grossAmount: number,
+  gstAmount: number,
+  gstPercentage: number,
+  baseAmount: number,
+  paidAmount: number,
+  tdsRate: number,
+  tdsAmount: number,
+  username: string
+): Promise<void> {
+  await client.query(
+    `INSERT INTO payment_tds
+       (tds_master_id, payment_source_type, payment_source_id, payment_date,
+        vendor_id, base_document_type, base_document_id,
+        gross_amount, gst_amount, gst_percentage,
+        payment_currency_code, payment_exchange_rate, base_amount,
+        paid_amount, tds_rate, tds_amount, status, created_by)
+     VALUES ($1, $2, $3, $4, $5,
+             $6, $7,
+             $8, $9, $10,
+             'INR', 1, $11,
+             $12, $13, $14, 'DEDUCTED', $15)`,
+    [
+      tdsMasterId,
+      paymentSourceType,
+      paymentSourceId,
+      paymentDate,
+      vendorId,
+      baseDocumentType,
+      baseDocumentId,
+      grossAmount.toFixed(2),
+      gstAmount.toFixed(2),
+      gstPercentage.toFixed(2),
+      baseAmount.toFixed(2),
+      paidAmount.toFixed(2),
+      tdsRate.toFixed(2),
+      tdsAmount.toFixed(2),
+      username
+    ]
+  );
+}
+
+// ============================================================================
+// HANDLER FUNCTIONS FOR EACH REF_TYPE
+// ============================================================================
+
+async function handlePurchaseReceiptPayment(
+  client: any,
+  sourceId: string,
+  paymentData: any,
+  tdsMasterId: number | undefined,
+  username: string
+): Promise<void> {
+  const id = parseInt(sourceId);
+  
+  // Lock the bill row
+  const { rows } = await client.query(
+    `SELECT * FROM vendor_invoice_ledger WHERE id = $1 FOR UPDATE`,
+    [id]
+  );
+  if (!rows.length) throw new Error("Bill not found");
+  
+  const bill = rows[0];
+  if (bill.status === "Cancelled") throw new Error("Cannot record payment on a Cancelled bill");
+  if (bill.status === "Paid") throw new Error("Cannot record payment on a Paid bill");
+  
+  const billCcyCode = bill.currency_code || "INR";
+  const billRate = parseFloat(bill.exchange_rate_snapshot ?? "1") || 1;
+  const amtInBillCcy = paymentData.baseAmt / billRate;
+  const prevPaid = parseFloat(bill.paid_amount ?? "0");
+  const totalBill = parseFloat(bill.vendor_invoice_amount);
+  const pendingInBillCcy = totalBill - prevPaid;
+  
+  if (amtInBillCcy > pendingInBillCcy + 0.01) {
+    throw new Error(
+      `Payment (${amtInBillCcy.toFixed(2)} ${billCcyCode}) exceeds pending balance (${pendingInBillCcy.toFixed(2)} ${billCcyCode})`
+    );
+  }
+  
+  // Insert vendor payment
+  const paymentId = await insertVendorPayment(
+    client,
+    bill.vendor_id,
+    bill.vendor_name,
+    paymentData.paymentDate,
+    paymentData.amt,
+    paymentData.payCcy,
+    paymentData.payRate,
+    paymentData.baseAmt,
+    paymentData.paymentMode,
+    paymentData.transactionReference,
+    paymentData.remarks || "",
+    'general',
+    id,
+    username
+  );
+  
+  // Handle TDS if provided
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = parseFloat(tdsMaster.rate_percent);
+    
+    // Calculate GST amount from the bill
+    const gstAmount = parseFloat(bill.gst_amount || "0");
+    const gstPercentage = parseFloat(bill.gst_percentage || "0");
+    const baseAmount = totalBill - gstAmount;
+    const tdsAmount = (baseAmount * tdsRate) / 100;
+    const paidAmount = paymentData.amt - tdsAmount;
+    
+    await insertPaymentTDSRecord(
+      client,
+      tdsMasterId,
+      'vendor_payments',
+      paymentId,
+      paymentData.paymentDate,
+      bill.vendor_id,
+      'vendor_invoice_ledger',
+      id,
+      totalBill,
+      gstAmount,
+      gstPercentage,
+      baseAmount,
+      paidAmount,
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
+  
+  await recomputeVendorBillBalances(client, id);
+}
+
+async function handleCostingOutsourcePayment(
+  client: any,
+  sourceId: string,
+  vendorId: number,
+  vendorName: string,
+  paymentData: any,
+  tdsMasterId: number | undefined,
+  username: string
+): Promise<void> {
+  const id = parseInt(sourceId);
+  
+  // Lock the job row
+  const { rows: jobRows } = await client.query(
+    `SELECT * FROM outsource_jobs WHERE id = $1 AND is_deleted = false FOR UPDATE`,
+    [id]
+  );
+  if (!jobRows.length) throw new Error("Outsource job not found");
+  
+  const job = jobRows[0];
+  
+  // Insert costing payment
+  const result = await client.query(
+    `INSERT INTO costing_payments 
+      (vendor_id, vendor_name, reference_type, reference_id, payment_type, 
+       payment_mode, payment_amount, currency_code, exchange_rate_snapshot, 
+       base_currency_amount, payment_status, transaction_id, payment_date, 
+       remarks, created_by)
+     VALUES ($1, $2, 'outsource_job', $3, 'outsource', $4, $5, $6, $7, $8, 
+             'Completed', $9, $10, $11, $12)
+     RETURNING id`,
+    [
+      vendorId || null,
+      vendorName || "",
+      id,
+      paymentData.paymentMode,
+      paymentData.amt,
+      paymentData.payCcy,
+      paymentData.payRate,
+      paymentData.baseAmt,
+      paymentData.transactionReference || "",
+      paymentData.paymentDate,
+      paymentData.remarks || "",
+      username
+    ]
+  );
+  
+  const costingPaymentId = result.rows[0].id;
+  
+  // Handle TDS if provided
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = parseFloat(tdsMaster.rate_percent);
+    
+    const totalCost = parseFloat(job.total_cost || "0");
+    const gstPercentage = parseFloat(job.gst_percentage || "0");
+    const gstAmount = (totalCost * gstPercentage) / 100;
+    const baseAmount = totalCost;
+    const tdsAmount = (baseAmount * tdsRate) / 100;
+    const paidAmount = paymentData.amt - tdsAmount;
+    
+    await insertPaymentTDSRecord(
+      client,
+      tdsMasterId,
+      'costing_payments',
+      costingPaymentId,
+      paymentData.paymentDate,
+      vendorId,
+      'outsource_job',
+      id,
+      totalCost + gstAmount,
+      gstAmount,
+      gstPercentage,
+      baseAmount,
+      paidAmount,
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
+}
+
+async function handleOtherExpensePayment(
+  client: any,
+  sourceId: string,
+  vendorId: number,
+  vendorName: string,
+  paymentData: any,
+  tdsMasterId: number | undefined,
+  username: string
+): Promise<void> {
+  const id = parseInt(sourceId);
+  
+  // Lock the expense row
+  const { rows } = await client.query(
+    `SELECT * FROM other_expenses WHERE expense_id = $1 FOR UPDATE`,
+    [id]
+  );
+  if (!rows.length) throw new Error("Expense not found");
+  
+  const exp = rows[0];
+  const newPaid = parseFloat(exp.paid_amount ?? "0") + paymentData.amt;
+  const totalAmount = parseFloat(exp.amount);
+  const newStatus = newPaid >= totalAmount ? "Paid" : "Partially Paid";
+  
+  await client.query(
+    `UPDATE other_expenses SET paid_amount=$1, payment_status=$2, updated_at=NOW() WHERE expense_id=$3`,
+    [newPaid, newStatus, id]
+  );
+  
+  // Insert vendor payment
+  const paymentId = await insertVendorPayment(
+    client,
+    vendorId,
+    vendorName || "",
+    paymentData.paymentDate,
+    paymentData.amt,
+    paymentData.payCcy,
+    paymentData.payRate,
+    paymentData.baseAmt,
+    paymentData.paymentMode,
+    paymentData.transactionReference,
+    paymentData.remarks || "",
+    'general',
+    null,
+    username
+  );
+  
+  // Handle TDS if provided
+  if (tdsMasterId) {
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = parseFloat(tdsMaster.rate_percent);
+    
+    const gstPercentage = parseFloat(exp.gst_percentage || "0");
+    const gstAmount = (totalAmount * gstPercentage) / 100;
+    const baseAmount = totalAmount - gstAmount;
+    const tdsAmount = (baseAmount * tdsRate) / 100;
+    const paidAmount = paymentData.amt - tdsAmount;
+    
+    await insertPaymentTDSRecord(
+      client,
+      tdsMasterId,
+      'vendor_payments',
+      paymentId,
+      paymentData.paymentDate,
+      vendorId,
+      'other_expense',
+      id,
+      totalAmount,
+      gstAmount,
+      gstPercentage,
+      baseAmount,
+      paidAmount,
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
+}
+
+async function handleGenericPayment(
+  client: any,
+  vendorId: number,
+  vendorName: string,
+  paymentData: any,
+  username: string
+): Promise<void> {
+  await insertVendorPayment(
+    client,
+    vendorId,
+    vendorName || "",
+    paymentData.paymentDate,
+    paymentData.amt,
+    paymentData.payCcy,
+    paymentData.payRate,
+    paymentData.baseAmt,
+    paymentData.paymentMode,
+    paymentData.transactionReference,
+    paymentData.remarks || "",
+    'general',
+    null,
+    username
+  );
+}
+
+// ============================================================================
+// MAIN ROUTE HANDLER
+// ============================================================================
+
 router.post("/record-payment", requireAuth, 
   checkPermission({ any: [ACCOUNTS_PURCHASES.ADD_EDIT] }),
   async (req: AuthRequest, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const {
-      ref_type, source_id,
-      vendor_name, vendor_id,
-      payment_amount, payment_date, payment_type,
-      transaction_reference, remarks,
-      currency_code, exchange_rate_snapshot,
-    } = req.body as any;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      
+      const {
+        ref_type,
+        source_id,
+        vendor_name,
+        vendor_id,
+        payment_amount,
+        payment_date,
+        payment_type,
+        transaction_reference,
+        remarks,
+        currency_code,
+        exchange_rate_snapshot,
+        tds_master_id,
+      } = req.body as RecordPaymentRequest;
 
-    const amt = parseFloat(payment_amount ?? "0");
-    if (amt <= 0) throw new Error("payment_amount must be > 0");
-    const pDate = payment_date || new Date().toISOString().slice(0, 10);
-    const pMode = payment_type || "Bank Transfer";
-    const payCcy  = currency_code || "INR";
-    const payRate = parseFloat(exchange_rate_snapshot ?? "1") || 1;     // pay ccy -> INR
-    const baseAmt = parseFloat((amt * payRate).toFixed(2));             // INR anchor
+      // Validate payment amount
+      await validatePaymentAmount(parseFloat(payment_amount ?? "0"));
 
-    if (ref_type === "Purchase Receipt") {
-      /* Update vendor_invoice_ledger + insert vendor_payments */
-      /* Note: pending_amount is a generated column (vendor_invoice_amount - paid_amount) — do NOT update it */
-      const id = parseInt(source_id);
-      const { rows } = await client.query(`SELECT * FROM vendor_invoice_ledger WHERE id = $1 FOR UPDATE`, [id]);
-      if (!rows.length) throw new Error("Bill not found");
-      const bill = rows[0];
-      if (bill.status === "Cancelled") throw new Error("Cannot record payment on a Cancelled bill");
-      if (bill.status === "Paid") throw new Error("Cannot record payment on a Paid bill");
-      const billCcyCode = bill.currency_code || "INR";
-      const billRate = parseFloat(bill.exchange_rate_snapshot ?? "1") || 1;   // bill ccy -> INR
-      const amtInBillCcy = baseAmt / billRate;                                // bill currency
-      const prevPaid = parseFloat(bill.paid_amount ?? "0");                   // bill currency
-      const totalBill = parseFloat(bill.vendor_invoice_amount);              // bill currency
-      const pendingInBillCcy = totalBill - prevPaid;
-      if (amtInBillCcy > pendingInBillCcy + 0.01) {
-        throw new Error(
-          `Payment (${amtInBillCcy.toFixed(2)} ${billCcyCode}) exceeds pending balance (${pendingInBillCcy.toFixed(2)} ${billCcyCode})`
-        );
+      // Calculate payment amounts
+      const paymentData = calculatePaymentAmounts(
+        payment_amount,
+        exchange_rate_snapshot,
+        currency_code
+      );
+
+      // Add additional fields to paymentData
+      const fullPaymentData = {
+        ...paymentData,
+        paymentDate: payment_date || new Date().toISOString().slice(0, 10),
+        paymentMode: payment_type || "Bank Transfer",
+        transactionReference: transaction_reference || "",
+        remarks: remarks || "",
+      };
+
+      const username = req.user?.email ?? "";
+
+      // Route to appropriate handler based on ref_type
+      switch (ref_type) {
+        case "Purchase Receipt":
+          await handlePurchaseReceiptPayment(
+            client,
+            source_id,
+            fullPaymentData,
+            tds_master_id,
+            username
+          );
+          break;
+
+        case "Costing Outsource":
+          await handleCostingOutsourcePayment(
+            client,
+            source_id,
+            vendor_id,
+            vendor_name,
+            fullPaymentData,
+            tds_master_id,
+            username
+          );
+          break;
+
+        case "Other Expense":
+          await handleOtherExpensePayment(
+            client,
+            source_id,
+            vendor_id,
+            vendor_name,
+            fullPaymentData,
+            tds_master_id,
+            username
+          );
+          break;
+
+        default:
+          // Artisan / Shipping / other — just log in vendor_payments
+          await handleGenericPayment(
+            client,
+            vendor_id,
+            vendor_name,
+            fullPaymentData,
+            username
+          );
+          break;
       }
-      await client.query(
-        `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,vendor_invoice_ledger_id,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11,$12)`,
-        [bill.vendor_id, bill.vendor_name, pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", id, req.user?.email ?? ""]
-      );
-      await recomputeVendorBillBalances(client, id);
 
-    } else if (ref_type === "Costing Outsource") {
-      /* Insert into costing_payments — lock the job row first to serialize concurrent payments */
-      const id = parseInt(source_id);
-      const { rows: jobRows } = await client.query(
-        `SELECT * FROM outsource_jobs WHERE id = $1 AND is_deleted = false FOR UPDATE`,
-        [id]
-      );
-      if (!jobRows.length) throw new Error("Outsource job not found");
-      await client.query(
-        `INSERT INTO costing_payments (vendor_id,vendor_name,reference_type,reference_id,payment_type,payment_mode,payment_amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_status,transaction_id,payment_date,remarks,created_by)
-         VALUES ($1,$2,'outsource_job',$3,'outsource',$4,$5,$6,$7,$8,'Completed',$9,$10,$11,$12)`,
-        [vendor_id || null, vendor_name || "", id, pMode, amt, payCcy, payRate, baseAmt, transaction_reference || "", pDate, remarks || "", req.user?.email ?? ""]
-      );
-
-    } else if (ref_type === "Other Expense") {
-      /* Update other_expenses — lock the row first to serialize concurrent payments */
-      const id = parseInt(source_id);
-      const { rows } = await client.query(`SELECT * FROM other_expenses WHERE expense_id = $1 FOR UPDATE`, [id]);
-      if (!rows.length) throw new Error("Expense not found");
-      const exp = rows[0];
-      const newPaid   = parseFloat(exp.paid_amount ?? "0") + amt;
-      const newStatus = newPaid >= parseFloat(exp.amount) ? "Paid" : "Partially Paid";
-      await client.query(
-        `UPDATE other_expenses SET paid_amount=$1, payment_status=$2, updated_at=NOW() WHERE expense_id=$3`,
-        [newPaid, newStatus, id]
-      );
-      await client.query(
-        `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
-        [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
-      );
-
-    } else {
-      /* Artisan / Shipping / other — just log in vendor_payments */
-      await client.query(
-        `INSERT INTO vendor_payments (vendor_id,vendor_name,payment_date,amount,currency_code,exchange_rate_snapshot,base_currency_amount,payment_mode,reference_no,notes,order_type,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'general',$11)`,
-        [vendor_id || null, vendor_name || "", pDate, amt, payCcy, payRate, baseAmt, pMode, transaction_reference || "", remarks || "", req.user?.email ?? ""]
-      );
+      await client.query("COMMIT");
+      res.json({ message: "Vendor payment recorded successfully" });
+      
+    } catch (err: any) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: err.message });
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-    res.json({ message: "Vendor payment recorded successfully" });
-  } catch (err: any) {
-    await client.query("ROLLBACK");
-    res.status(400).json({ error: err.message });
-  } finally { client.release(); }
-});
-
+  }
+);
 export default router;

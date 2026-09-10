@@ -37,8 +37,11 @@ interface LedgerEntry {
   description: string;
   order_type: string;
   order_code: string | null;
+  total_amount: string;
   debit: string;
   credit: string;
+  tds_amount: string;      // NEW — TDS deducted against this payment
+  net_paid: string;        // NEW — actual cash paid to vendor (credit − tds)
   running_balance: number;
 }
 
@@ -64,6 +67,9 @@ const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> 
   pattern_outhouse:  { label: "Pattern (Out)",    color: "#D946EF", bg: "rgba(217,70,239,0.1)" },
   vendor_invoice:    { label: "Vendor Invoice",   color: "#F97316", bg: "rgba(249,115,22,0.1)" },
   payment:           { label: "Payment",          color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+  purchase_receipt:  { label: "Purchase Receipt", color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
+  pr_payment:        { label: "PR Payment",       color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+  vendor_challan:    { label: "Vendor Challan",   color: "#F97316", bg: "rgba(249,115,22,0.1)" },
 };
 
 function rowKey(e: LedgerEntry) {
@@ -108,6 +114,8 @@ export default function VendorLedgerDetail() {
   const [deleteEntry, setDeleteEntry] = useState<LedgerEntry | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [selectionRestored, setSelectionRestored] = useState(false);
+
   useEffect(() => {
     if (!token || isError) { localStorage.removeItem("zarierp_token"); setLocation("/login"); }
   }, [token, isError, setLocation]);
@@ -146,6 +154,8 @@ export default function VendorLedgerDetail() {
 
   const totalDebit  = entries.reduce((s, e) => s + parseFloat(e.debit  || "0"), 0);
   const totalCredit = entries.reduce((s, e) => s + parseFloat(e.credit || "0"), 0);
+  const totalTds    = entries.reduce((s, e) => s + parseFloat(e.tds_amount || "0"), 0);
+  const totalNetPaid = entries.reduce((s, e) => s + parseFloat(e.net_paid || "0"), 0);
   const balance     = totalDebit - totalCredit;
 
   // Only debit entries (non-payment) can be selected
@@ -168,6 +178,31 @@ export default function VendorLedgerDetail() {
     () => entries.filter(e => selectedKeys.has(rowKey(e))),
     [selectedKeys, entries]
   );
+
+  useEffect(() => {
+    // Only attempt restore once, when entries are loaded
+    if (entries.length === 0 || selectionRestored) return;
+
+    const stored = sessionStorage.getItem("paymentSelection");
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        // Ensure the stored vendor matches the current vendor
+        if (data.vendor && data.vendor.id === vendorId) {
+          // Find which stored entries exist in the current entries list
+          const keys = data.entries
+            .map((e: LedgerEntry) => rowKey(e))
+            .filter((key: string) => entries.some(e => rowKey(e) === key));
+          if (keys.length > 0) {
+            setSelectedKeys(new Set(keys));
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to restore selection", e);
+      }
+    }
+    setSelectionRestored(true);
+  }, [entries, vendorId, selectionRestored]);
 
   function toggleRow(entry: LedgerEntry) {
     const k = rowKey(entry);
@@ -194,25 +229,22 @@ export default function VendorLedgerDetail() {
     }
   }
 
+  // New Page Redirection Implementation for Payment from Selection
   function openPayFromSelection() {
-    setPayFromSelection(true);
-    // Derive order type — only "style" | "swatch" | "general" are valid on the backend enum
-    const types = Array.from(new Set(selectedEntries.map(e => e.order_type).filter(Boolean)));
-    const only = types.length === 1 ? types[0] : null;
-    const derivedType: "style" | "swatch" | "general" =
-      only === "style" || only === "swatch" ? only : "general";
-    const styleCode  = selectedEntries.find(e => e.order_type === "style"  && e.order_code)?.order_code ?? "";
-    const swatchCode = selectedEntries.find(e => e.order_type === "swatch" && e.order_code)?.order_code ?? "";
-    setPayForm(f => ({
-      ...f,
-      amount: selectedTotal.toFixed(2),
-      orderType: derivedType,
-      styleOrderCode:  derivedType === "style"  ? styleCode  : "",
-      swatchOrderCode: derivedType === "swatch" ? swatchCode : "",
-      notes: `Payment against ${selectedEntries.length} item(s): ` +
-        selectedEntries.map(e => e.description).join(", "),
-    }));
-    setPayModal(true);
+    if (selectedEntries.length === 0) return;
+    if (!vendor) {
+      toast({ title: "Vendor information not available", variant: "destructive" });
+      return;
+    }
+    sessionStorage.setItem(
+      "paymentSelection",
+      JSON.stringify({
+        entries: selectedEntries,
+        vendor: vendor,
+        timestamp: Date.now(),
+      })
+    );
+    setLocation(`/accounts/ledgers/${vendor.id}/payment`);
   }
 
   function openPayGeneral() {
@@ -224,12 +256,18 @@ export default function VendorLedgerDetail() {
   const handlePay = async () => {
     const amt = parseFloat(payForm.amount);
     if (!Number.isFinite(amt) || amt <= 0) {
-      toast({ title: "Enter a payment amount greater than 0", variant: "destructive" }); return;
+      toast({ title: "Enter a payment amount greater than 0", variant: "destructive" });
+      return;
     }
     if (!payForm.paymentMode) {
-      toast({ title: "Payment mode is required", variant: "destructive" }); return;
+      toast({ title: "Payment mode is required", variant: "destructive" });
+      return;
     }
-    const maxAllowed = payFromSelection ? selectedTotal : Math.max(0, balance);
+
+    // Compute maxAllowed and round to 2 decimals to avoid floating‑point issues
+    const maxAllowedRaw = payFromSelection ? selectedTotal : Math.max(0, balance);
+    const maxAllowed = parseFloat(maxAllowedRaw.toFixed(2));
+
     if (maxAllowed > 0 && amt > maxAllowed + 0.001) {
       toast({
         title: `Amount cannot exceed ${fmt(maxAllowed)}`,
@@ -238,11 +276,47 @@ export default function VendorLedgerDetail() {
       });
       return;
     }
+
+    let allocations: { entryType: string; entryId: string; amount: number; debit: number }[] = [];
+
+    if (payFromSelection && selectedEntries.length > 0) {
+      const sorted = [...selectedEntries].sort(
+        (a, b) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime()
+      );
+
+      let remaining = amt;
+      for (const entry of sorted) {
+        const debit = parseFloat(entry.debit);
+        if (debit <= 0) continue;
+        const alloc = Math.min(remaining, debit);
+        if (alloc > 0.005) {
+          allocations.push({
+            entryType: entry.entry_type,
+            entryId: entry.entry_id,
+            amount: parseFloat(alloc.toFixed(2)),
+            debit: parseFloat(entry.debit),
+          });
+          remaining -= alloc;
+        }
+        if (remaining < 0.005) break;
+      }
+
+      if (remaining > 0.005) {
+        toast({ title: "Allocation error: remaining amount left", variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       await customFetch(`/api/vendor-ledger/${vendorId}/pay`, {
         method: "POST",
-        body: JSON.stringify({ ...payForm, vendorId, vendorName: vendor?.brandName }),
+        body: JSON.stringify({
+          ...payForm,
+          vendorId,
+          vendorName: vendor?.brandName,
+          allocations,
+        }),
       });
       toast({ title: "Payment recorded successfully" });
       setPayModal(false);
@@ -252,7 +326,9 @@ export default function VendorLedgerDetail() {
       loadData();
     } catch {
       toast({ title: "Failed to record payment", variant: "destructive" });
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCharge = async () => {
@@ -277,7 +353,7 @@ export default function VendorLedgerDetail() {
       toast({ title: "Failed to add charge", variant: "destructive" });
     } finally { setSubmitting(false); }
   };
-  
+
   const handleDelete = async (entry: LedgerEntry) => {
     if (!["payment", "ledger_charge"].includes(entry.entry_type)) {
       toast({ title: "Cannot delete order-linked entries", variant: "destructive" }); return;
@@ -391,7 +467,7 @@ export default function VendorLedgerDetail() {
         <div className="fade-up flex items-start justify-between">
           <div>
             <button onClick={() => setLocation("/accounts/ledgers")}
-              className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-700 mb-3 transition-colors">
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-slate-500 mb-3 transition-colors">
               <ArrowLeft className="h-3.5 w-3.5" /> Back to Vendor Ledgers
             </button>
             <div className="flex items-center gap-2 mb-1">
@@ -404,7 +480,7 @@ export default function VendorLedgerDetail() {
                 {vendor ? initials(vendor.brandName) : "?"}
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                <h1 className="text-2xl font-bold tracking-tight text-cyan-900">
                   {vendor?.brandName ?? "Loading…"}
                 </h1>
                 <p className="text-xs text-gray-400 font-mono">{vendor?.vendorCode} · {vendor?.contactName}</p>
@@ -417,11 +493,6 @@ export default function VendorLedgerDetail() {
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-80"
               style={{ background: `${G}15`, color: G_DIM, border: `1px solid ${G}30` }}>
               <Plus className="h-4 w-4" /> Add Charge
-            </button>
-            <button onClick={openPayGeneral}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-80"
-              style={{ background: G_DIM }}>
-              <CreditCard className="h-4 w-4" /> Record Payment
             </button>
           </div>
         </div>
@@ -448,6 +519,26 @@ export default function VendorLedgerDetail() {
           ))}
         </div>
 
+        {/* TDS summary strip — only shows when there's TDS */}
+        {totalTds > 0 && (
+          <div className="fade-up flex flex-wrap items-center justify-between gap-4 px-5 py-3 rounded-2xl"
+            style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.12)" }}>
+                <IndianRupee className="h-4 w-4" style={{ color: "#F59E0B" }} />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">TDS Deducted</p>
+                <p className="text-sm font-black" style={{ color: "#B45309" }}>{fmt(totalTds)}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Net Paid to Vendor</p>
+              <p className="text-sm font-black text-emerald-700">{fmt(totalNetPaid)}</p>
+            </div>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="fade-up flex flex-wrap items-center gap-3" style={{ animationDelay: "100ms" }}>
           <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
@@ -463,7 +554,7 @@ export default function VendorLedgerDetail() {
               }
               setStartDate(v);
             }}
-            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
           <span className="text-gray-400 text-xs">to</span>
           <input type="date" value={endDate}
             min={startDate || undefined}
@@ -476,16 +567,16 @@ export default function VendorLedgerDetail() {
               }
               setEndDate(v);
             }}
-            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
           <select value={orderTypeFilter} onChange={e => setOrderTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
+            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
             <option value="all">All Order Types</option>
             <option value="style">Style Orders</option>
             <option value="swatch">Swatch Orders</option>
             <option value="general">General</option>
           </select>
           <select value={entryTypeFilter} onChange={e => setEntryTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
+            className="px-3 py-2 rounded-xl border border-gray-200 text-xs text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
             <option value="all">All Entry Types</option>
             <option value="debits">Debits Only</option>
             <option value="credits">Credits Only</option>
@@ -590,10 +681,19 @@ export default function VendorLedgerDetail() {
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Order Ref</span>
                     </th>
                     <th className="text-right px-3 py-3.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total</span>
+                    </th>
+                    <th className="text-right px-3 py-3.5">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Debit</span>
                     </th>
                     <th className="text-right px-3 py-3.5">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Credit</span>
+                    </th>
+                    <th className="text-right px-3 py-3.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">TDS</span>
+                    </th>
+                    <th className="text-right px-3 py-3.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Net Paid</span>
                     </th>
                     <th className="text-right px-3 py-3.5">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Balance</span>
@@ -605,6 +705,9 @@ export default function VendorLedgerDetail() {
                   {filteredEntries.map((entry) => {
                     const isDebit      = parseFloat(entry.debit) > 0;
                     const isCredit     = parseFloat(entry.credit) > 0;
+                    const tdsAmt       = parseFloat(entry.tds_amount || "0");
+                    const netPaidAmt   = parseFloat(entry.net_paid || "0");
+                    const hasTds       = tdsAmt > 0;
                     const typeInfo     = TYPE_LABELS[entry.entry_type] ?? { label: entry.entry_type, color: G, bg: `${G}10` };
                     const isDeletable  = ["payment", "ledger_charge"].includes(entry.entry_type);
                     const isSelectable = isDebit && entry.entry_type !== "payment";
@@ -644,11 +747,14 @@ export default function VendorLedgerDetail() {
                             {typeInfo.label}
                           </span>
                         </td>
-                        <td className="px-3 py-3 max-w-xs truncate text-gray-700 font-medium">{entry.description}</td>
+                        <td className="px-3 py-3 max-w-xs truncate text-slate-500 font-medium">{entry.description}</td>
                         <td className="px-3 py-3">
                           {entry.order_code
                             ? <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${G}10`, color: G_DIM }}>{entry.order_code}</span>
                             : <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="px-3 py-3 text-right font-bold text-cyan-800">
+                          {parseFloat(entry.total_amount || "0") > 0 ? fmt(entry.total_amount) : <span className="text-gray-200">—</span>}
                         </td>
                         <td className="px-3 py-3 text-right font-bold" style={{ color: isDebit ? G_DIM : undefined }}>
                           {isDebit ? fmt(entry.debit) : <span className="text-gray-200">—</span>}
@@ -656,6 +762,25 @@ export default function VendorLedgerDetail() {
                         <td className="px-3 py-3 text-right font-bold" style={{ color: isCredit ? "#10B981" : undefined }}>
                           {isCredit ? fmt(entry.credit) : <span className="text-gray-200">—</span>}
                         </td>
+
+                        {/* TDS column */}
+                        <td className="px-3 py-3 text-right font-bold">
+                          {hasTds ? (
+                            <span style={{ color: "#B45309" }}>{fmt(tdsAmt)}</span>
+                          ) : (
+                            <span className="text-gray-200">—</span>
+                          )}
+                        </td>
+
+                        {/* Net Paid column */}
+                        <td className="px-3 py-3 text-right font-bold">
+                          {isCredit ? (
+                            <span className="text-emerald-700">{fmt(netPaidAmt)}</span>
+                          ) : (
+                            <span className="text-gray-200">—</span>
+                          )}
+                        </td>
+
                         <td className="px-3 py-3 text-right font-black"
                           style={{ color: entry.running_balance > 0 ? "#EF4444" : "#10B981" }}>
                           {fmt(entry.running_balance)}
@@ -678,7 +803,7 @@ export default function VendorLedgerDetail() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-100 bg-gray-50/50">
                     <td />
-                    <td colSpan={4} className="px-3 py-3">
+                    <td colSpan={5} className="px-3 py-3">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
                         {filteredEntries.length} entries
                         {selectedKeys.size > 0 && (
@@ -688,6 +813,12 @@ export default function VendorLedgerDetail() {
                     </td>
                     <td className="px-3 py-3 text-right font-black" style={{ color: G_DIM }}>{fmt(totalDebit)}</td>
                     <td className="px-3 py-3 text-right font-black text-emerald-700">{fmt(totalCredit)}</td>
+                    <td className="px-3 py-3 text-right font-black" style={{ color: "#B45309" }}>
+                      {totalTds > 0 ? fmt(totalTds) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-3 text-right font-black text-emerald-700">
+                      {totalNetPaid > 0 ? fmt(totalNetPaid) : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-3 py-3 text-right font-black" style={{ color: balance > 0 ? "#EF4444" : "#10B981" }}>
                       {fmt(balance)}
                     </td>
@@ -704,9 +835,9 @@ export default function VendorLedgerDetail() {
           <div className={`${card} p-5 fade-up`} style={{ animationDelay: "200ms" }}>
             <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: G }}>BANK DETAILS</p>
             <div className="flex flex-wrap gap-6 text-xs">
-              {vendor.bankName  && <div><p className="text-gray-400 mb-0.5">Bank</p><p className="font-bold text-gray-700">{vendor.bankName}</p></div>}
-              {vendor.accountNo && <div><p className="text-gray-400 mb-0.5">Account</p><p className="font-bold font-mono text-gray-700">{vendor.accountNo}</p></div>}
-              {vendor.ifscCode  && <div><p className="text-gray-400 mb-0.5">IFSC</p><p className="font-bold font-mono text-gray-700">{vendor.ifscCode}</p></div>}
+              {vendor.bankName  && <div><p className="text-gray-400 mb-0.5">Bank</p><p className="font-bold text-slate-500">{vendor.bankName}</p></div>}
+              {vendor.accountNo && <div><p className="text-gray-400 mb-0.5">Account</p><p className="font-bold font-mono text-slate-500">{vendor.accountNo}</p></div>}
+              {vendor.ifscCode  && <div><p className="text-gray-400 mb-0.5">IFSC</p><p className="font-bold font-mono text-slate-500">{vendor.ifscCode}</p></div>}
             </div>
           </div>
         )}
@@ -720,7 +851,7 @@ export default function VendorLedgerDetail() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-base font-bold text-gray-900">Record Payment</h2>
+                  <h2 className="text-base font-bold text-cyan-900">Record Payment</h2>
                   <p className="text-xs text-gray-400 mt-0.5">to {vendor?.brandName}</p>
                 </div>
                 <button onClick={() => { setPayModal(false); setPayFromSelection(false); }}
@@ -756,14 +887,19 @@ export default function VendorLedgerDetail() {
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
                       Amount <span className="text-red-500 ml-0.5">*</span>
                       <span className="ml-2 normal-case tracking-normal text-gray-400">
-                        max {fmt(payFromSelection ? selectedTotal : Math.max(0, balance))}
+                        max {fmt(payFromSelection ? parseFloat(selectedTotal.toFixed(2)) : parseFloat(Math.max(0, balance).toFixed(2)))}
                       </span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{dc.symbol}</span>
                       <input
                         type="number" min="0.01" step="0.01"
-                        max={(payFromSelection ? selectedTotal : Math.max(0, balance)) || undefined}
+                        max={
+                          (payFromSelection
+                            ? parseFloat(selectedTotal.toFixed(2))
+                            : Math.max(0, parseFloat(balance.toFixed(2)))
+                          ) || undefined
+                        }
                         value={payForm.amount}
                         onKeyDown={e => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
                         onChange={e => {
@@ -773,9 +909,9 @@ export default function VendorLedgerDetail() {
                           if (!Number.isFinite(n) || n < 0) return;
                           setPayForm(f => ({ ...f, amount: v }));
                         }}
-                        placeholder="0.00" className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                        placeholder="0.00" className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                     </div>
-                    {payForm.amount && parseFloat(payForm.amount) > (payFromSelection ? selectedTotal : Math.max(0, balance)) && (
+                    {payForm.amount && parseFloat(payForm.amount) > (payFromSelection ? parseFloat(selectedTotal.toFixed(2)) : parseFloat(Math.max(0, balance).toFixed(2))) && (
                       <p className="text-[10px] text-red-600 mt-1">Exceeds {payFromSelection ? "selected total" : "outstanding balance"}</p>
                     )}
                   </div>
@@ -783,14 +919,14 @@ export default function VendorLedgerDetail() {
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Payment Date</label>
                     <input type="date" max={new Date().toISOString().slice(0, 10)}
                       value={payForm.paymentDate} onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Payment Mode <span className="text-red-500 ml-0.5">*</span></label>
                   <select value={payForm.paymentMode} onChange={e => setPayForm(f => ({ ...f, paymentMode: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
                     <option>Bank Transfer</option>
                     <option>Cash</option>
                     <option>Cheque</option>
@@ -805,12 +941,12 @@ export default function VendorLedgerDetail() {
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Reference No.</label>
                     <input type="text" value={payForm.referenceNo} onChange={e => setPayForm(f => ({ ...f, referenceNo: e.target.value }))}
-                      placeholder="UTR / Cheque no." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                      placeholder="UTR / Cheque no." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Order Type</label>
                     <select value={payForm.orderType} onChange={e => setPayForm(f => ({ ...f, orderType: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
                       <option value="general">General</option>
                       <option value="style">Style Order</option>
                       <option value="swatch">Swatch Order</option>
@@ -822,7 +958,7 @@ export default function VendorLedgerDetail() {
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Notes</label>
                   <textarea value={payForm.notes} onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))}
                     rows={2} placeholder="Optional notes…"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 resize-none focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                 </div>
               </div>
 
@@ -850,7 +986,7 @@ export default function VendorLedgerDetail() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-base font-bold text-gray-900">Add Custom Charge</h2>
+                  <h2 className="text-base font-bold text-cyan-900">Add Custom Charge</h2>
                   <p className="text-xs text-gray-400 mt-0.5">for {vendor?.brandName}</p>
                 </div>
                 <button onClick={() => setChargeModal(false)} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
@@ -863,7 +999,7 @@ export default function VendorLedgerDetail() {
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Description <span className="text-red-500 ml-0.5">*</span></label>
                   <input type="text" value={chargeForm.description} onChange={e => setChargeForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="e.g. Transportation charges, Late delivery penalty…"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -882,21 +1018,21 @@ export default function VendorLedgerDetail() {
                           if (!Number.isFinite(n) || n < 0) return;
                           setChargeForm(f => ({ ...f, amount: v }));
                         }}
-                        placeholder="0.00" className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                        placeholder="0.00" className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Charge Date</label>
                     <input type="date" max={new Date().toISOString().slice(0, 10)}
                       value={chargeForm.chargeDate} onChange={e => setChargeForm(f => ({ ...f, chargeDate: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Order Type</label>
                   <select value={chargeForm.orderType} onChange={e => setChargeForm(f => ({ ...f, orderType: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30">
                     <option value="general">General</option>
                     <option value="style">Style Order</option>
                     <option value="swatch">Swatch Order</option>
@@ -907,7 +1043,7 @@ export default function VendorLedgerDetail() {
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Notes</label>
                   <textarea value={chargeForm.notes} onChange={e => setChargeForm(f => ({ ...f, notes: e.target.value }))}
                     rows={2} placeholder="Optional notes…"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-cyan-900 resize-none focus:outline-none focus:ring-2 focus:ring-[#C6AF4B]/30" />
                 </div>
               </div>
 

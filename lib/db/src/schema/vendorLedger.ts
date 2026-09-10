@@ -5,6 +5,8 @@ export const vendorPaymentsTable = pgTable("vendor_payments", {
   id: serial("id").primaryKey(),
   vendorId: integer("vendor_id").notNull(),
   vendorName: text("vendor_name").notNull(),
+  referenceType: text("reference_type"), // 'outsource_job' | 'custom_charge' | 'artwork_swatch' | 'artwork_style'
+  referenceId: integer("reference_id"),   // id in the source table
   paymentDate: timestamp("payment_date", { withTimezone: true }).notNull().defaultNow(),
   amount: text("amount").notNull(),
   currencyCode: text("currency_code").notNull().default("INR"),
@@ -32,9 +34,13 @@ export const vendorLedgerChargesTable = pgTable("vendor_ledger_charges", {
   vendorName: text("vendor_name").notNull(),
   chargeDate: timestamp("charge_date", { withTimezone: true }).notNull().defaultNow(),
   description: text("description").notNull(),
+  hsnId: integer("hsn_id"),
+  hsnCode: text("hsn_code"),
+  gstPercentage: numeric("gst_percentage", { precision: 5, scale: 2 }).default('0'),
   amount: text("amount").notNull(),
   notes: text("notes"),
   orderType: text("order_type").notNull().default("general"),
+  orderId: integer("order_id"),
   styleOrderId: integer("style_order_id"),
   styleOrderCode: text("style_order_code"),
   swatchOrderId: integer("swatch_order_id"),

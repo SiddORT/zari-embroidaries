@@ -31,6 +31,11 @@ export const ALL_PERMISSIONS = [
   { key: "masters:hsn:delete",                  label: "HSN",                resource: "masters:hsn",                 action: "delete",   menu: "Masters", subgroup: null },
   { key: "masters:hsn:download",                label: "HSN",                resource: "masters:hsn",                 action: "download", menu: "Masters", subgroup: null },
 
+  { key: "masters:tds:view",                    label: "TDS",                resource: "masters:tds",                 action: "view",     menu: "Masters", subgroup: null },
+  { key: "masters:tds:add_edit",                label: "TDS",                resource: "masters:tds",                 action: "add_edit", menu: "Masters", subgroup: null },
+  { key: "masters:tds:delete",                  label: "TDS",                resource: "masters:tds",                 action: "delete",   menu: "Masters", subgroup: null },
+  { key: "masters:tds:download",                label: "TDS",                resource: "masters:tds",                 action: "download", menu: "Masters", subgroup: null },
+
   { key: "masters:materials:view",              label: "Materials",           resource: "masters:materials",           action: "view",     menu: "Masters", subgroup: null },
   { key: "masters:materials:add_edit",          label: "Materials",           resource: "masters:materials",           action: "add_edit", menu: "Masters", subgroup: null },
   { key: "masters:materials:delete",            label: "Materials",           resource: "masters:materials",           action: "delete",   menu: "Masters", subgroup: null },

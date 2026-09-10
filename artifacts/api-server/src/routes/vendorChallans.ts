@@ -30,43 +30,90 @@ function durationMonthsToStart(months: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-type CleanLineItem = { description: string; quantity: string; unit: string; rate: string; amount: string };
+type CleanLineItem = { description: string; quantity: string; unit: string; rate: string; amount: string; hsn_id: number | null; hsn_code: string | null; gst_percentage: string; };
 
 // Validate & normalise challan line items. A challan must carry at least one
 // valid line item (non-blank description with letters/digits, positive qty & rate).
-function validateChallanLineItems(
-  raw: unknown
-): { ok: true; items: CleanLineItem[]; totalQty: number; totalAmount: number } | { ok: false; error: string } {
+type ValidateChallanLineItemsResult =
+  | {
+      ok: true;
+      items: CleanLineItem[];
+      totalQty: number;
+      totalAmount: number;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+// Validate & normalise challan line items.
+// A challan must carry at least one valid line item.
+function validateChallanLineItems(raw: unknown): ValidateChallanLineItemsResult {
   if (!Array.isArray(raw) || raw.length === 0) {
     return { ok: false, error: "At least one line item with quantity and rate is required" };
   }
+
   const items: CleanLineItem[] = [];
   let totalQty = 0;
   let totalAmount = 0;
+
   for (const li of raw as Array<Record<string, unknown>>) {
     const description = String(li?.description ?? "").trim();
     const unit = String(li?.unit ?? "").trim();
+
     const quantity = parseFloat(String(li?.quantity ?? ""));
     const rate = parseFloat(String(li?.rate ?? ""));
-    if (!description) return { ok: false, error: "Each line item must have a description" };
+    const gstPercentage = parseFloat(String(li?.gst_percentage ?? ""));
+
+    const rawHsnId = li?.hsn_id;
+    const hsnId = parseInt(String(rawHsnId), 10);
+
+    const hsnCodeRaw = String(li?.hsn_code ?? "").trim();
+    const hsnCode = hsnCodeRaw ? hsnCodeRaw : null;
+
+    
+    if (!description) { return { ok: false, error: "Each line item must have a description" }; }
+
     if (!/[A-Za-z0-9]/.test(description)) {
-      return { ok: false, error: `Line item description "${description}" must contain letters or numbers` };
+      return {
+        ok: false,
+        error: `Line item description "${description}" must contain letters or numbers`,
+      };
     }
+
     if (isNaN(quantity) || quantity <= 0) {
       return { ok: false, error: `Quantity must be greater than zero for "${description}"` };
     }
+
     if (isNaN(rate) || rate <= 0) {
       return { ok: false, error: `Rate must be greater than zero for "${description}"` };
     }
+
+    if (rawHsnId !== undefined && rawHsnId !== null && String(rawHsnId).trim() !== "") {
+      if (isNaN(hsnId as number) || (hsnId as number) <= 0) {
+        return { ok: false, error: `Invalid hsn_id for "${description}"` };
+      }
+    }
+
+    if (gstPercentage < 0 || gstPercentage > 100) {
+      return {
+        ok: false,
+        error: `GST percentage must be between 0 and 100 for "${description}"`,
+      };
+    }
+
     const amount = quantity * rate;
     totalQty += quantity;
     totalAmount += amount;
     items.push({
       description,
       unit,
-      quantity: String(quantity),
+      quantity: quantity.toFixed(3),
       rate: rate.toFixed(2),
       amount: amount.toFixed(2),
+      hsn_id: hsnId,
+      hsn_code: hsnCode,
+      gst_percentage: gstPercentage.toFixed(2),
     });
   }
   return { ok: true, items, totalQty, totalAmount };
@@ -81,6 +128,9 @@ async function insertPoItemsForChallan(
   ch: Record<string, any>
 ): Promise<void> {
   const lineItems: Array<Record<string, any>> = Array.isArray(ch.line_items) ? ch.line_items : [];
+  const vendorId = ch.vendor_id ?? null;
+  const vendorName = ch.vendor_name ?? null;
+
   if (lineItems.length > 0) {
     let idx = 0;
     for (const li of lineItems) {
@@ -89,21 +139,48 @@ async function insertPoItemsForChallan(
       const rate = parseFloat(String(li?.rate ?? "")) || 0;
       const unit = String(li?.unit ?? "").trim();
       const remarks = `${unit ? `Unit: ${unit} | ` : ""}Challan: ${ch.challan_number} | Date: ${ch.challan_date}`;
+
+      // Extract HSN/GST from the line item (if present)
+      const hsnCode = li?.hsnCode ?? null;
+      const gstPercentage = li?.gstPercentage ?? null;
+      // hsnId is not available; we keep it NULL (can be looked up later if needed)
+
+      const itemName = String(li?.description ?? "").trim() || ch.challan_type;
+      const itemCode = `${ch.challan_number}-${idx}`;
+
       await client.query(
         `INSERT INTO purchase_order_items
-           (po_id, item_name, item_code, ordered_quantity, received_quantity, unit_price, remarks)
-         VALUES ($1,$2,$3,$4,0,$5,$6)`,
-        [poId, String(li?.description ?? "").trim() || ch.challan_type, `${ch.challan_number}-${idx}`, qty, rate, remarks]
+           (po_id, vendor_id, vendor_name, item_name, item_code,
+            ordered_quantity, received_quantity, unit_price, remarks,
+            hsn_code, gst_percentage)
+         VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9, $10)`,
+        [
+          poId,
+         vendorId, vendorName, itemName, itemCode,
+         qty, rate, remarks, hsnCode, gstPercentage,
+        ]
       );
     }
     return;
   }
+
+  // Fallback when there are no explicit line items (use challan-level fields)
+  const qty = parseFloat(String(ch?.quantity ?? "")) || 1;
+  const rate = parseFloat(String(ch?.rate ?? "")) || 0;
+  const itemName = ch.description ?? ch.challan_type;
+  const itemCode = ch.challan_number;
+
   await client.query(
     `INSERT INTO purchase_order_items
-       (po_id, item_name, item_code, ordered_quantity, received_quantity, unit_price, remarks)
-     VALUES ($1,$2,$3,$4,0,$5,$6)`,
-    [poId, ch.description ?? ch.challan_type, ch.challan_number, ch.quantity ?? 1, ch.rate ?? 0,
-     `Challan: ${ch.challan_number} | Date: ${ch.challan_date}`]
+       (po_id, vendor_id, vendor_name, item_name, item_code,
+        ordered_quantity, received_quantity, unit_price, remarks,
+        hsn_code, gst_percentage)
+     VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $8, $9, $10)`,
+    [
+      poId, vendorId, vendorName, itemName, itemCode,
+     qty, rate, `Challan: ${ch.challan_number} | Date: ${ch.challan_date}`,
+     null, null,
+    ]
   );
 }
 
@@ -159,140 +236,333 @@ checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.VIEW] }),
 // creation (files under "files"). Stays backwards-compatible with JSON bodies:
 // when the request isn't multipart, multer is a no-op and express.json populates
 // req.body — in that case `lineItems` arrives as an array instead of a string.
-router.post("/vendor-challans", requireAuth,
-  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
-  uploadMiddleware.array("files", 10), async (req: AuthRequest, res) => {
-  const client = await pool.connect();
-  // Track files written to disk so they can be cleaned up if the transaction
-  // rolls back (filesystem writes aren't covered by the DB transaction).
-  const writtenUrls: string[] = [];
-  try {
-    const userName = req.user?.email ?? "system";
-    const { challanDate, vendorId, vendorName, challanType, referenceOrderId, description, unit, remarks } = req.body;
-    let lineItems: unknown = (req.body as { lineItems?: unknown }).lineItems;
-    if (typeof lineItems === "string") {
-      try { lineItems = JSON.parse(lineItems); } catch { lineItems = []; }
-    }
-    if (!vendorId) { res.status(400).json({ error: "Vendor is required" }); return; }
-    if (!challanDate) { res.status(400).json({ error: "Challan date is required" }); return; }
-    if (!challanType) { res.status(400).json({ error: "Challan type is required" }); return; }
+router.post( "/vendor-challans", requireAuth,
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),
+  uploadMiddleware.array("files", 10),
+  async (req: AuthRequest, res) => {
+    const client = await pool.connect();
+    const writtenUrls: string[] = [];
 
-    const validated = validateChallanLineItems(lineItems);
-    if (!validated.ok) { res.status(400).json({ error: validated.error }); return; }
-    const quantity = String(validated.totalQty);
-    const rate = null;
-    const amount = validated.totalAmount.toFixed(2);
+    try {
+      const userName = req.user?.email ?? "system";
 
-    const challanNumber = await nextChallanNumber();
-    // All challans start as Draft so they remain editable; verification is an
-    // explicit follow-up action (PATCH /:id/verify) gated by permission.
-    const initialStatus = "Draft";
-    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      const { challanDate, vendorId, vendorName, challanType, referenceOrderId, description, unit, remarks, } = req.body;
 
-    await client.query("BEGIN");
-    const ins = await client.query(
-      `INSERT INTO vendor_challans
-         (challan_number, challan_date, vendor_id, vendor_name, challan_type,
-          reference_order_id, description, quantity, unit, rate, amount,
-          attachments, line_items, status, remarks, created_by, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW())
-       RETURNING *`,
-      [challanNumber, challanDate, parseInt(String(vendorId), 10), vendorName ?? null, challanType,
-       referenceOrderId ?? null, description ?? null, quantity, unit ?? null,
-       rate, amount, null,
-       JSON.stringify(validated.items),
-       initialStatus, remarks ?? null, userName]
-    );
-    let row = ins.rows[0];
-
-    // Upload attachments within the same transaction, after the row exists (we
-    // need its id for the folder path) but tied to creation — so the admin
-    // auto-verify status never blocks the creator's own uploads.
-    if (files.length) {
-      const id = row.id as number;
-      const uploaded: ChallanFile[] = [];
-      for (const f of files) {
-        const url = await uploadFile(f, { entity: "vendor-challans", id: String(id), category: "document" });
-        writtenUrls.push(url);
-        uploaded.push({ url, originalName: f.originalname, mimeType: f.mimetype, size: f.size });
+      let lineItems: unknown = (req.body as { lineItems?: unknown }).lineItems;
+      if (typeof lineItems === "string") {
+        try {
+          lineItems = JSON.parse(lineItems);
+        } catch {
+          lineItems = [];
+        }
       }
-      const upd = await client.query(
-        `UPDATE vendor_challans SET attachments=$1, attachment=NULL, updated_at=NOW() WHERE id=$2 RETURNING *`,
-        [JSON.stringify(uploaded), id]
-      );
-      row = upd.rows[0];
-    }
 
-    await client.query("COMMIT");
-    res.status(201).json({ data: row });
-  } catch (err) {
-    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
-    // The DB rolled back, so drop any files already written to avoid orphans.
-    await Promise.all(writtenUrls.map((u) => deleteUpload(u).catch(() => undefined)));
-    req.log?.error(err);
-    res.status(500).json({ error: "Failed to create vendor challan" });
-  } finally {
-    client.release();
+      if (!vendorId) {
+        res.status(400).json({ error: "Vendor is required" });
+        return;
+      }
+
+      if (!challanDate) {
+        res.status(400).json({ error: "Challan date is required" });
+        return;
+      }
+
+      if (!challanType) {
+        res.status(400).json({ error: "Challan type is required" });
+        return;
+      }
+
+      const validated = validateChallanLineItems(lineItems);
+      if (!validated.ok) {
+        res.status(400).json({ error: validated.error });
+        return;
+      }
+
+      const quantity = validated.totalQty.toFixed(3);
+      const rate = null;
+      const amount = validated.totalAmount.toFixed(2);
+
+      const challanNumber = await nextChallanNumber();
+      const initialStatus = "Draft";
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+
+      await client.query("BEGIN");
+
+      const ins = await client.query(
+        `INSERT INTO vendor_challans
+          (
+           challan_number, challan_date, vendor_id, vendor_name, challan_type,
+           reference_order_id, description, quantity, unit, rate, amount,
+           attachments, line_items, status, remarks, created_by, created_at, updated_at
+          )
+         VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW())
+         RETURNING *`,
+        [
+         challanNumber, challanDate, parseInt(String(vendorId), 10), vendorName ?? null,
+         challanType, referenceOrderId ?? null, description ?? null, quantity, unit ?? null,
+         rate, amount, null, JSON.stringify(validated.items), 
+         initialStatus, remarks ?? null, userName,
+        ]
+      );
+
+      let row = ins.rows[0];
+      const challanId = row.id as number;
+
+      // Insert child rows in the same transaction
+      for (const item of validated.items) {
+        await client.query(
+          `INSERT INTO vendor_challan_items
+            (
+              vendor_challan_id, description, quantity, unit,
+              rate, amount, hsn_id, hsn_code, gst_percentage
+            )
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [
+            challanId, item.description, item.quantity, item.unit || null,
+            item.rate, item.amount, item.hsn_id, item.hsn_code, item.gst_percentage,
+          ]
+        );
+      }
+
+      // Upload attachments after challan exists, still before commit
+      if (files.length) {
+        const uploaded: ChallanFile[] = [];
+
+        for (const f of files) {
+          const url = await uploadFile(f, {
+            entity: "vendor-challans",
+            id: String(challanId),
+            category: "document",
+          });
+
+          writtenUrls.push(url);
+          uploaded.push({
+            url,
+            originalName: f.originalname,
+            mimeType: f.mimetype,
+            size: f.size,
+          });
+        }
+
+        const upd = await client.query(
+          `UPDATE vendor_challans
+              SET attachments = $1,
+                  attachment = NULL,
+                  updated_at = NOW()
+            WHERE id = $2
+          RETURNING *`,
+          [JSON.stringify(uploaded), challanId]
+        );
+
+        row = upd.rows[0];
+      }
+
+      await client.query("COMMIT");
+      res.status(201).json({ data: row });
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore
+      }
+
+      await Promise.all(writtenUrls.map((u) => deleteUpload(u).catch(() => undefined)));
+
+      req.log?.error(err);
+      res.status(500).json({ error: "Failed to create vendor challan" });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 // ── UPDATE ────────────────────────────────────────────────────────────────────
-router.put("/vendor-challans/:id", requireAuth, 
-  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),  
+router.put(
+  "/vendor-challans/:id",
+  requireAuth,
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.ADD_EDIT] }),
   async (req: AuthRequest, res) => {
-  const id = parseInt(String(req.params.id), 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  try {
-    const existing = await pool.query(`SELECT status FROM vendor_challans WHERE id = $1 AND is_deleted = false`, [id]);
-    if (!existing.rows[0]) { res.status(404).json({ error: "Not found" }); return; }
-    if (!["Draft"].includes(existing.rows[0].status)) {
-      res.status(400).json({ error: "Only Draft challans can be edited" }); return;
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
     }
-    const { challanDate, vendorId, vendorName, challanType, referenceOrderId, description, unit, remarks, lineItems } = req.body;
-    if (!vendorId) { res.status(400).json({ error: "Vendor is required" }); return; }
-    if (!challanDate) { res.status(400).json({ error: "Challan date is required" }); return; }
-    if (!challanType) { res.status(400).json({ error: "Challan type is required" }); return; }
 
-    const validated = validateChallanLineItems(lineItems);
-    if (!validated.ok) { res.status(400).json({ error: validated.error }); return; }
-    const quantity = String(validated.totalQty);
-    const amount = validated.totalAmount.toFixed(2);
+    try {
+      // 1. Check existing challan
+      const existing = await pool.query(
+        `SELECT status FROM vendor_challans WHERE id = $1 AND is_deleted = false`,
+        [id]
+      );
+      if (!existing.rows[0]) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (existing.rows[0].status !== "Draft") {
+        res.status(400).json({ error: "Only Draft challans can be edited" });
+        return;
+      }
 
-    // Note: `attachment`/`attachments` are managed exclusively by the document
-    // upload/delete endpoints — never touched here, so edits can't clobber files.
-    const r = await pool.query(
-      `UPDATE vendor_challans SET
-         challan_date=$1, vendor_id=$2, vendor_name=$3, challan_type=$4,
-         reference_order_id=$5, description=$6, quantity=$7, unit=$8,
-         rate=$9, amount=$10, line_items=$11, remarks=$12, updated_at=NOW()
-       WHERE id=$13 RETURNING *`,
-      [challanDate, vendorId, vendorName ?? null, challanType, referenceOrderId ?? null,
-       description ?? null, quantity, unit ?? null, null, amount,
-       JSON.stringify(validated.items),
-       remarks ?? null, id]
-    );
-    res.json({ data: r.rows[0] });
-  } catch (err) {
-    req.log?.error(err);
-    res.status(500).json({ error: "Failed to update vendor challan" });
+      // 2. Validate required fields
+      const { challanDate, vendorId, vendorName, challanType, referenceOrderId, description, unit, remarks, lineItems, } = req.body;
+
+      if (!vendorId) {
+        res.status(400).json({ error: "Vendor is required" });
+        return;
+      }
+      if (!challanDate) {
+        res.status(400).json({ error: "Challan date is required" });
+        return;
+      }
+      if (!challanType) {
+        res.status(400).json({ error: "Challan type is required" });
+        return;
+      }
+
+      // 3. Validate line items
+      const validated = validateChallanLineItems(lineItems);
+      console.log("Validated line items:", validated, "lineItems", lineItems);
+      if (!validated.ok) {
+        res.status(400).json({ error: validated.error });
+        return;
+      }
+
+      const totalQty = String(validated.totalQty);
+      const totalAmount = validated.totalAmount.toFixed(2);
+
+      // 4. Get current user for audit trail
+      const currentUser = (req.user as any)?.email ?? "system";
+
+      // 5. Begin transaction
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // 6. Soft‑delete existing items (instead of hard DELETE)
+        await client.query(
+          `UPDATE vendor_challan_items
+           SET is_deleted = true,
+               deleted_by = $2,
+               deleted_at = NOW()
+           WHERE vendor_challan_id = $1 AND is_deleted = false`,
+          [id, currentUser]
+        );
+
+        // 7. Insert new items (if any)
+        if (validated.items && validated.items.length > 0) {
+          const insertPromises = validated.items.map((item: any) => {
+            return client.query(
+              `INSERT INTO vendor_challan_items (
+                vendor_challan_id, description, quantity, unit, rate, amount,
+              hsn_id, hsn_code, gst_percentage
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              [
+               id, item.description || null, item.quantity, item.unit || null, item.rate,
+               item.amount, item.hsnId || null, item.hsnCode || null, item.gstPercentage || 0,
+              ]
+            );
+          });
+          await Promise.all(insertPromises);
+        }
+
+        // 8. Update the vendor_challans record
+        const updateResult = await client.query(
+          `UPDATE vendor_challans SET
+            challan_date = $1, vendor_id = $2, vendor_name = $3, challan_type = $4,
+             reference_order_id = $5, description = $6, quantity = $7, unit = $8, rate = NULL,
+             amount = $9, line_items = $10, remarks = $11, updated_at = NOW()
+           WHERE id = $12
+           RETURNING *`,
+          [
+            challanDate, vendorId, vendorName ?? null, challanType,
+           referenceOrderId ?? null, description ?? null, totalQty, unit ?? null, totalAmount,
+           JSON.stringify(validated.items), remarks ?? null, id,
+          ]
+        );
+
+        await client.query("COMMIT");
+        res.json({ data: updateResult.rows[0] });
+      } catch (txErr) {
+        await client.query("ROLLBACK");
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      req.log?.error(err);
+      res.status(500).json({ error: "Failed to update vendor challan" });
+    }
   }
-});
+);
 
 // ── DELETE (soft) ─────────────────────────────────────────────────────────────
-router.delete("/vendor-challans/:id", requireAuth, 
-  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.DELETE] }),  
+router.delete( "/vendor-challans/:id", requireAuth,
+  checkPermission({ any: [PROCUREMENT_VENDOR_CHALLANS.DELETE] }),
   async (req, res) => {
-  const id = parseInt(String(req.params.id), 10);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const existing = await pool.query(`SELECT status FROM vendor_challans WHERE id=$1 AND is_deleted=false`, [id]);
-  if (!existing.rows[0]) { res.status(404).json({ error: "Not found" }); return; }
-  if (!["Draft", "Cancelled"].includes(existing.rows[0].status)) {
-    res.status(400).json({ error: "Only Draft or Cancelled challans can be deleted" }); return;
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+
+    try {
+      // 1. Check if challan exists and is deletable
+      const existing = await pool.query(
+        `SELECT status FROM vendor_challans WHERE id = $1 AND is_deleted = false`,
+        [id]
+      );
+      if (!existing.rows[0]) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!["Draft", "Cancelled"].includes(existing.rows[0].status)) {
+        res.status(400).json({ error: "Only Draft or Cancelled challans can be deleted" });
+        return;
+      }
+
+      const deletedByUser = (req.user as any)?.email ?? "system";
+
+      // 2. Begin transaction
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // 3. Soft‑delete all associated items
+        await client.query(
+          `UPDATE vendor_challan_items
+           SET is_deleted = true,
+               deleted_by = $2,
+               deleted_at = NOW()
+           WHERE vendor_challan_id = $1 AND is_deleted = false`,
+          [id, deletedByUser]
+        );
+
+        // 4. Soft‑delete the parent challan
+        await client.query(
+          `UPDATE vendor_challans
+           SET is_deleted = true,
+               updated_at = NOW(),
+               deleted_by = $2,
+               deleted_at = NOW()
+           WHERE id = $1`,
+          [id, deletedByUser]
+        );
+
+        await client.query("COMMIT");
+        res.json({ success: true });
+      } catch (txErr) {
+        await client.query("ROLLBACK");
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      req.log?.error(err);
+      res.status(500).json({ error: "Failed to delete vendor challan" });
+    }
   }
-  const deletedByUser = (req.user as any)?.email ?? "system";
-  await pool.query(`UPDATE vendor_challans SET is_deleted=true, updated_at=NOW(), deleted_by=$2, deleted_at=NOW() WHERE id=$1`, [id, deletedByUser]);
-  res.json({ success: true });
-});
+);
 
 // ── VERIFY ────────────────────────────────────────────────────────────────────
 router.patch("/vendor-challans/:id/verify", requireAuth, 

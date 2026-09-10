@@ -13,6 +13,14 @@ export const MASTERS_HSN = {
   DOWNLOAD: "masters:hsn:download",
 };
 
+export const MASTERS_TDS = {
+  BASE: "masters:tds",
+  VIEW: "masters:tds:view",
+  ADD_EDIT: "masters:tds:add_edit",
+  DELETE: "masters:tds:delete",
+  DOWNLOAD: "masters:tds:download",
+};
+
 export const MASTERS_MATERIALS = {
   BASE: "masters:materials",
   VIEW: "masters:materials:view",
