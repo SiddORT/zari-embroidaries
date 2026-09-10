@@ -4,7 +4,7 @@ import {
   swatchBomTable, purchaseOrdersTable, purchaseReceiptsTable, prPaymentsTable,
   consumptionLogTable, artisanTimesheetsTable, outsourceJobsTable, customChargesTable,
   materialsTable, fabricsTable, vendorsTable, hsnTable, inventoryItemsTable,tdsMasterTable,paymentTds,
-  purchaseReceiptItems, paymentTdsItems
+  purchaseReceiptItems, paymentTdsItems, paymentItems
 } from "@workspace/db/schema";
 import { usersTable, eq, ilike, or, desc, and } from "@workspace/db";
 // import { eq, ilike, or, desc, and } from "drizzle-orm";
@@ -14,7 +14,6 @@ import { persistAttachmentObject } from "../utils/uploadHelper";
 import jwt from "jsonwebtoken";
 import { checkPermission } from "../middlewares/checkPermission";
 import { STYLE_ORDER_TABS, SWATCH_ORDER_TABS, SWATCH_ORDERS, STYLE_ORDERS } from "../constants/permissions";
-
 const router = Router();
 // ─── Shared Reservation Helper ───────────────────────────────────────────────
 // Sections 1-4, 8-10 of the Reservation Engine spec.
@@ -2032,58 +2031,104 @@ router.delete("/pr/:id", requireAuth,
 });
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
-router.get("/payments/:prId", requireAuth, 
-  checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW] }), 
+router.get(
+  "/payments/:prId",
+  requireAuth,
+  checkPermission({
+    any: [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.VIEW],
+  }),
   async (req, res) => {
     const prId = Number(req.params.prId);
+
     const rows = await db
-    .select({
-      id: prPaymentsTable.id,
-      prId: prPaymentsTable.prId,
-      paymentType: prPaymentsTable.paymentType,
-      paymentDate: prPaymentsTable.paymentDate,
-      paymentMode: prPaymentsTable.paymentMode,
-      amount: prPaymentsTable.amount,
-      currencyCode: prPaymentsTable.currencyCode,
-      exchangeRateSnapshot: prPaymentsTable.exchangeRateSnapshot,
-      baseCurrencyAmount: prPaymentsTable.baseCurrencyAmount,
-      transactionStatus: prPaymentsTable.transactionStatus,
-      paymentStatus: prPaymentsTable.paymentStatus,
-      attachment: prPaymentsTable.attachment,
-      createdBy: prPaymentsTable.createdBy,
-      createdAt: prPaymentsTable.createdAt,
-      updatedBy: prPaymentsTable.updatedBy,
-      updatedAt: prPaymentsTable.updatedAt,
-      isDeleted: prPaymentsTable.isDeleted,
-      deletedBy: prPaymentsTable.deletedBy,
-      deletedAt: prPaymentsTable.deletedAt,
-      baseAmount: paymentTds.baseAmount,
-      paidAmount: paymentTds.paidAmount,
-      tdsAmount: paymentTds.tdsAmount,
-      tdsRate: paymentTds.tdsRate,
-      tdsMasterId: paymentTds.tdsMasterId,
-      tdsStatus: paymentTds.status,
-    })
-    .from(prPaymentsTable)
-    .leftJoin(
-      paymentTds,
-      and(
-        eq(paymentTds.paymentSourceId, prPaymentsTable.id),
-        eq(paymentTds.paymentSourceType, 'pr_payments'),
-        eq(paymentTds.isDeleted, false)
+      .select({
+        // Payment details
+        id: prPaymentsTable.id,
+        prId: prPaymentsTable.prId,
+        paymentType: prPaymentsTable.paymentType,
+        paymentDate: prPaymentsTable.paymentDate,
+        paymentMode: prPaymentsTable.paymentMode,
+        amount: prPaymentsTable.amount,
+        currencyCode: prPaymentsTable.currencyCode,
+        exchangeRateSnapshot: prPaymentsTable.exchangeRateSnapshot,
+        baseCurrencyAmount: prPaymentsTable.baseCurrencyAmount,
+        transactionStatus: prPaymentsTable.transactionStatus,
+        paymentStatus: prPaymentsTable.paymentStatus,
+        attachment: prPaymentsTable.attachment,
+
+        // Audit
+        createdBy: prPaymentsTable.createdBy,
+        createdAt: prPaymentsTable.createdAt,
+        updatedBy: prPaymentsTable.updatedBy,
+        updatedAt: prPaymentsTable.updatedAt,
+        isDeleted: prPaymentsTable.isDeleted,
+        deletedBy: prPaymentsTable.deletedBy,
+        deletedAt: prPaymentsTable.deletedAt,
+
+        // Payment item allocation
+        baseAmount: sql<string>`
+          COALESCE(SUM(${paymentItems.baseAmount}), 0)
+        `,
+
+        gstAmount: sql<string>`
+          COALESCE(SUM(${paymentItems.gstAmount}), 0)
+        `,
+
+        grossAmount: sql<string>`
+          COALESCE(SUM(${paymentItems.grossAmount}), 0)
+        `,
+
+        paidAmount: sql<string>`
+          COALESCE(SUM(${paymentItems.paidAmount}), 0)
+        `,
+
+        tdsAmount: sql<string>`
+          COALESCE(SUM(${paymentItems.tdsAmount}), 0)
+        `,
+
+        // TDS header/details - optional
+        tdsRate: paymentTds.tdsRate,
+        tdsMasterId: paymentTds.tdsMasterId,
+        tdsStatus: paymentTds.status,
+      })
+      .from(prPaymentsTable)
+
+      .leftJoin(
+        paymentItems,
+        and(
+          eq(paymentItems.paymentSourceId, prPaymentsTable.id),
+          eq(paymentItems.paymentSourceType, "pr_payments"),
+          eq(paymentItems.isDeleted, false),
+        ),
       )
-    )
-    .where(
-      and(
-        eq(prPaymentsTable.prId, prId),
-        eq(prPaymentsTable.isDeleted, false)
+
+      .leftJoin(
+        paymentTds,
+        and(
+          eq(paymentTds.paymentSourceId, prPaymentsTable.id),
+          eq(paymentTds.paymentSourceType, "pr_payments"),
+          eq(paymentTds.isDeleted, false),
+        ),
       )
-    )
-    .orderBy(prPaymentsTable.createdAt);
-  
+
+      .where(
+        and(
+          eq(prPaymentsTable.prId, prId),
+          eq(prPaymentsTable.isDeleted, false),
+        ),
+      )
+
+      .groupBy(
+        prPaymentsTable.id,
+        paymentTds.id,
+      )
+
+      .orderBy(prPaymentsTable.createdAt);
+
     return res.json({ data: rows });
-  }
+  },
 );
+
 
 // router.post("/payments", requireAuth, 
 //   checkPermission({ any : [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }), 

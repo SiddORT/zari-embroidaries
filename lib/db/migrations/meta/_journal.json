@@ -253,6 +253,48 @@
       "when": 1788956058420,
       "tag": "0039_cuddly_catseye",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789022383317,
+      "tag": "0040_dashing_greymalkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789034397960,
+      "tag": "0041_tiresome_malice",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789034490978,
+      "tag": "0042_narrow_landau",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789034580879,
+      "tag": "0043_mushy_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1789035687209,
+      "tag": "0044_robust_gambit",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1789035738648,
+      "tag": "0045_glossy_ezekiel_stane",
+      "breakpoints": true
     }
   ]
 }

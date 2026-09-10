@@ -6,12 +6,14 @@ import { vendorsTable } from "./vendors";
 export const paymentSourceTypeEnum = pgEnum("payment_source_type_enum", [
   "pr_payments",
   "costing_payments",
+  "vendor_payments"
 ]);
 
 export const baseDocumentTypeEnum = pgEnum("base_document_type_enum", [
   "pr",
   "outsource_job",
-  "custom_charge"
+  "custom_charge",
+  "vendor_challan"
 ]);
 
 export const paymentTdsStatusEnum = pgEnum("payment_tds_status_enum", [

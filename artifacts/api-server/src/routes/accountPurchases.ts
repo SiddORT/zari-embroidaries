@@ -303,8 +303,7 @@ router.get("/unified-liabilities", requireAuth,
   checkPermission({ any: [ACCOUNTS_PURCHASES.VIEW] }),
   async (req, res) => {
   try {
-    const { from_date, to_date, vendor_id, ref_type, status, department,
-            search, ref_no, page = "1", limit = "50" } = req.query as Record<string, string>;
+    const { from_date, to_date, vendor_id, ref_type, status, department, search, ref_no, page = "1", limit = "50" } = req.query as Record<string, string>;
     const vid     = vendor_id ? parseInt(vendor_id) : null;
     const offset  = (parseInt(page) - 1) * parseInt(limit);
     const pLimit  = parseInt(limit);
@@ -335,15 +334,15 @@ router.get("/unified-liabilities", requireAuth,
 
     const { rows } = await pool.query(`
       WITH all_liabilities AS (
-        /* 1. PR Vendor Invoice Bills */
+        /* 1. Vendor Invoice Bills */
         SELECT
-          'Purchase Receipt'::text            AS ref_type,
+          'Vendor Invoice'::text              AS ref_type,
           vil.id::text                        AS source_id,
           COALESCE(vil.vendor_invoice_date, vil.created_at::date)::text AS date,
           COALESCE(vil.linked_po_number, vil.pr_number, '')  AS ref_number,
           COALESCE(vil.vendor_name, '—')      AS vendor_name,
           vil.vendor_id::text                 AS vendor_id_text,
-          'Purchase Receipt Vendor Bills'     AS department,
+          'Vendor Invoice'                    AS department,
           vil.vendor_invoice_amount::numeric  AS amount,
           vil.paid_amount::numeric            AS paid_amount,
           vil.pending_amount::numeric         AS pending_amount,
@@ -357,21 +356,25 @@ router.get("/unified-liabilities", requireAuth,
 
         UNION ALL
 
-        /* 2. Outsource Jobs */
+        /* 2. Outsource Jobs (base + GST from header) */
         SELECT
           'Costing Outsource'::text           AS ref_type,
           oj.id::text                         AS source_id,
-          oj.issue_date::text                 AS date,
+          oj.issue_date                       AS date,
           COALESCE(sw.order_code, st.order_code, 'OJ-' || oj.id::text) AS ref_number,
           COALESCE(oj.vendor_name, '—')       AS vendor_name,
           oj.vendor_id::text                  AS vendor_id_text,
           'Costing Outsource'                 AS department,
-          oj.total_cost::numeric              AS amount,
+          (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100)) AS amount,
           COALESCE(cp.paid, 0)                AS paid_amount,
-          GREATEST(0, oj.total_cost::numeric - COALESCE(cp.paid, 0)) AS pending_amount,
+          GREATEST(
+            0,
+            (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100))
+              - COALESCE(cp.paid, 0)
+          )                                   AS pending_amount,
           CASE
-            WHEN COALESCE(cp.paid, 0) >= oj.total_cost::numeric THEN 'Paid'
-            WHEN COALESCE(cp.paid, 0) > 0                       THEN 'Partially Paid'
+            WHEN COALESCE(cp.paid, 0) >= (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100)) THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
             ELSE 'Unpaid'
           END AS status,
           'INR'::text AS currency_code,
@@ -381,10 +384,12 @@ router.get("/unified-liabilities", requireAuth,
         LEFT JOIN style_orders  st ON st.id = oj.style_order_id
         LEFT JOIN (
           SELECT reference_id, SUM(base_currency_amount) AS paid
-          FROM costing_payments WHERE reference_type = 'outsource_job'
+          FROM costing_payments
+          WHERE reference_type = 'outsource_job'
+            AND is_deleted = false
           GROUP BY reference_id
         ) cp ON cp.reference_id = oj.id
-        WHERE 1=1
+        WHERE oj.is_deleted = false
           ${df("oj.issue_date", from_date, to_date)}
           ${vf("oj.vendor_id")}
 
@@ -394,7 +399,7 @@ router.get("/unified-liabilities", requireAuth,
         SELECT
           'Other Expense'::text               AS ref_type,
           oe.expense_id::text                 AS source_id,
-          oe.expense_date::text               AS date,
+          oe.expense_date                     AS date,
           oe.expense_number                   AS ref_number,
           COALESCE(oe.vendor_name, 'N/A')     AS vendor_name,
           oe.vendor_id::text                  AS vendor_id_text,
@@ -410,7 +415,7 @@ router.get("/unified-liabilities", requireAuth,
           'INR'::text AS currency_code,
           1::numeric  AS exchange_rate_snapshot
         FROM other_expenses oe
-        WHERE 1=1
+        WHERE oe.is_deleted = false
           ${df("oe.expense_date", from_date, to_date)}
           ${vid ? `AND oe.vendor_id = ${vid}` : ""}
 
@@ -460,6 +465,266 @@ router.get("/unified-liabilities", requireAuth,
         WHERE osd.final_shipping_amount IS NOT NULL AND osd.final_shipping_amount > 0
           ${df("osd.shipment_date", from_date, to_date)}
           ${vid ? `AND osd.shipping_vendor_id = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 6. Custom Charges (base + GST from header) */
+        SELECT
+          'Custom Charge'::text               AS ref_type,
+          cc.id::text                         AS source_id,
+          cc.created_at::text                 AS date,
+          COALESCE(sw.order_code, st.order_code, 'CC-' || cc.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          cc.vendor_id::text                  AS vendor_id_text,
+          'Costing Custom Charge'             AS department,
+          (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100)) AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(
+            0,
+            (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100))
+              - COALESCE(cp.paid, 0)
+          )                                   AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100)) THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM custom_charges cc
+        LEFT JOIN swatch_orders sw ON sw.id = cc.swatch_order_id
+        LEFT JOIN style_orders  st ON st.id = cc.style_order_id
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'custom_charge'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = cc.id
+        WHERE cc.is_deleted = false
+          ${df("cc.created_at", from_date, to_date)}
+          ${vf("cc.vendor_id")}
+
+        UNION ALL
+
+        /* 7. Purchase Receipts (Goods Received) */
+        SELECT
+          'Purchase Receipt'::text            AS ref_type,
+          pr.id::text                         AS source_id,
+          COALESCE(pr.received_date, pr.created_at)::text AS date,
+          pr.pr_number                        AS ref_number,
+          COALESCE(pr.vendor_name, '—')       AS vendor_name,
+          COALESCE(pr.vendor_id, po.vendor_id)::text AS vendor_id_text,
+          'Purchase Receipt'                  AS department,
+          COALESCE(
+            pr.vendor_invoice_amount::numeric,
+            pr.total_amount_with_gst::numeric,
+            items.total_with_gst,
+            (pr.received_qty::numeric * pr.actual_price::numeric),
+            0
+          )                                   AS amount,
+          COALESCE(pp.paid, 0)                AS paid_amount,
+          GREATEST(
+            0,
+            COALESCE(
+              pr.vendor_invoice_amount::numeric,
+              pr.total_amount_with_gst::numeric,
+              items.total_with_gst,
+              (pr.received_qty::numeric * pr.actual_price::numeric),
+              0
+            ) - COALESCE(pp.paid, 0)
+          )                                   AS pending_amount,
+          CASE
+            WHEN COALESCE(pp.paid, 0) >= COALESCE(
+              pr.vendor_invoice_amount::numeric,
+              pr.total_amount_with_gst::numeric,
+              items.total_with_gst,
+              (pr.received_qty::numeric * pr.actual_price::numeric),
+              0
+            ) THEN 'Paid'
+            WHEN COALESCE(pp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM purchase_receipts pr
+        LEFT JOIN purchase_orders po ON pr.po_id = po.id AND po.is_deleted = false
+        LEFT JOIN (
+          SELECT
+            pr_id,
+            SUM(quantity * unit_price * (1 + COALESCE(gst_percentage, 0) / 100)) AS total_with_gst
+          FROM purchase_receipt_items
+          WHERE is_deleted = false
+          GROUP BY pr_id
+        ) items ON items.pr_id = pr.id
+        LEFT JOIN (
+          SELECT pr_id, SUM(base_currency_amount) AS paid
+          FROM pr_payments
+          WHERE is_deleted = false
+          GROUP BY pr_id
+        ) pp ON pp.pr_id = pr.id
+        WHERE pr.is_deleted = false
+          ${df("COALESCE(pr.received_date, pr.created_at)", from_date, to_date)}
+          ${vid ? `AND COALESCE(pr.vendor_id, po.vendor_id) = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 8. Vendor Challans (Verified only, base + GST from items) */
+        SELECT
+          'Vendor Challan'::text              AS ref_type,
+          vc.id::text                         AS source_id,
+          COALESCE(vc.challan_date::timestamptz, vc.created_at)::text AS date,
+          vc.challan_number                   AS ref_number,
+          COALESCE(vc.vendor_name, '—')       AS vendor_name,
+          vc.vendor_id::text                  AS vendor_id_text,
+          'Vendor Challan'                    AS department,
+          COALESCE(items.amount, 0)           AS amount,
+          COALESCE(vp.paid, 0)                AS paid_amount,
+          GREATEST(0, COALESCE(items.amount, 0) - COALESCE(vp.paid, 0)) AS pending_amount,
+          CASE
+            WHEN COALESCE(vp.paid, 0) >= COALESCE(items.amount, 0) THEN 'Paid'
+            WHEN COALESCE(vp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM vendor_challans vc
+        LEFT JOIN (
+          SELECT
+            vendor_challan_id,
+            SUM(amount * (1 + COALESCE(gst_percentage, 0) / 100)) AS amount
+          FROM vendor_challan_items
+          WHERE is_deleted = false
+          GROUP BY vendor_challan_id
+        ) items ON items.vendor_challan_id = vc.id
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM vendor_payments
+          WHERE reference_type = 'vendor_challan'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) vp ON vp.reference_id = vc.id
+        WHERE vc.is_deleted = false
+          AND vc.status = 'Verified'
+          ${df("COALESCE(vc.challan_date::timestamptz, vc.created_at)", from_date, to_date)}
+          ${vf("vc.vendor_id")}
+
+        UNION ALL
+
+        /* 9. Artwork — Swatch */
+        SELECT
+          'Artwork (Swatch)'::text            AS ref_type,
+          a.id::text                          AS source_id,
+          a.created_at::text                  AS date,
+          COALESCE(a.artwork_code, 'ART-' || a.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          a.outsource_vendor_id::text         AS vendor_id_text,
+          'Artwork (Swatch)'                  AS department,
+          a.outsource_payment_amount::numeric AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(0, a.outsource_payment_amount::numeric - COALESCE(cp.paid, 0)) AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= a.outsource_payment_amount::numeric THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM artworks a
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'artwork_swatch'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = a.id
+        WHERE a.outsource_vendor_id IS NOT NULL
+          AND a.outsource_vendor_id <> ''
+          AND a.outsource_payment_amount IS NOT NULL
+          AND a.outsource_payment_amount <> ''
+          AND a.is_deleted = false
+          ${df("a.created_at", from_date, to_date)}
+          ${vid ? `AND a.outsource_vendor_id::integer = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 10. Artwork — Style */
+        SELECT
+          'Artwork (Style)'::text             AS ref_type,
+          soa.id::text                        AS source_id,
+          soa.created_at::text                AS date,
+          COALESCE(soa.artwork_code, 'ART-' || soa.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          soa.outsource_vendor_id::text       AS vendor_id_text,
+          'Artwork (Style)'                   AS department,
+          soa.outsource_payment_amount::numeric AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(0, soa.outsource_payment_amount::numeric - COALESCE(cp.paid, 0)) AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= soa.outsource_payment_amount::numeric THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM style_order_artworks soa
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'artwork_style'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = soa.id
+        WHERE soa.outsource_vendor_id IS NOT NULL
+          AND soa.outsource_vendor_id <> ''
+          AND soa.outsource_payment_amount IS NOT NULL
+          AND soa.outsource_payment_amount <> ''
+          AND soa.is_deleted = false
+          ${df("soa.created_at", from_date, to_date)}
+          ${vid ? `AND soa.outsource_vendor_id::integer = ${vid}` : ""}
+
+        UNION ALL
+
+        /* 11. Toile Work */
+        SELECT
+          'Toile'::text                       AS ref_type,
+          soa.id::text                        AS source_id,
+          soa.created_at::text                AS date,
+          COALESCE(soa.artwork_code, 'TOI-' || soa.id::text) AS ref_number,
+          '—'                                 AS vendor_name,
+          soa.toile_vendor_id::text           AS vendor_id_text,
+          'Toile Work'                        AS department,
+          COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric AS amount,
+          COALESCE(cp.paid, 0)                AS paid_amount,
+          GREATEST(
+            0,
+            COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
+              - COALESCE(cp.paid, 0)
+          )                                   AS pending_amount,
+          CASE
+            WHEN COALESCE(cp.paid, 0) >= COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric THEN 'Paid'
+            WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+            ELSE 'Unpaid'
+          END AS status,
+          'INR'::text AS currency_code,
+          1::numeric  AS exchange_rate_snapshot
+        FROM style_order_artworks soa
+        LEFT JOIN (
+          SELECT reference_id, SUM(base_currency_amount) AS paid
+          FROM costing_payments
+          WHERE reference_type = 'toile'
+            AND is_deleted = false
+          GROUP BY reference_id
+        ) cp ON cp.reference_id = soa.id
+        WHERE soa.toile_vendor_id IS NOT NULL
+          AND soa.toile_vendor_id <> ''
+          AND (
+            (soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
+            OR (soa.toile_cost IS NOT NULL AND soa.toile_cost <> '')
+          )
+          AND soa.is_deleted = false
+          ${df("soa.created_at", from_date, to_date)}
+          ${vid ? `AND soa.toile_vendor_id::integer = ${vid}` : ""}
       )
       SELECT *, COUNT(*) OVER () AS total_count
       FROM all_liabilities

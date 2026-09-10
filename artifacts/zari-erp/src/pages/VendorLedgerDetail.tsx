@@ -37,9 +37,11 @@ interface LedgerEntry {
   description: string;
   order_type: string;
   order_code: string | null;
-  total_amount: string;        
-  debit: string;               
+  total_amount: string;
+  debit: string;
   credit: string;
+  tds_amount: string;      // NEW — TDS deducted against this payment
+  net_paid: string;        // NEW — actual cash paid to vendor (credit − tds)
   running_balance: number;
 }
 
@@ -65,6 +67,9 @@ const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> 
   pattern_outhouse:  { label: "Pattern (Out)",    color: "#D946EF", bg: "rgba(217,70,239,0.1)" },
   vendor_invoice:    { label: "Vendor Invoice",   color: "#F97316", bg: "rgba(249,115,22,0.1)" },
   payment:           { label: "Payment",          color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+  purchase_receipt:  { label: "Purchase Receipt", color: "#0EA5E9", bg: "rgba(14,165,233,0.1)" },
+  pr_payment:        { label: "PR Payment",       color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+  vendor_challan:    { label: "Vendor Challan",   color: "#F97316", bg: "rgba(249,115,22,0.1)" },
 };
 
 function rowKey(e: LedgerEntry) {
@@ -149,6 +154,8 @@ export default function VendorLedgerDetail() {
 
   const totalDebit  = entries.reduce((s, e) => s + parseFloat(e.debit  || "0"), 0);
   const totalCredit = entries.reduce((s, e) => s + parseFloat(e.credit || "0"), 0);
+  const totalTds    = entries.reduce((s, e) => s + parseFloat(e.tds_amount || "0"), 0);
+  const totalNetPaid = entries.reduce((s, e) => s + parseFloat(e.net_paid || "0"), 0);
   const balance     = totalDebit - totalCredit;
 
   // Only debit entries (non-payment) can be selected
@@ -222,27 +229,6 @@ export default function VendorLedgerDetail() {
     }
   }
 
-  // function openPayFromSelection() {
-  //   setPayFromSelection(true);
-  //   // Derive order type — only "style" | "swatch" | "general" are valid on the backend enum
-  //   const types = Array.from(new Set(selectedEntries.map(e => e.order_type).filter(Boolean)));
-  //   const only = types.length === 1 ? types[0] : null;
-  //   const derivedType: "style" | "swatch" | "general" =
-  //     only === "style" || only === "swatch" ? only : "general";
-  //   const styleCode  = selectedEntries.find(e => e.order_type === "style"  && e.order_code)?.order_code ?? "";
-  //   const swatchCode = selectedEntries.find(e => e.order_type === "swatch" && e.order_code)?.order_code ?? "";
-  //   setPayForm(f => ({
-  //     ...f,
-  //     amount: selectedTotal.toFixed(2),
-  //     orderType: derivedType,
-  //     styleOrderCode:  derivedType === "style"  ? styleCode  : "",
-  //     swatchOrderCode: derivedType === "swatch" ? swatchCode : "",
-  //     notes: `Payment against ${selectedEntries.length} item(s): ` +
-  //       selectedEntries.map(e => e.description).join(", "),
-  //   }));
-  //   setPayModal(true);
-  // }
-
   // New Page Redirection Implementation for Payment from Selection
   function openPayFromSelection() {
     if (selectedEntries.length === 0) return;
@@ -266,7 +252,7 @@ export default function VendorLedgerDetail() {
     setPayForm({ amount: "", paymentMode: "Bank Transfer", referenceNo: "", notes: "", paymentDate: "", orderType: "general" });
     setPayModal(true);
   }
-  
+
   const handlePay = async () => {
     const amt = parseFloat(payForm.amount);
     if (!Number.isFinite(amt) || amt <= 0) {
@@ -367,7 +353,7 @@ export default function VendorLedgerDetail() {
       toast({ title: "Failed to add charge", variant: "destructive" });
     } finally { setSubmitting(false); }
   };
-  
+
   const handleDelete = async (entry: LedgerEntry) => {
     if (!["payment", "ledger_charge"].includes(entry.entry_type)) {
       toast({ title: "Cannot delete order-linked entries", variant: "destructive" }); return;
@@ -508,11 +494,6 @@ export default function VendorLedgerDetail() {
               style={{ background: `${G}15`, color: G_DIM, border: `1px solid ${G}30` }}>
               <Plus className="h-4 w-4" /> Add Charge
             </button>
-            {/* <button onClick={openPayGeneral}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-80"
-              style={{ background: G_DIM }}>
-              <CreditCard className="h-4 w-4" /> Record Payment
-            </button> */}
           </div>
         </div>
 
@@ -537,6 +518,26 @@ export default function VendorLedgerDetail() {
             </div>
           ))}
         </div>
+
+        {/* TDS summary strip — only shows when there's TDS */}
+        {totalTds > 0 && (
+          <div className="fade-up flex flex-wrap items-center justify-between gap-4 px-5 py-3 rounded-2xl"
+            style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.12)" }}>
+                <IndianRupee className="h-4 w-4" style={{ color: "#F59E0B" }} />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">TDS Deducted</p>
+                <p className="text-sm font-black" style={{ color: "#B45309" }}>{fmt(totalTds)}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Net Paid to Vendor</p>
+              <p className="text-sm font-black text-emerald-700">{fmt(totalNetPaid)}</p>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="fade-up flex flex-wrap items-center gap-3" style={{ animationDelay: "100ms" }}>
@@ -689,6 +690,12 @@ export default function VendorLedgerDetail() {
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Credit</span>
                     </th>
                     <th className="text-right px-3 py-3.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">TDS</span>
+                    </th>
+                    <th className="text-right px-3 py-3.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Net Paid</span>
+                    </th>
+                    <th className="text-right px-3 py-3.5">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Balance</span>
                     </th>
                     <th className="px-3 py-3.5 w-8" />
@@ -698,6 +705,9 @@ export default function VendorLedgerDetail() {
                   {filteredEntries.map((entry) => {
                     const isDebit      = parseFloat(entry.debit) > 0;
                     const isCredit     = parseFloat(entry.credit) > 0;
+                    const tdsAmt       = parseFloat(entry.tds_amount || "0");
+                    const netPaidAmt   = parseFloat(entry.net_paid || "0");
+                    const hasTds       = tdsAmt > 0;
                     const typeInfo     = TYPE_LABELS[entry.entry_type] ?? { label: entry.entry_type, color: G, bg: `${G}10` };
                     const isDeletable  = ["payment", "ledger_charge"].includes(entry.entry_type);
                     const isSelectable = isDebit && entry.entry_type !== "payment";
@@ -752,6 +762,25 @@ export default function VendorLedgerDetail() {
                         <td className="px-3 py-3 text-right font-bold" style={{ color: isCredit ? "#10B981" : undefined }}>
                           {isCredit ? fmt(entry.credit) : <span className="text-gray-200">—</span>}
                         </td>
+
+                        {/* TDS column */}
+                        <td className="px-3 py-3 text-right font-bold">
+                          {hasTds ? (
+                            <span style={{ color: "#B45309" }}>{fmt(tdsAmt)}</span>
+                          ) : (
+                            <span className="text-gray-200">—</span>
+                          )}
+                        </td>
+
+                        {/* Net Paid column */}
+                        <td className="px-3 py-3 text-right font-bold">
+                          {isCredit ? (
+                            <span className="text-emerald-700">{fmt(netPaidAmt)}</span>
+                          ) : (
+                            <span className="text-gray-200">—</span>
+                          )}
+                        </td>
+
                         <td className="px-3 py-3 text-right font-black"
                           style={{ color: entry.running_balance > 0 ? "#EF4444" : "#10B981" }}>
                           {fmt(entry.running_balance)}
@@ -784,6 +813,12 @@ export default function VendorLedgerDetail() {
                     </td>
                     <td className="px-3 py-3 text-right font-black" style={{ color: G_DIM }}>{fmt(totalDebit)}</td>
                     <td className="px-3 py-3 text-right font-black text-emerald-700">{fmt(totalCredit)}</td>
+                    <td className="px-3 py-3 text-right font-black" style={{ color: "#B45309" }}>
+                      {totalTds > 0 ? fmt(totalTds) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-3 text-right font-black text-emerald-700">
+                      {totalNetPaid > 0 ? fmt(totalNetPaid) : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-3 py-3 text-right font-black" style={{ color: balance > 0 ? "#EF4444" : "#10B981" }}>
                       {fmt(balance)}
                     </td>

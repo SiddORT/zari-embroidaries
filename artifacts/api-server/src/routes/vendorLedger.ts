@@ -417,345 +417,420 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
       orderTypeFilter = ` AND order_type = '${validType}'`;
     }
 
-    const query = `
-      WITH
-      /* ── Costing payments grouped by reference ─────────────────── */
-      payment_sums AS (
-        SELECT
-          reference_type,
-          reference_id,
-          SUM(base_currency_amount) AS paid_amount
-        FROM costing_payments
-        WHERE vendor_id = $1 AND is_deleted = false
-        GROUP BY reference_type, reference_id
-      ),
-      /* ── PR payments grouped by receipt id ────────────────────── */
-      pr_payment_sums AS (
+const query = `
+  WITH
+  /* ── All payments against charges: costing_payments + vendor_payments ── */
+  payment_sums AS (
+    SELECT reference_type, reference_id, SUM(amt) AS paid_amount
+    FROM (
+      SELECT reference_type, reference_id, base_currency_amount AS amt
+      FROM costing_payments
+      WHERE vendor_id = $1 AND is_deleted = false
+
+      UNION ALL
+
+      SELECT reference_type, reference_id, base_currency_amount AS amt
+      FROM vendor_payments
+      WHERE vendor_id = $1
+        AND is_deleted = false
+        AND reference_type IS NOT NULL
+        AND reference_id IS NOT NULL
+    ) t
+    GROUP BY reference_type, reference_id
+  ),
+  /* ── PR payments grouped by receipt id ────────────────────── */
+  pr_payment_sums AS (
+    SELECT
+      pr_id,
+      SUM(base_currency_amount) AS pr_paid_amount
+    FROM pr_payments
+    WHERE is_deleted = false
+    GROUP BY pr_id
+  ),
+  /* ── TDS amounts grouped by (payment_source_type, payment_source_id) ── */
+  payment_tds_sums AS (
+    SELECT
+      payment_source_type,
+      payment_source_id,
+      SUM(tds_amount) AS tds_amount
+    FROM payment_tds
+    WHERE status = 'DEDUCTED'
+    GROUP BY payment_source_type, payment_source_id
+  ),
+  ledger_base AS (
+    SELECT
+      entry_type,
+      entry_id,
+      entry_date,
+      description,
+      order_type,
+      order_code,
+      total_amount,
+      credit,
+      CASE entry_type
+        WHEN 'outsource'       THEN 'outsource_job'
+        WHEN 'custom_charge'   THEN 'custom_charge'
+        WHEN 'artwork_swatch'  THEN 'artwork_swatch'
+        WHEN 'artwork_style'   THEN 'artwork_style'
+        WHEN 'ledger_charge'   THEN 'ledger_charge'
+        WHEN 'vendor_challan'  THEN 'vendor_challan'
+        ELSE NULL
+      END AS payment_ref_type,
+      CASE
+        WHEN entry_type IN (
+          'outsource', 'custom_charge',
+          'artwork_swatch', 'artwork_style',
+          'ledger_charge', 'vendor_challan'
+        ) THEN entry_id
+        ELSE NULL
+      END AS payment_ref_id,
+      /* ── TDS source mapping (for credit rows only) ── */
+      CASE
+        WHEN entry_type = 'payment'              THEN 'vendor_payments'
+        WHEN entry_type = 'pr_payment'           THEN 'pr_payments'
+        WHEN entry_type LIKE 'costing_payment_%' THEN 'costing_payments'
+        ELSE NULL
+      END AS tds_source_type,
+      CASE
+        WHEN entry_type IN ('payment', 'pr_payment')
+          OR entry_type LIKE 'costing_payment_%'
+        THEN entry_id
+        ELSE NULL
+      END AS tds_source_id,
+      entry_type IN (
+        'outsource', 'custom_charge', 'ledger_charge',
+        'artwork_swatch', 'artwork_style', 'toile',
+        'pattern_outhouse', 'vendor_invoice',
+        'purchase_receipt', 'vendor_challan'
+      ) AS is_charge
+    FROM (
+      /* ── Costing: outsource jobs (GST inclusive) ──────────────── */
+      SELECT
+        'outsource'             AS entry_type,
+        oj.id::text             AS entry_id,
+        oj.created_at           AS entry_date,
+        CONCAT('Outsource Job', COALESCE(': ' || oj.notes, '')) AS description,
+        CASE WHEN oj.swatch_order_id IS NOT NULL THEN 'swatch' ELSE 'style' END AS order_type,
+        COALESCE(so.order_code, sw.order_code) AS order_code,
+        (oj.total_cost::numeric * (1 + (COALESCE(oj.gst_percentage, '0')::numeric / 100))) AS total_amount,
+        0::numeric              AS credit
+      FROM outsource_jobs oj
+      LEFT JOIN style_orders  so ON oj.style_order_id  = so.id AND so.is_deleted = false
+      LEFT JOIN swatch_orders sw ON oj.swatch_order_id = sw.id AND sw.is_deleted = false
+      WHERE oj.vendor_id = $1 AND oj.is_deleted = false
+
+      UNION ALL
+
+      /* ── Costing: custom charges (GST inclusive) ──────────────── */
+      SELECT
+        'custom_charge'          AS entry_type,
+        cc.id::text              AS entry_id,
+        cc.created_at            AS entry_date,
+        CONCAT('Charge: ', cc.description) AS description,
+        CASE WHEN cc.swatch_order_id IS NOT NULL THEN 'swatch' ELSE 'style' END AS order_type,
+        COALESCE(so.order_code, sw.order_code) AS order_code,
+        (cc.total_amount::numeric * (1 + (COALESCE(cc.gst_percentage, '0')::numeric / 100))) AS total_amount,
+        0::numeric               AS credit
+      FROM custom_charges cc
+      LEFT JOIN style_orders  so ON cc.style_order_id  = so.id AND so.is_deleted = false
+      LEFT JOIN swatch_orders sw ON cc.swatch_order_id = sw.id AND sw.is_deleted = false
+      WHERE cc.vendor_id = $1 AND cc.is_deleted = false
+
+      UNION ALL
+
+      /* ── Manual ledger charges (base + GST) ───────────────────── */
+      SELECT
+        'ledger_charge'       AS entry_type,
+        lc.id::text           AS entry_id,
+        lc.charge_date        AS entry_date,
+        CONCAT('Manual Charge: ', lc.description) AS description,
+        lc.order_type,
+        COALESCE(lc.style_order_code, lc.swatch_order_code) AS order_code,
+        (lc.amount::numeric * (1 + COALESCE(lc.gst_percentage, 0)::numeric / 100)) AS total_amount,
+        0::numeric            AS credit
+      FROM vendor_ledger_charges lc
+      WHERE lc.vendor_id = $1 AND lc.is_deleted = false
+
+      UNION ALL
+
+      /* ── Swatch-order artworks outsourced (no GST) ────────────── */
+      SELECT
+        'artwork_swatch'         AS entry_type,
+        a.id::text               AS entry_id,
+        a.created_at             AS entry_date,
+        CONCAT('Artwork (Swatch): ', a.artwork_name,
+          COALESCE(' [' || a.artwork_code || ']', '')) AS description,
+        'swatch'                 AS order_type,
+        sw.order_code            AS order_code,
+        a.outsource_payment_amount::numeric AS total_amount,
+        0::numeric               AS credit
+      FROM artworks a
+      LEFT JOIN swatch_orders sw ON a.swatch_order_id = sw.id AND sw.is_deleted = false
+      WHERE a.outsource_vendor_id IS NOT NULL
+        AND a.outsource_vendor_id <> ''
+        AND a.outsource_payment_amount IS NOT NULL
+        AND a.outsource_payment_amount <> ''
+        AND a.outsource_vendor_id::integer = $1
+        AND a.is_deleted = false
+
+      UNION ALL
+
+      /* ── Style-order artworks outsourced (no GST) ─────────────── */
+      SELECT
+        'artwork_style'          AS entry_type,
+        soa.id::text             AS entry_id,
+        soa.created_at           AS entry_date,
+        CONCAT('Artwork (Style): ', soa.artwork_name,
+          COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
+        'style'                  AS order_type,
+        so.order_code            AS order_code,
+        soa.outsource_payment_amount::numeric AS total_amount,
+        0::numeric               AS credit
+      FROM style_order_artworks soa
+      LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
+      WHERE soa.outsource_vendor_id IS NOT NULL
+        AND soa.outsource_vendor_id <> ''
+        AND soa.outsource_payment_amount IS NOT NULL
+        AND soa.outsource_payment_amount <> ''
+        AND soa.outsource_vendor_id::integer = $1
+        AND soa.is_deleted = false
+
+      UNION ALL
+
+      /* ── Style-order artworks — Toile vendor (no GST) ─────────── */
+      SELECT
+        'toile'                  AS entry_type,
+        soa.id::text             AS entry_id,
+        soa.created_at           AS entry_date,
+        CONCAT('Toile: ', soa.artwork_name,
+          COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
+        'style'                  AS order_type,
+        so.order_code            AS order_code,
+        COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric AS total_amount,
+        0::numeric               AS credit
+      FROM style_order_artworks soa
+      LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
+      WHERE soa.toile_vendor_id IS NOT NULL
+        AND soa.toile_vendor_id <> ''
+        AND (
+          (soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
+          OR (soa.toile_cost IS NOT NULL AND soa.toile_cost <> '')
+        )
+        AND soa.toile_vendor_id::integer = $1
+        AND soa.is_deleted = false
+
+      UNION ALL
+
+      /* ── Style-order artworks — Pattern Outhouse (no GST) ─────── */
+      SELECT
+        'pattern_outhouse'               AS entry_type,
+        soa.id::text                     AS entry_id,
+        soa.created_at                   AS entry_date,
+        CONCAT('Pattern (Outhouse): ', soa.artwork_name,
+          COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
+        'style'                          AS order_type,
+        so.order_code                    AS order_code,
+        soa.pattern_payment_amount::numeric AS total_amount,
+        0::numeric                       AS credit
+      FROM style_order_artworks soa
+      LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
+      WHERE soa.pattern_vendor_id IS NOT NULL
+        AND soa.pattern_vendor_id <> ''
+        AND soa.pattern_payment_amount IS NOT NULL
+        AND soa.pattern_payment_amount <> ''
+        AND soa.pattern_vendor_id::integer = $1
+        AND soa.is_deleted = false
+
+      UNION ALL
+
+      /* ── Vendor invoice ledger (already GST inclusive) ────────── */
+      SELECT
+        'vendor_invoice'               AS entry_type,
+        vil.id::text                   AS entry_id,
+        COALESCE(vil.vendor_invoice_date::timestamptz, vil.created_at) AS entry_date,
+        CONCAT('Vendor Invoice: ', vil.vendor_invoice_number,
+          ' (PR: ', vil.pr_number, ')') AS description,
+        'procurement'                  AS order_type,
+        vil.pr_number                  AS order_code,
+        vil.base_currency_amount       AS total_amount,
+        0::numeric                     AS credit
+      FROM vendor_invoice_ledger vil
+      WHERE vil.vendor_id = $1 AND vil.is_deleted = false
+
+      UNION ALL
+
+      /* ── Purchase Receipts (goods received) ────────────────────── */
+      SELECT
+        'purchase_receipt'             AS entry_type,
+        pr.id::text                    AS entry_id,
+        COALESCE(pr.received_date, pr.created_at) AS entry_date,
+        CONCAT('Purchase Receipt: ', pr.pr_number,
+          COALESCE(' (Inv: ' || pr.vendor_invoice_number || ')', '')) AS description,
+        CASE
+          WHEN po.style_order_id IS NOT NULL THEN 'style'
+          WHEN po.swatch_order_id IS NOT NULL THEN 'swatch'
+          ELSE 'procurement'
+        END AS order_type,
+        COALESCE(so.order_code, sw.order_code, po.po_number, pr.pr_number) AS order_code,
+        COALESCE(
+          pr.vendor_invoice_amount,
+          items.total_with_gst,
+          (pr.received_qty::numeric * pr.actual_price::numeric),
+          0
+        ) AS total_amount,
+        0::numeric                     AS credit
+      FROM purchase_receipts pr
+      JOIN purchase_orders po ON pr.po_id = po.id AND po.is_deleted = false
+      LEFT JOIN style_orders so ON po.style_order_id = so.id AND so.is_deleted = false
+      LEFT JOIN swatch_orders sw ON po.swatch_order_id = sw.id AND sw.is_deleted = false
+      LEFT JOIN (
         SELECT
           pr_id,
-          SUM(base_currency_amount) AS pr_paid_amount
-        FROM pr_payments
+          SUM(quantity * unit_price) AS base_total,
+          SUM(quantity * unit_price * (1 + COALESCE(gst_percentage, 0) / 100)) AS total_with_gst
+        FROM purchase_receipt_items
         WHERE is_deleted = false
         GROUP BY pr_id
-      ),
-      ledger_base AS (
-        SELECT
-          entry_type,
-          entry_id,
-          entry_date,
-          description,
-          order_type,
-          order_code,
-          total_amount,
-          credit,
-          CASE
-            WHEN entry_type IN ('outsource', 'custom_charge', 'artwork_swatch', 'artwork_style') THEN
-              CASE entry_type
-                WHEN 'outsource' THEN 'outsource_job'
-                WHEN 'custom_charge' THEN 'custom_charge'
-                WHEN 'artwork_swatch' THEN 'artwork_swatch'
-                WHEN 'artwork_style' THEN 'artwork_style'
-              END
-            ELSE NULL
-          END AS payment_ref_type,
-          CASE
-            WHEN entry_type IN ('outsource', 'custom_charge', 'artwork_swatch', 'artwork_style') THEN entry_id
-            ELSE NULL
-          END AS payment_ref_id,
-          entry_type IN ('outsource', 'custom_charge', 'ledger_charge', 'artwork_swatch', 'artwork_style', 'toile', 'pattern_outhouse', 'vendor_invoice', 'purchase_receipt') AS is_charge
-        FROM (
-          /* ── Costing: outsource jobs (GST inclusive) ──────────────── */
-          SELECT
-            'outsource'             AS entry_type,
-            oj.id::text             AS entry_id,
-            oj.created_at           AS entry_date,
-            CONCAT('Outsource Job', COALESCE(': ' || oj.notes, '')) AS description,
-            CASE WHEN oj.swatch_order_id IS NOT NULL THEN 'swatch' ELSE 'style' END AS order_type,
-            COALESCE(so.order_code, sw.order_code) AS order_code,
-            (oj.total_cost::numeric * (1 + (COALESCE(oj.gst_percentage, '0')::numeric / 100))) AS total_amount,
-            0::numeric              AS credit
-          FROM outsource_jobs oj
-          LEFT JOIN style_orders  so ON oj.style_order_id  = so.id AND so.is_deleted = false
-          LEFT JOIN swatch_orders sw ON oj.swatch_order_id = sw.id AND sw.is_deleted = false
-          WHERE oj.vendor_id = $1 AND oj.is_deleted = false
+      ) items ON items.pr_id = pr.id
+      WHERE po.vendor_id = $1 AND pr.is_deleted = false
 
-          UNION ALL
+      UNION ALL
 
-          /* ── Costing: custom charges (GST inclusive) ──────────────── */
-          SELECT
-            'custom_charge'          AS entry_type,
-            cc.id::text              AS entry_id,
-            cc.created_at            AS entry_date,
-            CONCAT('Charge: ', cc.description) AS description,
-            CASE WHEN cc.swatch_order_id IS NOT NULL THEN 'swatch' ELSE 'style' END AS order_type,
-            COALESCE(so.order_code, sw.order_code) AS order_code,
-            (cc.total_amount::numeric * (1 + (COALESCE(cc.gst_percentage, '0')::numeric / 100))) AS total_amount,
-            0::numeric               AS credit
-          FROM custom_charges cc
-          LEFT JOIN style_orders  so ON cc.style_order_id  = so.id AND so.is_deleted = false
-          LEFT JOIN swatch_orders sw ON cc.swatch_order_id = sw.id AND sw.is_deleted = false
-          WHERE cc.vendor_id = $1 AND cc.is_deleted = false
-
-          UNION ALL
-
-          /* ── Manual ledger charges (no GST) ───────────────────────── */
-          SELECT
-            'ledger_charge'       AS entry_type,
-            lc.id::text           AS entry_id,
-            lc.charge_date        AS entry_date,
-            CONCAT('Manual Charge: ', lc.description) AS description,
-            lc.order_type,
-            COALESCE(lc.style_order_code, lc.swatch_order_code) AS order_code,
-            lc.amount::numeric    AS total_amount,
-            0::numeric            AS credit
-          FROM vendor_ledger_charges lc
-          WHERE lc.vendor_id = $1 AND lc.is_deleted = false
-
-          UNION ALL
-
-          /* ── Swatch-order artworks outsourced (no GST) ────────────── */
-          SELECT
-            'artwork_swatch'         AS entry_type,
-            a.id::text               AS entry_id,
-            a.created_at             AS entry_date,
-            CONCAT('Artwork (Swatch): ', a.artwork_name,
-              COALESCE(' [' || a.artwork_code || ']', '')) AS description,
-            'swatch'                 AS order_type,
-            sw.order_code            AS order_code,
-            a.outsource_payment_amount::numeric AS total_amount,
-            0::numeric               AS credit
-          FROM artworks a
-          LEFT JOIN swatch_orders sw ON a.swatch_order_id = sw.id AND sw.is_deleted = false
-          WHERE a.outsource_vendor_id IS NOT NULL
-            AND a.outsource_vendor_id <> ''
-            AND a.outsource_payment_amount IS NOT NULL
-            AND a.outsource_payment_amount <> ''
-            AND a.outsource_vendor_id::integer = $1
-            AND a.is_deleted = false
-
-          UNION ALL
-
-          /* ── Style-order artworks outsourced (no GST) ─────────────── */
-          SELECT
-            'artwork_style'          AS entry_type,
-            soa.id::text             AS entry_id,
-            soa.created_at           AS entry_date,
-            CONCAT('Artwork (Style): ', soa.artwork_name,
-              COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
-            'style'                  AS order_type,
-            so.order_code            AS order_code,
-            soa.outsource_payment_amount::numeric AS total_amount,
-            0::numeric               AS credit
-          FROM style_order_artworks soa
-          LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
-          WHERE soa.outsource_vendor_id IS NOT NULL
-            AND soa.outsource_vendor_id <> ''
-            AND soa.outsource_payment_amount IS NOT NULL
-            AND soa.outsource_payment_amount <> ''
-            AND soa.outsource_vendor_id::integer = $1
-            AND soa.is_deleted = false
-
-          UNION ALL
-
-          /* ── Style-order artworks — Toile vendor (no GST) ─────────── */
-          SELECT
-            'toile'                  AS entry_type,
-            soa.id::text             AS entry_id,
-            soa.created_at           AS entry_date,
-            CONCAT('Toile: ', soa.artwork_name,
-              COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
-            'style'                  AS order_type,
-            so.order_code            AS order_code,
-            COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric AS total_amount,
-            0::numeric               AS credit
-          FROM style_order_artworks soa
-          LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
-          WHERE soa.toile_vendor_id IS NOT NULL
-            AND soa.toile_vendor_id <> ''
-            AND (
-              (soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
-              OR (soa.toile_cost IS NOT NULL AND soa.toile_cost <> '')
-            )
-            AND soa.toile_vendor_id::integer = $1
-            AND soa.is_deleted = false
-
-          UNION ALL
-
-          /* ── Style-order artworks — Pattern Outhouse (no GST) ─────── */
-          SELECT
-            'pattern_outhouse'               AS entry_type,
-            soa.id::text                     AS entry_id,
-            soa.created_at                   AS entry_date,
-            CONCAT('Pattern (Outhouse): ', soa.artwork_name,
-              COALESCE(' [' || soa.artwork_code || ']', '')) AS description,
-            'style'                          AS order_type,
-            so.order_code                    AS order_code,
-            soa.pattern_payment_amount::numeric AS total_amount,
-            0::numeric                       AS credit
-          FROM style_order_artworks soa
-          LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
-          WHERE soa.pattern_vendor_id IS NOT NULL
-            AND soa.pattern_vendor_id <> ''
-            AND soa.pattern_payment_amount IS NOT NULL
-            AND soa.pattern_payment_amount <> ''
-            AND soa.pattern_vendor_id::integer = $1
-            AND soa.is_deleted = false
-
-          UNION ALL
-
-          /* ── Vendor invoice ledger (already GST inclusive) ────────── */
-          SELECT
-            'vendor_invoice'               AS entry_type,
-            vil.id::text                   AS entry_id,
-            COALESCE(vil.vendor_invoice_date::timestamptz, vil.created_at) AS entry_date,
-            CONCAT('Vendor Invoice: ', vil.vendor_invoice_number,
-              ' (PR: ', vil.pr_number, ')') AS description,
-            'procurement'                  AS order_type,
-            vil.pr_number                  AS order_code,
-            vil.base_currency_amount       AS total_amount,
-            0::numeric                     AS credit
-          FROM vendor_invoice_ledger vil
-          WHERE vil.vendor_id = $1 AND vil.is_deleted = false
-
-          UNION ALL
-
-          /* ── Purchase Receipts (goods received) ────────────────────── */
-          SELECT
-            'purchase_receipt'             AS entry_type,
-            pr.id::text                    AS entry_id,
-            COALESCE(pr.received_date, pr.created_at) AS entry_date,
-            CONCAT('Purchase Receipt: ', pr.pr_number,
-              COALESCE(' (Inv: ' || pr.vendor_invoice_number || ')', '')) AS description,
-            CASE
-              WHEN po.style_order_id IS NOT NULL THEN 'style'
-              WHEN po.swatch_order_id IS NOT NULL THEN 'swatch'
-              ELSE 'procurement'
-            END AS order_type,
-            COALESCE(so.order_code, sw.order_code, po.po_number, pr.pr_number) AS order_code,
-            COALESCE(
-              pr.vendor_invoice_amount,
-              items.total_with_gst,                                    
-              (pr.received_qty::numeric * pr.actual_price::numeric),   
-              0
-            ) AS total_amount,
-            0::numeric                     AS credit
-          FROM purchase_receipts pr
-          JOIN purchase_orders po ON pr.po_id = po.id AND po.is_deleted = false
-          LEFT JOIN style_orders so ON po.style_order_id = so.id AND so.is_deleted = false
-          LEFT JOIN swatch_orders sw ON po.swatch_order_id = sw.id AND sw.is_deleted = false
-          LEFT JOIN (
-            SELECT
-              pr_id,
-              SUM(quantity * unit_price) AS base_total,
-              SUM(quantity * unit_price * (1 + COALESCE(gst_percentage, 0) / 100)) AS total_with_gst
-            FROM purchase_receipt_items
-            WHERE is_deleted = false
-            GROUP BY pr_id
-          ) items ON items.pr_id = pr.id
-          WHERE po.vendor_id = $1 AND pr.is_deleted = false
-
-          UNION ALL
-
-          /* ── PR Payments (credits) ─────────────────────────────────── */
-          SELECT
-            'pr_payment'                   AS entry_type,
-            pp.id::text                    AS entry_id,
-            pp.payment_date                AS entry_date,
-            CONCAT('PR Payment — ', pp.payment_mode,
-              COALESCE(' (' || pp.transaction_status || ')', '')) AS description,
-            CASE
-              WHEN po.style_order_id IS NOT NULL THEN 'style'
-              WHEN po.swatch_order_id IS NOT NULL THEN 'swatch'
-              ELSE 'procurement'
-            END AS order_type,
-            COALESCE(so.order_code, sw.order_code, po.po_number, pr.pr_number) AS order_code,
-            0::numeric                     AS total_amount,
-            pp.base_currency_amount        AS credit
-          FROM pr_payments pp
-          JOIN purchase_receipts pr ON pp.pr_id = pr.id AND pr.is_deleted = false
-          JOIN purchase_orders po ON pr.po_id = po.id AND po.is_deleted = false
-          LEFT JOIN style_orders so ON po.style_order_id = so.id AND so.is_deleted = false
-          LEFT JOIN swatch_orders sw ON po.swatch_order_id = sw.id AND sw.is_deleted = false
-          WHERE po.vendor_id = $1 AND pp.is_deleted = false
-
-          UNION ALL
-
-          /* ── Vendor payments (credits) ────────────────────────────── */
-          SELECT
-            'payment'          AS entry_type,
-            vp.id::text        AS entry_id,
-            vp.payment_date    AS entry_date,
-            CONCAT('Payment — ', vp.payment_mode,
-              COALESCE(' (' || vp.reference_no || ')', '')) AS description,
-            vp.order_type,
-            COALESCE(vp.style_order_code, vp.swatch_order_code) AS order_code,
-            0::numeric                  AS total_amount,
-            vp.base_currency_amount     AS credit
-          FROM vendor_payments vp
-          WHERE vp.vendor_id = $1 AND vp.is_deleted = false
-
-          UNION ALL
-
-          /* ── Costing payments (credits) ───────────────────────────── */
-          SELECT
-            CONCAT('costing_payment_', cp.reference_type) AS entry_type,
-            cp.id::text          AS entry_id,
-            COALESCE(cp.payment_date, cp.created_at) AS entry_date,
-            CONCAT(
-              CASE cp.reference_type
-                WHEN 'outsource_job'  THEN 'Outsource Payment'
-                WHEN 'custom_charge'  THEN 'Custom Charge Payment'
-                WHEN 'artwork_swatch' THEN 'Artwork Payment (Swatch)'
-                WHEN 'artwork_style'  THEN 'Artwork Payment (Style)'
-                ELSE 'Costing Payment'
-              END,
-              COALESCE(' — ' || cp.payment_mode, ''),
-              COALESCE(' [' || cp.transaction_id || ']', '')
-            ) AS description,
-            CASE
-              WHEN cp.swatch_order_id IS NOT NULL THEN 'swatch'
-              WHEN cp.style_order_id  IS NOT NULL THEN 'style'
-              ELSE 'general'
-            END AS order_type,
-            COALESCE(so.order_code, sw.order_code) AS order_code,
-            0::numeric                  AS total_amount,
-            cp.base_currency_amount     AS credit
-          FROM costing_payments cp
-          LEFT JOIN style_orders  so ON cp.style_order_id  = so.id AND so.is_deleted = false
-          LEFT JOIN swatch_orders sw ON cp.swatch_order_id = sw.id AND sw.is_deleted = false
-          WHERE cp.vendor_id = $1 AND cp.is_deleted = false
-        ) ledger_union
-      )
+      /* ── Vendor challans (Verified only) ───────────────────────── */
       SELECT
-        entry_type,
-        entry_id,
-        entry_date,
-        description,
-        order_type,
-        order_code,
-        total_amount,
+        'vendor_challan'               AS entry_type,
+        vc.id::text                    AS entry_id,
+        COALESCE(vc.challan_date::timestamptz, vc.created_at) AS entry_date,
+        CONCAT('Vendor Challan: ', vc.challan_number) AS description,
+        'procurement'                  AS order_type,
+        vc.challan_number              AS order_code,
+        COALESCE(items.amount, 0)      AS total_amount,
+        0::numeric                     AS credit
+      FROM vendor_challans vc
+      LEFT JOIN (
+        SELECT
+          vendor_challan_id,
+          SUM(amount::numeric * (1 + COALESCE(gst_percentage, 0)::numeric / 100)) AS amount
+        FROM vendor_challan_items
+        WHERE is_deleted = false
+        GROUP BY vendor_challan_id
+      ) items ON items.vendor_challan_id = vc.id
+      WHERE vc.vendor_id = $1
+        AND vc.is_deleted = false
+        AND vc.status = 'Verified'
+
+      UNION ALL
+
+      /* ── PR Payments (credits) ─────────────────────────────────── */
+      SELECT
+        'pr_payment'                   AS entry_type,
+        pp.id::text                    AS entry_id,
+        pp.payment_date                AS entry_date,
+        CONCAT('PR Payment — ', pp.payment_mode,
+          COALESCE(' (' || pp.transaction_status || ')', '')) AS description,
         CASE
-          WHEN is_charge THEN
-            total_amount
-            - COALESCE(paid_amount, 0)
-            - CASE
-                WHEN entry_type = 'purchase_receipt'
-                THEN COALESCE(pr_pay.pr_paid_amount, 0)
-                ELSE 0
-              END
-          ELSE 0
-        END AS debit,
-        credit
-      FROM ledger_base
-      LEFT JOIN payment_sums ON
-        ledger_base.payment_ref_type = payment_sums.reference_type
-        AND ledger_base.payment_ref_id::integer = payment_sums.reference_id
-      LEFT JOIN pr_payment_sums pr_pay
-        ON entry_type = 'purchase_receipt'
-        AND entry_id::integer = pr_pay.pr_id
-      WHERE 1=1 ${dateFilter}${orderTypeFilter}
-      ORDER BY entry_date ASC
-    `;
+          WHEN po.style_order_id IS NOT NULL THEN 'style'
+          WHEN po.swatch_order_id IS NOT NULL THEN 'swatch'
+          ELSE 'procurement'
+        END AS order_type,
+        COALESCE(so.order_code, sw.order_code, po.po_number, pr.pr_number) AS order_code,
+        0::numeric                     AS total_amount,
+        pp.base_currency_amount        AS credit
+      FROM pr_payments pp
+      JOIN purchase_receipts pr ON pp.pr_id = pr.id AND pr.is_deleted = false
+      JOIN purchase_orders po ON pr.po_id = po.id AND po.is_deleted = false
+      LEFT JOIN style_orders so ON po.style_order_id = so.id AND so.is_deleted = false
+      LEFT JOIN swatch_orders sw ON po.swatch_order_id = sw.id AND sw.is_deleted = false
+      WHERE po.vendor_id = $1 AND pp.is_deleted = false
+
+      UNION ALL
+
+      /* ── Vendor payments (credits) ────────────────────────────── */
+      SELECT
+        'payment'          AS entry_type,
+        vp.id::text        AS entry_id,
+        vp.payment_date    AS entry_date,
+        CONCAT('Payment — ', vp.payment_mode,
+          COALESCE(' (' || vp.reference_no || ')', '')) AS description,
+        vp.order_type,
+        COALESCE(vp.style_order_code, vp.swatch_order_code) AS order_code,
+        0::numeric                  AS total_amount,
+        vp.base_currency_amount     AS credit
+      FROM vendor_payments vp
+      WHERE vp.vendor_id = $1 AND vp.is_deleted = false
+
+      UNION ALL
+
+      /* ── Costing payments (credits) ───────────────────────────── */
+      SELECT
+        CONCAT('costing_payment_', cp.reference_type) AS entry_type,
+        cp.id::text          AS entry_id,
+        COALESCE(cp.payment_date, cp.created_at) AS entry_date,
+        CONCAT(
+          CASE cp.reference_type
+            WHEN 'outsource_job'  THEN 'Outsource Payment'
+            WHEN 'custom_charge'  THEN 'Custom Charge Payment'
+            WHEN 'artwork_swatch' THEN 'Artwork Payment (Swatch)'
+            WHEN 'artwork_style'  THEN 'Artwork Payment (Style)'
+            ELSE 'Costing Payment'
+          END,
+          COALESCE(' — ' || cp.payment_mode, ''),
+          COALESCE(' [' || cp.transaction_id || ']', '')
+        ) AS description,
+        CASE
+          WHEN cp.swatch_order_id IS NOT NULL THEN 'swatch'
+          WHEN cp.style_order_id  IS NOT NULL THEN 'style'
+          ELSE 'general'
+        END AS order_type,
+        COALESCE(so.order_code, sw.order_code) AS order_code,
+        0::numeric                  AS total_amount,
+        cp.base_currency_amount     AS credit
+      FROM costing_payments cp
+      LEFT JOIN style_orders  so ON cp.style_order_id  = so.id AND so.is_deleted = false
+      LEFT JOIN swatch_orders sw ON cp.swatch_order_id = sw.id AND sw.is_deleted = false
+      WHERE cp.vendor_id = $1 AND cp.is_deleted = false
+    ) ledger_union
+  )
+  SELECT
+    lb.entry_type,
+    lb.entry_id,
+    lb.entry_date,
+    lb.description,
+    lb.order_type,
+    lb.order_code,
+    lb.total_amount,
+    CASE
+      WHEN lb.is_charge THEN
+        lb.total_amount
+        - COALESCE(ps.paid_amount, 0)
+        - CASE
+            WHEN lb.entry_type = 'purchase_receipt'
+            THEN COALESCE(pr_pay.pr_paid_amount, 0)
+            ELSE 0
+          END
+      ELSE 0
+    END AS debit,
+    lb.credit,
+    COALESCE(pts.tds_amount, 0) AS tds_amount,
+    /* ── Actual cash paid to vendor = gross credit − TDS ── */
+    CASE
+      WHEN lb.credit > 0 THEN
+        lb.credit - COALESCE(pts.tds_amount, 0)
+      ELSE 0
+    END AS net_paid
+  FROM ledger_base lb
+  LEFT JOIN payment_sums ps ON
+    lb.payment_ref_type = ps.reference_type
+    AND lb.payment_ref_id::integer = ps.reference_id
+  LEFT JOIN pr_payment_sums pr_pay
+    ON lb.entry_type = 'purchase_receipt'
+    AND lb.entry_id::integer = pr_pay.pr_id
+  LEFT JOIN payment_tds_sums pts
+    ON pts.payment_source_type::text = lb.tds_source_type
+    AND pts.payment_source_id = lb.tds_source_id::integer
+  WHERE 1=1 ${dateFilter}${orderTypeFilter}
+  ORDER BY lb.entry_date ASC
+`;
 
     const result = await pool.query(query, params);
     const entries = result.rows;
@@ -880,6 +955,8 @@ async function getTDSMaster(
   };
 }
 
+// NOTE: Kept for backward compatibility. No longer used in the handlers below —
+// all handlers now call getTDSMaster to get both rate + threshold.
 async function getTDSMasterRate(client: any, tdsMasterId: number): Promise<number> {
   const tdsMasterRes = await client.query(
     `SELECT rate_percent FROM tds_master 
@@ -952,14 +1029,17 @@ async function validateOutstandingBalance(client: any, vendorId: number, amt: nu
       -- Vendor invoice ledger (already GST-inclusive)
     + COALESCE((SELECT SUM(base_currency_amount::numeric)   FROM vendor_invoice_ledger    WHERE vendor_id = $1 AND is_deleted = false), 0)
       
-      -- Vendor challans: calculate with GST from items
+      -- Vendor challans: calculate with GST from items (Verified only)
     + COALESCE((
         SELECT SUM(
           (vci.quantity * vci.rate * (1 + COALESCE(vci.gst_percentage, 0) / 100))
         )
         FROM vendor_challans vc
         JOIN vendor_challan_items vci ON vci.vendor_challan_id = vc.id
-        WHERE vc.vendor_id = $1 AND vc.is_deleted = false AND vci.is_deleted = false
+        WHERE vc.vendor_id = $1
+          AND vc.is_deleted = false
+          AND vci.is_deleted = false
+          AND vc.status = 'Verified'
       ), 0)
       
       -- Purchase receipts: calculate with GST from items
@@ -1026,8 +1106,7 @@ async function insertPaymentTDSRecord(
   tdsAmount: number,
   username: string,
   additionalData?: {
-    allocations?: WaterfallAllocation[];  // For purchase receipts
-    items?: any[];                       // For vendor challan items
+    allocations?: WaterfallAllocation[];  // For purchase receipts & vendor challans
   }
 ): Promise<number> {
   // Insert the main payment_tds record
@@ -1065,13 +1144,26 @@ async function insertPaymentTDSRecord(
 
   const tdsId = result.rows[0].id;
 
-  // Insert payment_tds_items based on document type
+  // Insert payment_tds_items based on document type.
+  // Only TDS-eligible allocations are passed in (filtered by the caller).
   if (baseDocumentType === 'pr' && additionalData?.allocations) {
-    // For purchase receipts with multiple items
-    await insertPaymentTDSItems(client, tdsId, additionalData.allocations, tdsRate, 'purchase_receipt_item', username);
-  } else if (baseDocumentType === 'vendor_challan' && additionalData?.items) {
-    // For vendor challans with multiple items
-    await insertPaymentTDSItemsForVendorChallan(client, tdsId, additionalData.items, tdsRate, username);
+    await insertPaymentTDSItems(
+      client,
+      tdsId,
+      additionalData.allocations,
+      tdsRate,
+      'purchase_receipt_item',
+      username
+    );
+  } else if (baseDocumentType === 'vendor_challan' && additionalData?.allocations) {
+    await insertPaymentTDSItems(
+      client,
+      tdsId,
+      additionalData.allocations,
+      tdsRate,
+      'vendor_challan_items',
+      username
+    );
   }
   // For single line items (outsource, custom_charge, ledger_charge, other_expense),
   // no payment_tds_items needed as the parent record contains all GST details
@@ -1083,11 +1175,15 @@ async function insertPaymentTDSItems(
   client: any,
   tdsId: number,
   allocations: WaterfallAllocation[],
-  tdsRate: number,
+  defaultTdsRate: number,
   baseDocumentItemType: string,
   username: string
 ): Promise<void> {
   for (const alloc of allocations) {
+    // Derive TDS rate per allocation: 0 when no TDS was applied on the line
+    const tdsRate = alloc.tdsAmount > 0 ? defaultTdsRate : 0;
+    const tdsAmount = alloc.tdsAmount ?? 0;
+
     await client.query(
       `INSERT INTO payment_tds_items
          (payment_tds_id, base_document_item_type, base_document_item_id,
@@ -1104,7 +1200,7 @@ async function insertPaymentTDSItems(
         alloc.allocGst.toFixed(2),
         alloc.gstPercentage.toFixed(2),
         tdsRate.toFixed(2),
-        alloc.tdsAmount.toFixed(2),
+        tdsAmount.toFixed(2),
         alloc.paidAmount.toFixed(2),
         username
       ]
@@ -1112,37 +1208,47 @@ async function insertPaymentTDSItems(
   }
 }
 
-async function insertPaymentTDSItemsForVendorChallan(
+// ============================================================================
+// 2b. UNIVERSAL ITEM LEDGER
+// ============================================================================
+
+/**
+ * Writes one row per allocated item into `payment_items`, regardless of
+ * whether TDS was deducted on that line. This is the source of truth for
+ * item-level balance tracking (used by getExistingPaymentsForItems).
+ */
+async function insertPaymentItems(
   client: any,
-  tdsId: number,
-  items: any[],
-  tdsRate: number,
+  paymentSourceType: 'pr_payments' | 'vendor_payments',
+  paymentSourceId: number,
+  baseDocumentType: 'purchase_receipts' | 'vendor_challans',
+  baseDocumentId: number,
+  baseDocumentItemType: 'purchase_receipt_item' | 'vendor_challan_items',
+  allocations: WaterfallAllocation[],
   username: string
 ): Promise<void> {
-  for (const item of items) {
-    const baseAmount = item.baseAmount || (item.quantity * item.rate);
-    const gstAmount = item.gstAmount || (baseAmount * item.gst_percentage / 100);
-    const totalAmount = baseAmount + gstAmount;
-    const tdsAmount = (baseAmount * tdsRate) / 100;
-    const paidAmount = totalAmount - tdsAmount;
-
+  for (const a of allocations) {
     await client.query(
-      `INSERT INTO payment_tds_items
-         (payment_tds_id, base_document_item_type, base_document_item_id,
-          base_amount, gst_amount, gst_percentage,
-          tds_rate, tds_amount, paid_amount, created_by)
-       VALUES ($1, 'vendor_challan_item', $2,
-               $3, $4, $5,
-               $6, $7, $8, $9)`,
+      `INSERT INTO payment_items
+         (payment_source_type, payment_source_id,
+          base_document_type, base_document_id,
+          base_document_item_type, base_document_item_id,
+          base_amount, gst_amount, gross_amount,
+          paid_amount, tds_amount, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6,
+               $7, $8, $9, $10, $11, $12)`,
       [
-        tdsId,
-        item.id,
-        baseAmount.toFixed(2),
-        gstAmount.toFixed(2),
-        item.gst_percentage.toFixed(2),
-        tdsRate.toFixed(2),
-        tdsAmount.toFixed(2),
-        paidAmount.toFixed(2),
+        paymentSourceType,
+        paymentSourceId,
+        baseDocumentType,
+        baseDocumentId,
+        baseDocumentItemType,
+        a.itemId,
+        a.allocBase.toFixed(2),
+        a.allocGst.toFixed(2),
+        a.allocGross.toFixed(2),
+        a.paidAmount.toFixed(2),
+        a.tdsAmount.toFixed(2),
         username
       ]
     );
@@ -1184,22 +1290,29 @@ async function getPurchaseReceiptItems(client: any, entryId: number): Promise<an
   return items.rows;
 }
 
-async function getExistingPaymentsForItems(client: any, itemIds: number[]): Promise<Map<number, number>> {
+/**
+ * Generic item-level payment lookup. Defaults to purchase_receipt_item to
+ * preserve existing PR behaviour; pass 'vendor_challan_items' for challans.
+ */
+async function getExistingPaymentsForItems(
+  client: any,
+  itemIds: number[],
+  baseDocumentItemType: 'purchase_receipt_item' | 'vendor_challan_items' = 'purchase_receipt_item'
+): Promise<Map<number, number>> {
   if (itemIds.length === 0) return new Map();
-  
+
   const paidRows = await client.query(
-    `SELECT 
-      pti.base_document_item_id as item_id,
-      COALESCE(SUM(pti.paid_amount + pti.tds_amount), 0) as paid_so_far
-     FROM payment_tds_items pti
-     JOIN payment_tds pt ON pti.payment_tds_id = pt.id
-     WHERE pti.base_document_item_type = 'purchase_receipt_item'
-       AND pti.is_deleted = false
-       AND pti.base_document_item_id = ANY($1::int[])
-     GROUP BY pti.base_document_item_id`,
-    [itemIds]
+    `SELECT
+       pi.base_document_item_id AS item_id,
+       COALESCE(SUM(pi.paid_amount + pi.tds_amount), 0) AS paid_so_far
+     FROM payment_items pi
+     WHERE pi.base_document_item_type = $2
+       AND pi.is_deleted = false
+       AND pi.base_document_item_id = ANY($1::int[])
+     GROUP BY pi.base_document_item_id`,
+    [itemIds, baseDocumentItemType]
   );
-  
+
   return new Map<number, number>(
     paidRows.rows.map((r: any) => [r.item_id, parseFloat(r.paid_so_far)])
   );
@@ -1229,7 +1342,8 @@ function calculateItemBalances(items: any[], paidMap: Map<number, number>): Item
 function allocateWaterfall(
   amountToAllocate: number,
   orderedItems: ItemBalance[],
-  tdsRate: number
+  tdsRate: number,
+  threshold: number = 0
 ): { allocations: WaterfallAllocation[]; unallocatedAmount: number } {
   let remainingAmount = amountToAllocate;
   const allocations: WaterfallAllocation[] = [];
@@ -1241,7 +1355,11 @@ function allocateWaterfall(
     const allocGross = Math.min(remainingAmount, item.remaining);
     const allocGst = item.total > 0 ? allocGross * (item.gst / item.total) : 0;
     const allocBase = allocGross - allocGst;
-    const tdsAmount = (allocBase * tdsRate) / 100;
+
+    // Per-item threshold: TDS only applies when the allocated base for THIS
+    // item meets or exceeds the TDS master threshold.
+    const tdsApplicable = allocBase >= threshold;
+    const tdsAmount = tdsApplicable ? (allocBase * tdsRate) / 100 : 0;
     const paidAmount = allocBase - tdsAmount + allocGst;
 
     allocations.push({
@@ -1296,16 +1414,19 @@ async function insertPRPayment(
 async function getPROutstanding(client: any, entryId: number): Promise<number> {
   const outstandingRes = await client.query(
     `SELECT 
-      COALESCE(SUM(pri.quantity * pri.unit_price * (1 + COALESCE(pri.gst_percentage, 0) / 100)), 0) as total_amount,
-      COALESCE(SUM(pp.amount), 0) as paid_amount
+     COALESCE( SUM( pri.quantity * pri.unit_price * ( 1 + COALESCE(pri.gst_percentage, 0) / 100 ) ), 0 ) AS total_amount,
+     COALESCE( SUM(pp.amount::numeric), 0 ) AS paid_amount
      FROM purchase_receipt_items pri
-     LEFT JOIN pr_payments pp ON pp.pr_id = pri.pr_id AND pp.is_deleted = false
-     WHERE pri.pr_id = $1 AND pri.is_deleted = false`,
+     LEFT JOIN pr_payments pp 
+       ON pp.pr_id = pri.pr_id 
+       AND pp.is_deleted = false
+     WHERE pri.pr_id = $1 
+       AND pri.is_deleted = false`,
     [entryId]
   );
-  
-  const totalAmount = parseFloat(outstandingRes.rows[0]?.total_amount || 0);
-  const paidAmount = parseFloat(outstandingRes.rows[0]?.paid_amount || 0);
+
+  const totalAmount = parseFloat( outstandingRes.rows[0]?.total_amount || 0 );
+  const paidAmount = parseFloat( outstandingRes.rows[0]?.paid_amount || 0 );
   return totalAmount - paidAmount;
 }
 
@@ -1328,6 +1449,24 @@ async function getVendorChallanDetails(
     throw new Error(`Vendor challan ${entryId} not found or does not belong to vendor`);
   }
   return challanRes.rows[0];
+}
+
+async function getVendorChallanItems(client: any, entryId: number): Promise<any[]> {
+  const items = await client.query(
+    `SELECT
+       vci.id,
+       vci.quantity,
+       vci.rate AS unit_price,
+       vci.gst_percentage,
+       (vci.quantity * vci.rate * (1 + COALESCE(vci.gst_percentage, 0) / 100)) AS total_amount
+     FROM vendor_challan_items vci
+     WHERE vci.vendor_challan_id = $1 AND vci.is_deleted = false`,
+    [entryId]
+  );
+  if (items.rows.length === 0) {
+    throw new Error(`No items found on Vendor Challan ${entryId}.`);
+  }
+  return items.rows;
 }
 
 async function getVendorChallanTotalAmount(client: any, entryId: number): Promise<{ 
@@ -1375,24 +1514,6 @@ async function getVendorChallanPaidAmount(
     [vendorId, entryId]
   );
   return parseFloat(paidRes.rows[0].paid_amount || '0');
-}
-
-async function getVendorChallanItemsForTDS(
-  client: any,
-  entryId: number
-): Promise<Array<{ id: number; quantity: number; rate: number; gst_percentage: number }>> {
-  const itemsRes = await client.query(
-    `SELECT id, quantity, rate, gst_percentage
-    FROM vendor_challan_items
-    WHERE vendor_challan_id = $1 AND is_deleted = false`,
-    [entryId]
-  );
-  return itemsRes.rows.map((row: any) => ({
-    id: row.id,
-    quantity: parseFloat(row.quantity),
-    rate: parseFloat(row.rate),
-    gst_percentage: parseFloat(row.gst_percentage || '0')
-  }));
 }
 
 async function insertVendorPaymentWithReference(
@@ -1472,18 +1593,29 @@ async function handleOutsourcePayment(
   const totalAmount = allocAmt;
   const gstPct = parseFloat(gst_percentage || '0');
   const gstAmount = (totalAmount * gstPct) / 100;
-  const baseAmount = totalAmount-gstAmount; 
+  const baseAmount = totalAmount - gstAmount;
 
-  // If TDS is applicable, handle TDS deduction
+  // ── Resolve TDS master + threshold check ──
+  let tdsMaster: { id: number; rate_percent: number; threshold_amount: number } | null = null;
+  let tdsApplicable = false;
+
   if (tdsMasterId) {
-    // Get TDS master details
-    const tdsMaster = await getTDSMaster(client, tdsMasterId);
-    const tdsRate = parseFloat(String(tdsMaster.rate_percent));
-    
+    tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const threshold = tdsMaster.threshold_amount ?? 0;
+
+    // Only deduct TDS when base amount meets/exceeds the threshold
+    if (baseAmount >= threshold) {
+      tdsApplicable = true;
+    }
+  }
+
+  if (tdsApplicable && tdsMaster) {
+    const tdsRate = tdsMaster.rate_percent;
+
     // Calculate TDS on base amount (not on GST)
     const tdsAmount = (baseAmount * tdsRate) / 100;
     const paidAmount = allocAmt - tdsAmount; // Net amount after TDS deduction
-    
+
     // Insert costing_payments record first to get the ID
     const costingPaymentRes = await client.query(
       `INSERT INTO costing_payments
@@ -1508,18 +1640,20 @@ async function handleOutsourcePayment(
         allocAmt,
         data.referenceNo || null,
         data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        data.notes ? data.notes + ` (against outsource ${entryId})` : `Outsource payment ${entryId}`,
+        data.notes
+          ? data.notes + ` (against outsource ${entryId})`
+          : `Outsource payment ${entryId}`,
         username,
         paymentType
       ]
     );
-    
+
     const costingPaymentId = costingPaymentRes.rows[0].id;
-    
+
     // Insert payment_tds record using unified function
     await insertPaymentTDSRecord(
       client,
-      tdsMasterId,
+      tdsMasterId!,
       'costing_payments',
       costingPaymentId,
       data.paymentDate,
@@ -1535,9 +1669,9 @@ async function handleOutsourcePayment(
       tdsAmount,
       username
     );
-    
+
   } else {
-    // No TDS - simple payment insertion
+    // No TDS (not provided OR below threshold) — simple payment insertion
     await client.query(
       `INSERT INTO costing_payments
          (vendor_id, vendor_name, reference_type, reference_id,
@@ -1560,7 +1694,9 @@ async function handleOutsourcePayment(
         allocAmt,
         data.referenceNo || null,
         data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        data.notes ? data.notes + ` (against outsource ${entryId})` : `Outsource payment ${entryId}`,
+        data.notes
+          ? data.notes + ` (against outsource ${entryId})`
+          : `Outsource payment ${entryId}`,
         username,
         paymentType
       ]
@@ -1599,16 +1735,27 @@ async function handleCustomChargePayment(
   const gstAmount = (totalAmount * gstPct) / 100;
   const baseAmount = totalAmount - gstAmount;
 
-  // If TDS is applicable, handle TDS deduction
+  // ── Resolve TDS master + threshold check ──
+  let tdsMaster: { id: number; rate_percent: number; threshold_amount: number } | null = null;
+  let tdsApplicable = false;
+
   if (tdsMasterId) {
-    // Get TDS master details
-    const tdsMaster = await getTDSMaster(client, tdsMasterId);
-    const tdsRate = parseFloat(String(tdsMaster.rate_percent));
-    
+    tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const threshold = tdsMaster.threshold_amount ?? 0;
+
+    // Only deduct TDS when base amount meets/exceeds the threshold
+    if (baseAmount >= threshold) {
+      tdsApplicable = true;
+    }
+  }
+
+  if (tdsApplicable && tdsMaster) {
+    const tdsRate = tdsMaster.rate_percent;
+
     // Calculate TDS on base amount (not on GST)
     const tdsAmount = (baseAmount * tdsRate) / 100;
     const paidAmount = allocAmt - tdsAmount; // Net amount after TDS deduction
-    
+
     // Insert costing_payments record first to get the ID
     const costingPaymentRes = await client.query(
       `INSERT INTO costing_payments
@@ -1634,25 +1781,27 @@ async function handleCustomChargePayment(
         allocAmt,
         data.referenceNo || null,
         data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        data.notes ? data.notes + ` (against custom charge ${entryId})` : `Custom charge payment ${entryId}`,
+        data.notes
+          ? data.notes + ` (against custom charge ${entryId})`
+          : `Custom charge payment ${entryId}`,
         username,
         paymentType
       ]
     );
-    
+
     const costingPaymentId = costingPaymentRes.rows[0].id;
-    
+
     // Insert payment_tds record using unified function
     await insertPaymentTDSRecord(
       client,
-      tdsMasterId,
+      tdsMasterId!,
       'costing_payments',
       costingPaymentId,
       data.paymentDate,
       vendorId,
       'custom_charge',
       entryId,
-      allocAmt, 
+      totalAmount,
       gstAmount,
       gstPct,
       baseAmount,
@@ -1661,9 +1810,9 @@ async function handleCustomChargePayment(
       tdsAmount,
       username
     );
-    
+
   } else {
-    // No TDS - simple payment insertion
+    // No TDS (not provided OR below threshold) — simple payment insertion
     await client.query(
       `INSERT INTO costing_payments
          (vendor_id, vendor_name, reference_type, reference_id,
@@ -1687,7 +1836,9 @@ async function handleCustomChargePayment(
         allocAmt,
         data.referenceNo || null,
         data.paymentDate ? new Date(data.paymentDate) : new Date(),
-        data.notes ? data.notes + ` (against custom charge ${entryId})` : `Custom charge payment ${entryId}`,
+        data.notes
+          ? data.notes + ` (against custom charge ${entryId})`
+          : `Custom charge payment ${entryId}`,
         username,
         paymentType
       ]
@@ -1709,78 +1860,121 @@ async function handlePurchaseReceiptPayment(
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
   if (tdsMasterId) {
-    // Get TDS rate
-    const tdsRate = await getTDSMasterRate(client, tdsMasterId);
-    
+    // Get TDS master (rate + threshold)
+    const tdsMaster = await getTDSMaster(client, tdsMasterId);
+    const tdsRate = tdsMaster.rate_percent;
+    const threshold = tdsMaster.threshold_amount ?? 0;
+
     // Get items and existing payments
     const items = await getPurchaseReceiptItems(client, entryId);
     const itemIds = items.map((r: any) => r.id);
     const paidMap = await getExistingPaymentsForItems(client, itemIds);
-    
+
     // Calculate balances
     const itemBalances = calculateItemBalances(items, paidMap);
     const orderedItems = itemBalances.sort((a, b) => a.id - b.id);
-    
-    // Allocate waterfall
-    const { allocations, unallocatedAmount } = allocateWaterfall(allocAmt, orderedItems, tdsRate);
-    
+
+    // Allocate waterfall — TDS applied per item only when allocBase >= threshold
+    const { allocations, unallocatedAmount } = allocateWaterfall(
+      allocAmt,
+      orderedItems,
+      tdsRate,
+      threshold
+    );
+
     if (unallocatedAmount > 0.01) {
       throw new Error(
         `Amount exceeds total outstanding balance on this PR by ${unallocatedAmount.toFixed(2)}. ` +
         `Please reduce the amount or handle as an advance.`
       );
     }
-    
+
     if (allocations.length === 0) {
       throw new Error(`Nothing to allocate — all items on this PR are already fully paid.`);
     }
-    
-    // Aggregate totals
-    const totalBase = allocations.reduce((s: number, a: any) => s + a.allocBase, 0);
-    const totalGst = allocations.reduce((s: number, a: any) => s + a.allocGst, 0);
-    const totalTds = allocations.reduce((s: number, a: any) => s + a.tdsAmount, 0);
-    const totalPaid = allocations.reduce((s: number, a: any) => s + a.paidAmount, 0);
-    const blendedGstPct = totalBase > 0 ? (totalGst / totalBase) * 100 : 0;
-    
+
     // Determine payment type
     const totalOutstanding = orderedItems.reduce((s, item) => s + item.remaining, 0);
     const prPaymentType = (allocAmt >= totalOutstanding - 0.01) ? 'Full' : 'Partial';
-    
+
     // Insert PR payment
     const prPaymentId = await insertPRPayment(
       client, entryId, allocAmt, prPaymentType,
       data.paymentDate, data.paymentMode, username
     );
-    
-    // Insert TDS record using unified function
-    await insertPaymentTDSRecord(
+
+    // Always write the universal item ledger — TDS or not
+    await insertPaymentItems(
       client,
-      tdsMasterId,
       'pr_payments',
       prPaymentId,
-      data.paymentDate,
-      vendorId,
-      'pr',
+      'purchase_receipts',
       entryId,
-      totalBase + totalGst, // gross_amount
-      totalGst,
-      blendedGstPct,
-      totalBase,
-      totalPaid,
-      tdsRate,
-      totalTds,
-      username,
-      { allocations } // Pass allocations for purchase receipt items
+      'purchase_receipt_item',
+      allocations,
+      username
     );
-    
+
+    // Aggregate ALL items for the parent payment_tds row
+    const allBase  = allocations.reduce((s: number, a: any) => s + a.allocBase, 0);
+    const allGst   = allocations.reduce((s: number, a: any) => s + a.allocGst, 0);
+    const allGross = allocations.reduce((s: number, a: any) => s + a.allocGross, 0);
+    const allPaid  = allocations.reduce((s: number, a: any) => s + a.paidAmount, 0);
+    const allTds   = allocations.reduce((s: number, a: any) => s + a.tdsAmount, 0);
+    const blendedGstPct = allBase > 0 ? (allGst / allBase) * 100 : 0;
+
+    // Only create payment_tds when at least one item crossed the threshold
+    if (allTds > 0) {
+      const tdsEligibleAllocations = allocations.filter((a: any) => a.tdsAmount > 0);
+
+      await insertPaymentTDSRecord(
+        client,
+        tdsMasterId,
+        'pr_payments',
+        prPaymentId,
+        data.paymentDate,
+        vendorId,
+        'pr',
+        entryId,
+        allGross,        // gross_amount: all items
+        allGst,          // gst_amount: all items
+        blendedGstPct,   // blended across all items
+        allBase,         // base_amount: all items
+        allPaid,         // paid_amount: all items
+        tdsRate,
+        allTds,          // tds_amount: eligible items only
+        username,
+        { allocations: tdsEligibleAllocations } // payment_tds_items: eligible items only
+      );
+    }
+
   } else {
     // No TDS - simple payment
     const outstanding = await getPROutstanding(client, entryId);
     const paymentType = (allocAmt >= outstanding - 0.01) ? 'Full' : 'Partial';
-    
-    await insertPRPayment(
+
+    const prPaymentId = await insertPRPayment(
       client, entryId, allocAmt, paymentType,
       data.paymentDate, data.paymentMode, username
+    );
+
+    // Still compute allocations so the item ledger records which items were paid
+    const items = await getPurchaseReceiptItems(client, entryId);
+    const itemIds = items.map((r: any) => r.id);
+    const paidMap = await getExistingPaymentsForItems(client, itemIds);
+    const orderedItems = calculateItemBalances(items, paidMap).sort((a, b) => a.id - b.id);
+
+    const { allocations } = allocateWaterfall(allocAmt, orderedItems, 0, 0);
+
+    await insertPaymentItems(
+      client,
+      'pr_payments',
+      prPaymentId,
+      'purchase_receipts',
+      entryId,
+      'purchase_receipt_item',
+      allocations,
+      username
     );
   }
 }
@@ -1973,7 +2167,6 @@ async function handleLedgerChargePayment(
   );
 }
 
-
 async function handleVendorChallanPayment(
   client: any,
   entryId: number,
@@ -1985,14 +2178,14 @@ async function handleVendorChallanPayment(
 ): Promise<void> {
   // 1. Fetch the vendor challan details
   const challan = await getVendorChallanDetails(client, entryId, vendorId);
-  
+
   // 2. Compute total amount (base + GST) from vendor_challan_items
-  const { totalAmount, totalBase, blendedGstPct } = await getVendorChallanTotalAmount(client, entryId);
-  
+  const { totalAmount } = await getVendorChallanTotalAmount(client, entryId);
+
   // 3. Compute current paid amount from vendor_payments for this challan
   const currentPaid = await getVendorChallanPaidAmount(client, vendorId, entryId);
   const newPaid = currentPaid + allocAmt;
-  
+
   // 4. Prevent overpayment (allow a small tolerance of 0.01)
   if (newPaid > totalAmount + 0.01) {
     throw new Error(
@@ -2000,40 +2193,47 @@ async function handleVendorChallanPayment(
       `Total: ${totalAmount}, Already paid: ${currentPaid}, Attempting to pay: ${allocAmt}`
     );
   }
-  
+
   // Get TDS master ID if provided
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
-  
+
   // 5. Prepare notes
   const notes = data.notes
     ? data.notes + ` (against challan ${challan.challan_number})`
     : `Challan payment ${challan.challan_number}`;
-  
-  // 6. Handle TDS if applicable
+
+  // 6. Fetch items + existing item-level payments (same for both branches)
+  const items = await getVendorChallanItems(client, entryId);
+  const itemIds = items.map((r: any) => r.id);
+  const paidMap = await getExistingPaymentsForItems(client, itemIds, 'vendor_challan_items');
+  const itemBalances = calculateItemBalances(items, paidMap);
+  const orderedItems = itemBalances.sort((a, b) => a.id - b.id);
+
+  // 7. TDS-applicable branch
   if (tdsMasterId) {
-    // Get TDS master details
     const tdsMaster = await getTDSMaster(client, tdsMasterId);
-    const tdsRate = parseFloat(String(tdsMaster.rate_percent));
-    
-    // Calculate TDS on base amount (not on GST)
-    const gstAmount = totalAmount - totalBase;
-    const tdsAmount = (totalBase * tdsRate) / 100;
-    const paidAmount = allocAmt - tdsAmount; // Net amount after TDS deduction
-    
-    // Get all challan items for TDS items
-    const challanItems = await getVendorChallanItemsForTDS(client, entryId);
-    
-    // Create items array with calculated amounts
-    const itemsWithAmounts = challanItems.map((item: any) => {
-      const baseAmount = item.quantity * item.rate;
-      const gstAmount = (baseAmount * item.gst_percentage) / 100;
-      return {
-        ...item,
-        baseAmount,
-        gstAmount,
-      };
-    });
-    
+    const tdsRate = tdsMaster.rate_percent;
+    const threshold = tdsMaster.threshold_amount ?? 0;
+
+    // Waterfall allocation with per-item threshold check
+    const { allocations, unallocatedAmount } = allocateWaterfall(
+      allocAmt,
+      orderedItems,
+      tdsRate,
+      threshold
+    );
+
+    if (unallocatedAmount > 0.01) {
+      throw new Error(
+        `Amount exceeds total outstanding balance on this challan by ${unallocatedAmount.toFixed(2)}. ` +
+        `Please reduce the amount or handle as an advance.`
+      );
+    }
+
+    if (allocations.length === 0) {
+      throw new Error(`Nothing to allocate — all items on this challan are already fully paid.`);
+    }
+
     // Insert vendor payment record first to get the ID
     const paymentId = await insertVendorPaymentWithReference(
       client,
@@ -2048,31 +2248,68 @@ async function handleVendorChallanPayment(
       entryId,
       username
     );
-    
-    // Insert payment_tds record using unified function
-    await insertPaymentTDSRecord(
+
+    // Always write the universal item ledger — TDS or not
+    await insertPaymentItems(
       client,
-      tdsMasterId,
       'vendor_payments',
       paymentId,
-      data.paymentDate,
-      vendorId,
-      'vendor_challan',
+      'vendor_challans',
       entryId,
-      totalAmount, // gross_amount = base + gst
-      gstAmount, // gst_amount
-      blendedGstPct, // gst_percentage
-      totalBase, // base_amount (without GST)
-      paidAmount, // paid_amount = gross - TDS
-      tdsRate,
-      tdsAmount,
-      username,
-      { items: itemsWithAmounts } // Pass items for vendor challan
+      'vendor_challan_items',
+      allocations,
+      username
     );
-    
+
+    // Aggregate ALL items for the parent payment_tds row
+    const allBase  = allocations.reduce((s: number, a: any) => s + a.allocBase, 0);
+    const allGst   = allocations.reduce((s: number, a: any) => s + a.allocGst, 0);
+    const allGross = allocations.reduce((s: number, a: any) => s + a.allocGross, 0);
+    const allPaid  = allocations.reduce((s: number, a: any) => s + a.paidAmount, 0);
+    const allTds   = allocations.reduce((s: number, a: any) => s + a.tdsAmount, 0);
+    const blendedGstPct = allBase > 0 ? (allGst / allBase) * 100 : 0;
+
+    // Only create payment_tds when at least one item crossed the threshold
+    if (allTds > 0) {
+      const tdsEligibleAllocations = allocations.filter((a: any) => a.tdsAmount > 0);
+
+      await insertPaymentTDSRecord(
+        client,
+        tdsMasterId,
+        'vendor_payments',
+        paymentId,
+        data.paymentDate,
+        vendorId,
+        'vendor_challan',
+        entryId,
+        allGross,
+        allGst,
+        blendedGstPct,
+        allBase,
+        allPaid,
+        tdsRate,
+        allTds,
+        username,
+        { allocations: tdsEligibleAllocations }
+      );
+    }
+
   } else {
-    // No TDS - simple payment insertion
-    await insertVendorPaymentWithReference(
+    // 8. No TDS — still do waterfall so the item ledger is populated
+    const { allocations, unallocatedAmount } = allocateWaterfall(allocAmt, orderedItems, 0, 0);
+
+    if (unallocatedAmount > 0.01) {
+      throw new Error(
+        `Amount exceeds total outstanding balance on this challan by ${unallocatedAmount.toFixed(2)}. ` +
+        `Please reduce the amount or handle as an advance.`
+      );
+    }
+
+    if (allocations.length === 0) {
+      throw new Error(`Nothing to allocate — all items on this challan are already fully paid.`);
+    }
+
+    const paymentId = await insertVendorPaymentWithReference(
       client,
       vendorId,
       challan.vendor_name,
@@ -2083,6 +2320,17 @@ async function handleVendorChallanPayment(
       notes,
       'vendor_challan',
       entryId,
+      username
+    );
+
+    await insertPaymentItems(
+      client,
+      'vendor_payments',
+      paymentId,
+      'vendor_challans',
+      entryId,
+      'vendor_challan_items',
+      allocations,
       username
     );
   }
@@ -2249,7 +2497,6 @@ router.post("/vendor-ledger/:vendorId/pay", requireAuth, async (req, res) => {
     return res.status(500).json({ error: "Failed to record payment" });
   }
 });
-
 router.post("/vendor-ledger/:vendorId/charge", requireAuth, async (req, res) => {
   try {
     const vendorId = parseInt(String(req.params.vendorId));

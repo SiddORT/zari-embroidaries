@@ -7,6 +7,7 @@ import { paymentTds } from "./paymentTds";
  */
 export const baseDocumentItemTypeEnum = pgEnum("base_document_item_type_enum", [
   "purchase_receipt_item",
+  "vendor_challan_items",
 ]);
 
 export const paymentTdsItems = pgTable("payment_tds_items", {
