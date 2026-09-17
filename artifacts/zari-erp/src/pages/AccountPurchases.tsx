@@ -841,8 +841,10 @@ export default function AccountPurchases() {
                       <th className={TH}>Category</th>
                       <th className={TH}>Reference No.</th>
                       <th className={TH}>Vendor Name</th>
-                      <th className={`${TH} text-right`}>Amount</th>
+                      <th className={`${TH} text-right`}>Total Amount</th>
                       <th className={`${TH} text-right`}>Paid</th>
+                      <th className={`${TH} text-right`}>TDS</th>            
+                      <th className={`${TH} text-right`}>Net Paid</th>       
                       <th className={`${TH} text-right`}>Pending</th>
                       <th className={TH}>Status</th>
                       {canEdit && (<th className={TH}>Action</th>)}
@@ -906,6 +908,26 @@ export default function AccountPurchases() {
                               {row.currency_code && row.currency_code !== "INR" && (
                                 <div className="text-[10px] font-normal text-emerald-400 mt-0.5">
                                   ≈ {fmtAmt(parseFloat(row.paid_amount ?? 0) * (parseFloat(row.exchange_rate_snapshot ?? 1) || 1))} INR
+                                </div>
+                              )}
+                            </td>
+                            <td className={`${TD} text-right font-medium ${
+                              parseFloat(row.tds_amount) > 0 ? "text-purple-600" : "text-gray-300"
+                            }`}>
+                              {parseFloat(row.tds_amount) > 0
+                                ? fmtFx(row.tds_amount, row.currency_code || "INR")
+                                : "—"}
+                              {parseFloat(row.tds_amount) > 0 && row.currency_code && row.currency_code !== "INR" && (
+                                <div className="text-[10px] font-normal text-purple-300 mt-0.5">
+                                  ≈ {fmtAmt(parseFloat(row.tds_amount ?? 0) * (parseFloat(row.exchange_rate_snapshot ?? 1) || 1))} INR
+                                </div>
+                              )}
+                            </td>
+                            <td className={`${TD} text-right font-semibold text-emerald-700`}>
+                              {fmtFx(row.net_paid_amount, row.currency_code || "INR")}
+                              {row.currency_code && row.currency_code !== "INR" && (
+                                <div className="text-[10px] font-normal text-emerald-400 mt-0.5">
+                                  ≈ {fmtAmt(parseFloat(row.net_paid_amount ?? 0) * (parseFloat(row.exchange_rate_snapshot ?? 1) || 1))} INR
                                 </div>
                               )}
                             </td>

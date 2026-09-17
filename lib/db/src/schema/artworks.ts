@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const artworksTable = pgTable("artworks", {
@@ -17,6 +17,7 @@ export const artworksTable = pgTable("artworks", {
   workHours: text("work_hours"),
   hourlyRate: text("hourly_rate"),
   totalCost: text("total_cost"),
+  gstPercentage: numeric("gst_percentage", { precision: 5, scale: 2 }) .notNull() .default("18"),
 
   outsourceVendorId: text("outsource_vendor_id"),
   outsourceVendorName: text("outsource_vendor_name"),

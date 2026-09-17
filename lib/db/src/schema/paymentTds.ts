@@ -13,7 +13,13 @@ export const baseDocumentTypeEnum = pgEnum("base_document_type_enum", [
   "pr",
   "outsource_job",
   "custom_charge",
-  "vendor_challan"
+  "vendor_challan",
+  "other_expense",
+  "ledger_charge",
+  "artwork_swatch",
+  "artwork_style",
+  "toile",
+  "shipping",
 ]);
 
 export const paymentTdsStatusEnum = pgEnum("payment_tds_status_enum", [
@@ -42,7 +48,7 @@ export const paymentTds = pgTable(
 
     // Vendor
     vendorId: integer("vendor_id")
-      .notNull()
+      // .notNull()
       .references(() => vendorsTable.id, { onDelete: "restrict" }), 
 
     // Source document that the payment relates to

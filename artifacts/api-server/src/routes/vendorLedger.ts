@@ -955,20 +955,6 @@ async function getTDSMaster(
   };
 }
 
-// NOTE: Kept for backward compatibility. No longer used in the handlers below —
-// all handlers now call getTDSMaster to get both rate + threshold.
-async function getTDSMasterRate(client: any, tdsMasterId: number): Promise<number> {
-  const tdsMasterRes = await client.query(
-    `SELECT rate_percent FROM tds_master 
-     WHERE id = $1 AND status = true AND is_deleted = false`,
-    [tdsMasterId]
-  );
-  if (tdsMasterRes.rows.length === 0) {
-    throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
-  }
-  return parseFloat(tdsMasterRes.rows[0].rate_percent);
-}
-
 async function validateOutstandingBalance(client: any, vendorId: number, amt: number): Promise<void> {
   const balRes = await client.query(
     `SELECT
@@ -1592,7 +1578,7 @@ async function handleOutsourcePayment(
   // Calculate base amount and GST
   const totalAmount = allocAmt;
   const gstPct = parseFloat(gst_percentage || '0');
-  const gstAmount = (totalAmount * gstPct) / 100;
+  const gstAmount  = gstPct > 0 ? totalAmount * (gstPct / (100 + gstPct)) : 0;
   const baseAmount = totalAmount - gstAmount;
 
   // ── Resolve TDS master + threshold check ──
@@ -1732,7 +1718,7 @@ async function handleCustomChargePayment(
   // Calculate base amount and GST
   const totalAmount = allocAmt;
   const gstPct = parseFloat(gst_percentage || '0');
-  const gstAmount = (totalAmount * gstPct) / 100;
+  const gstAmount = gstPct > 0 ? totalAmount * (gstPct / (100 + gstPct)) : 0;
   const baseAmount = totalAmount - gstAmount;
 
   // ── Resolve TDS master + threshold check ──
