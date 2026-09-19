@@ -2531,6 +2531,7 @@ function PrSection({ swatchOrderId }: { swatchOrderId: number }) {
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 border-t border-gray-200">
+                <td></td>
                 <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-semibold text-gray-400">
                   {filteredPrs.length} receipt{filteredPrs.length !== 1 ? "s" : ""}
                 </td>

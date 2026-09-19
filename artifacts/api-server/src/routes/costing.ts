@@ -2157,6 +2157,8 @@ router.get(
 
 interface ItemBalance {
   id: number;
+  quantity: number;
+  unitPrice: number;
   base: number;
   gst: number;
   gstPct: number;
@@ -2204,50 +2206,60 @@ async function getItemBalances(
 
   const itemIds = items.map((i: any) => i.id);
 
-  // Sum gross amount already allocated to each item across all prior payments
+  // ---------------------------------------------------------
+  // Get total gross amount already allocated to each PR item
+  // from payment_items.
+  // ---------------------------------------------------------
   const paidRows = await tx
-    .select({
-      itemId: paymentTdsItems.baseDocumentItemId,
-      paidSoFar: sql<string>`COALESCE(SUM(${paymentTdsItems.paidAmount} + ${paymentTdsItems.tdsAmount}), 0)`,
-    })
-    .from(paymentTdsItems)
+    .select({ itemId: paymentItems.baseDocumentItemId, grossPaid: sql<string>` COALESCE(SUM(${paymentItems.grossAmount}), 0) `, })
+    .from(paymentItems)
     .where(
       and(
-        eq(paymentTdsItems.baseDocumentItemType, "purchase_receipt_item"),
-        eq(paymentTdsItems.isDeleted, false),
-        inArray(paymentTdsItems.baseDocumentItemId, itemIds)
+        eq(paymentItems.paymentSourceType, "pr_payments"),
+        eq(paymentItems.baseDocumentType, "purchase_receipts"),
+        eq(paymentItems.baseDocumentItemType, "purchase_receipt_item"),
+        eq(paymentItems.baseDocumentId, prId),
+        eq(paymentItems.isDeleted, false),
+        inArray(paymentItems.baseDocumentItemId, itemIds)
       )
     )
-    .groupBy(paymentTdsItems.baseDocumentItemId);
+    .groupBy(paymentItems.baseDocumentItemId);
 
-  const paidMap = new Map<number, number>(
-    paidRows.map((r: any) => [r.itemId, parseFloat(r.paidSoFar)])
-  );
+  const paidMap = new Map<number, number>( paidRows.map((r: any) => [ r.itemId, parseFloat(r.grossPaid) || 0, ]) );
 
   const enriched: ItemBalance[] = items.map((item: any) => {
-    const base = parseFloat(item.quantity) * parseFloat(item.unitPrice);
+    const quantity = parseFloat(item.quantity);
+    const unitPrice = parseFloat(item.unitPrice);
     const gstPct = parseFloat(item.gstPercentage ?? "0");
+
+    const base = quantity * unitPrice;
     const gst = (base * gstPct) / 100;
     const total = base + gst;
-    const paidSoFar = paidMap.get(item.id) ?? 0;
+
+    const grossPaid = paidMap.get(item.id) ?? 0;
+
     return {
       id: item.id,
+      quantity,
+      unitPrice,
       base,
       gst,
       gstPct,
       total,
-      remaining: Math.max(0, total - paidSoFar),
+      remaining: Math.max(0, total - grossPaid),
     };
   });
 
-  // Ordering: selected items first (in the order given), then remaining items by id
+  // Selected items first
   if (selectedItemIds && selectedItemIds.length > 0) {
     const selected = selectedItemIds
       .map((id) => enriched.find((i) => i.id === id))
       .filter((i): i is ItemBalance => !!i);
+
     const rest = enriched
       .filter((i) => !selectedItemIds.includes(i.id))
       .sort((a, b) => a.id - b.id);
+
     return [...selected, ...rest];
   }
 
@@ -2257,36 +2269,60 @@ async function getItemBalances(
 // ---------------------------------------------------------------------------
 // Step 2: Waterfall allocation across ordered items
 // ---------------------------------------------------------------------------
+export interface WaterfallAllocation {
+  itemId: number;
+  allocBase: number;
+  allocGst: number;
+  allocGross: number;
+  tdsAmount: number;
+  paidAmount: number;
+  gstPercentage: number;
+  quantity: number;
+  unitPrice: number;
+}
 
-function allocateWaterfall(
+export function allocateWaterfall(
   amountToAllocate: number,
   orderedItems: ItemBalance[],
-  tdsRate: number
-): { allocations: Allocation[]; unallocatedAmount: number } {
+  tdsRate: number,
+  threshold: number = 0
+): { allocations: WaterfallAllocation[]; unallocatedAmount: number } {
   let remainingAmount = amountToAllocate;
-  const allocations: Allocation[] = [];
+  const allocations: WaterfallAllocation[] = [];
 
   for (const item of orderedItems) {
     if (remainingAmount <= 0.001) break;
-    if (item.remaining <= 0.001) continue; // already fully paid, skip
+    if (item.remaining <= 0.001) continue;
 
-    const alloc = Math.min(remainingAmount, item.remaining);
-    const allocGst = item.total > 0 ? alloc * (item.gst / item.total) : 0;
-    const allocBase = alloc - allocGst;
-    const tdsAmount = (allocBase * tdsRate) / 100;
-    const paidAmount = alloc - tdsAmount;
+    const allocGross = Math.min( remainingAmount, item.remaining );
+
+    // Your desired calculation:
+    // Base = Gross - GST percentage of Gross
+    const gstRate = item.gstPct / 100;
+
+    const allocBase = allocGross * (1 - gstRate);
+    const allocGst = allocGross - allocBase;
+
+    // TDS is calculated on the allocated base
+    const tdsApplicable = allocBase >= threshold;
+
+    const tdsAmount = tdsApplicable ? (allocBase * tdsRate) / 100 : 0;
+
+    const paidAmount = allocBase - tdsAmount + allocGst;
 
     allocations.push({
       itemId: item.id,
       allocBase,
       allocGst,
-      allocGross: alloc,
+      allocGross,
       tdsAmount,
       paidAmount,
       gstPercentage: item.gstPct,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
     });
 
-    remainingAmount -= alloc;
+    remainingAmount -= allocGross;
   }
 
   return { allocations, unallocatedAmount: remainingAmount };
@@ -2477,6 +2513,7 @@ function allocateWaterfall(
 //   }
 // );
 
+// ---------------------------------------------------------------------------  
 router.post(
   "/payments",
   requireAuth,
@@ -2529,73 +2566,23 @@ router.post(
         category: "pr-payments",
       }
     );
-
     try {
       const result = await db.transaction(async (tx) => {
-        if (String(paymentType).toLowerCase() === "full") {
-          const itemsForCheck = await getItemBalances(
-            tx,
-            Number(prId)
-          );
+        const orderedItems = await getItemBalances(tx, Number(prId));
 
-          const totalRemaining = itemsForCheck.reduce(
-            (s, i) => s + i.remaining,
-            0
-          );
-
-          if (Math.abs(baseAmt2 - totalRemaining) > 0.01) {
-            throw new Error(
-              `"Full" payment amount (${baseAmt2.toFixed(
-                2
-              )}) must equal the outstanding balance (${totalRemaining.toFixed(
-                2
-              )}).`
-            );
-          }
-        }
-
-        const [payment] = await tx
-          .insert(prPaymentsTable)
-          .values({
-            prId: Number(prId),
-            paymentType: String(paymentType),
-            paymentDate: paymentDate
-              ? new Date(String(paymentDate))
-              : new Date(),
-            paymentMode: String(paymentMode ?? ""),
-            amount: String(amount),
-            currencyCode: String(currencyCode ?? "INR"),
-            exchangeRateSnapshot: String(payRate),
-            baseCurrencyAmount: baseAmt,
-            transactionStatus: String(transactionStatus ?? ""),
-            paymentStatus: String(paymentStatus ?? "Pending"),
-            attachment: savedAttachment,
-            createdBy: user.email,
-          })
-          .returning();
+        let tdsRate = 0;
+        let tdsThreshold = 0;
+        let vendorId: number | null = null;
 
         if (tdsMasterId) {
           const [pr] = await tx
-            .select({
-              vendorId: purchaseReceiptsTable.vendorId,
-            })
+            .select({ vendorId: purchaseReceiptsTable.vendorId })
             .from(purchaseReceiptsTable)
-            .where(
-              eq(
-                purchaseReceiptsTable.id,
-                Number(prId)
-              )
-            )
+            .where(eq(purchaseReceiptsTable.id, Number(prId)))
             .limit(1);
 
-          if (!pr) {
-            throw new Error(
-              `Purchase Receipt with ID ${prId} not found.`
-            );
-          }
-
-          const vendorId = Number(pr.vendorId);
-
+          if (!pr) throw new Error(`Purchase Receipt with ID ${prId} not found.`);
+          vendorId = Number(pr.vendorId);
           if (!vendorId) {
             throw new Error(
               `Vendor ID is missing on PR ${prId}. Please ensure vendor is set on the purchase receipt. TDS cannot be applied.`
@@ -2610,204 +2597,143 @@ router.post(
             .from(tdsMasterTable)
             .where(
               and(
-                eq(
-                  tdsMasterTable.id,
-                  Number(tdsMasterId)
-                ),
-                eq(
-                  tdsMasterTable.status,
-                  true
-                ),
-                eq(
-                  tdsMasterTable.isDeleted,
-                  false
-                )
+                eq(tdsMasterTable.id, Number(tdsMasterId)),
+                eq(tdsMasterTable.status, true),
+                eq(tdsMasterTable.isDeleted, false)
               )
             )
             .limit(1);
 
           if (!master) {
-            throw new Error(
-              `Invalid or inactive TDS master (ID: ${tdsMasterId})`
-            );
+            throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
           }
 
-          const tdsRate =
-            parseFloat(String(master.ratePercent)) || 0;
+          tdsRate = parseFloat(String(master.ratePercent)) || 0;
+          tdsThreshold = parseFloat(String(master.thresholdAmount)) || 0;
+        }
 
-          const tdsThreshold =
-            parseFloat(String(master.thresholdAmount)) || 0;
+        // ── Single waterfall, always run — TDS or not ──
+        const { allocations, unallocatedAmount } = allocateWaterfall(
+          baseAmt2,
+          orderedItems,
+          tdsRate,
+          tdsThreshold
+        );
 
-          const orderedItems = await getItemBalances(
-            tx,
-            Number(prId)
+        if (unallocatedAmount > 0.01) {
+          throw new Error(
+            `Amount exceeds total outstanding balance on this PR by ${unallocatedAmount.toFixed(2)}. ` +
+            `Please reduce the amount or handle as an advance.`
           );
+        }
+        if (allocations.length === 0) {
+          throw new Error(`Nothing to allocate — all items on this PR are already fully paid.`);
+        }
 
-          const { allocations, unallocatedAmount } =
-            allocateWaterfall(
-              baseAmt2,
-              orderedItems,
-              0
-            );
-
-          if (unallocatedAmount > 0.01) {
+        // "Full" guard now compares against the true outstanding balance
+        if (String(paymentType).toLowerCase() === "full") {
+          const totalRemaining = orderedItems.reduce((s, i) => s + i.remaining, 0);
+          if (Math.abs(baseAmt2 - totalRemaining) > 0.01) {
             throw new Error(
-              `Amount exceeds total outstanding balance on this PR by ${unallocatedAmount.toFixed(
-                2
-              )}. Please reduce the amount or handle as an advance.`
+              `"Full" payment amount (${baseAmt2.toFixed(2)}) must equal the outstanding balance (${totalRemaining.toFixed(2)}).`
             );
           }
+        }
 
-          if (allocations.length === 0) {
-            throw new Error(
-              `Nothing to allocate — all items on this PR are already fully paid.`
-            );
-          }
+        // ── Insert pr_payments ──
+        const [payment] = await tx
+          .insert(prPaymentsTable)
+          .values({
+            prId: Number(prId),
+            paymentType: String(paymentType),
+            paymentDate: paymentDate ? new Date(String(paymentDate)) : new Date(),
+            paymentMode: String(paymentMode ?? ""),
+            amount: String(amount),
+            currencyCode: String(currencyCode ?? "INR"),
+            exchangeRateSnapshot: String(payRate),
+            baseCurrencyAmount: baseAmt,
+            transactionStatus: String(transactionStatus ?? ""),
+            paymentStatus: String(paymentStatus ?? "Pending"),
+            attachment: savedAttachment,
+            createdBy: user.email,
+          })
+          .returning();
 
-          const tdsAllocations = allocations.map((a) => {
-            const allocBase =
-              parseFloat(String(a.allocBase)) || 0;
+        // ── MISSING BEFORE: always write the item ledger ──
+        await tx.insert(paymentItems).values(
+          allocations.map((a) => ({
+            paymentSourceType: "pr_payments" as const,
+            paymentSourceId: payment.id,
+            baseDocumentType: "purchase_receipts" as const,
+            baseDocumentId: Number(prId),
+            baseDocumentItemType: "purchase_receipt_item" as const,
+            baseDocumentItemId: a.itemId,
+            baseAmount: a.allocBase.toFixed(2),
+            gstAmount: a.allocGst.toFixed(2),
+            grossAmount: a.allocGross.toFixed(2),
+            paidAmount: a.paidAmount.toFixed(2),
+            tdsAmount: a.tdsAmount.toFixed(2),
+            createdBy: user.email,
+          }))
+        );
 
-            const allocGst =
-              parseFloat(String(a.allocGst)) || 0;
+        // ──  TDS row, only when at least one line crossed the threshold ──
+        const applicableAllocations = allocations.filter((a) => a.tdsAmount > 0);
 
-            const gstPercentage =
-              parseFloat(String(a.gstPercentage)) || 0;
+        if (tdsMasterId && applicableAllocations.length > 0) {
+          const totalBase = allocations.reduce((s, a) => s + a.allocBase, 0);
+          const totalGst  = allocations.reduce((s, a) => s + a.allocGst, 0);
+          const totalTds  = applicableAllocations.reduce((s, a) => s + a.tdsAmount, 0);
+          const totalPaid = allocations.reduce((s, a) => s + a.paidAmount, 0);
+          const blendedGstPct = totalBase > 0 ? (totalGst / totalBase) * 100 : 0;
 
-            const isTdsApplicable =
-              tdsRate > 0 &&
-              allocBase >= tdsThreshold;
+          const [tdsRow] = await tx
+            .insert(paymentTds)
+            .values({
+              tdsMasterId: Number(tdsMasterId),
+              paymentSourceType: "pr_payments",
+              paymentSourceId: payment.id,
+              paymentDate: payment.paymentDate || new Date(),
+              vendorId: vendorId!,
+              baseDocumentType: "pr",
+              baseDocumentId: payment.prId,
+              grossAmount: (totalBase + totalGst).toFixed(2),
+              gstAmount: totalGst.toFixed(2),
+              gstPercentage: blendedGstPct.toFixed(2),
+              paymentCurrencyCode: String(currencyCode ?? "INR"),
+              paymentExchangeRate: payRate.toFixed(2),
+              baseAmount: totalBase.toFixed(2),
+              paidAmount: totalPaid.toFixed(2),
+              tdsRate: tdsRate.toFixed(2),
+              tdsAmount: totalTds.toFixed(2),
+              status: "DEDUCTED",
+              createdBy: user.email,
+            })
+            .returning();
 
-            const tdsAmount =
-              isTdsApplicable
-                ? (allocBase * tdsRate) / 100
-                : 0;
-
-            const grossAmount =
-              allocBase + allocGst;
-
-            const paidAmount =
-              grossAmount - tdsAmount;
-
-            return {
-              ...a,
-              allocBase,
-              allocGst,
-              gstPercentage,
-              tdsAmount,
-              paidAmount,
-              isTdsApplicable,
-            };
-          });
-
-          const applicableAllocations =
-            tdsAllocations.filter(
-              (a) => a.isTdsApplicable
-            );
-
-          if (applicableAllocations.length > 0) {
-            const totalBase =
-              tdsAllocations.reduce(
-                (s, a) => s + a.allocBase,
-                0
-              );
-
-            const totalGst =
-              tdsAllocations.reduce(
-                (s, a) => s + a.allocGst,
-                0
-              );
-
-            const totalTds =
-              applicableAllocations.reduce(
-                (s, a) => s + a.tdsAmount,
-                0
-              );
-
-            const totalPaid =
-              tdsAllocations.reduce(
-                (s, a) => s + a.paidAmount,
-                0
-              );
-
-            const blendedGstPct =
-              totalBase > 0
-                ? (totalGst / totalBase) * 100
-                : 0;
-
-            const [tdsRow] = await tx
-              .insert(paymentTds)
-              .values({
-                tdsMasterId: Number(tdsMasterId),
-                paymentSourceType: "pr_payments",
-                paymentSourceId: payment.id,
-                paymentDate:
-                  payment.paymentDate || new Date(),
-                vendorId,
-                baseDocumentType: "pr",
-                baseDocumentId: payment.prId,
-                grossAmount: (
-                  totalBase + totalGst
-                ).toFixed(2),
-                gstAmount: totalGst.toFixed(2),
-                gstPercentage:
-                  blendedGstPct.toFixed(2),
-                paymentCurrencyCode:
-                  String(currencyCode ?? "INR"),
-                paymentExchangeRate:
-                  payRate.toFixed(2),
-                baseAmount:
-                  totalBase.toFixed(2),
-                paidAmount:
-                  totalPaid.toFixed(2),
-                tdsRate:
-                  tdsRate.toFixed(2),
-                tdsAmount:
-                  totalTds.toFixed(2),
-                status: "DEDUCTED",
-                createdBy: user.email,
-              })
-              .returning();
-
-            await tx.insert(paymentTdsItems).values(
-              applicableAllocations.map((a) => ({
-                paymentTdsId: tdsRow.id,
-                baseDocumentItemType:
-                  "purchase_receipt_item" as const,
-                baseDocumentItemId: a.itemId,
-                baseAmount:
-                  a.allocBase.toFixed(2),
-                gstAmount:
-                  a.allocGst.toFixed(2),
-                gstPercentage:
-                  a.gstPercentage.toFixed(2),
-                tdsRate:
-                  tdsRate.toFixed(2),
-                tdsAmount:
-                  a.tdsAmount.toFixed(2),
-                paidAmount:
-                  a.paidAmount.toFixed(2),
-                createdBy: user.email,
-              }))
-            );
-          }
+          await tx.insert(paymentTdsItems).values(
+            applicableAllocations.map((a) => ({
+              paymentTdsId: tdsRow.id,
+              baseDocumentItemType: "purchase_receipt_item" as const,
+              baseDocumentItemId: a.itemId,
+              baseAmount: a.allocBase.toFixed(2),
+              gstAmount: a.allocGst.toFixed(2),
+              gstPercentage: a.gstPercentage.toFixed(2),
+              tdsRate: tdsRate.toFixed(2),
+              tdsAmount: a.tdsAmount.toFixed(2),
+              paidAmount: a.paidAmount.toFixed(2),
+              createdBy: user.email,
+            }))
+          );
         }
 
         return payment;
       });
 
-      return res.status(201).json({
-        data: result,
-      });
+      return res.status(201).json({ data: result });
     } catch (err: any) {
-      console.error(
-        "Error creating PR payment:",
-        err
-      );
-
-      return res.status(500).json({
-        error: err.message,
-      });
+      console.error("Error creating PR payment:", err);
+      return res.status(500).json({ error: err.message });
     }
   }
 );
@@ -2819,6 +2745,10 @@ router.delete(
   async (req, res) => {
     const user = (req as any).user;
     const paymentId = Number(req.params.id);
+
+    if (!Number.isFinite(paymentId)) {
+      return res.status(400).json({ error: "Invalid payment id" });
+    }
 
     try {
       await db.transaction(async (tx) => {
@@ -2840,10 +2770,27 @@ router.delete(
           .returning();
 
         if (!updatedPayment) {
-          throw new Error("Payment not found"); // will rollback the transaction
+          throw new Error("Payment not found"); // rolls back
         }
 
-        // 2. Find associated TDS record(s) for this payment
+        await tx
+          .update(paymentItems)
+          .set({
+            isDeleted: true,
+            deletedBy: user.email,
+            deletedAt: new Date(),
+            updatedBy: user.email,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(paymentItems.paymentSourceType, "pr_payments"),
+              eq(paymentItems.paymentSourceId, paymentId),
+              eq(paymentItems.isDeleted, false)
+            )
+          );
+
+        // 3. Find associated TDS record(s) for this payment
         const tdsRows = await tx
           .select({ id: paymentTds.id })
           .from(paymentTds)
@@ -2858,13 +2805,15 @@ router.delete(
         if (tdsRows.length > 0) {
           const tdsIds = tdsRows.map((r) => r.id);
 
-          // 3. Soft-delete the child payment_tds_items rows first
+          // 4. Soft-delete the child payment_tds_items rows first
           await tx
             .update(paymentTdsItems)
             .set({
               isDeleted: true,
               updatedBy: user.email,
               updatedAt: new Date(),
+              deletedBy: user.email,
+              deletedAt: new Date(),
             })
             .where(
               and(
@@ -2873,7 +2822,7 @@ router.delete(
               )
             );
 
-          // 4. Soft-delete the parent payment_tds row(s)
+          // 5. Soft-delete the parent payment_tds row(s)
           await tx
             .update(paymentTds)
             .set({
@@ -4764,15 +4713,13 @@ async function getGstPercentage(
   referenceId: number,
   client: any
 ): Promise<number> {
-  // Extend this map as you add more reference types
   const map: Record<string, { table: string; idColumn: string; gstColumn: string }> = {
-    outsource_job: { table: 'outsource_jobs', idColumn: 'id', gstColumn: 'gst_percentage' },
-    custom_charge: { table: 'custom_charges', idColumn: 'id', gstColumn: 'gst_percentage' },
-    // style_order: { table: 'style_orders', idColumn: 'id', gstColumn: 'gst_percentage' },
+    outsource_job: { table: "outsource_jobs", idColumn: "id", gstColumn: "gst_percentage" },
+    custom_charge: { table: "custom_charges", idColumn: "id", gstColumn: "gst_percentage" },
   };
 
   const entry = map[referenceType];
-  if (!entry) return 0; // no GST defined → default to 0%
+  if (!entry) return 0;
 
   const query = `
     SELECT ${entry.gstColumn} as gst
@@ -4785,362 +4732,449 @@ async function getGstPercentage(
   return isNaN(gst) ? 0 : gst;
 }
 
+async function getCostingSourceVendorName(
+  client: any,
+  referenceType: string,
+  referenceId: number
+): Promise<string> {
+  const map: Record<string, string> = {
+    outsource_job: "outsource_jobs",
+    custom_charge: "custom_charges",
+  };
+  const table = map[referenceType];
+  if (!table) return "";
+
+  const { rows } = await client.query(
+    `SELECT vendor_name FROM ${table} WHERE id = $1 AND is_deleted = false`,
+    [referenceId]
+  );
+  return rows[0]?.vendor_name ?? "";
+}
+
+/**
+ * Rejects payments that would push the source's paid total over its gross total.
+ * `deltaAmt` is the amount being ADDED — pass the difference for update paths.
+ */
+async function validateCostingSourceBalance(
+  client: any,
+  referenceType: string,
+  referenceId: number,
+  deltaAmt: number
+): Promise<void> {
+  const SQL: Record<string, string> = {
+    outsource_job: `
+      SELECT
+        (oj.total_cost::numeric * (1 + COALESCE(oj.gst_percentage::numeric, 0) / 100)) AS total,
+        COALESCE(cp.paid, 0) AS paid
+      FROM outsource_jobs oj
+      LEFT JOIN (
+        SELECT reference_id, SUM(base_currency_amount) AS paid
+        FROM costing_payments
+        WHERE reference_type = 'outsource_job' AND is_deleted = false
+        GROUP BY reference_id
+      ) cp ON cp.reference_id = oj.id
+      WHERE oj.id = $1 AND oj.is_deleted = false
+    `,
+    custom_charge: `
+      SELECT
+        (cc.total_amount::numeric * (1 + COALESCE(cc.gst_percentage::numeric, 0) / 100)) AS total,
+        COALESCE(cp.paid, 0) AS paid
+      FROM custom_charges cc
+      LEFT JOIN (
+        SELECT reference_id, SUM(base_currency_amount) AS paid
+        FROM costing_payments
+        WHERE reference_type = 'custom_charge' AND is_deleted = false
+        GROUP BY reference_id
+      ) cp ON cp.reference_id = cc.id
+      WHERE cc.id = $1 AND cc.is_deleted = false
+    `,
+  };
+
+  const sql = SQL[referenceType];
+  if (!sql) return;
+
+  const { rows } = await client.query(sql, [referenceId]);
+  if (!rows.length) throw new Error(`${referenceType} ${referenceId} not found`);
+
+  const total = parseFloat(rows[0].total || "0");
+  const paid  = parseFloat(rows[0].paid  || "0");
+
+  if (paid + deltaAmt > total + 0.01) {
+    throw new Error(
+      `Payment exceeds balance on ${referenceType} ${referenceId}. ` +
+      `Total: ${total.toFixed(2)}, Already paid: ${paid.toFixed(2)}, ` +
+      `Attempting additional: ${deltaAmt.toFixed(2)}, ` +
+      `Max allowed: ${Math.max(0, total - paid).toFixed(2)}`
+    );
+  }
+}
+
+async function getTDSMaster(
+  client: any,
+  tdsMasterId: number
+): Promise<{ id: number; rate_percent: number; threshold_amount: number }> {
+  const { rows } = await client.query(
+    `SELECT id, rate_percent::numeric AS rate_percent,
+            threshold_amount::numeric AS threshold_amount
+     FROM tds_master
+     WHERE id = $1 AND status = true AND is_deleted = false`,
+    [tdsMasterId]
+  );
+  if (!rows.length) {
+    throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
+  }
+  return {
+    id: rows[0].id,
+    rate_percent: parseFloat(rows[0].rate_percent),
+    threshold_amount: parseFloat(rows[0].threshold_amount || "0"),
+  };
+}
+
+async function insertPaymentTDSRecord(
+  client: any,
+  tdsMasterId: number,
+  paymentSourceType: string,
+  paymentSourceId: number,
+  paymentDate: any,
+  vendorId: number | null,       
+  baseDocumentType: string,
+  baseDocumentId: number,
+  grossAmount: number,
+  gstAmount: number,
+  gstPercentage: number,
+  baseAmount: number,
+  paidAmount: number,
+  tdsRate: number,
+  tdsAmount: number,
+  username: string,
+  additionalData?: {
+    allocations?: WaterfallAllocation[];   // for purchase_receipts & vendor_challans only
+  }
+): Promise<number> {
+  const result = await client.query(
+    `INSERT INTO payment_tds
+       (tds_master_id, payment_source_type, payment_source_id, payment_date,
+        vendor_id, base_document_type, base_document_id,
+        gross_amount, gst_amount, gst_percentage,
+        payment_currency_code, payment_exchange_rate, base_amount,
+        paid_amount, tds_rate, tds_amount, status, created_by)
+     VALUES ($1, $2, $3, $4, $5,
+             $6, $7,
+             $8, $9, $10,
+             'INR', 1, $11,
+             $12, $13, $14, 'DEDUCTED', $15)
+     RETURNING id`,
+    [
+      tdsMasterId,
+      paymentSourceType,
+      paymentSourceId,
+      paymentDate ? new Date(paymentDate) : new Date(),
+      vendorId,
+      baseDocumentType,
+      baseDocumentId,
+      grossAmount.toFixed(2),
+      gstAmount.toFixed(2),
+      gstPercentage.toFixed(2),
+      baseAmount.toFixed(2),
+      paidAmount.toFixed(2),
+      tdsRate.toFixed(2),
+      tdsAmount.toFixed(2),
+      username,
+    ]
+  );
+
+  const tdsId = result.rows[0].id;
+
+  // Child item rows — only for sources that have item-level detail
+  if (baseDocumentType === "pr" && additionalData?.allocations) {
+    await insertPaymentTDSItems(
+      client,
+      tdsId,
+      additionalData.allocations,
+      tdsRate,
+      "purchase_receipt_item",
+      username
+    );
+  } else if (baseDocumentType === "vendor_challan" && additionalData?.allocations) {
+    await insertPaymentTDSItems(
+      client,
+      tdsId,
+      additionalData.allocations,
+      tdsRate,
+      "vendor_challan_items",
+      username
+    );
+  }
+  return tdsId;
+}
+
+async function insertPaymentTDSItems(
+  client: any,
+  tdsId: number,
+  allocations: WaterfallAllocation[],
+  defaultTdsRate: number,
+  baseDocumentItemType: "purchase_receipt_item" | "vendor_challan_items",
+  username: string
+): Promise<void> {
+  for (const alloc of allocations) {
+    // A line that didn't cross the threshold has tdsAmount = 0 → rate stored as 0
+    const tdsRate   = alloc.tdsAmount > 0 ? defaultTdsRate : 0;
+    const tdsAmount = alloc.tdsAmount ?? 0;
+
+    await client.query(
+      `INSERT INTO payment_tds_items
+         (payment_tds_id, base_document_item_type, base_document_item_id,
+          base_amount, gst_amount, gst_percentage,
+          tds_rate, tds_amount, paid_amount, created_by)
+       VALUES ($1, $2, $3,
+               $4, $5, $6,
+               $7, $8, $9, $10)`,
+      [
+        tdsId,
+        baseDocumentItemType,
+        alloc.itemId,
+        alloc.allocBase.toFixed(2),
+        alloc.allocGst.toFixed(2),
+        alloc.gstPercentage.toFixed(2),
+        tdsRate.toFixed(2),
+        tdsAmount.toFixed(2),
+        alloc.paidAmount.toFixed(2),
+        username,
+      ]
+    );
+  }
+}
+
+// ============================================================================
+// ENDPOINT
+// ============================================================================
+
 router.post(
   "/costing-payments",
   requireAuth,
-  checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT], }),
+  checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
     const client = await pool.connect();
+    let began = false;
+
     try {
       const user = (req as any).user;
+      const { vendorId, vendorName, referenceType, referenceId, swatchOrderId, styleOrderId, paymentType, paymentMode, paymentAmount, paymentStatus, transactionId, paymentDate, remarks, currencyCode, exchangeRateSnapshot, tdsMasterId, } = req.body;
 
-      const {
-        vendorId,
-        vendorName,
-        referenceType,
-        referenceId,
-        swatchOrderId,
-        styleOrderId,
-        paymentType,
-        paymentMode,
-        paymentAmount,
-        paymentStatus,
-        transactionId,
-        paymentDate,
-        remarks,
-        currencyCode,
-        exchangeRateSnapshot,
-        tdsMasterId,
-      } = req.body;
-
+      // ── 1. Validate required fields ──────────────────────────────
       if (!vendorId || !referenceType || !referenceId || !paymentAmount) {
-        await client.release();
-
         return res.status(400).json({
-          error:
-            "vendorId, referenceType, referenceId, paymentAmount are required",
+          error: "vendorId, referenceType, referenceId, paymentAmount are required",
+        });
+      }
+
+      // ── 2. Whitelist referenceType ───────────────────────────────
+      const ALLOWED_REFS = ["outsource_job", "custom_charge"];
+      if (!ALLOWED_REFS.includes(referenceType)) {
+        return res.status(400).json({
+          error: `referenceType must be one of: ${ALLOWED_REFS.join(", ")}`,
         });
       }
 
       const vendorIdNum = parseInt(vendorId);
-      const refIdNum = parseInt(referenceId);
+      const refIdNum    = parseInt(referenceId);
 
-      const payCcy = currencyCode || "INR";
+      if (Number.isNaN(vendorIdNum) || Number.isNaN(refIdNum)) {
+        return res.status(400).json({ error: "vendorId and referenceId must be valid integers" });
+      }
 
-      const payRate =
-        parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;
-
+      const payCcy  = currencyCode || "INR";
+      const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;
       const paymentAmountNum = parseFloat(String(paymentAmount));
 
       if (isNaN(paymentAmountNum) || paymentAmountNum <= 0) {
-        await client.release();
-
         return res.status(400).json({
-          error:
-            "paymentAmount must be a valid amount greater than 0",
+          error: "paymentAmount must be a valid amount greater than 0",
         });
       }
 
+      // ── 3. GST split for THIS payment ────────────────────────────
+      // const totalBase = paymentAmountNum * payRate;   // INR gross
+      const gstPercent = await getGstPercentage(referenceType, refIdNum, client);
       const totalBase = paymentAmountNum * payRate;
 
-      const gstPercent = await getGstPercentage(
-        referenceType,
-        refIdNum,
-        client
-      );
+      const gstBase = totalBase * (gstPercent / 100);
+      const baseCostBase = totalBase - gstBase;
 
-      const gstFactor = 1 + gstPercent / 100;
 
-      const baseCostBase = totalBase / gstFactor;
 
-      const gstBase = totalBase - baseCostBase;
 
+      // ── 4. vendor_name fallback ──────────────────────────────────
+      let resolvedVendorName = vendorName;
+      if (!resolvedVendorName || resolvedVendorName === "—") {
+        resolvedVendorName = await getCostingSourceVendorName(client, referenceType, refIdNum);
+      }
+
+      // ── 5. Resolve TDS master + applicability ────────────────────
       let tdsRate = 0;
       let tdsThreshold = 0;
-      let tdsAmount = 0;
+      let tdsMasterResolved: { id: number; rate_percent: number; threshold_amount: number } | null = null;
 
       if (tdsMasterId) {
-        const masterRes = await client.query(
-          `SELECT rate_percent, threshold_amount
-           FROM tds_master
-           WHERE id = $1
-             AND status = true
-             AND is_deleted = false`,
-          [tdsMasterId]
-        );
-
-        if (masterRes.rows.length === 0) {
-          throw new Error("Invalid TDS master selected");
-        }
-
-        tdsRate =
-          parseFloat(String(masterRes.rows[0].rate_percent)) || 0;
-
-        tdsThreshold =
-          parseFloat(String(masterRes.rows[0].threshold_amount)) || 0;
+        tdsMasterResolved = await getTDSMaster(client, tdsMasterId);
+        tdsRate = tdsMasterResolved.rate_percent;
+        tdsThreshold = tdsMasterResolved.threshold_amount;
       }
 
-      const tdsApplicable =
-        !!tdsMasterId &&
-        tdsRate > 0 &&
-        baseCostBase >= tdsThreshold;
+     const tdsApplicable = !!tdsMasterResolved && tdsRate > 0 && baseCostBase >= tdsThreshold;
 
-      if (tdsApplicable) {
-        tdsAmount = (baseCostBase * tdsRate) / 100;
-      }
-
+      const tdsAmount = tdsApplicable ? (baseCostBase * tdsRate) / 100 : 0;
       const netPayable = totalBase - tdsAmount;
 
+      // ── 6. BEGIN ─────────────────────────────────────────────────
       await client.query("BEGIN");
+      began = true;
 
-      const upsertTds = async (paymentId: number) => {
-        if (!tdsApplicable) {
-          return;
-        }
-
-        const existing = await client.query(
-          `SELECT id
-           FROM payment_tds
-           WHERE payment_source_type = 'costing_payments'
-             AND payment_source_id = $1`,
-          [paymentId]
-        );
-
-        const baseDocType = referenceType;
-        const baseDocId = refIdNum;
-
-        const paymentDateObj = paymentDate
-          ? new Date(paymentDate)
-          : new Date();
-
-        if (existing.rows.length > 0) {
-          await client.query(
-            `UPDATE payment_tds SET
-               tds_master_id = $1,
-               payment_date = $2,
-               vendor_id = $3,
-               base_document_type = $4,
-               base_document_id = $5,
-               gross_amount = $6,
-               gst_amount = $7,
-               gst_percentage = $8,
-               payment_currency_code = $9,
-               payment_exchange_rate = $10,
-               base_amount = $11,
-               paid_amount = $12,
-               tds_rate = $13,
-               tds_amount = $14,
-               status = $15,
-               updated_by = $16,
-               updated_at = NOW()
-             WHERE id = $17`,
-            [
-              tdsMasterId,
-              paymentDateObj,
-              vendorIdNum,
-              baseDocType,
-              baseDocId,
-              totalBase,
-              gstBase,
-              gstPercent,
-              payCcy,
-              payRate,
-              baseCostBase,
-              netPayable,
-              tdsRate,
-              tdsAmount,
-              "DEDUCTED",
-              user?.username || "system",
-              existing.rows[0].id,
-            ]
-          );
-        } else {
-          await client.query(
-            `INSERT INTO payment_tds
-               (
-                 tds_master_id,
-                 payment_source_type,
-                 payment_source_id,
-                 payment_date,
-                 vendor_id,
-                 base_document_type,
-                 base_document_id,
-                 gross_amount,
-                 gst_amount,
-                 gst_percentage,
-                 payment_currency_code,
-                 payment_exchange_rate,
-                 base_amount,
-                 paid_amount,
-                 tds_rate,
-                 tds_amount,
-                 status,
-                 created_by
-               )
-             VALUES
-               (
-                 $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                 $10, $11, $12, $13, $14, $15, $16, $17, $18
-               )`,
-            [
-              tdsMasterId,
-              "costing_payments",
-              paymentId,
-              paymentDateObj,
-              vendorIdNum,
-              baseDocType,
-              baseDocId,
-              totalBase,
-              gstBase,
-              gstPercent,
-              payCcy,
-              payRate,
-              baseCostBase,
-              netPayable,
-              tdsRate,
-              tdsAmount,
-              "DEDUCTED",
-              user?.username || "system",
-            ]
-          );
-        }
-      };
-
-      let resultRow: any;
+      // ── 7. Balance guard (delta-aware for update path) ───────────
+      let existingPaymentId: number | null = null;
+      let effectiveDelta = totalBase;
 
       if (transactionId) {
         const existing = await client.query(
-          `SELECT id
+          `SELECT id, base_currency_amount
            FROM costing_payments
            WHERE reference_type = $1
              AND reference_id = $2
              AND transaction_id = $3
+             AND is_deleted = false
            LIMIT 1`,
           [referenceType, refIdNum, transactionId]
         );
-
         if (existing.rows.length > 0) {
-          const updateRes = await client.query(
-            `UPDATE costing_payments SET
-               vendor_id = $1,
-               vendor_name = $2,
-               payment_type = $3,
-               payment_mode = $4,
-               payment_amount = $5,
-               payment_status = $6,
-               payment_date = $7,
-               remarks = $8,
-               currency_code = $9,
-               exchange_rate_snapshot = $10,
-               base_currency_amount = $11,
-               updated_by = $12,
-               updated_at = NOW()
-             WHERE id = $13
-             RETURNING *`,
-            [
-              vendorIdNum,
-              vendorName,
-              paymentType,
-              paymentMode,
-              paymentAmountNum,
-              paymentStatus,
-              paymentDate ? new Date(paymentDate) : null,
-              remarks,
-              payCcy,
-              payRate,
-              totalBase,
-              user?.username || "system",
-              existing.rows[0].id,
-            ]
-          );
-
-          resultRow = updateRes.rows[0];
-
-          await upsertTds(resultRow.id);
-
-          await client.query("COMMIT");
-          client.release();
-
-          return res.json({
-            data: resultRow,
-            updated: true,
-          });
+          existingPaymentId = existing.rows[0].id;
+          const oldAmount = parseFloat(existing.rows[0].base_currency_amount || "0");
+          effectiveDelta = totalBase - oldAmount;
         }
       }
 
-      const insertRes = await client.query(
-        `INSERT INTO costing_payments
-           (
-             vendor_id,
-             vendor_name,
-             reference_type,
-             reference_id,
-             swatch_order_id,
-             style_order_id,
-             payment_type,
-             payment_mode,
-             payment_amount,
-             currency_code,
-             exchange_rate_snapshot,
-             base_currency_amount,
-             payment_status,
-             transaction_id,
-             payment_date,
-             remarks,
-             created_by
-           )
-         VALUES
-           (
-             $1, $2, $3, $4, $5, $6, $7, $8, $9,
-             $10, $11, $12, $13, $14, $15, $16, $17
-           )
-         RETURNING *`,
-        [
+      await validateCostingSourceBalance(client, referenceType, refIdNum, effectiveDelta);
+
+      // ── 8. Insert or update costing_payments ─────────────────────
+      let resultRow: any;
+
+      if (existingPaymentId) {
+        const updateRes = await client.query(
+          `UPDATE costing_payments SET
+            vendor_id = $1,
+            vendor_name = $2,
+            payment_type = $3,
+            payment_mode = $4,
+            payment_amount = $5,
+            payment_status = $6,
+            payment_date = $7,
+            remarks = $8,
+            currency_code = $9,
+            exchange_rate_snapshot = $10,
+            base_currency_amount = $11,
+            updated_by = $12,
+            updated_at = NOW()
+           WHERE id = $13
+           RETURNING *`,
+          [
+            vendorIdNum,
+            resolvedVendorName,
+            paymentType,
+            paymentMode,
+            paymentAmountNum,
+            paymentStatus || "Pending",
+            paymentDate ? new Date(paymentDate) : null,
+            remarks || null,
+            payCcy,
+            payRate,
+            totalBase,
+            user?.username || "system",
+            existingPaymentId,
+          ]
+        );
+        resultRow = updateRes.rows[0];
+      } else {
+        const insertRes = await client.query(
+          `INSERT INTO costing_payments
+             (vendor_id, vendor_name, reference_type, reference_id,
+              swatch_order_id, style_order_id,
+              payment_type, payment_mode, payment_amount,
+              currency_code, exchange_rate_snapshot, base_currency_amount,
+              payment_status, transaction_id, payment_date, remarks, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                   $10, $11, $12, $13, $14, $15, $16, $17)
+           RETURNING *`,
+          [
+            vendorIdNum,
+            resolvedVendorName,
+            referenceType,
+            refIdNum,
+            swatchOrderId ? parseInt(swatchOrderId) : null,
+            styleOrderId ? parseInt(styleOrderId) : null,
+            paymentType,
+            paymentMode,
+            paymentAmountNum,
+            payCcy,
+            payRate,
+            totalBase,
+            paymentStatus || "Pending",
+            transactionId || null,
+            paymentDate ? new Date(paymentDate) : null,
+            remarks || null,
+            user?.username || "system",
+          ]
+        );
+        resultRow = insertRes.rows[0];
+      }
+
+      // ── 9. TDS row — delete old + insert fresh if applicable ─────
+      //    (Simpler than upsert and consistent with other endpoints.)
+      if (tdsApplicable && tdsMasterResolved) {
+        // Remove any prior TDS row for this payment id so we write a fresh one
+        await client.query(
+          `UPDATE payment_tds
+           SET is_deleted = true, deleted_by = $1, deleted_at = NOW()
+           WHERE payment_source_type = 'costing_payments'
+             AND payment_source_id = $2
+             AND is_deleted = false`,
+          [user?.username || "system", resultRow.id]
+        );
+
+        await insertPaymentTDSRecord(
+          client,
+          tdsMasterResolved.id,
+          "costing_payments",
+          resultRow.id,
+          paymentDate || new Date(),
           vendorIdNum,
-          vendorName,
-          referenceType,
+          referenceType,     // 'outsource_job' | 'custom_charge'
           refIdNum,
-          swatchOrderId
-            ? parseInt(swatchOrderId)
-            : null,
-          styleOrderId
-            ? parseInt(styleOrderId)
-            : null,
-          paymentType,
-          paymentMode,
-          paymentAmountNum,
-          payCcy,
-          payRate,
-          totalBase,
-          paymentStatus || "Pending",
-          transactionId || null,
-          paymentDate
-            ? new Date(paymentDate)
-            : null,
-          remarks || null,
-          user?.username || "system",
-        ]
-      );
+          totalBase,         // gross_amount
+          gstBase,           // gst_amount
+          gstPercent,        // gst_percentage
+          baseCostBase,      // base_amount
+          netPayable,        // paid_amount (net of TDS)
+          tdsRate,
+          tdsAmount,
+          user?.username || "system"
+        );
+      }
 
-      resultRow = insertRes.rows[0];
-
-      await upsertTds(resultRow.id);
-
+      // ── 10. COMMIT ───────────────────────────────────────────────
       await client.query("COMMIT");
-      client.release();
+      began = false;
 
-      return res.status(201).json({
+      return res.status(existingPaymentId ? 200 : 201).json({
         data: resultRow,
+        updated: !!existingPaymentId,
       });
     } catch (err: any) {
-      await client.query("ROLLBACK");
-      client.release();
-
+      if (began) {
+        try { await client.query("ROLLBACK"); } catch {}
+      }
       console.error("Error in /costing-payments:", err);
-
-      return res.status(500).json({
-        error: err.message,
-      });
+      return res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
     }
   }
 );
@@ -5152,8 +5186,16 @@ router.patch(
   checkPermission({ any: [STYLE_ORDERS.ADD_EDIT, SWATCH_ORDERS.ADD_EDIT] }),
   async (req, res) => {
     const client = await pool.connect();
+    let began = false;
+
     try {
       const id = parseInt(String(req.params.id));
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ error: "Invalid payment id" });
+      }
+
+      const user = (req as any).user?.username ?? "system";
+
       const {
         paymentType,
         paymentMode,
@@ -5168,26 +5210,37 @@ router.patch(
       } = req.body;
 
       await client.query("BEGIN");
+      began = true;
 
+      // ── 1. Load current payment (must not be soft-deleted) ────────
       const currentRes = await client.query(
-        `SELECT vendor_id, reference_type, reference_id, payment_date,
-                payment_amount, exchange_rate_snapshot, currency_code
+        `SELECT id, vendor_id, reference_type, reference_id, payment_date,
+                payment_amount, exchange_rate_snapshot, currency_code,
+                base_currency_amount, is_deleted
          FROM costing_payments
          WHERE id = $1`,
         [id]
       );
 
-      if (currentRes.rows.length === 0) {
+      if (currentRes.rows.length === 0 || currentRes.rows[0].is_deleted) {
         await client.query("ROLLBACK");
-        client.release();
-
-        return res.status(404).json({
-          error: "Payment not found",
-        });
+        began = false;
+        return res.status(404).json({ error: "Payment not found" });
       }
 
       const current = currentRes.rows[0];
 
+      // ── 2. Whitelist reference_type ──────────────────────────────
+      const ALLOWED_REFS = ["outsource_job", "custom_charge"];
+      if (!current.reference_type || !ALLOWED_REFS.includes(current.reference_type)) {
+        await client.query("ROLLBACK");
+        began = false;
+        return res.status(400).json({
+          error: `This payment's reference_type (${current.reference_type}) is not supported by this endpoint.`,
+        });
+      }
+
+      // ── 3. Resolve effective values ──────────────────────────────
       const effAmt =
         paymentAmount != null
           ? parseFloat(String(paymentAmount))
@@ -5198,13 +5251,11 @@ router.patch(
           ? parseFloat(String(exchangeRateSnapshot)) || 1
           : parseFloat(current.exchange_rate_snapshot ?? "1") || 1;
 
-      const payCcy =
-        currencyCode ?? current.currency_code ?? "INR";
+      const payCcy = currencyCode ?? current.currency_code ?? "INR";
 
       if (isNaN(effAmt) || effAmt <= 0) {
         await client.query("ROLLBACK");
-        client.release();
-
+        began = false;
         return res.status(400).json({
           error: "paymentAmount must be a valid amount greater than 0",
         });
@@ -5212,54 +5263,51 @@ router.patch(
 
       const totalBase = effAmt * effRate;
 
+      // ── 4. GST split for the (possibly new) amount ───────────────
       const gstPercent = await getGstPercentage(
         current.reference_type,
         current.reference_id,
         client
       );
-
-      const gstFactor = 1 + gstPercent / 100;
-
+      const gstFactor    = 1 + gstPercent / 100;
       const baseCostBase = totalBase / gstFactor;
+      const gstBase      = totalBase - baseCostBase;
 
-      const gstBase = totalBase - baseCostBase;
-
-      let tdsRate = 0;
+      // ── 5. Resolve TDS master + applicability ────────────────────
+      let tdsMasterResolved: { id: number; rate_percent: number; threshold_amount: number } | null = null;
+      let tdsRate      = 0;
       let tdsThreshold = 0;
-      let tdsAmount = 0;
-      let netPayable = totalBase;
+      let tdsAmount    = 0;
+      let netPayable   = totalBase;
 
       if (tdsMasterId) {
-        const masterRes = await client.query(
-          `SELECT rate_percent, threshold_amount
-           FROM tds_master
-           WHERE id = $1
-             AND status = true
-             AND is_deleted = false`,
-          [tdsMasterId]
-        );
-
-        if (masterRes.rows.length === 0) {
-          throw new Error(`Invalid TDS master (ID: ${tdsMasterId})`);
-        }
-
-        tdsRate =
-          parseFloat(String(masterRes.rows[0].rate_percent)) || 0;
-
-        tdsThreshold =
-          parseFloat(String(masterRes.rows[0].threshold_amount)) || 0;
+        tdsMasterResolved = await getTDSMaster(client, tdsMasterId);
+        tdsRate      = tdsMasterResolved.rate_percent;
+        tdsThreshold = tdsMasterResolved.threshold_amount;
 
         if (baseCostBase >= tdsThreshold && tdsRate > 0) {
-          tdsAmount = (baseCostBase * tdsRate) / 100;
+          tdsAmount  = (baseCostBase * tdsRate) / 100;
           netPayable = totalBase - tdsAmount;
         }
       }
 
       const tdsApplicable =
-        !!tdsMasterId &&
-        tdsRate > 0 &&
-        baseCostBase >= tdsThreshold;
+        !!tdsMasterResolved && tdsRate > 0 && baseCostBase >= tdsThreshold;
 
+      // ── 6. Balance guard (delta-aware) ───────────────────────────
+      const oldBase = parseFloat(current.base_currency_amount ?? "0");
+      const delta   = totalBase - oldBase;
+
+      if (delta > 0.01) {
+        await validateCostingSourceBalance(
+          client,
+          current.reference_type,
+          current.reference_id,
+          delta
+        );
+      }
+
+      // ── 7. Update costing_payments ───────────────────────────────
       const updateRes = await client.query(
         `UPDATE costing_payments SET
            payment_type = COALESCE($1, payment_type),
@@ -5269,46 +5317,46 @@ router.patch(
            transaction_id = COALESCE($5, transaction_id),
            payment_date = COALESCE($6, payment_date),
            remarks = COALESCE($7, remarks),
-           currency_code = COALESCE($9, currency_code),
-           exchange_rate_snapshot = COALESCE($10, exchange_rate_snapshot),
-           base_currency_amount = COALESCE($11, base_currency_amount)
-         WHERE id = $8
+           currency_code = COALESCE($8, currency_code),
+           exchange_rate_snapshot = COALESCE($9, exchange_rate_snapshot),
+           base_currency_amount = $10,
+           updated_by = $11,
+           updated_at = NOW()
+         WHERE id = $12
          RETURNING *`,
         [
           paymentType ?? null,
           paymentMode ?? null,
-          paymentAmount != null
-            ? parseFloat(String(paymentAmount))
-            : null,
+          paymentAmount != null ? parseFloat(String(paymentAmount)) : null,
           paymentStatus ?? null,
           transactionId ?? null,
           paymentDate ? new Date(paymentDate) : null,
           remarks ?? null,
-          id,
-          payCcy,
-          effRate,
+          currencyCode ?? null,
+          exchangeRateSnapshot != null ? effRate : null,
           totalBase,
+          user,
+          id,
         ]
       );
 
       const updatedPayment = updateRes.rows[0];
+      const paymentDateObj = updatedPayment.payment_date || new Date();
 
-      const user =
-        (req as any).user?.username ?? "system";
-
-      const paymentDateObj =
-        updatedPayment.payment_date || new Date();
-
+      // ── 8. Sync TDS row ──────────────────────────────────────────
       const existingTds = await client.query(
         `SELECT id
          FROM payment_tds
          WHERE payment_source_type = 'costing_payments'
-           AND payment_source_id = $1`,
+           AND payment_source_id = $1
+           AND is_deleted = false
+         LIMIT 1`,
         [id]
       );
 
-      if (tdsApplicable) {
+      if (tdsApplicable && tdsMasterResolved) {
         if (existingTds.rows.length > 0) {
+          // Update the existing TDS row in place (preserves id, audit trail)
           await client.query(
             `UPDATE payment_tds SET
                tds_master_id = $1,
@@ -5333,8 +5381,8 @@ router.patch(
               tdsMasterId,
               paymentDateObj,
               updatedPayment.vendor_id,
-              updatedPayment.reference_type || null,
-              updatedPayment.reference_id || null,
+              current.reference_type,
+              current.reference_id,
               totalBase,
               gstBase,
               gstPercent,
@@ -5350,81 +5398,52 @@ router.patch(
             ]
           );
         } else {
-          await client.query(
-            `INSERT INTO payment_tds
-               (
-                 tds_master_id,
-                 payment_source_type,
-                 payment_source_id,
-                 payment_date,
-                 vendor_id,
-                 base_document_type,
-                 base_document_id,
-                 gross_amount,
-                 gst_amount,
-                 gst_percentage,
-                 payment_currency_code,
-                 payment_exchange_rate,
-                 base_amount,
-                 paid_amount,
-                 tds_rate,
-                 tds_amount,
-                 status,
-                 created_by
-               )
-             VALUES
-               (
-                 $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                 $10, $11, $12, $13, $14, $15, $16, $17, $18
-               )`,
-            [
-              tdsMasterId,
-              "costing_payments",
-              id,
-              paymentDateObj,
-              updatedPayment.vendor_id,
-              updatedPayment.reference_type || null,
-              updatedPayment.reference_id || null,
-              totalBase,
-              gstBase,
-              gstPercent,
-              payCcy,
-              effRate,
-              baseCostBase,
-              netPayable,
-              tdsRate,
-              tdsAmount,
-              "DEDUCTED",
-              user,
-            ]
+          // Insert fresh — reuses the shared helper so column list stays in sync
+          await insertPaymentTDSRecord(
+            client,
+            tdsMasterResolved.id,
+            "costing_payments",
+            id,
+            paymentDateObj,
+            updatedPayment.vendor_id,
+            current.reference_type,
+            current.reference_id,
+            totalBase,
+            gstBase,
+            gstPercent,
+            baseCostBase,
+            netPayable,
+            tdsRate,
+            tdsAmount,
+            user
           );
         }
       } else if (existingTds.rows.length > 0) {
+        // TDS no longer applies (e.g. amount dropped below threshold) — soft-delete
         await client.query(
-          `DELETE FROM payment_tds
-           WHERE id = $1`,
-          [existingTds.rows[0].id]
+          `UPDATE payment_tds
+           SET is_deleted = true,
+               deleted_by = $1,
+               deleted_at = NOW(),
+               updated_by = $1,
+               updated_at = NOW()
+           WHERE id = $2`,
+          [user, existingTds.rows[0].id]
         );
       }
 
       await client.query("COMMIT");
-      client.release();
+      began = false;
 
-      return res.json({
-        data: updatedPayment,
-      });
+      return res.json({ data: updatedPayment });
     } catch (err: any) {
-      await client.query("ROLLBACK");
+      if (began) {
+        try { await client.query("ROLLBACK"); } catch {}
+      }
+      console.error("Error in PATCH /costing-payments:", err);
+      return res.status(500).json({ error: err.message });
+    } finally {
       client.release();
-
-      console.error(
-        "Error in PATCH /costing-payments:",
-        err
-      );
-
-      return res.status(500).json({
-        error: err.message,
-      });
     }
   }
 );
@@ -5436,52 +5455,69 @@ router.delete(
   checkPermission({ any: [STYLE_ORDERS.DELETE, SWATCH_ORDERS.DELETE] }),
   async (req, res) => {
     const client = await pool.connect();
+    let began = false;
+
     try {
       const user = (req as any).user;
       if (user?.role !== "admin") {
-        await client.release();
         return res.status(403).json({ error: "Admin only" });
       }
 
       const id = parseInt(String(req.params.id));
+      if (Number.isNaN(id)) {
+        return res.status(400).json({ error: "Invalid payment id" });
+      }
+
       const deletedBy = user.email || user.username || "system";
       const now = new Date();
 
       await client.query("BEGIN");
+      began = true;
 
       // 1. Soft-delete the costing payment
       const result = await client.query(
         `UPDATE costing_payments
-         SET is_deleted = true, deleted_by = $2, deleted_at = $3
-         WHERE id = $1 AND is_deleted = false
-         RETURNING id`,
+        SET is_deleted = true,
+            deleted_by = $2,
+            deleted_at = $3
+        WHERE id = $1
+          AND is_deleted = false
+        RETURNING id`,
         [id, deletedBy, now]
       );
 
       if (result.rowCount === 0) {
         await client.query("ROLLBACK");
-        client.release();
+        began = false;
         return res.status(404).json({ error: "Payment not found or already deleted" });
       }
 
       // 2. Soft-delete the associated payment_tds record(s)
       await client.query(
         `UPDATE payment_tds
-         SET is_deleted = true, deleted_by = $2, deleted_at = $3
-         WHERE payment_source_type = 'costing_payments'
-           AND payment_source_id = $1
-           AND is_deleted = false`,
+        SET is_deleted = true,
+            deleted_by = $2,
+            deleted_at = $3,
+            updated_by = $2,
+            updated_at = $3
+        WHERE payment_source_type = 'costing_payments'
+          AND payment_source_id = $1
+          AND is_deleted = false`,
         [id, deletedBy, now]
       );
 
       await client.query("COMMIT");
-      client.release();
+      began = false;
+
       return res.json({ success: true });
     } catch (err: any) {
-      await client.query("ROLLBACK");
-      client.release();
+      if (began) {
+        try { await client.query("ROLLBACK"); } catch {}
+      }
       console.error("Error deleting payment:", err);
       return res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
     }
   }
 );

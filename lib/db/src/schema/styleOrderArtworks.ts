@@ -42,6 +42,7 @@ export const styleOrderArtworksTable = pgTable("style_order_artworks", {
   toileTransactionId: text("toile_transaction_id"),
   toileRemarks: text("toile_remarks"),
   toileImages: jsonb("toile_images").default([]),
+  toileGstPercentage: numeric("toil_gst_percentage", { precision: 5, scale: 2 }) .notNull() .default("18"),
 
   patternType: text("pattern_type"),
   patternMakingCost: text("pattern_making_cost"),

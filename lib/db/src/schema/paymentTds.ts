@@ -20,6 +20,7 @@ export const baseDocumentTypeEnum = pgEnum("base_document_type_enum", [
   "artwork_style",
   "toile",
   "shipping",
+  'style_order_product',
 ]);
 
 export const paymentTdsStatusEnum = pgEnum("payment_tds_status_enum", [
