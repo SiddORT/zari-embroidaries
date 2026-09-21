@@ -488,7 +488,7 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
           entry_type IN (
             'outsource', 'custom_charge', 'ledger_charge',
             'artwork_swatch', 'artwork_style', 'toile',
-            'pattern_outhouse', 'style_order_product',
+            'style_order_product',
             'vendor_invoice',
             'purchase_receipt', 'vendor_challan'
           ) AS is_charge
@@ -554,17 +554,31 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
 
           SELECT
             'artwork_style', soa.id::text, soa.created_at,
-            CONCAT('Artwork (Style): ', soa.artwork_name, COALESCE(' [' || soa.artwork_code || ']', '')),
+            CONCAT(
+              'Artwork (Style): ',
+              soa.artwork_name,
+              COALESCE(' [' || soa.artwork_code || ']', '')
+            ),
             'style',
             so.order_code,
-            (COALESCE(NULLIF(soa.total_cost, '')::numeric, 0) * (1 + COALESCE(soa.gst_percentage::numeric, 0) / 100)),
+            (
+              COALESCE(NULLIF(soa.total_cost, '')::numeric, 0)
+              * (
+                1 + COALESCE(soa.gst_percentage::numeric, 0) / 100
+              )
+            ),
             0::numeric
           FROM style_order_artworks soa
-          LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
-          WHERE soa.outsource_vendor_id IS NOT NULL AND soa.outsource_vendor_id <> ''
-            AND soa.outsource_vendor_name IS NOT NULL AND soa.outsource_vendor_name <> ''
+          LEFT JOIN style_orders so
+            ON soa.style_order_id = so.id
+            AND so.is_deleted = false
+          WHERE soa.outsource_vendor_id IS NOT NULL
+            AND soa.outsource_vendor_id <> ''
+            AND soa.outsource_vendor_name IS NOT NULL
+            AND soa.outsource_vendor_name <> ''
             AND soa.artwork_created = 'Outsource'
-            AND soa.total_cost IS NOT NULL AND soa.total_cost <> ''
+            AND soa.total_cost IS NOT NULL
+            AND soa.total_cost <> ''
             AND soa.outsource_vendor_id ~ '^[0-9]+$'
             AND soa.outsource_vendor_id::integer = $1
             AND soa.is_deleted = false
@@ -573,37 +587,38 @@ router.get("/vendor-ledger/:vendorId/entries", requireAuth, async (req, res) => 
 
           SELECT
             'toile', soa.id::text, soa.created_at,
-            CONCAT('Toile: ', soa.artwork_name, COALESCE(' [' || soa.artwork_code || ']', '')),
+            CONCAT(
+              'Toile: ',
+              soa.artwork_name,
+              COALESCE(' [' || soa.artwork_code || ']', '')
+            ),
             'style',
             so.order_code,
-            (COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
-              * (1 + COALESCE(soa.toil_gst_percentage::numeric, 0) / 100)),
+            (
+              COALESCE(
+                NULLIF(soa.toile_making_cost, ''),
+                NULLIF(soa.toile_cost, '')
+              )::numeric
+              * (
+                1 + COALESCE(soa.toil_gst_percentage::numeric, 0) / 100
+              )
+            ),
             0::numeric
           FROM style_order_artworks soa
-          LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
-          WHERE soa.toile_vendor_id IS NOT NULL AND soa.toile_vendor_id <> ''
-            AND soa.toile_vendor_name IS NOT NULL AND soa.toile_vendor_name <> ''
-            AND ((soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
-                 OR (soa.toile_cost IS NOT NULL AND soa.toile_cost <> ''))
+          LEFT JOIN style_orders so
+            ON soa.style_order_id = so.id
+            AND so.is_deleted = false
+          WHERE soa.toile_vendor_id IS NOT NULL
+            AND soa.toile_vendor_id <> ''
+            AND soa.toile_vendor_name IS NOT NULL
+            AND soa.toile_vendor_name <> ''
+            AND (
+              (soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
+              OR
+              (soa.toile_cost IS NOT NULL AND soa.toile_cost <> '')
+            )
             AND soa.toile_vendor_id ~ '^[0-9]+$'
             AND soa.toile_vendor_id::integer = $1
-            AND soa.is_deleted = false
-
-          UNION ALL
-
-          SELECT
-            'pattern_outhouse', soa.id::text, soa.created_at,
-            CONCAT('Pattern (Outhouse): ', soa.artwork_name, COALESCE(' [' || soa.artwork_code || ']', '')),
-            'style',
-            so.order_code,
-            soa.pattern_payment_amount::numeric,
-            0::numeric
-          FROM style_order_artworks soa
-          LEFT JOIN style_orders so ON soa.style_order_id = so.id AND so.is_deleted = false
-          WHERE soa.pattern_vendor_id IS NOT NULL AND soa.pattern_vendor_id <> ''
-            AND soa.pattern_payment_amount IS NOT NULL AND soa.pattern_payment_amount <> ''
-            AND soa.pattern_vendor_id ~ '^[0-9]+$'
-            AND soa.pattern_vendor_id::integer = $1
             AND soa.is_deleted = false
 
           UNION ALL
@@ -983,6 +998,7 @@ async function validateOutstandingBalance(client: any, vendorId: number, amt: nu
       ), 0)
 
       /* ── Pattern Outhouse (style_order_artworks) ─────────────── */
+    /* 
     + COALESCE((
         SELECT SUM(pattern_payment_amount::numeric)
         FROM style_order_artworks
@@ -991,6 +1007,7 @@ async function validateOutstandingBalance(client: any, vendorId: number, amt: nu
           AND pattern_vendor_id::integer = $1
           AND is_deleted = false
       ), 0)
+      */
 
       /* ── Style Order Products (Pattern) — NEW ────────────────── */
     + COALESCE((
@@ -1993,6 +2010,186 @@ async function handlePurchaseReceiptPayment(
   }
 }
 
+// async function handleLedgerChargePayment(
+//   client: any,
+//   entryId: number,
+//   vendorId: number,
+//   allocAmt: number,
+//   data: any,
+//   alloc: PaymentAllocation,
+//   username: string
+// ): Promise<void> {
+//   const ledgerRes = await client.query(
+//     `SELECT
+//        id,
+//        amount,
+//        gst_percentage,
+//        order_type,
+//        order_id
+//      FROM vendor_ledger_charges
+//      WHERE id = $1
+//        AND vendor_id = $2
+//        AND is_deleted = false`,
+//     [entryId, vendorId]
+//   );
+
+//   if (ledgerRes.rows.length === 0) {
+//     throw new Error(
+//       `Ledger charge ${entryId} not found or does not belong to vendor`
+//     );
+//   }
+
+//   const ledger = ledgerRes.rows[0];
+
+//   const baseAmount = parseFloat(ledger.amount || "0");
+//   const gstPct = parseFloat(ledger.gst_percentage || "0");
+
+//   const gstAmount = (baseAmount * gstPct) / 100;
+//   const totalAmount = baseAmount + gstAmount;
+
+//   const paymentSumRes = await client.query(
+//     `SELECT COALESCE(SUM(amount::numeric), 0) AS current_paid
+//     FROM vendor_payments
+//     WHERE reference_type = 'ledger_charge'
+//       AND reference_id = $1
+//       AND vendor_id = $2`,
+//     [entryId, vendorId]
+//   );
+
+
+//   const currentPaid = parseFloat(
+//     paymentSumRes.rows[0]?.current_paid || "0"
+//   );
+
+//   const newPaid = currentPaid + allocAmt;
+
+//   let newStatus = "Unpaid";
+
+//   if (newPaid >= totalAmount - 0.01) {
+//     newStatus = "Paid";
+//   } else if (newPaid > 0) {
+//     newStatus = "Partially Paid";
+//   }
+
+//   const tdsMasterId =
+//     alloc.tdsMasterId ||
+//     data.tdsMasterId ||
+//     null;
+
+//   const notes = data.notes
+//     ? `${data.notes} (against ledger charge ${entryId})`
+//     : `Ledger charge payment ${entryId}`;
+
+//   const paymentRes = await client.query(
+//     `INSERT INTO vendor_payments (
+//        vendor_id,
+//        vendor_name,
+//        payment_date,
+//        amount,
+//        currency_code,
+//        exchange_rate_snapshot,
+//        base_currency_amount,
+//        payment_mode,
+//        reference_no,
+//        notes,
+//        order_type,
+//        reference_type,
+//        reference_id,
+//        style_order_id,
+//        style_order_code,
+//        swatch_order_id,
+//        swatch_order_code,
+//        created_by
+//      )
+//      VALUES (
+//        $1, $2, $3, $4, $5, $6, $7,
+//        $8, $9, $10, $11, $12, $13,
+//        $14, $15, $16, $17, $18
+//      )
+//      RETURNING id`,
+//     [
+//       vendorId,
+//       data.vendorName,
+//       data.paymentDate
+//         ? new Date(data.paymentDate)
+//         : new Date(),
+//       allocAmt,
+//       "INR",
+//       "1",
+//       String(allocAmt),
+//       data.paymentMode,
+//       data.referenceNo || null,
+//       notes,
+//       "ledger_charge",
+//       "ledger_charge",
+//       entryId,
+//       null,
+//       null,
+//       null,
+//       null,
+//       username
+//     ]
+//   );
+
+//   const paymentId = paymentRes.rows[0].id;
+
+//   if (tdsMasterId) {
+//     const tdsMaster = await getTDSMaster(
+//       client,
+//       tdsMasterId
+//     );
+
+//     const tdsRate = tdsMaster.rate_percent;
+//     const thresholdAmount = tdsMaster.threshold_amount;
+//     const allocatedGstAmount = Number( ((allocAmt * gstPct) / 100).toFixed(2) );
+
+//     const allocatedBaseAmount = Number( (allocAmt - allocatedGstAmount).toFixed(2) );
+
+//     const shouldApplyTDS = allocatedBaseAmount >= thresholdAmount;
+
+//     if (shouldApplyTDS) {
+//       const tdsAmount = Number(
+//         ((allocatedBaseAmount * tdsRate) / 100).toFixed(2)
+//       );
+
+//       const paidAmount = Number( (allocAmt - tdsAmount).toFixed(2) );
+
+//       await insertPaymentTDSRecord(
+//         client,
+//         tdsMasterId,
+//         "vendor_payments",
+//         paymentId,
+//         data.paymentDate,
+//         vendorId,
+//         "ledger_charge",
+//         entryId,
+//         allocAmt,
+//         allocatedGstAmount,
+//         gstPct,
+//         allocatedBaseAmount,
+//         paidAmount,
+//         tdsRate,
+//         tdsAmount,
+//         username
+//       );
+//     }
+//   }
+
+//   await client.query(
+//     `UPDATE other_expenses
+//      SET
+//        paid_amount = $1,
+//        payment_status = $2,
+//        updated_at = NOW()
+//      WHERE expense_id = $3`,
+//     [
+//       String(newPaid),
+//       newStatus,
+//       ledger.order_id
+//     ]
+//   );
+// }
+
 async function handleLedgerChargePayment(
   client: any,
   entryId: number,
@@ -2032,13 +2229,12 @@ async function handleLedgerChargePayment(
 
   const paymentSumRes = await client.query(
     `SELECT COALESCE(SUM(amount::numeric), 0) AS current_paid
-    FROM vendor_payments
-    WHERE reference_type = 'ledger_charge'
-      AND reference_id = $1
-      AND vendor_id = $2`,
+     FROM vendor_payments
+     WHERE reference_type = 'ledger_charge'
+       AND reference_id = $1
+       AND vendor_id = $2`,
     [entryId, vendorId]
   );
-
 
   const currentPaid = parseFloat(
     paymentSumRes.rows[0]?.current_paid || "0"
@@ -2124,18 +2320,27 @@ async function handleLedgerChargePayment(
 
     const tdsRate = tdsMaster.rate_percent;
     const thresholdAmount = tdsMaster.threshold_amount;
-    const allocatedGstAmount = Number( ((allocAmt * gstPct) / 100).toFixed(2) );
 
-    const allocatedBaseAmount = Number( (allocAmt - allocatedGstAmount).toFixed(2) );
+    const allocatedGstAmount = Number(
+      ((allocAmt * gstPct) / 100).toFixed(2)
+    );
 
-    const shouldApplyTDS = allocatedBaseAmount >= thresholdAmount;
+    const allocatedBaseAmount = Number(
+      (allocAmt - allocatedGstAmount).toFixed(2)
+    );
+
+    const shouldApplyTDS =
+      allocatedBaseAmount >= thresholdAmount;
 
     if (shouldApplyTDS) {
       const tdsAmount = Number(
         ((allocatedBaseAmount * tdsRate) / 100).toFixed(2)
       );
 
-      const paidAmount = Number( (allocAmt - tdsAmount).toFixed(2) );
+      // Base after TDS + GST
+      const paidAmount = Number(
+        (allocatedBaseAmount - tdsAmount + allocatedGstAmount).toFixed(2)
+      );
 
       await insertPaymentTDSRecord(
         client,
@@ -2342,7 +2547,7 @@ async function handleVendorChallanPayment(
   }
 }
 
-// ── Artwork (Swatch) — payment via vendor_payments + TDS ──────────────
+// ── Artwork (Swatch) — payment via costing_payments + TDS ─────────────
 async function handleArtworkSwatchPayment(
   client: any,
   entryId: number,
@@ -2353,7 +2558,8 @@ async function handleArtworkSwatchPayment(
   username: string
 ): Promise<void> {
   const artRes = await client.query(
-    `SELECT id, artwork_code, swatch_order_id, total_cost, gst_percentage,
+    `SELECT id, artwork_code, swatch_order_id, style_order_id,
+            total_cost, gst_percentage,
             outsource_vendor_id, outsource_vendor_name
      FROM artworks
      WHERE id = $1 AND is_deleted = false
@@ -2364,8 +2570,8 @@ async function handleArtworkSwatchPayment(
   const art = artRes.rows[0];
 
   const gstPct  = parseFloat(art.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
+  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
+  const payBase = Number((allocAmt - payGst).toFixed(2));
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
@@ -2373,49 +2579,42 @@ async function handleArtworkSwatchPayment(
     ? `${data.notes} (against artwork ${art.artwork_code ?? entryId})`
     : `Artwork (Swatch) payment ${art.artwork_code ?? entryId}`;
 
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        swatch_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'artwork_swatch', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       vendorId,
-      data.vendorName,
-      data.paymentDate ? new Date(data.paymentDate) : new Date(),
-      allocAmt,
-      "INR",
-      "1",
-      String(allocAmt),
-      data.paymentMode,
-      data.referenceNo || null,
-      notes,
-      "swatch",                 // order_type
-      "artwork_swatch",         // reference_type
-      entryId,                  // reference_id
+      data.vendorName || art.outsource_vendor_name || "",
+      entryId,
       art.swatch_order_id,
+      art.style_order_id,
+      data.paymentType || "costing",
+      data.paymentMode,
+      allocAmt,
+      data.currencyCode || "INR",
+      String(data.exchangeRate ?? "1"),
+      allocAmt,                                 // base_currency_amount = INR gross
+      data.transactionId || null,
+      data.paymentDate ? new Date(data.paymentDate) : new Date(),
+      notes,
       username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
   const tdsAmount  = (payBase * tdsRate) / 100;
@@ -2424,24 +2623,18 @@ async function handleArtworkSwatchPayment(
   await insertPaymentTDSRecord(
     client,
     tdsMasterId,
-    "vendor_payments",
+    "costing_payments",           // 👈 payment_source_type
     paymentId,
     data.paymentDate,
     vendorId,
-    "artwork_swatch",
+    "artwork_swatch",             // 👈 base_document_type
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    allocAmt, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
-// ── Artwork (Style) — payment via vendor_payments + TDS ──────────────
+// ── Artwork (Style) — payment via costing_payments + TDS ──────────────
 async function handleArtworkStylePayment(
   client: any,
   entryId: number,
@@ -2452,7 +2645,8 @@ async function handleArtworkStylePayment(
   username: string
 ): Promise<void> {
   const artRes = await client.query(
-    `SELECT id, artwork_code, style_order_id, total_cost, gst_percentage,
+    `SELECT id, artwork_code, style_order_id, swatch_order_id,
+            total_cost, gst_percentage,
             outsource_vendor_id, outsource_vendor_name, artwork_created
      FROM style_order_artworks
      WHERE id = $1 AND is_deleted = false
@@ -2463,8 +2657,8 @@ async function handleArtworkStylePayment(
   const art = artRes.rows[0];
 
   const gstPct  = parseFloat(art.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
+  const payGst  = gstPct > 0 ? Number((allocAmt * (gstPct / (100 + gstPct))).toFixed(2)) : 0;
+  const payBase = Number((allocAmt - payGst).toFixed(2));
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
@@ -2472,75 +2666,61 @@ async function handleArtworkStylePayment(
     ? `${data.notes} (against style artwork ${art.artwork_code ?? entryId})`
     : `Artwork (Style) payment ${art.artwork_code ?? entryId}`;
 
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        style_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'artwork_style', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       vendorId,
-      data.vendorName,
-      data.paymentDate ? new Date(data.paymentDate) : new Date(),
-      allocAmt,
-      "INR",
-      "1",
-      String(allocAmt),
-      data.paymentMode,
-      data.referenceNo || null,
-      notes,
-      "style",                  // order_type
-      "artwork_style",          // reference_type
+      data.vendorName || art.outsource_vendor_name || "",
       entryId,
+      art.swatch_order_id,
       art.style_order_id,
+      data.paymentType || "costing",
+      data.paymentMode,
+      allocAmt,
+      data.currencyCode || "INR",
+      String(data.exchangeRate ?? "1"),
+      allocAmt,
+      data.transactionId || null,
+      data.paymentDate ? new Date(data.paymentDate) : new Date(),
+      notes,
       username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
   const tdsAmount  = (payBase * tdsRate) / 100;
   const paidAmount = allocAmt - tdsAmount;
 
   await insertPaymentTDSRecord(
-    client,
-    tdsMasterId,
-    "vendor_payments",
+    client, tdsMasterId,
+    "costing_payments",
     paymentId,
     data.paymentDate,
     vendorId,
     "artwork_style",
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    allocAmt, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
-// ── Toile — payment via vendor_payments + TDS + cache bump ────────────
+// ── Toile — payment via costing_payments + TDS + cache bump ───────────
 async function handleToilePayment(
   client: any,
   entryId: number,
@@ -2551,7 +2731,7 @@ async function handleToilePayment(
   username: string
 ): Promise<void> {
   const soaRes = await client.query(
-    `SELECT id, artwork_code, style_order_id,
+    `SELECT id, artwork_code, swatch_order_id, style_order_id,
             toile_vendor_id, toile_vendor_name,
             toile_making_cost, toile_cost,
             toil_gst_percentage, toile_payment_amount
@@ -2564,8 +2744,8 @@ async function handleToilePayment(
   const soa = soaRes.rows[0];
 
   const gstPct  = parseFloat(soa.toil_gst_percentage || "0");
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
+  const payGst  = gstPct > 0 ? Number((allocAmt * (gstPct / (100 + gstPct))).toFixed(2)) : 0;
+  const payBase = Number((allocAmt - payGst).toFixed(2));
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
@@ -2573,86 +2753,70 @@ async function handleToilePayment(
     ? `${data.notes} (against toile ${soa.artwork_code ?? entryId})`
     : `Toile payment ${soa.artwork_code ?? entryId}`;
 
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        style_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'toile', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       vendorId,
       data.vendorName || soa.toile_vendor_name || "",
-      data.paymentDate ? new Date(data.paymentDate) : new Date(),
-      allocAmt,
-      "INR",
-      "1",
-      String(allocAmt),
-      data.paymentMode,
-      data.referenceNo || null,
-      notes,
-      "style",
-      "toile",
       entryId,
+      soa.swatch_order_id,
       soa.style_order_id,
+      data.paymentType || "costing",
+      data.paymentMode,
+      allocAmt,
+      data.currencyCode || "INR",
+      String(data.exchangeRate ?? "1"),
+      allocAmt,
+      data.transactionId || null,
+      data.paymentDate ? new Date(data.paymentDate) : new Date(),
+      notes,
       username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
-  // Bump toile_payment_amount cache column
+  // Bump toile_payment_amount cache (authoritative paid comes from costing_payments)
   const currentToilePaid = parseFloat(String(soa.toile_payment_amount ?? "0")) || 0;
-  const newToilePaid     = currentToilePaid + allocAmt;
-
   await client.query(
     `UPDATE style_order_artworks
      SET toile_payment_amount = $1
      WHERE id = $2`,
-    [newToilePaid.toFixed(2), entryId]
+    [(currentToilePaid + allocAmt).toFixed(2), entryId]
   );
 
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
   const tdsAmount  = (payBase * tdsRate) / 100;
   const paidAmount = allocAmt - tdsAmount;
 
   await insertPaymentTDSRecord(
-    client,
-    tdsMasterId,
-    "vendor_payments",
+    client, tdsMasterId,
+    "costing_payments",
     paymentId,
     data.paymentDate,
     vendorId,
     "toile",
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    allocAmt, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
-// ── Style Order Products (Pattern) — payment + TDS ────────────────────
+// ── Style Order Products — payment via costing_payments + TDS ─────────
 async function handleStyleOrderProductPayment(
   client: any,
   entryId: number,
@@ -2677,82 +2841,67 @@ async function handleStyleOrderProductPayment(
   const sop = sopRes.rows[0];
 
   const gstPct  = parseFloat(sop.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
+  const payGst  = gstPct > 0 ? Number((allocAmt * (gstPct / (100 + gstPct))).toFixed(2)) : 0;
+  const payBase = Number((allocAmt - payGst).toFixed(2));
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
   const refLabel = sop.order_code ?? sop.product_name ?? entryId;
-
   const notes = data.notes
     ? `${data.notes} (against order ${refLabel})`
     : `Style order product payment ${refLabel}`;
 
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        style_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'style_order_product', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       vendorId,
       data.vendorName || sop.pattern_vendor_name || "",
-      data.paymentDate ? new Date(data.paymentDate) : new Date(),
-      allocAmt,
-      "INR",
-      "1",
-      String(allocAmt),
-      data.paymentMode,
-      data.referenceNo || null,
-      notes,
-      "style",
-      "style_order_product",
       entryId,
+      null,                                      // swatch_order_id
       sop.style_order_id,
+      data.paymentType || "costing",
+      data.paymentMode,
+      allocAmt,
+      data.currencyCode || "INR",
+      String(data.exchangeRate ?? "1"),
+      allocAmt,
+      data.transactionId || null,
+      data.paymentDate ? new Date(data.paymentDate) : new Date(),
+      notes,
       username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
   const tdsAmount  = (payBase * tdsRate) / 100;
   const paidAmount = allocAmt - tdsAmount;
 
   await insertPaymentTDSRecord(
-    client,
-    tdsMasterId,
-    "vendor_payments",
+    client, tdsMasterId,
+    "costing_payments",
     paymentId,
     data.paymentDate,
     vendorId,
     "style_order_product",
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    allocAmt, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
@@ -2982,34 +3131,122 @@ router.post("/vendor-ledger/:vendorId/charge", requireAuth, async (req, res) => 
 router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const id = parseInt(String(req.params.id));
+    const id = parseInt(String(req.params.id), 10);
+
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid payment id" });
+    }
+
+    const deletedBy =
+      (req.user as { email?: string } | undefined)?.email ?? "system";
+
     await client.query("BEGIN");
-    const del = await client.query(
+
+    // ------------------------------------------------------------
+    // 1. Get the payment before marking it deleted
+    // ------------------------------------------------------------
+    const paymentRes = await client.query(
+      `SELECT
+          id,
+          vendor_id,
+          vendor_invoice_ledger_id,
+          amount,
+          reference_type,
+          reference_id
+       FROM vendor_payments
+       WHERE id = $1
+         AND is_deleted = false`,
+      [id]
+    );
+
+    if (!paymentRes.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const deletedPayment = paymentRes.rows[0];
+
+    const billId = deletedPayment.vendor_invoice_ledger_id as number | null;
+
+    // ------------------------------------------------------------
+    // 2. Soft-delete TDS records for this vendor payment
+    // ------------------------------------------------------------
+    await client.query(
+      `UPDATE payment_tds
+          SET is_deleted = true,
+              deleted_by = $2,
+              deleted_at = NOW(),
+              updated_by = $2,
+              updated_at = NOW()
+        WHERE payment_source_type = 'vendor_payments'
+          AND payment_source_id = $1
+          AND is_deleted = false`,
+      [id, deletedBy]
+    );
+
+    // ------------------------------------------------------------
+    // 3. ONLY vendor_challan has payment_items/payment_tds_items
+    //
+    // Soft-delete those records only for vendor_challan payments.
+    // ------------------------------------------------------------
+    if (deletedPayment.reference_type === "vendor_challan") {
+      // 3a. Soft-delete payment_tds_items belonging to
+      //     the TDS records of this payment.
+      await client.query(
+        `UPDATE payment_tds_items pti
+            SET is_deleted = true,
+                deleted_by = $2,
+                deleted_at = NOW(),
+                updated_by = $2,
+                updated_at = NOW()
+          WHERE pti.payment_tds_id IN (
+            SELECT pt.id
+            FROM payment_tds pt
+            WHERE pt.payment_source_type = 'vendor_payments'
+              AND pt.payment_source_id = $1
+          )
+          AND pti.is_deleted = false`,
+        [id, deletedBy]
+      );
+
+      // 3b. Soft-delete payment_items for this vendor payment.
+      await client.query(
+        `UPDATE payment_items
+            SET is_deleted = true,
+                deleted_by = $2,
+                deleted_at = NOW(),
+                updated_by = $2,
+                updated_at = NOW()
+          WHERE payment_source_type = 'vendor_payments'
+            AND payment_source_id = $1
+            AND is_deleted = false`,
+        [id, deletedBy]
+      );
+    }
+
+    // ------------------------------------------------------------
+    // 4. Soft-delete the vendor payment itself
+    // ------------------------------------------------------------
+    await client.query(
       `UPDATE vendor_payments
           SET is_deleted = true,
               deleted_by = $2,
               deleted_at = NOW()
         WHERE id = $1
-          AND is_deleted = false
-        RETURNING vendor_invoice_ledger_id, amount, reference_type, reference_id`,
-      [
-        id,
-        (req.user as { email?: string } | undefined)?.email ?? "system",
-      ]
+          AND is_deleted = false`,
+      [id, deletedBy]
     );
-    if (!del.rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Not found" });
-    }
 
-    const deletedPayment = del.rows[0];
-
-    const billId = deletedPayment.vendor_invoice_ledger_id as number | null;
-
+    // ------------------------------------------------------------
+    // 5. Recompute vendor bill balance
+    // ------------------------------------------------------------
     if (billId) {
       await recomputeVendorBillBalances(client, billId);
     }
 
+    // ------------------------------------------------------------
+    // 6. Handle ledger charge / other expense payment reversal
+    // ------------------------------------------------------------
     if (
       deletedPayment.reference_type === "ledger_charge" &&
       deletedPayment.reference_id
@@ -3032,10 +3269,12 @@ router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
             `UPDATE other_expenses
                 SET paid_amount = GREATEST(
                   0,
-                  COALESCE(paid_amount::numeric, 0) - COALESCE($1::numeric, 0)
+                  COALESCE(paid_amount::numeric, 0)
+                    - COALESCE($1::numeric, 0)
                 ),
                 payment_status = CASE
-                  WHEN COALESCE(paid_amount::numeric, 0) - COALESCE($1::numeric, 0) <= 0
+                  WHEN COALESCE(paid_amount::numeric, 0)
+                       - COALESCE($1::numeric, 0) <= 0
                     THEN 'Unpaid'
                   ELSE 'Partially Paid'
                 END,
@@ -3050,12 +3289,23 @@ router.delete("/vendor-ledger/payments/:id", requireAuth, async (req, res) => {
       }
     }
 
+    // ------------------------------------------------------------
+    // 7. Commit everything
+    // ------------------------------------------------------------
     await client.query("COMMIT");
-    return res.json({ success: true });
+
+    return res.json({
+      success: true,
+      deletedPaymentId: id,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
+
     console.error(err);
-    return res.status(500).json({ error: "Failed to delete payment" });
+
+    return res.status(500).json({
+      error: "Failed to delete payment",
+    });
   } finally {
     client.release();
   }

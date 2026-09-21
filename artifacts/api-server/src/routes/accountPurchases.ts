@@ -330,7 +330,7 @@ router.get("/unified-liabilities", requireAuth,
       ? `AND LOWER(ref_number) LIKE LOWER('%${ref_no.replace(/'/g, "''")}%')`
       : "";
 
-      const { rows } = await pool.query(`
+     const { rows } = await pool.query(`
       WITH tds_agg AS (
         SELECT
           base_document_type::text AS bdt,
@@ -435,10 +435,18 @@ router.get("/unified-liabilities", requireAuth,
           'INR'::text AS currency_code,
           1::numeric  AS exchange_rate_snapshot,
           COALESCE(t.tds_amount, 0)::numeric  AS tds_amount,
-          (COALESCE(oe.paid_amount, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
+          GREATEST(
+            0,
+            COALESCE(oe.paid_amount, 0) - COALESCE(t.tds_amount, 0)
+          )::numeric                          AS net_paid_amount
         FROM other_expenses oe
+        LEFT JOIN vendor_ledger_charges vlc
+          ON vlc.order_type = 'other_expenses'
+        AND vlc.order_id   = oe.expense_id
+        AND vlc.is_deleted = false
         LEFT JOIN tds_agg t
-          ON t.bdt = 'other_expense' AND t.bdi = oe.expense_id
+          ON t.bdt = 'ledger_charge'
+        AND t.bdi = vlc.id
         WHERE oe.is_deleted = false
           ${df("oe.expense_date", from_date, to_date)}
           ${vid ? `AND oe.vendor_id = ${vid}` : ""}
@@ -638,46 +646,47 @@ SELECT
     COALESCE(NULLIF(a.total_cost, '')::numeric, 0)
     * (1 + COALESCE(a.gst_percentage::numeric, 0) / 100)
   )                                   AS amount,
-  COALESCE(vp.paid, 0)                AS paid_amount,
+  COALESCE(cp.paid, 0)                AS paid_amount,
   GREATEST(
     0,
     (
       COALESCE(NULLIF(a.total_cost, '')::numeric, 0)
       * (1 + COALESCE(a.gst_percentage::numeric, 0) / 100)
-    ) - COALESCE(vp.paid, 0)
+    ) - COALESCE(cp.paid, 0)
   )                                   AS pending_amount,
   CASE
-    WHEN COALESCE(vp.paid, 0) >=
+    WHEN COALESCE(cp.paid, 0) >=
          (
            COALESCE(NULLIF(a.total_cost, '')::numeric, 0)
            * (1 + COALESCE(a.gst_percentage::numeric, 0) / 100)
          ) THEN 'Paid'
-    WHEN COALESCE(vp.paid, 0) > 0 THEN 'Partially Paid'
+    WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
     ELSE 'Unpaid'
   END AS status,
   'INR'::text AS currency_code,
   1::numeric  AS exchange_rate_snapshot,
   COALESCE(t.tds_amount, 0)::numeric  AS tds_amount,
-  (COALESCE(vp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
+  (COALESCE(cp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
 FROM artworks a
 LEFT JOIN (
   SELECT reference_id, SUM(base_currency_amount) AS paid
-  FROM vendor_payments
+  FROM costing_payments
   WHERE reference_type = 'artwork_swatch'
     AND is_deleted = false
   GROUP BY reference_id
-) vp ON vp.reference_id = a.id
+) cp ON cp.reference_id = a.id
 LEFT JOIN tds_agg t
   ON t.bdt = 'artwork_swatch' AND t.bdi = a.id
 WHERE a.outsource_vendor_id IS NOT NULL
   AND a.outsource_vendor_id <> ''
+  AND a.outsource_vendor_name IS NOT NULL
+  AND a.outsource_vendor_name <> ''
   AND a.is_deleted = false
   AND a.artwork_created = 'Outsource'
   AND a.total_cost IS NOT NULL
   AND a.total_cost <> ''
   ${df("a.created_at", from_date, to_date)}
-  ${vid ? `AND a.outsource_vendor_id::integer = ${vid}` : ""}
-
+  ${vid ? `AND a.outsource_vendor_id ~ '^[0-9]+$' AND a.outsource_vendor_id::integer = ${vid}` : ""}
         UNION ALL
 
       
@@ -695,48 +704,50 @@ SELECT
     COALESCE(NULLIF(soa.total_cost, '')::numeric, 0)
     * (1 + COALESCE(soa.gst_percentage::numeric, 0) / 100)
   )                                   AS amount,
-  COALESCE(vp.paid, 0)                AS paid_amount,
+  COALESCE(cp.paid, 0)                AS paid_amount,
   GREATEST(
     0,
     (
       COALESCE(NULLIF(soa.total_cost, '')::numeric, 0)
       * (1 + COALESCE(soa.gst_percentage::numeric, 0) / 100)
-    ) - COALESCE(vp.paid, 0)
+    ) - COALESCE(cp.paid, 0)
   )                                   AS pending_amount,
   CASE
-    WHEN COALESCE(vp.paid, 0) >=
+    WHEN COALESCE(cp.paid, 0) >=
          (
            COALESCE(NULLIF(soa.total_cost, '')::numeric, 0)
            * (1 + COALESCE(soa.gst_percentage::numeric, 0) / 100)
          ) THEN 'Paid'
-    WHEN COALESCE(vp.paid, 0) > 0 THEN 'Partially Paid'
+    WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
     ELSE 'Unpaid'
   END AS status,
   'INR'::text AS currency_code,
   1::numeric  AS exchange_rate_snapshot,
   COALESCE(t.tds_amount, 0)::numeric  AS tds_amount,
-  (COALESCE(vp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
+  (COALESCE(cp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
 FROM style_order_artworks soa
 LEFT JOIN (
   SELECT reference_id, SUM(base_currency_amount) AS paid
-  FROM vendor_payments
+  FROM costing_payments
   WHERE reference_type = 'artwork_style'
     AND is_deleted = false
   GROUP BY reference_id
-) vp ON vp.reference_id = soa.id
+) cp ON cp.reference_id = soa.id
 LEFT JOIN tds_agg t
   ON t.bdt = 'artwork_style' AND t.bdi = soa.id
 WHERE soa.outsource_vendor_id IS NOT NULL
   AND soa.outsource_vendor_id <> ''
+  AND soa.outsource_vendor_name IS NOT NULL
+  AND soa.outsource_vendor_name <> ''
   AND soa.is_deleted = false
   AND soa.artwork_created = 'Outsource'
   AND soa.total_cost IS NOT NULL
   AND soa.total_cost <> ''
   ${df("soa.created_at", from_date, to_date)}
-  ${vid ? `AND soa.outsource_vendor_id::integer = ${vid}` : ""}
-    UNION ALL
+  ${vid ? `AND soa.outsource_vendor_id ~ '^[0-9]+$' AND soa.outsource_vendor_id::integer = ${vid}` : ""}
+UNION ALL
 
-        /* 11. Toile Work — TDS via toile */
+  /* 11. Toile Work — TDS via toile */
 SELECT
   'Toile'::text                       AS ref_type,
   soa.id::text                        AS source_id,
@@ -745,128 +756,105 @@ SELECT
   COALESCE(soa.toile_vendor_name, '—') AS vendor_name,
   soa.toile_vendor_id::text           AS vendor_id_text,
   'Toile Work'                        AS department,
-
-  /* amount = base × (1 + toil_gst_percentage/100) */
   (
     COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
     * (1 + COALESCE(soa.toil_gst_percentage::numeric, 0) / 100)
   )                                   AS amount,
-
-  COALESCE(vp.paid, 0)                AS paid_amount,
-
+  COALESCE(cp.paid, 0)                AS paid_amount,
   GREATEST(
     0,
     (
       COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
       * (1 + COALESCE(soa.toil_gst_percentage::numeric, 0) / 100)
-    ) - COALESCE(vp.paid, 0)
+    ) - COALESCE(cp.paid, 0)
   )                                   AS pending_amount,
-
   CASE
-    WHEN COALESCE(vp.paid, 0) >=
+    WHEN COALESCE(cp.paid, 0) >=
          (
            COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
            * (1 + COALESCE(soa.toil_gst_percentage::numeric, 0) / 100)
          ) THEN 'Paid'
-    WHEN COALESCE(vp.paid, 0) > 0 THEN 'Partially Paid'
+    WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
     ELSE 'Unpaid'
   END AS status,
-
   'INR'::text AS currency_code,
   1::numeric  AS exchange_rate_snapshot,
-
   COALESCE(t.tds_amount, 0)::numeric  AS tds_amount,
-  GREATEST(
-    0,
-    COALESCE(vp.paid, 0) - COALESCE(t.tds_amount, 0)
-  )::numeric                          AS net_paid_amount
-
+  GREATEST(0, COALESCE(cp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
 FROM style_order_artworks soa
 LEFT JOIN (
   SELECT reference_id, SUM(base_currency_amount) AS paid
-  FROM vendor_payments
+  FROM costing_payments
   WHERE reference_type = 'toile'
     AND is_deleted = false
   GROUP BY reference_id
-) vp ON vp.reference_id = soa.id
+) cp ON cp.reference_id = soa.id
 LEFT JOIN tds_agg t
   ON t.bdt = 'toile' AND t.bdi = soa.id
 WHERE soa.is_deleted = false
-
-  /* Both vendor id AND vendor name must be present */
   AND soa.toile_vendor_id   IS NOT NULL AND soa.toile_vendor_id   <> ''
   AND soa.toile_vendor_name IS NOT NULL AND soa.toile_vendor_name <> ''
-
-  /* Toile cost must be set */
   AND (
     (soa.toile_making_cost IS NOT NULL AND soa.toile_making_cost <> '')
     OR (soa.toile_cost IS NOT NULL AND soa.toile_cost <> '')
   )
-
   ${df("soa.created_at", from_date, to_date)}
-  ${vid ? `AND soa.toile_vendor_id::integer = ${vid}` : ""}
+  ${vid ? `AND soa.toile_vendor_id ~ '^[0-9]+$' AND soa.toile_vendor_id::integer = ${vid}` : ""}
 
           UNION ALL
 
-        /* 12. Style Order Products (Pattern) — TDS via style_order_product */
-        SELECT
-          'Style Order Product'::text         AS ref_type,
-          sop.id::text                        AS source_id,
-          sop.created_at::text                AS date,
-          COALESCE(st.order_code, sop.product_name, 'SOP-' || sop.id::text) AS ref_number,
-          COALESCE(sop.pattern_vendor_name, '—') AS vendor_name,
-          sop.pattern_vendor_id::text         AS vendor_id_text,
-          'Style Order Product (Pattern)'     AS department,
-
-          (
-            COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
-            * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
-          )                                   AS amount,
-
-          COALESCE(vp.paid, 0)                AS paid_amount,
-
-          GREATEST(
-            0,
-            (
-              COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
-              * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
-            ) - COALESCE(vp.paid, 0)
-          )                                   AS pending_amount,
-
-          CASE
-            WHEN COALESCE(vp.paid, 0) >=
-                 (
-                   COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
-                   * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
-                 ) THEN 'Paid'
-            WHEN COALESCE(vp.paid, 0) > 0 THEN 'Partially Paid'
-            ELSE 'Unpaid'
-          END AS status,
-
-          'INR'::text AS currency_code,
-          1::numeric  AS exchange_rate_snapshot,
-
-          COALESCE(t.tds_amount, 0)::numeric  AS tds_amount,
-          GREATEST(0, COALESCE(vp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
-
-        FROM style_order_products sop
-        LEFT JOIN style_orders st ON st.id = sop.style_order_id
-        LEFT JOIN (
-          SELECT reference_id, SUM(base_currency_amount) AS paid
-          FROM vendor_payments
-          WHERE reference_type = 'style_order_product'
-            AND is_deleted = false
-          GROUP BY reference_id
-        ) vp ON vp.reference_id = sop.id
-        LEFT JOIN tds_agg t
-          ON t.bdt = 'style_order_product' AND t.bdi = sop.id
-        WHERE sop.is_deleted = false
-          AND sop.pattern_vendor_id   IS NOT NULL AND sop.pattern_vendor_id   <> ''
-          AND sop.pattern_vendor_name IS NOT NULL AND sop.pattern_vendor_name <> ''
-          AND sop.pattern_payment_amount IS NOT NULL
-          AND sop.pattern_payment_amount <> ''
-          ${df("sop.created_at", from_date, to_date)}
-          ${vid ? `AND sop.pattern_vendor_id::integer = ${vid}` : ""}
+  /* 12. Style Order Products (Pattern) — TDS via style_order_product */
+SELECT
+  'Style Order Product'::text         AS ref_type,
+  sop.id::text                        AS source_id,
+  sop.created_at::text                AS date,
+  COALESCE(st.order_code, sop.product_name, 'SOP-' || sop.id::text) AS ref_number,
+  COALESCE(sop.pattern_vendor_name, '—') AS vendor_name,
+  sop.pattern_vendor_id::text         AS vendor_id_text,
+  'Style Order Product (Pattern)'     AS department,
+  (
+    COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
+    * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
+  )                                   AS amount,
+  COALESCE(cp.paid, 0)                AS paid_amount,
+  GREATEST(
+    0,
+    (
+      COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
+      * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
+    ) - COALESCE(cp.paid, 0)
+  )                                   AS pending_amount,
+  CASE
+    WHEN COALESCE(cp.paid, 0) >=
+         (
+           COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
+           * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
+         ) THEN 'Paid'
+    WHEN COALESCE(cp.paid, 0) > 0 THEN 'Partially Paid'
+    ELSE 'Unpaid'
+  END AS status,
+  'INR'::text AS currency_code,
+  1::numeric  AS exchange_rate_snapshot,
+  COALESCE(t.tds_amount, 0)::numeric  AS tds_amount,
+  GREATEST(0, COALESCE(cp.paid, 0) - COALESCE(t.tds_amount, 0))::numeric AS net_paid_amount
+FROM style_order_products sop
+LEFT JOIN style_orders st ON st.id = sop.style_order_id
+LEFT JOIN (
+  SELECT reference_id, SUM(base_currency_amount) AS paid
+  FROM costing_payments
+  WHERE reference_type = 'style_order_product'
+    AND is_deleted = false
+  GROUP BY reference_id
+) cp ON cp.reference_id = sop.id
+LEFT JOIN tds_agg t
+  ON t.bdt = 'style_order_product' AND t.bdi = sop.id
+WHERE sop.is_deleted = false
+  AND sop.pattern_vendor_id   IS NOT NULL AND sop.pattern_vendor_id   <> ''
+  AND sop.pattern_vendor_name IS NOT NULL AND sop.pattern_vendor_name <> ''
+  AND sop.pattern_payment_amount IS NOT NULL
+  AND sop.pattern_payment_amount <> ''
+  ${df("sop.created_at", from_date, to_date)}
+  ${vid ? `AND sop.pattern_vendor_id ~ '^[0-9]+$' AND sop.pattern_vendor_id::integer = ${vid}` : ""}
       )
   
       SELECT *, COUNT(*) OVER () AS total_count
@@ -1102,14 +1090,17 @@ async function insertVendorPayment(
   remarks: string,
   orderType: string,
   vendorInvoiceLedgerId: number | null,
-  username: string
+  username: string,
+  refrenceType:string,
+  referenceId:number | null,
 ): Promise<number> {
   const result = await client.query(
     `INSERT INTO vendor_payments 
       (vendor_id, vendor_name, payment_date, amount, currency_code, 
        exchange_rate_snapshot, base_currency_amount, payment_mode, 
-       reference_no, notes, order_type, vendor_invoice_ledger_id, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       reference_no, notes, order_type, vendor_invoice_ledger_id, created_by, 
+       reference_type, reference_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING id`,
     [
       vendorId || null,
@@ -1124,7 +1115,9 @@ async function insertVendorPayment(
       remarks || "",
       orderType,
       vendorInvoiceLedgerId,
-      username
+      username,
+      refrenceType,
+      referenceId
     ]
   );
   return result.rows[0].id;
@@ -1622,110 +1615,113 @@ async function handleCostingOutsourcePayment(
   username: string
 ): Promise<void> {
   const entryId = parseInt(sourceId);
-  if (Number.isNaN(entryId)) throw new Error("Invalid outsource job id");
+
+  if (Number.isNaN(entryId)) {
+    throw new Error("Invalid outsource job id");
+  }
 
   // Lock the job row + fetch swatch/style for costing_payments
   const { rows: jobRows } = await client.query(
     `SELECT id, swatch_order_id, style_order_id, total_cost, gst_percentage
      FROM outsource_jobs
-     WHERE id = $1 AND is_deleted = false
+     WHERE id = $1
+       AND is_deleted = false
      FOR UPDATE`,
     [entryId]
   );
-  if (!jobRows.length) throw new Error("Outsource job not found");
 
-  const job   = jobRows[0];
+  if (!jobRows.length) {
+    throw new Error("Outsource job not found");
+  }
+
+  const job = jobRows[0];
+
   const gstPct = parseFloat(job.gst_percentage || "0");
 
-  // Payment amount in INR (base currency). User-entered amount is GST-INCLUSIVE.
+  // Payment amount in INR (base currency).
+  // allocAmt is treated as the payment amount.
   const allocAmt = parseFloat(paymentData.baseAmt ?? "0");
-  if (!(allocAmt > 0)) throw new Error("Payment amount must be greater than zero");
 
-  // Split THIS payment into base + GST portions
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
+  if (!(allocAmt > 0)) {
+    throw new Error("Payment amount must be greater than zero");
+  }
 
-  // ── Resolve TDS master + threshold check ──
-  let tdsMaster: { id: number; rate_percent: number; threshold_amount: number } | null = null;
+  
+  // Split payment into GST + TDS base
+  //
+  // Example:
+  // allocAmt = 1000
+  // gstPct   = 5
+  //
+  // GST      = 1000 * 5 / 100 = 50
+  // TDS base = 1000 - 50      = 950
+  
+  const totalAmount = Number(allocAmt.toFixed(2));
+
+  const payGst =
+    gstPct > 0
+      ? Number(((totalAmount * gstPct) / 100).toFixed(2))
+      : 0;
+
+  const payBase = Number(
+    (totalAmount - payGst).toFixed(2)
+  );
+
+  
+  // Resolve TDS master + threshold check
+  
+  let tdsMaster: {
+    id: number;
+    rate_percent: number;
+    threshold_amount: number;
+  } | null = null;
+
   let tdsApplicable = false;
 
   if (tdsMasterId) {
     tdsMaster = await getTDSMaster(client, tdsMasterId);
+
     const threshold = tdsMaster.threshold_amount ?? 0;
-    if (payBase >= threshold) tdsApplicable = true;
+
+    if (payBase >= threshold) {
+      tdsApplicable = true;
+    }
   }
 
   const paymentType = "outsource";
 
-  if (tdsApplicable && tdsMaster) {
-    const tdsRate    = tdsMaster.rate_percent;
-    const tdsAmount  = (payBase * tdsRate) / 100;
-    const paidAmount = allocAmt - tdsAmount;   // net cash out after TDS
-
-    const result = await client.query(
-      `INSERT INTO costing_payments
-         (vendor_id, vendor_name, reference_type, reference_id,
-          swatch_order_id, style_order_id,
-          payment_type, payment_mode, payment_amount,
-          currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_status, transaction_id, payment_date, remarks, created_by)
-       VALUES ($1, $2, 'outsource_job', $3, $4, $5,
-               $6, $7, $8,
-               $9, $10, $11,
-               'Completed', $12, $13, $14, $15)
-       RETURNING id`,
-      [
-        vendorId || null,
-        vendorName || "",
-        entryId,
-        job.swatch_order_id,
-        job.style_order_id,
-        paymentType,
-        paymentData.paymentMode,
-        paymentData.amt,
-        paymentData.payCcy,
-        paymentData.payRate,
-        allocAmt,                              // base_currency_amount = gross
-        paymentData.transactionReference || "",
-        paymentData.paymentDate,
-        paymentData.remarks || "",
-        username
-      ]
-    );
-    const costingPaymentId = result.rows[0].id;
-
-    await insertPaymentTDSRecord(
-      client,
-      tdsMaster.id,
-      "costing_payments",
-      costingPaymentId,
-      paymentData.paymentDate,
-      vendorId,
-      "outsource_job",
-      entryId,
-      allocAmt,        // gross_amount  = payment (GST-inclusive)
-      payGst,          // gst_amount    = GST portion of THIS payment
-      gstPct,          // gst_percentage (from job)
-      payBase,         // base_amount   = base portion of THIS payment
-      paidAmount,      // paid_amount   = net cash after TDS
-      tdsRate,
-      tdsAmount,
-      username
-    );
-    return;
-  }
-
-  await client.query(
+  
+  // Insert costing payment
+  
+  const result = await client.query(
     `INSERT INTO costing_payments
-       (vendor_id, vendor_name, reference_type, reference_id,
-        swatch_order_id, style_order_id,
-        payment_type, payment_mode, payment_amount,
-        currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_status, transaction_id, payment_date, remarks, created_by)
-     VALUES ($1, $2, 'outsource_job', $3, $4, $5,
-             $6, $7, $8,
-             $9, $10, $11,
-             'Completed', $12, $13, $14, $15)`,
+       (
+         vendor_id,
+         vendor_name,
+         reference_type,
+         reference_id,
+         swatch_order_id,
+         style_order_id,
+         payment_type,
+         payment_mode,
+         payment_amount,
+         currency_code,
+         exchange_rate_snapshot,
+         base_currency_amount,
+         payment_status,
+         transaction_id,
+         payment_date,
+         remarks,
+         created_by
+       )
+     VALUES
+       (
+         $1, $2, 'outsource_job', $3, $4, $5,
+         $6, $7, $8,
+         $9, $10, $11,
+         'Completed', $12, $13, $14, $15
+       )
+     RETURNING id`,
     [
       vendorId || null,
       vendorName || "",
@@ -1737,14 +1733,53 @@ async function handleCostingOutsourcePayment(
       paymentData.amt,
       paymentData.payCcy,
       paymentData.payRate,
-      allocAmt,
+      totalAmount,
       paymentData.transactionReference || "",
       paymentData.paymentDate,
       paymentData.remarks || "",
-      username
+      username,
     ]
   );
+
+  const costingPaymentId = result.rows[0].id;
+
+  
+  // Insert TDS record if applicable
+  
+  if (tdsApplicable && tdsMaster) {
+    const tdsRate = tdsMaster.rate_percent;
+
+    // TDS is calculated on the amount after GST
+    const tdsAmount = Number(
+      ((payBase * tdsRate) / 100).toFixed(2)
+    );
+
+    // Actual cash paid after TDS
+    const paidAmount = Number(
+      (totalAmount - tdsAmount).toFixed(2)
+    );
+
+    await insertPaymentTDSRecord(
+      client,
+      tdsMaster.id,
+      "costing_payments",
+      costingPaymentId,
+      paymentData.paymentDate,
+      vendorId,
+      "outsource_job",
+      entryId,
+      totalAmount,     // gross_amount
+      payGst,          // gst_amount
+      gstPct,          // gst_percentage
+      payBase,         // base_amount
+      paidAmount,      // net cash after TDS
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
 }
+
   
 async function handleOtherExpensePayment(
   client: any,
@@ -1792,6 +1827,7 @@ async function handleOtherExpensePayment(
     );
     ledgerCharge = lc.rows[0] ?? null;
   }
+  if (ledgerCharge == null) throw new Error("vendor_ledger_charges not found");
 
   // Compute new paid/status against the expense (source of truth)
   const newPaid = parseFloat(exp.paid_amount ?? "0") + allocAmt;
@@ -1801,7 +1837,6 @@ async function handleOtherExpensePayment(
     : "Unpaid";
 
   // Insert vendor payment — reference_type depends on which case we're in
-  const referenceType = ledgerCharge ? "ledger_charge" : null;
   const referenceId   = ledgerCharge ? ledgerCharge.id : null;
 
   const paymentId = await insertVendorPayment(
@@ -1817,8 +1852,10 @@ async function handleOtherExpensePayment(
     paymentData.transactionReference,
     paymentData.remarks || "",
     ledgerCharge ? "ledger_charge" : "general", 
-    referenceId,
-    username
+    null,
+    username,
+    "ledger_charge",
+    referenceId
   );
 
   // Update the expense row (drives listing pending_amount)
@@ -1834,14 +1871,30 @@ async function handleOtherExpensePayment(
     const tdsMaster = await getTDSMaster(client, tdsMasterId);
     const threshold = tdsMaster.threshold_amount ?? 0;
 
-    // Split THIS payment into base + GST (allocAmt is GST-inclusive)
-    const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-    const payBase = allocAmt - payGst;
+    // allocAmt is treated as the total payment amount.
+    // GST is calculated directly on allocAmt.
+    const totalAmount = allocAmt;
+
+    const payGst =
+      gstPct > 0
+        ? Number(((totalAmount * gstPct) / 100).toFixed(2))
+        : 0;
+
+    // TDS is calculated on amount after GST.
+    const payBase = Number(
+      (totalAmount - payGst).toFixed(2)
+    );
 
     if (payBase >= threshold) {
-      const tdsRate    = tdsMaster.rate_percent;
-      const tdsAmount  = (payBase * tdsRate) / 100;
-      const paidAmount = allocAmt - tdsAmount;
+      const tdsRate = tdsMaster.rate_percent;
+
+      const tdsAmount = Number(
+        ((payBase * tdsRate) / 100).toFixed(2)
+      );
+
+      const paidAmount = Number(
+        (totalAmount - tdsAmount).toFixed(2)
+      );
 
       await insertPaymentTDSRecord(
         client,
@@ -1849,10 +1902,10 @@ async function handleOtherExpensePayment(
         "vendor_payments",
         paymentId,
         paymentData.paymentDate,
-        vendorId!,                                        // guaranteed by branch
-        ledgerCharge ? "ledger_charge" : "other_expense", // requires enum extension
-        expenseId,
-        allocAmt,        // gross_amount
+        vendorId!,
+        ledgerCharge ? "ledger_charge" : "other_expense",
+        referenceId ?? 0,
+        totalAmount,     // gross_amount
         payGst,          // gst_amount
         gstPct,          // gst_percentage
         payBase,         // base_amount
@@ -1875,112 +1928,107 @@ async function handleCustomChargePayment(
   username: string
 ): Promise<void> {
   const entryId = parseInt(sourceId);
-  if (Number.isNaN(entryId)) throw new Error("Invalid custom charge id");
-  if (!vendorId) throw new Error("vendor_id is required for Custom Charge payments");
+
+  if (Number.isNaN(entryId)) {
+    throw new Error("Invalid custom charge id");
+  }
+
+  if (!vendorId) {
+    throw new Error("vendor_id is required for Custom Charge payments");
+  }
 
   // Lock the charge row + fetch swatch/style for costing_payments
   const { rows: chargeRows } = await client.query(
-    `SELECT id, swatch_order_id, style_order_id, total_amount, gst_percentage
+    `SELECT
+        id,
+        swatch_order_id,
+        style_order_id,
+        total_amount,
+        gst_percentage
      FROM custom_charges
-     WHERE id = $1 AND is_deleted = false
+     WHERE id = $1
+       AND is_deleted = false
      FOR UPDATE`,
     [entryId]
   );
-  if (!chargeRows.length) throw new Error("Custom charge not found");
 
-  const charge   = chargeRows[0];
-  const gstPct   = parseFloat(charge.gst_percentage || "0");
+  if (!chargeRows.length) {
+    throw new Error("Custom charge not found");
+  }
 
-  // Payment amount in INR (base currency); user-entered value is GST-INCLUSIVE
+  const charge = chargeRows[0];
+
+  const gstPct = parseFloat(charge.gst_percentage || "0");
+
+  // Payment amount in INR (base currency).
+  // allocAmt is treated as the payment amount.
   const allocAmt = parseFloat(paymentData.baseAmt ?? "0");
-  if (!(allocAmt > 0)) throw new Error("Payment amount must be greater than zero");
 
-  // Split THIS payment into base + GST portions
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
+  if (!(allocAmt > 0)) {
+    throw new Error("Payment amount must be greater than zero");
+  }
 
-  // ── Resolve TDS master + threshold check ──
-  let tdsMaster: { id: number; rate_percent: number; threshold_amount: number } | null = null;
+  const totalAmount = Number(allocAmt.toFixed(2));
+
+  const payGst =
+    gstPct > 0
+      ? Number(((totalAmount * gstPct) / 100).toFixed(2))
+      : 0;
+
+  const payBase = Number(
+    (totalAmount - payGst).toFixed(2)
+  );
+
+
+  let tdsMaster: {
+    id: number;
+    rate_percent: number;
+    threshold_amount: number;
+  } | null = null;
+
   let tdsApplicable = false;
 
   if (tdsMasterId) {
     tdsMaster = await getTDSMaster(client, tdsMasterId);
+
     const threshold = tdsMaster.threshold_amount ?? 0;
-    if (payBase >= threshold) tdsApplicable = true;
+
+    if (payBase >= threshold) {
+      tdsApplicable = true;
+    }
   }
 
   const paymentType = "custom_charge";
 
-  if (tdsApplicable && tdsMaster) {
-    const tdsRate    = tdsMaster.rate_percent;
-    const tdsAmount  = (payBase * tdsRate) / 100;
-    const paidAmount = allocAmt - tdsAmount;   // net cash out after TDS
-
-    const result = await client.query(
-      `INSERT INTO costing_payments
-         (vendor_id, vendor_name, reference_type, reference_id,
-          swatch_order_id, style_order_id,
-          payment_type, payment_mode, payment_amount,
-          currency_code, exchange_rate_snapshot, base_currency_amount,
-          payment_status, transaction_id, payment_date, remarks, created_by)
-       VALUES ($1, $2, 'custom_charge', $3, $4, $5,
-               $6, $7, $8,
-               $9, $10, $11,
-               'Completed', $12, $13, $14, $15)
-       RETURNING id`,
-      [
-        vendorId,
-        vendorName || "",
-        entryId,
-        charge.swatch_order_id,
-        charge.style_order_id,
-        paymentType,
-        paymentData.paymentMode,
-        paymentData.amt,
-        paymentData.payCcy,
-        paymentData.payRate,
-        allocAmt,                              // base_currency_amount = gross
-        paymentData.transactionReference || "",
-        paymentData.paymentDate,
-        paymentData.remarks || "",
-        username
-      ]
-    );
-    const costingPaymentId = result.rows[0].id;
-
-    await insertPaymentTDSRecord(
-      client,
-      tdsMaster.id,
-      "costing_payments",
-      costingPaymentId,
-      paymentData.paymentDate,
-      vendorId,
-      "custom_charge",
-      entryId,
-      allocAmt,        // gross_amount  = payment (GST-inclusive)
-      payGst,          // gst_amount    = GST portion of THIS payment
-      gstPct,          // gst_percentage (from charge header)
-      payBase,         // base_amount   = base portion of THIS payment
-      paidAmount,      // net cash after TDS
-      tdsRate,
-      tdsAmount,
-      username
-    );
-    return;
-  }
-
-  // ── No TDS, or below threshold — plain costing payment ──
-  await client.query(
+  const result = await client.query(
     `INSERT INTO costing_payments
-       (vendor_id, vendor_name, reference_type, reference_id,
-        swatch_order_id, style_order_id,
-        payment_type, payment_mode, payment_amount,
-        currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_status, transaction_id, payment_date, remarks, created_by)
-     VALUES ($1, $2, 'custom_charge', $3, $4, $5,
-             $6, $7, $8,
-             $9, $10, $11,
-             'Completed', $12, $13, $14, $15)`,
+       (
+         vendor_id,
+         vendor_name,
+         reference_type,
+         reference_id,
+         swatch_order_id,
+         style_order_id,
+         payment_type,
+         payment_mode,
+         payment_amount,
+         currency_code,
+         exchange_rate_snapshot,
+         base_currency_amount,
+         payment_status,
+         transaction_id,
+         payment_date,
+         remarks,
+         created_by
+       )
+     VALUES
+       (
+         $1, $2, 'custom_charge', $3, $4, $5,
+         $6, $7, $8,
+         $9, $10, $11,
+         'Completed', $12, $13, $14, $15
+       )
+     RETURNING id`,
     [
       vendorId,
       vendorName || "",
@@ -1992,14 +2040,54 @@ async function handleCustomChargePayment(
       paymentData.amt,
       paymentData.payCcy,
       paymentData.payRate,
-      allocAmt,
+      totalAmount,
       paymentData.transactionReference || "",
       paymentData.paymentDate,
       paymentData.remarks || "",
-      username
+      username,
     ]
   );
+
+  const costingPaymentId = result.rows[0].id;
+
+  
+  // Insert TDS record if applicable
+  
+  if (tdsApplicable && tdsMaster) {
+    const tdsRate = tdsMaster.rate_percent;
+
+    // TDS is calculated on the amount after GST
+    const tdsAmount = Number(
+      ((payBase * tdsRate) / 100).toFixed(2)
+    );
+
+    // Actual cash paid after TDS
+    const paidAmount = Number(
+      (totalAmount - tdsAmount).toFixed(2)
+    );
+
+    await insertPaymentTDSRecord(
+      client,
+      tdsMaster.id,
+      "costing_payments",
+      costingPaymentId,
+      paymentData.paymentDate,
+      vendorId,
+      "custom_charge",
+      entryId,
+      totalAmount,     // gross_amount
+      payGst,          // gst_amount
+      gstPct,          // gst_percentage
+      payBase,         // base_amount
+      paidAmount,      // net cash after TDS
+      tdsRate,
+      tdsAmount,
+      username
+    );
+  }
 }
+
+
 async function getVendorChallanDetails(
   client: any,
   entryId: number,
@@ -2348,7 +2436,9 @@ async function handleGenericPayment(
     paymentData.remarks || "",
     "general",
     null,
-    username
+    username,
+    "general",
+    null
   );
 
   // ── TDS ──
@@ -2403,9 +2493,10 @@ async function handleArtworkSwatchPayment(
   const entryId = parseInt(sourceId);
   if (Number.isNaN(entryId)) throw new Error("Invalid artwork id");
 
-  // Lock the artwork row, pull swatch_order_id + resolve vendor if missing
   const { rows: artRows } = await client.query(
-    `SELECT id, artwork_code, swatch_order_id, outsource_vendor_id
+    `SELECT id, artwork_code, swatch_order_id,
+            outsource_vendor_id, outsource_vendor_name,
+            gst_percentage
      FROM artworks
      WHERE id = $1 AND is_deleted = false
      FOR UPDATE`,
@@ -2414,90 +2505,77 @@ async function handleArtworkSwatchPayment(
   if (!artRows.length) throw new Error("Artwork (Swatch) not found");
   const art = artRows[0];
 
-  // Prefer the vendor_id passed by the client (matches listing's vendor_id_text);
-  // fall back to the value on the artwork row.
   const resolvedVendorId =
-    vendorId ?? (art.outsource_vendor_id ? parseInt(String(art.outsource_vendor_id)) : null);
-
+    vendorId ??
+    (art.outsource_vendor_id ? parseInt(String(art.outsource_vendor_id)) : null);
   if (!resolvedVendorId) {
-    throw new Error(
-      "Cannot record a payment for Artwork (Swatch) — no vendor is assigned."
-    );
+    throw new Error("Cannot record a payment for Artwork (Swatch) — no vendor is assigned.");
   }
 
   const allocAmt = parseFloat(paymentData.baseAmt ?? "0");
   if (!(allocAmt > 0)) throw new Error("Payment amount must be greater than zero");
 
-  // ── Insert the vendor payment with artwork-specific columns ──
+  const totalAmount = Number(allocAmt.toFixed(2));
+  const gstPct = parseFloat(art.gst_percentage || "0");
+  const payGst  = gstPct > 0 ? Number(((totalAmount * gstPct) / 100).toFixed(2)) : 0;
+  const payBase = Number((totalAmount - payGst).toFixed(2));
+
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against artwork ${art.artwork_code ?? entryId})`
     : `Artwork (Swatch) payment ${art.artwork_code ?? entryId}`;
 
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        swatch_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'artwork_swatch', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       resolvedVendorId,
-      vendorName || "",
-      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+      vendorName || art.outsource_vendor_name || "",
+      entryId,
+      art.swatch_order_id,   // swatch_order_id
+      null,                  // style_order_id is always null for swatch artworks
+      paymentData.paymentType || "costing",
+      paymentData.paymentMode,
       paymentData.amt,
       paymentData.payCcy,
       String(paymentData.payRate),
-      allocAmt,                              // base_currency_amount = INR gross
-      paymentData.paymentMode,
+      totalAmount,
       paymentData.transactionReference || null,
+      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
       notes,
-      "swatch_artwork",                      // order_type
-      "artworks",                            // reference_type
-      entryId,                               // reference_id = artwork id
-      art.swatch_order_id,                   // swatch_order_id from artworks
-      username
+      username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
-  // ── TDS ──
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  // Artwork (Swatch) has no per-row GST split → base = gross
-  const gstPct  = 0;
-  const payGst  = 0;
-  const payBase = allocAmt;
-
-  if (payBase < threshold) return;   // below threshold — skip TDS row
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
-  const tdsAmount  = (payBase * tdsRate) / 100;
-  const paidAmount = allocAmt - tdsAmount;
+  const tdsAmount  = Number(((payBase * tdsRate) / 100).toFixed(2));
+  const paidAmount = Number((totalAmount - tdsAmount).toFixed(2));
 
   await insertPaymentTDSRecord(
     client,
     tdsMaster.id,
-    "vendor_payments",
+    "costing_payments",
     paymentId,
     paymentData.paymentDate,
     resolvedVendorId,
-    "artwork_swatch",                      // ⚠️ requires enum extension
+    "artwork_swatch",
     entryId,
-    allocAmt,                              // gross_amount
-    payGst,                                // gst_amount
-    gstPct,                                // gst_percentage
-    payBase,                               // base_amount
-    paidAmount,                            // net cash after TDS
-    tdsRate,
-    tdsAmount,
-    username
+    totalAmount, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
@@ -2513,9 +2591,10 @@ async function handleArtworkStylePayment(
   const entryId = parseInt(sourceId);
   if (Number.isNaN(entryId)) throw new Error("Invalid style artwork id");
 
-  // Lock the style artwork row + fetch style_order_id
   const { rows: artRows } = await client.query(
-    `SELECT id, artwork_code, style_order_id, outsource_vendor_id, artwork_created
+    `SELECT id, artwork_code, style_order_id,
+            outsource_vendor_id, outsource_vendor_name,
+            artwork_created, gst_percentage
      FROM style_order_artworks
      WHERE id = $1 AND is_deleted = false
      FOR UPDATE`,
@@ -2529,92 +2608,76 @@ async function handleArtworkStylePayment(
   }
 
   const resolvedVendorId =
-    vendorId ?? (art.outsource_vendor_id ? parseInt(String(art.outsource_vendor_id)) : null);
-
+    vendorId ??
+    (art.outsource_vendor_id ? parseInt(String(art.outsource_vendor_id)) : null);
   if (!resolvedVendorId) {
-    throw new Error(
-      "Cannot record a payment for Artwork (Style) — no vendor is assigned."
-    );
+    throw new Error("Cannot record a payment for Artwork (Style) — no vendor is assigned.");
   }
 
   const allocAmt = parseFloat(paymentData.baseAmt ?? "0");
   if (!(allocAmt > 0)) throw new Error("Payment amount must be greater than zero");
 
+  const totalAmount = Number(allocAmt.toFixed(2));
+  const gstPct = parseFloat(art.gst_percentage || "0");
+  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
+  const payBase = Number((totalAmount - payGst).toFixed(2));
+
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against style artwork ${art.artwork_code ?? entryId})`
     : `Artwork (Style) payment ${art.artwork_code ?? entryId}`;
 
-  // ── Insert vendor_payments row with style-artwork linkage ──
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        style_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'artwork_style', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       resolvedVendorId,
-      vendorName || "",
-      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+      vendorName || art.outsource_vendor_name || "",
+      entryId,
+      null,                  
+      art.style_order_id,
+      paymentData.paymentType || "Partial",
+      paymentData.paymentMode,
       paymentData.amt,
       paymentData.payCcy,
       String(paymentData.payRate),
-      allocAmt,
-      paymentData.paymentMode,
+      totalAmount,
       paymentData.transactionReference || null,
+      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
       notes,
-      "artwork_style",                       // order_type
-      "artwork_style",                       // reference_type — must match listing
-      entryId,                               // reference_id = style_order_artworks.id
-      art.style_order_id,                    // style_order_id
-      username
+      username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
-  // ── TDS ──
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  const gstPct  = 0;   // adjust if you want GST split here — see note below
-  const payGst  = 0;
-  const payBase = allocAmt;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
-  const tdsAmount  = (payBase * tdsRate) / 100;
-  const paidAmount = allocAmt - tdsAmount;
+  const tdsAmount  = Number(((payBase * tdsRate) / 100).toFixed(2));
+  const paidAmount = Number((totalAmount - tdsAmount).toFixed(2));
 
   await insertPaymentTDSRecord(
     client,
     tdsMaster.id,
-    "vendor_payments",
+    "costing_payments",
     paymentId,
     paymentData.paymentDate,
     resolvedVendorId,
-    "artwork_style",                       // base_document_type — requires enum value
+    "artwork_style",
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    totalAmount, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
@@ -2644,13 +2707,10 @@ async function handleToilePayment(
   const soa = soaRows[0];
 
   if (!soa.toile_vendor_id || !soa.toile_vendor_name) {
-    throw new Error(
-      "Cannot record a payment for Toile — both vendor id and vendor name must be present."
-    );
+    throw new Error("Cannot record a payment for Toile — both vendor id and vendor name must be present.");
   }
 
-  const resolvedVendorId =
-    vendorId ?? parseInt(String(soa.toile_vendor_id));
+  const resolvedVendorId = vendorId ?? parseInt(String(soa.toile_vendor_id));
   if (!resolvedVendorId) {
     throw new Error("Cannot record a payment for Toile — no vendor is assigned.");
   }
@@ -2658,92 +2718,73 @@ async function handleToilePayment(
   const allocAmt = parseFloat(paymentData.baseAmt ?? "0");
   if (!(allocAmt > 0)) throw new Error("Payment amount must be greater than zero");
 
+  const totalAmount = Number(allocAmt.toFixed(2));
+  const gstPct = parseFloat(soa.toil_gst_percentage || "0");
+  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
+  const payBase = Number((totalAmount - payGst).toFixed(2));
+
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against toile ${soa.artwork_code ?? entryId})`
     : `Toile payment ${soa.artwork_code ?? entryId}`;
 
-  // 1. Insert vendor_payments row
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        style_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'toile', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       resolvedVendorId,
       vendorName || soa.toile_vendor_name || "",
-      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+      entryId,
+      null,                  
+      soa.style_order_id,
+      paymentData.paymentType || "Partial",
+      paymentData.paymentMode,
       paymentData.amt,
       paymentData.payCcy,
       String(paymentData.payRate),
-      allocAmt,
-      paymentData.paymentMode,
+      totalAmount,
       paymentData.transactionReference || null,
+      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
       notes,
-      "toile",
-      "toile",
-      entryId,
-      soa.style_order_id,
-      username
+      username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
-  // 2. Bump toile_payment_amount on the source row
   const currentToilePaid = parseFloat(String(soa.toile_payment_amount ?? "0")) || 0;
-  const newToilePaid     = currentToilePaid + allocAmt;
-
   await client.query(
-    `UPDATE style_order_artworks
-     SET toile_payment_amount = $1
-     WHERE id = $2`,
-    [newToilePaid.toFixed(2), entryId]
+    `UPDATE style_order_artworks SET toile_payment_amount = $1 WHERE id = $2`,
+    [(currentToilePaid + totalAmount).toFixed(2), entryId]
   );
 
-  // 3. TDS
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  const gstPct  = parseFloat(soa.toil_gst_percentage || "0");
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
-  const tdsAmount  = (payBase * tdsRate) / 100;
-  const paidAmount = allocAmt - tdsAmount;
+  const tdsAmount  = Number(((payBase * tdsRate) / 100).toFixed(2));
+  const paidAmount = Number((totalAmount - tdsAmount).toFixed(2));
 
   await insertPaymentTDSRecord(
     client,
     tdsMaster.id,
-    "vendor_payments",
+    "costing_payments",
     paymentId,
     paymentData.paymentDate,
     resolvedVendorId,
     "toile",
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    totalAmount, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
@@ -2774,13 +2815,10 @@ async function handleStyleOrderProductPayment(
   const sop = sopRows[0];
 
   if (!sop.pattern_vendor_id || !sop.pattern_vendor_name) {
-    throw new Error(
-      "Cannot record a payment for Style Order Product — both pattern vendor id and name must be present."
-    );
+    throw new Error("Cannot record a payment for Style Order Product — both pattern vendor id and name must be present.");
   }
 
-  const resolvedVendorId =
-    vendorId ?? parseInt(String(sop.pattern_vendor_id));
+  const resolvedVendorId = vendorId ?? parseInt(String(sop.pattern_vendor_id));
   if (!resolvedVendorId) {
     throw new Error("Cannot record a payment — no vendor is assigned.");
   }
@@ -2788,83 +2826,68 @@ async function handleStyleOrderProductPayment(
   const allocAmt = parseFloat(paymentData.baseAmt ?? "0");
   if (!(allocAmt > 0)) throw new Error("Payment amount must be greater than zero");
 
-  const refLabel = sop.order_code ?? sop.product_name ?? entryId;
+  const totalAmount = Number(allocAmt.toFixed(2));
+  const gstPct = parseFloat(sop.gst_percentage || "0");
+  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
+  const payBase = Number((totalAmount - payGst).toFixed(2));
 
+  const refLabel = sop.order_code ?? sop.product_name ?? entryId;
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against order ${refLabel})`
     : `Style order product payment ${refLabel}`;
 
-  // 1. Insert vendor_payments row
-  const paymentRes = await client.query(
-    `INSERT INTO vendor_payments
-       (vendor_id, vendor_name, payment_date, amount,
+  const payRes = await client.query(
+    `INSERT INTO costing_payments
+       (vendor_id, vendor_name, reference_type, reference_id,
+        swatch_order_id, style_order_id,
+        payment_type, payment_mode, payment_amount,
         currency_code, exchange_rate_snapshot, base_currency_amount,
-        payment_mode, reference_no, notes,
-        order_type,
-        reference_type, reference_id,
-        style_order_id,
-        created_by)
-     VALUES ($1, $2, $3, $4,
-             $5, $6, $7,
-             $8, $9, $10,
-             $11,
-             $12, $13,
-             $14,
-             $15)
+        payment_status, transaction_id, payment_date, remarks, created_by)
+     VALUES ($1, $2, 'style_order_product', $3, $4, $5,
+             $6, $7, $8,
+             $9, $10, $11,
+             'Completed', $12, $13, $14, $15)
      RETURNING id`,
     [
       resolvedVendorId,
       vendorName || sop.pattern_vendor_name || "",
-      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+      entryId,
+      null,
+      sop.style_order_id,
+      paymentData.paymentType || "Partial",
+      paymentData.paymentMode,
       paymentData.amt,
       paymentData.payCcy,
       String(paymentData.payRate),
-      allocAmt,
-      paymentData.paymentMode,
+      totalAmount,
       paymentData.transactionReference || null,
+      paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
       notes,
-      "style_order_product",
-      "style_order_product",
-      entryId,
-      sop.style_order_id,
-      username
+      username,
     ]
   );
-  const paymentId = paymentRes.rows[0].id;
+  const paymentId = payRes.rows[0].id;
 
-  // 2. TDS
   if (!tdsMasterId) return;
 
   const tdsMaster = await getTDSMaster(client, tdsMasterId);
-  const threshold = tdsMaster.threshold_amount ?? 0;
-
-  const gstPct  = parseFloat(sop.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? allocAmt * (gstPct / (100 + gstPct)) : 0;
-  const payBase = allocAmt - payGst;
-
-  if (payBase < threshold) return;
+  if (payBase < (tdsMaster.threshold_amount ?? 0)) return;
 
   const tdsRate    = tdsMaster.rate_percent;
-  const tdsAmount  = (payBase * tdsRate) / 100;
-  const paidAmount = allocAmt - tdsAmount;
+  const tdsAmount  = Number(((payBase * tdsRate) / 100).toFixed(2));
+  const paidAmount = Number((totalAmount - tdsAmount).toFixed(2));
 
   await insertPaymentTDSRecord(
     client,
     tdsMaster.id,
-    "vendor_payments",
+    "costing_payments",
     paymentId,
     paymentData.paymentDate,
     resolvedVendorId,
     "style_order_product",
     entryId,
-    allocAmt,
-    payGst,
-    gstPct,
-    payBase,
-    paidAmount,
-    tdsRate,
-    tdsAmount,
-    username
+    totalAmount, payGst, gstPct, payBase, paidAmount,
+    tdsRate, tdsAmount, username
   );
 }
 
@@ -2965,14 +2988,14 @@ async function validatePaymentBalance(
           COALESCE(NULLIF(a.total_cost, '')::numeric, 0)
           * (1 + COALESCE(a.gst_percentage::numeric, 0) / 100)
         ) AS total,
-        COALESCE(vp.paid, 0) AS paid
+        COALESCE(cp.paid, 0) AS paid
       FROM artworks a
       LEFT JOIN (
         SELECT reference_id, SUM(base_currency_amount) AS paid
-        FROM vendor_payments
+        FROM costing_payments
         WHERE reference_type = 'artwork_swatch' AND is_deleted = false
         GROUP BY reference_id
-      ) vp ON vp.reference_id = a.id
+      ) cp ON cp.reference_id = a.id
       WHERE a.id = $1 AND a.is_deleted = false AND a.artwork_created = 'Outsource'
     `,
 
@@ -2982,14 +3005,14 @@ async function validatePaymentBalance(
           COALESCE(NULLIF(soa.total_cost, '')::numeric, 0)
           * (1 + COALESCE(soa.gst_percentage::numeric, 0) / 100)
         ) AS total,
-        COALESCE(vp.paid, 0) AS paid
+        COALESCE(cp.paid, 0) AS paid
       FROM style_order_artworks soa
       LEFT JOIN (
         SELECT reference_id, SUM(base_currency_amount) AS paid
-        FROM vendor_payments
+        FROM costing_payments
         WHERE reference_type = 'artwork_style' AND is_deleted = false
         GROUP BY reference_id
-      ) vp ON vp.reference_id = soa.id
+      ) cp ON cp.reference_id = soa.id
       WHERE soa.id = $1
         AND soa.is_deleted = false
         AND soa.artwork_created = 'Outsource'
@@ -3001,14 +3024,14 @@ async function validatePaymentBalance(
           COALESCE(NULLIF(soa.toile_making_cost,''), NULLIF(soa.toile_cost,''))::numeric
           * (1 + COALESCE(soa.toil_gst_percentage::numeric, 0) / 100)
         ) AS total,
-        COALESCE(vp.paid, 0) AS paid
+        COALESCE(cp.paid, 0) AS paid
       FROM style_order_artworks soa
       LEFT JOIN (
         SELECT reference_id, SUM(base_currency_amount) AS paid
-        FROM vendor_payments
+        FROM costing_payments
         WHERE reference_type = 'toile' AND is_deleted = false
         GROUP BY reference_id
-      ) vp ON vp.reference_id = soa.id
+      ) cp ON cp.reference_id = soa.id
       WHERE soa.id = $1 AND soa.is_deleted = false
     `,
 
@@ -3018,14 +3041,14 @@ async function validatePaymentBalance(
           COALESCE(NULLIF(sop.pattern_payment_amount, '')::numeric, 0)
           * (1 + COALESCE(sop.gst_percentage::numeric, 0) / 100)
         ) AS total,
-        COALESCE(vp.paid, 0) AS paid
+        COALESCE(cp.paid, 0) AS paid
       FROM style_order_products sop
       LEFT JOIN (
         SELECT reference_id, SUM(base_currency_amount) AS paid
-        FROM vendor_payments
+        FROM costing_payments
         WHERE reference_type = 'style_order_product' AND is_deleted = false
         GROUP BY reference_id
-      ) vp ON vp.reference_id = sop.id
+      ) cp ON cp.reference_id = sop.id
       WHERE sop.id = $1 AND sop.is_deleted = false
     `,
   };
@@ -3214,6 +3237,7 @@ router.post("/record-payment", requireAuth,
       
     } catch (err: any) {
       await client.query("ROLLBACK");
+      console.log(err )
       res.status(400).json({ error: err.message });
     } finally {
       client.release();
