@@ -1079,6 +1079,14 @@ async function validateOutstandingBalance(client: any, vendorId: number, amt: nu
   }
 }
 
+/** Extracts base + GST from a GST-inclusive (gross) amount. */
+function splitGrossIntoBaseAndGst(gross: number, gstPct: number): { base: number; gst: number } {
+  if (gstPct <= 0) return { base: gross, gst: 0 };
+  const base = Number((gross / (1 + gstPct / 100)).toFixed(2));
+  const gst = Number((gross - base).toFixed(2));
+  return { base, gst };
+}
+
 // ============================================================================
 // 2. UNIFIED PAYMENT TDS FUNCTIONS
 // ============================================================================
@@ -1207,11 +1215,6 @@ async function insertPaymentTDSItems(
 // 2b. UNIVERSAL ITEM LEDGER
 // ============================================================================
 
-/**
- * Writes one row per allocated item into `payment_items`, regardless of
- * whether TDS was deducted on that line. This is the source of truth for
- * item-level balance tracking (used by getExistingPaymentsForItems).
- */
 async function insertPaymentItems(
   client: any,
   paymentSourceType: 'pr_payments' | 'vendor_payments',
@@ -1285,10 +1288,6 @@ async function getPurchaseReceiptItems(client: any, entryId: number): Promise<an
   return items.rows;
 }
 
-/**
- * Generic item-level payment lookup. Defaults to purchase_receipt_item to
- * preserve existing PR behaviour; pass 'vendor_challan_items' for challans.
- */
 async function getExistingPaymentsForItems(
   client: any,
   itemIds: number[],
@@ -1320,13 +1319,7 @@ function calculateItemBalances(
   return items.map((item: any) => {
     const totalAmount = parseFloat(item.total_amount);
     const gstPct = parseFloat(item.gst_percentage ?? "0");
-
-    // Your business rule:
-    // GST is calculated directly on the input amount.
-    const gstAmount = totalAmount * (gstPct / 100);
-
-    // Amount excluding GST
-    const baseAmount = totalAmount - gstAmount;
+    const { base: baseAmount, gst: gstAmount } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
     const paidSoFar = paidMap.get(item.id) ?? 0;
 
@@ -1373,11 +1366,11 @@ function allocateWaterfall(
       item.remaining
     );
 
-    // GST is calculated directly from the allocated input amount.
-    const allocGst = allocInput * (item.gstPct / 100);
-
-    // Amount after removing GST.
-    const allocBase = allocInput - allocGst;
+    // Reverse-calculate base and GST from the GST-inclusive allocated amount.
+    const { base: allocBase, gst: allocGst } = splitGrossIntoBaseAndGst(
+      allocInput,
+      item.gstPct
+    );
 
     // TDS is calculated on the amount excluding GST.
     const tdsApplicable = allocBase >= threshold;
@@ -1621,8 +1614,7 @@ async function handleOutsourcePayment(
   // Calculate base amount and GST
   const totalAmount = allocAmt;
   const gstPct = parseFloat(gst_percentage || '0');
-  const gstAmount = gstPct > 0 ? Number(((totalAmount * gstPct) / 100).toFixed(2)) : 0;
-  const baseAmount = Number( (totalAmount - gstAmount).toFixed(2) );
+  const { base: baseAmount, gst: gstAmount } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   // ── Resolve TDS master + threshold check ──
   let tdsMaster: { id: number; rate_percent: number; threshold_amount: number } | null = null;
@@ -1763,8 +1755,7 @@ async function handleCustomChargePayment(
   const gstPct = parseFloat(gst_percentage || '0');
 
   // GST is calculated as a percentage of the gross payment amount
-  const gstAmount = gstPct > 0 ? Number(((totalAmount * gstPct) / 100).toFixed(2)) : 0;
-  const baseAmount = Number( (totalAmount - gstAmount).toFixed(2) );
+  const { base: baseAmount, gst: gstAmount } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   // ── Resolve TDS master + threshold check ──
   let tdsMaster: { id: number; rate_percent: number; threshold_amount: number } | null = null;
@@ -2010,186 +2001,6 @@ async function handlePurchaseReceiptPayment(
   }
 }
 
-// async function handleLedgerChargePayment(
-//   client: any,
-//   entryId: number,
-//   vendorId: number,
-//   allocAmt: number,
-//   data: any,
-//   alloc: PaymentAllocation,
-//   username: string
-// ): Promise<void> {
-//   const ledgerRes = await client.query(
-//     `SELECT
-//        id,
-//        amount,
-//        gst_percentage,
-//        order_type,
-//        order_id
-//      FROM vendor_ledger_charges
-//      WHERE id = $1
-//        AND vendor_id = $2
-//        AND is_deleted = false`,
-//     [entryId, vendorId]
-//   );
-
-//   if (ledgerRes.rows.length === 0) {
-//     throw new Error(
-//       `Ledger charge ${entryId} not found or does not belong to vendor`
-//     );
-//   }
-
-//   const ledger = ledgerRes.rows[0];
-
-//   const baseAmount = parseFloat(ledger.amount || "0");
-//   const gstPct = parseFloat(ledger.gst_percentage || "0");
-
-//   const gstAmount = (baseAmount * gstPct) / 100;
-//   const totalAmount = baseAmount + gstAmount;
-
-//   const paymentSumRes = await client.query(
-//     `SELECT COALESCE(SUM(amount::numeric), 0) AS current_paid
-//     FROM vendor_payments
-//     WHERE reference_type = 'ledger_charge'
-//       AND reference_id = $1
-//       AND vendor_id = $2`,
-//     [entryId, vendorId]
-//   );
-
-
-//   const currentPaid = parseFloat(
-//     paymentSumRes.rows[0]?.current_paid || "0"
-//   );
-
-//   const newPaid = currentPaid + allocAmt;
-
-//   let newStatus = "Unpaid";
-
-//   if (newPaid >= totalAmount - 0.01) {
-//     newStatus = "Paid";
-//   } else if (newPaid > 0) {
-//     newStatus = "Partially Paid";
-//   }
-
-//   const tdsMasterId =
-//     alloc.tdsMasterId ||
-//     data.tdsMasterId ||
-//     null;
-
-//   const notes = data.notes
-//     ? `${data.notes} (against ledger charge ${entryId})`
-//     : `Ledger charge payment ${entryId}`;
-
-//   const paymentRes = await client.query(
-//     `INSERT INTO vendor_payments (
-//        vendor_id,
-//        vendor_name,
-//        payment_date,
-//        amount,
-//        currency_code,
-//        exchange_rate_snapshot,
-//        base_currency_amount,
-//        payment_mode,
-//        reference_no,
-//        notes,
-//        order_type,
-//        reference_type,
-//        reference_id,
-//        style_order_id,
-//        style_order_code,
-//        swatch_order_id,
-//        swatch_order_code,
-//        created_by
-//      )
-//      VALUES (
-//        $1, $2, $3, $4, $5, $6, $7,
-//        $8, $9, $10, $11, $12, $13,
-//        $14, $15, $16, $17, $18
-//      )
-//      RETURNING id`,
-//     [
-//       vendorId,
-//       data.vendorName,
-//       data.paymentDate
-//         ? new Date(data.paymentDate)
-//         : new Date(),
-//       allocAmt,
-//       "INR",
-//       "1",
-//       String(allocAmt),
-//       data.paymentMode,
-//       data.referenceNo || null,
-//       notes,
-//       "ledger_charge",
-//       "ledger_charge",
-//       entryId,
-//       null,
-//       null,
-//       null,
-//       null,
-//       username
-//     ]
-//   );
-
-//   const paymentId = paymentRes.rows[0].id;
-
-//   if (tdsMasterId) {
-//     const tdsMaster = await getTDSMaster(
-//       client,
-//       tdsMasterId
-//     );
-
-//     const tdsRate = tdsMaster.rate_percent;
-//     const thresholdAmount = tdsMaster.threshold_amount;
-//     const allocatedGstAmount = Number( ((allocAmt * gstPct) / 100).toFixed(2) );
-
-//     const allocatedBaseAmount = Number( (allocAmt - allocatedGstAmount).toFixed(2) );
-
-//     const shouldApplyTDS = allocatedBaseAmount >= thresholdAmount;
-
-//     if (shouldApplyTDS) {
-//       const tdsAmount = Number(
-//         ((allocatedBaseAmount * tdsRate) / 100).toFixed(2)
-//       );
-
-//       const paidAmount = Number( (allocAmt - tdsAmount).toFixed(2) );
-
-//       await insertPaymentTDSRecord(
-//         client,
-//         tdsMasterId,
-//         "vendor_payments",
-//         paymentId,
-//         data.paymentDate,
-//         vendorId,
-//         "ledger_charge",
-//         entryId,
-//         allocAmt,
-//         allocatedGstAmount,
-//         gstPct,
-//         allocatedBaseAmount,
-//         paidAmount,
-//         tdsRate,
-//         tdsAmount,
-//         username
-//       );
-//     }
-//   }
-
-//   await client.query(
-//     `UPDATE other_expenses
-//      SET
-//        paid_amount = $1,
-//        payment_status = $2,
-//        updated_at = NOW()
-//      WHERE expense_id = $3`,
-//     [
-//       String(newPaid),
-//       newStatus,
-//       ledger.order_id
-//     ]
-//   );
-// }
-
 async function handleLedgerChargePayment(
   client: any,
   entryId: number,
@@ -2321,13 +2132,7 @@ async function handleLedgerChargePayment(
     const tdsRate = tdsMaster.rate_percent;
     const thresholdAmount = tdsMaster.threshold_amount;
 
-    const allocatedGstAmount = Number(
-      ((allocAmt * gstPct) / 100).toFixed(2)
-    );
-
-    const allocatedBaseAmount = Number(
-      (allocAmt - allocatedGstAmount).toFixed(2)
-    );
+    const { base: allocatedBaseAmount, gst: allocatedGstAmount } = splitGrossIntoBaseAndGst(allocAmt, gstPct);
 
     const shouldApplyTDS =
       allocatedBaseAmount >= thresholdAmount;
@@ -2569,9 +2374,9 @@ async function handleArtworkSwatchPayment(
   if (artRes.rows.length === 0) throw new Error(`Artwork (Swatch) ${entryId} not found`);
   const art = artRes.rows[0];
 
+  const totalAmount = allocAmt;
   const gstPct  = parseFloat(art.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
-  const payBase = Number((allocAmt - payGst).toFixed(2));
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
@@ -2623,7 +2428,7 @@ async function handleArtworkSwatchPayment(
   await insertPaymentTDSRecord(
     client,
     tdsMasterId,
-    "costing_payments",           // 👈 payment_source_type
+    "costing_payments",           // payment_source_type
     paymentId,
     data.paymentDate,
     vendorId,
@@ -2656,9 +2461,9 @@ async function handleArtworkStylePayment(
   if (artRes.rows.length === 0) throw new Error(`Artwork (Style) ${entryId} not found`);
   const art = artRes.rows[0];
 
+  const totalAmount = allocAmt;
   const gstPct  = parseFloat(art.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number((allocAmt * (gstPct / (100 + gstPct))).toFixed(2)) : 0;
-  const payBase = Number((allocAmt - payGst).toFixed(2));
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
@@ -2744,8 +2549,7 @@ async function handleToilePayment(
   const soa = soaRes.rows[0];
 
   const gstPct  = parseFloat(soa.toil_gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number((allocAmt * (gstPct / (100 + gstPct))).toFixed(2)) : 0;
-  const payBase = Number((allocAmt - payGst).toFixed(2));
+  const { gst: payGst, base: payBase } = splitGrossIntoBaseAndGst(allocAmt, gstPct);
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 
@@ -2841,8 +2645,7 @@ async function handleStyleOrderProductPayment(
   const sop = sopRes.rows[0];
 
   const gstPct  = parseFloat(sop.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number((allocAmt * (gstPct / (100 + gstPct))).toFixed(2)) : 0;
-  const payBase = Number((allocAmt - payGst).toFixed(2));
+  const { gst: payGst, base: payBase } = splitGrossIntoBaseAndGst(allocAmt, gstPct);
 
   const tdsMasterId = alloc.tdsMasterId || (data as any).tdsMasterId || null;
 

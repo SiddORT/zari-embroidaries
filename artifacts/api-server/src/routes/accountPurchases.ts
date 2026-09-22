@@ -1024,15 +1024,6 @@ interface RecordPaymentRequest {
   exchange_rate_snapshot: string;
   tds_master_id?: number;
 }
-
-interface PaymentAllocation {
-  entryType: string;
-  entryId: number;
-  amount: string;
-  debit?: string;
-  tdsMasterId?: number;
-}
-
 interface ItemBalance {
   id: number;
   quantity: number;
@@ -1056,6 +1047,13 @@ interface WaterfallAllocation {
   unitPrice: number;
 }
 
+/** Extracts base + GST from a GST-inclusive (gross) amount. */
+function splitGrossIntoBaseAndGst(gross: number, gstPct: number): { base: number; gst: number } {
+  if (gstPct <= 0) return { base: gross, gst: 0 };
+  const base = Number((gross / (1 + gstPct / 100)).toFixed(2));
+  const gst = Number((gross - base).toFixed(2));
+  return { base, gst };
+}
 
 async function validatePaymentAmount(amount: number): Promise<void> {
   if (amount <= 0) {
@@ -1645,27 +1643,10 @@ async function handleCostingOutsourcePayment(
   if (!(allocAmt > 0)) {
     throw new Error("Payment amount must be greater than zero");
   }
-
-  
-  // Split payment into GST + TDS base
-  //
-  // Example:
-  // allocAmt = 1000
-  // gstPct   = 5
-  //
-  // GST      = 1000 * 5 / 100 = 50
-  // TDS base = 1000 - 50      = 950
   
   const totalAmount = Number(allocAmt.toFixed(2));
 
-  const payGst =
-    gstPct > 0
-      ? Number(((totalAmount * gstPct) / 100).toFixed(2))
-      : 0;
-
-  const payBase = Number(
-    (totalAmount - payGst).toFixed(2)
-  );
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   
   // Resolve TDS master + threshold check
@@ -1875,15 +1856,7 @@ async function handleOtherExpensePayment(
     // GST is calculated directly on allocAmt.
     const totalAmount = allocAmt;
 
-    const payGst =
-      gstPct > 0
-        ? Number(((totalAmount * gstPct) / 100).toFixed(2))
-        : 0;
-
-    // TDS is calculated on amount after GST.
-    const payBase = Number(
-      (totalAmount - payGst).toFixed(2)
-    );
+    const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
     if (payBase >= threshold) {
       const tdsRate = tdsMaster.rate_percent;
@@ -1970,14 +1943,7 @@ async function handleCustomChargePayment(
 
   const totalAmount = Number(allocAmt.toFixed(2));
 
-  const payGst =
-    gstPct > 0
-      ? Number(((totalAmount * gstPct) / 100).toFixed(2))
-      : 0;
-
-  const payBase = Number(
-    (totalAmount - payGst).toFixed(2)
-  );
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
 
   let tdsMaster: {
@@ -2395,7 +2361,6 @@ const GENERIC_REF_TO_BASE_DOC: Record<string, string> = {
   "Artwork (Style)":  "artwork_style",
   "Toile":            "toile",
   "Shipping":         "shipping",
-  // "Artisan" intentionally omitted — no vendor, no TDS ledger
 };
 
 async function handleGenericPayment(
@@ -2517,8 +2482,7 @@ async function handleArtworkSwatchPayment(
 
   const totalAmount = Number(allocAmt.toFixed(2));
   const gstPct = parseFloat(art.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number(((totalAmount * gstPct) / 100).toFixed(2)) : 0;
-  const payBase = Number((totalAmount - payGst).toFixed(2));
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against artwork ${art.artwork_code ?? entryId})`
@@ -2619,8 +2583,7 @@ async function handleArtworkStylePayment(
 
   const totalAmount = Number(allocAmt.toFixed(2));
   const gstPct = parseFloat(art.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
-  const payBase = Number((totalAmount - payGst).toFixed(2));
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against style artwork ${art.artwork_code ?? entryId})`
@@ -2720,8 +2683,7 @@ async function handleToilePayment(
 
   const totalAmount = Number(allocAmt.toFixed(2));
   const gstPct = parseFloat(soa.toil_gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
-  const payBase = Number((totalAmount - payGst).toFixed(2));
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   const notes = paymentData.remarks
     ? `${paymentData.remarks} (against toile ${soa.artwork_code ?? entryId})`
@@ -2828,8 +2790,7 @@ async function handleStyleOrderProductPayment(
 
   const totalAmount = Number(allocAmt.toFixed(2));
   const gstPct = parseFloat(sop.gst_percentage || "0");
-  const payGst  = gstPct > 0 ? Number(((allocAmt * gstPct) / 100).toFixed(2)) : 0;
-  const payBase = Number((totalAmount - payGst).toFixed(2));
+  const { base: payBase, gst: payGst } = splitGrossIntoBaseAndGst(totalAmount, gstPct);
 
   const refLabel = sop.order_code ?? sop.product_name ?? entryId;
   const notes = paymentData.remarks

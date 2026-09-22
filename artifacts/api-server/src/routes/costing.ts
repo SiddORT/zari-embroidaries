@@ -2166,14 +2166,11 @@ interface ItemBalance {
   remaining: number;
 }
 
-interface Allocation {
-  itemId: number;
-  allocBase: number;
-  allocGst: number;
-  allocGross: number;
-  tdsAmount: number;
-  paidAmount: number;
-  gstPercentage: number;
+function splitGrossIntoBaseAndGst(gross: number, gstPct: number): { base: number; gst: number } {
+  if (gstPct <= 0) return { base: gross, gst: 0 };
+  const base = Number((gross / (1 + gstPct / 100)).toFixed(2));
+  const gst = Number((gross - base).toFixed(2));
+  return { base, gst };
 }
 
 // ---------------------------------------------------------------------------
@@ -2300,9 +2297,7 @@ export function allocateWaterfall(
     // Base = Gross - GST percentage of Gross
     const gstRate = item.gstPct / 100;
 
-    const allocBase = allocGross * (1 - gstRate);
-    const allocGst = allocGross - allocBase;
-
+    const { base: allocBase, gst: allocGst } = splitGrossIntoBaseAndGst(allocGross, item.gstPct);
     // TDS is calculated on the allocated base
     const tdsApplicable = allocBase >= threshold;
 
@@ -2328,190 +2323,7 @@ export function allocateWaterfall(
   return { allocations, unallocatedAmount: remainingAmount };
 }
 
-// ---------------------------------------------------------------------------
 // Route: POST /payments
-// ---------------------------------------------------------------------------
-
-// TDS on Payment amount
-// router.post(
-//   "/payments",
-//   requireAuth,
-//   checkPermission({ any: [SWATCH_ORDER_TABS.COSTING, SWATCH_ORDERS.ADD_EDIT] }),
-//   async (req, res) => {
-//     const user = (req as any).user;
-//    const { prId, paymentType, paymentDate, paymentMode, amount, currencyCode, exchangeRateSnapshot, transactionStatus, paymentStatus, attachment, tdsMasterId, } = req.body;
-
-//     // ---- Basic validation ----
-//     if (!prId) return res.status(400).json({ error: "prId is required." });
-//     if (!amount || isNaN(parseFloat(String(amount)))) {
-//       return res.status(400).json({ error: "A valid amount is required." });
-//     }
-
-//     const payRate = parseFloat(String(exchangeRateSnapshot ?? "1")) || 1;
-//     const baseAmt = (parseFloat(String(amount ?? "0")) * payRate).toFixed(2);
-//     const baseAmt2 = parseFloat(baseAmt);
-
-//     const savedAttachment = await persistAttachmentObject(attachment, {
-//       entity: "procurement",
-//       category: "pr-payments",
-//     });
-
-//     try {
-//       const result = await db.transaction(async (tx) => {
-//         // ---- 0. If "Full", strictly validate amount == total outstanding balance ----
-//         if (String(paymentType).toLowerCase() === "full") {
-//           const itemsForCheck = await getItemBalances(tx, Number(prId));
-//           const totalRemaining = itemsForCheck.reduce((s, i) => s + i.remaining, 0);
-
-//           if (Math.abs(baseAmt2 - totalRemaining) > 0.01) {
-//             throw new Error(
-//               `"Full" payment amount (${baseAmt2.toFixed(
-//                 2
-//               )}) must equal the outstanding balance (${totalRemaining.toFixed(2)}).`
-//             );
-//           }
-//         }
-
-//         // ---- 1. Insert PR payment ----
-//         const [payment] = await tx
-//           .insert(prPaymentsTable)
-//           .values({
-//             prId: Number(prId),
-//             paymentType: String(paymentType),
-//             paymentDate: paymentDate ? new Date(String(paymentDate)) : new Date(),
-//             paymentMode: String(paymentMode ?? ""),
-//             amount: String(amount),
-//             currencyCode: String(currencyCode ?? "INR"),
-//             exchangeRateSnapshot: String(payRate),
-//             baseCurrencyAmount: baseAmt,
-//             transactionStatus: String(transactionStatus ?? ""),
-//             paymentStatus: String(paymentStatus ?? "Pending"),
-//             attachment: savedAttachment,
-//             createdBy: user.email,
-//           })
-//           .returning();
-
-//         // ---- 2. Handle TDS (if tdsMasterId provided) ----
-//         if (tdsMasterId) {
-//           // 2a. Get vendorId from the PR header
-//           const [pr] = await tx
-//             .select({ vendorId: purchaseReceiptsTable.vendorId })
-//             .from(purchaseReceiptsTable)
-//             .where(eq(purchaseReceiptsTable.id, Number(prId)))
-//             .limit(1);
-
-//           if (!pr) {
-//             throw new Error(`Purchase Receipt with ID ${prId} not found.`);
-//           }
-
-//           const vendorId = Number(pr.vendorId);
-//           if (!vendorId) {
-//             throw new Error(
-//               `Vendor ID is missing on PR ${prId}. Please ensure vendor is set on the purchase receipt. TDS cannot be applied.`
-//             );
-//           }
-
-//           // 2b. Fetch TDS master
-//           const [master] = await tx
-//             .select({
-//               ratePercent: tdsMasterTable.ratePercent,
-//             })
-//             .from(tdsMasterTable)
-//             .where(
-//               and(
-//                 eq(tdsMasterTable.id, Number(tdsMasterId)),
-//                 eq(tdsMasterTable.status, true),
-//                 eq(tdsMasterTable.isDeleted, false)
-//               )
-//             )
-//             .limit(1);
-
-//           if (!master) {
-//             throw new Error(`Invalid or inactive TDS master (ID: ${tdsMasterId})`);
-//           }
-
-//           const tdsRate = parseFloat(String(master.ratePercent));
-
-//           // 2c. Compute item balances (always full item set, id-order) and run waterfall allocation
-//           const orderedItems = await getItemBalances(tx, Number(prId));
-//           const { allocations, unallocatedAmount } = allocateWaterfall(
-//             baseAmt2,
-//             orderedItems,
-//             tdsRate
-//           );
-
-//           if (unallocatedAmount > 0.01) {
-//             throw new Error(
-//               `Amount exceeds total outstanding balance on this PR by ${unallocatedAmount.toFixed(
-//                 2
-//               )}. Please reduce the amount or handle as an advance.`
-//             );
-//           }
-
-//           if (allocations.length === 0) {
-//             throw new Error(
-//               `Nothing to allocate — all items on this PR are already fully paid.`
-//             );
-//           }
-
-//           // 2d. Aggregate totals for the parent payment_tds row
-//           const totalBase = allocations.reduce((s, a) => s + a.allocBase, 0);
-//           const totalGst = allocations.reduce((s, a) => s + a.allocGst, 0);
-//           const totalTds = allocations.reduce((s, a) => s + a.tdsAmount, 0);
-//           const totalPaid = allocations.reduce((s, a) => s + a.paidAmount, 0);
-//           const blendedGstPct = totalBase > 0 ? (totalGst / totalBase) * 100 : 0;
-
-//           const [tdsRow] = await tx
-//             .insert(paymentTds)
-//             .values({
-//               tdsMasterId: Number(tdsMasterId),
-//               paymentSourceType: "pr_payments",
-//               paymentSourceId: payment.id,
-//               paymentDate: payment.paymentDate || new Date(),
-//               vendorId,
-//               baseDocumentType: "pr",
-//               baseDocumentId: payment.prId,
-//               grossAmount: (totalBase + totalGst).toFixed(2),
-//               gstAmount: totalGst.toFixed(2),
-//               gstPercentage: blendedGstPct.toFixed(2),
-//               paymentCurrencyCode: String(currencyCode ?? "INR"),
-//               paymentExchangeRate: payRate.toFixed(2),
-//               baseAmount: totalBase.toFixed(2),
-//               paidAmount: totalPaid.toFixed(2),
-//               tdsRate: tdsRate.toFixed(2),
-//               tdsAmount: totalTds.toFixed(2),
-//               status: "DEDUCTED",
-//               createdBy: user.email,
-//             })
-//             .returning();
-
-//           // 2e. Insert one payment_tds_items row per item touched
-//           await tx.insert(paymentTdsItems).values(
-//             allocations.map((a) => ({
-//               paymentTdsId: tdsRow.id,
-//               baseDocumentItemType: "purchase_receipt_item" as const,
-//               baseDocumentItemId: a.itemId,
-//               baseAmount: a.allocBase.toFixed(2),
-//               gstAmount: a.allocGst.toFixed(2),
-//               gstPercentage: a.gstPercentage.toFixed(2),
-//               tdsRate: tdsRate.toFixed(2),
-//               tdsAmount: a.tdsAmount.toFixed(2),
-//               paidAmount: a.paidAmount.toFixed(2),
-//               createdBy: user.email,
-//             }))
-//           );
-//         }
-
-//         return payment;
-//       });
-
-//       return res.status(201).json({ data: result });
-//     } catch (err: any) {
-//       console.error("Error creating PR payment:", err);
-//       return res.status(500).json({ error: err.message });
-//     }
-//   }
-// );
 
 // ---------------------------------------------------------------------------  
 router.post(
@@ -4998,11 +4810,8 @@ router.post(
       const gstPercent = await getGstPercentage(referenceType, refIdNum, client);
       const totalBase = paymentAmountNum * payRate;
 
-      const gstBase = totalBase * (gstPercent / 100);
-      const baseCostBase = totalBase - gstBase;
-
-
-
+      const baseCostBase = gstPercent > 0 ? totalBase / (1 + gstPercent / 100) : totalBase;
+      const gstBase = totalBase - baseCostBase;
 
       // ── 4. vendor_name fallback ──────────────────────────────────
       let resolvedVendorName = vendorName;
