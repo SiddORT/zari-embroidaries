@@ -31,3 +31,7 @@ export * from "./paymentTds";
 export * from "./paymentTdsItems";
 export * from "./vendorChallanItems";
 export * from "./paymentItems";
+export * from "./invoiceLineItems";
+export * from "./invoicePaymentItems";
+export * from "./invoicePaymentTds";
+export * from "./invoicePaymentTdsItems";
