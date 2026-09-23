@@ -1,0 +1,1 @@
+ALTER TABLE "payment_tds" ADD COLUMN "base_amount" numeric(15, 2) NOT NULL;

@@ -10,6 +10,8 @@ import { useInvoicePaymentsByReference, useInvoicePaymentsList, useAddInvoicePay
 import type { InvoicePayment } from "@/hooks/useInvoicePayments";
 import { useFormAccessContext } from "@/contexts/FormAccessContext";
 import { FormAccessGate } from "@/components/FormAccessGate";
+import { SmallSearchSelect, SmallSearchSelectOption } from "@/components/ui/SearchableSelect";
+import { useTDSMasterList, type TDSMasterRecord } from "@/hooks/useTDSMaster";
 
 const G = "#C6AF4B";
 
@@ -51,10 +53,8 @@ const REF_LABELS: Record<string, string> = {
 };
 
 interface LineItem {
-  id: string; description: string; category: string;
-  quantity: number; unitPrice: number; total: number;
-  hsnCode: string; hsnGstPct: string; showHsn: boolean;
-  unit?: string;
+  id: string | number; description: string; category: string; quantity: number; unitPrice: number; 
+  total: number; hsnCode: string; hsnGstPct: string; showHsn: boolean; unit?: string; isLocked?: boolean; 
 }
 interface HsnItem { id: number; hsnCode: string; govtDescription: string; gstPercentage: string }
 interface FabricMaster { id: number; fabricCode: string; fabricType: string; quality: string; colorName: string; hsnCode: string }
@@ -73,8 +73,17 @@ interface BankAccount {
   branch: string; account_name: string; bank_upi: string; is_default: boolean;
 }
 
-const blank = (): LineItem => ({ id: crypto.randomUUID(), description: "", category: "Item", quantity: 1, unitPrice: 0, total: 0, hsnCode: "", hsnGstPct: "", showHsn: true });
-
+const blank = (): LineItem => ({
+  id: `temp-${crypto.randomUUID()}`, 
+  description: "",
+  category: "Item",
+  quantity: 1,
+  unitPrice: 0,
+  total: 0,
+  hsnCode: "",
+  hsnGstPct: "",
+  showHsn: true,
+});
 function calcTotals(items: LineItem[], shipping: number, adjustment: number, discountType: string, discountValue: number) {
   const subtotal = items.reduce((s, i) => s + i.total, 0);
   const safeShipping = Math.max(0, shipping || 0);
@@ -150,23 +159,25 @@ function InvoicePaymentsPanel({
   const { canDelete } = useFormAccessContext();
 
   const invoicePayments = useInvoicePaymentsList(invoiceId);
+  const referencePayments = useInvoicePaymentsByReference( referenceType, referenceId );
+  const data = invoiceId ? invoicePayments.data : referencePayments.data;
+  const isLoading = invoiceId ? invoicePayments.isLoading : referencePayments.isLoading;
+  const refetch = invoiceId ? invoicePayments.refetch : referencePayments.refetch;
 
-  const referencePayments = useInvoicePaymentsByReference(
-    referenceType,
-    referenceId
-  );
+  const [tdsSearch, setTdsSearch] = useState("");
+  const [selectedTdsId, setSelectedTdsId] = useState<number | null>(null);
 
-  const data = invoiceId
-    ? invoicePayments.data
-    : referencePayments.data;
+  const { data: tdsData, isLoading: tdsLoading } = useTDSMasterList({
+    search: tdsSearch,
+    status: "active",          
+    page: 1,
+    limit: 20,
+  });
 
-  const isLoading = invoiceId
-    ? invoicePayments.isLoading
-    : referencePayments.isLoading;
-
-  const refetch = invoiceId
-    ? invoicePayments.refetch
-    : referencePayments.refetch;
+  const tdsOptions: SmallSearchSelectOption[] = (tdsData?.data ?? []).map((t: any) => ({
+    value: t.id,
+    label: `${t.sectionCode} — ${t.ratePercent}% | ${t.serviceName}`,
+  }));
 
   const payments = data?.data ?? [];
   const fx = exchangeRate > 0 ? exchangeRate : 1;
@@ -186,6 +197,7 @@ function InvoicePaymentsPanel({
     payment_status: "Completed",
     payment_date: today,
     remarks: "",
+    tds_master_id: null as number | null,
   });
 
   function setF(k: string, v: string) {
@@ -358,14 +370,21 @@ function InvoicePaymentsPanel({
                 <h2 className="text-base font-bold text-gray-900">Record Payment</h2>
                 <p className="text-xs text-gray-400 mt-0.5">Pending: {currencyCode} {fmtN(pendingAmt)}</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X size={15} /></button>
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+                <X size={15} />
+              </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Amount + Currency */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lblCls}>Payment Amount ({form.currency_code}) <span className="text-red-500 ml-0.5">*</span></label>
-                  <input type="number" min="0.01" step="0.01" required value={form.payment_amount}
-                    onChange={e => setF("payment_amount", e.target.value)} className={inpCls} />
+                  <input
+                    type="number" min="0.01" step="0.01" required
+                    value={form.payment_amount}
+                    onChange={e => setF("payment_amount", e.target.value)}
+                    className={inpCls}
+                  />
                 </div>
                 <div>
                   <label className={lblCls}>Currency</label>
@@ -374,19 +393,29 @@ function InvoicePaymentsPanel({
                   </select>
                 </div>
               </div>
+
+              {/* Exchange rate (if not INR) */}
               {form.currency_code !== "INR" && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={lblCls}>Exchange Rate (1 {form.currency_code} = ? INR)</label>
-                    <input type="number" min="0.0001" step="0.0001" value={form.exchange_rate_snapshot}
-                      onChange={e => setF("exchange_rate_snapshot", e.target.value)} className={inpCls} />
+                    <input
+                      type="number" min="0.0001" step="0.0001"
+                      value={form.exchange_rate_snapshot}
+                      onChange={e => setF("exchange_rate_snapshot", e.target.value)}
+                      className={inpCls}
+                    />
                   </div>
                   <div>
                     <label className={lblCls}>INR Equivalent</label>
-                    <div className={`${inpCls} bg-gray-50 text-gray-500 cursor-default`}>₹ {fmtN(basePreview)}</div>
+                    <div className={`${inpCls} bg-gray-50 text-gray-500 cursor-default`}>
+                      ₹ {fmtN(basePreview)}
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* Payment Type + Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lblCls}>Payment Type <span className="text-red-500 ml-0.5">*</span></label>
@@ -396,15 +425,43 @@ function InvoicePaymentsPanel({
                 </div>
                 <div>
                   <label className={lblCls}>Payment Date <span className="text-red-500 ml-0.5">*</span></label>
-                  <input type="date" required value={form.payment_date}
-                    onChange={e => setF("payment_date", e.target.value)} className={inpCls} />
+                  <input
+                    type="date" required
+                    value={form.payment_date}
+                    onChange={e => setF("payment_date", e.target.value)}
+                    className={inpCls}
+                  />
                 </div>
               </div>
+
+              {/* ========== NEW: TDS Dropdown ========== */}
+              <div>
+                <label className={lblCls}>
+                  TDS Section <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <SmallSearchSelect
+                  options={tdsOptions}
+                  value={form.tds_master_id}
+                  onChange={(val) => setForm(p => ({ ...p, tds_master_id: val ? Number(val) : null }))}
+                  onSearch={(search) => setTdsSearch(search)}
+                  placeholder={tdsLoading ? "Loading TDS..." : "Select TDS Section"}
+                  clearable
+                />
+              </div>
+
+              {/* Transaction Reference */}
               <div>
                 <label className={lblCls}>Transaction Reference</label>
-                <input type="text" placeholder="UTR / Cheque No. / Receipt No."
-                  value={form.transaction_reference} onChange={e => setF("transaction_reference", e.target.value)} className={inpCls} />
+                <input
+                  type="text"
+                  placeholder="UTR / Cheque No. / Receipt No."
+                  value={form.transaction_reference}
+                  onChange={e => setF("transaction_reference", e.target.value)}
+                  className={inpCls}
+                />
               </div>
+
+              {/* Status + Remarks */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lblCls}>Payment Status</label>
@@ -414,16 +471,25 @@ function InvoicePaymentsPanel({
                 </div>
                 <div>
                   <label className={lblCls}>Remarks</label>
-                  <input type="text" placeholder="Optional" value={form.remarks}
-                    onChange={e => setF("remarks", e.target.value)} className={inpCls} />
+                  <input
+                    type="text"
+                    placeholder="Optional"
+                    value={form.remarks}
+                    onChange={e => setF("remarks", e.target.value)}
+                    className={inpCls}
+                  />
                 </div>
               </div>
+
+              {/* Pending preview */}
               <div className="rounded-xl bg-amber-50 border border-[#C6AF4B]/20 px-4 py-3 text-xs flex items-center justify-between">
                 <span className="text-gray-500">Pending after this payment:</span>
                 <span className={`font-bold ${Math.max(0, pendingAmt - parseFloat(form.payment_amount || "0")) <= 0 ? "text-emerald-600" : "text-amber-700"}`}>
                   {currencyCode} {fmtN(Math.max(0, pendingAmt - parseFloat(form.payment_amount || "0")))}
                 </span>
               </div>
+
+              {/* Buttons */}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -672,14 +738,39 @@ export default function InvoiceForm() {
 
   useEffect(() => {
     if (!isEdit) {
-      customFetch<any>("/api/invoices/next-number").then(j => setForm(f => ({ ...f, invoiceNo: j.data ?? "" }))).catch(() => {});
+      customFetch<any>("/api/invoices/next-number")
+        .then(j => setForm(f => ({ ...f, invoiceNo: j.data ?? "" })))
+        .catch(() => {});
       return;
     }
     customFetch<any>(`/api/invoices/${params.id}`).then(j => {
       const inv = j.data;
       if (!inv) return;
       setForm(mapInvoiceToForm(inv));
-      if (Array.isArray(inv.items) && inv.items.length > 0) setItems(inv.items);
+
+      // Prefer new structure, fall back to old JSON (backward compatible)
+      if (Array.isArray(inv.lineItems) && inv.lineItems.length > 0) {
+        setItems(
+          inv.lineItems.map((l: any) => ({
+            id: l.id,                                    // real DB id
+            description: l.description ?? "",
+            category: l.category ?? "Item",
+            quantity: Number(l.quantity ?? 1),
+            unitPrice: Number(l.unitPrice ?? 0),
+            total: Number(l.total ?? 0),
+            hsnCode: l.hsnCode ?? "",
+            hsnGstPct: String(l.hsnGstPct ?? ""),
+            showHsn: l.showHsn !== false,
+            unit: l.unit ?? "",
+            isLocked: l.isLocked ?? false,
+          }))
+        );
+      } else if (Array.isArray(inv.items) && inv.items.length > 0) {
+        // Old invoices – keep working exactly as before
+        setItems(inv.items);
+      } else {
+        setItems([]);
+      }
     }).catch(() => {});
   }, [isEdit, params.id]);
 
@@ -737,7 +828,7 @@ export default function InvoiceForm() {
 
   function setF(key: string, val: string) { setForm(f => ({ ...f, [key]: val })); }
 
-  function updateItem(id: string, field: keyof LineItem, val: any) {
+  function updateItem(id: string | number, field: keyof LineItem, val: any) {
     setItems(prev => prev.map(it => {
       if (it.id !== id) return it;
       const updated = { ...it, [field]: val };
@@ -840,7 +931,7 @@ export default function InvoiceForm() {
       }
 
       const loaded: LineItem[] = rows.map((r: any) => ({
-        id: crypto.randomUUID(),
+        id: `temp-${crypto.randomUUID()}`, 
         description: r.description ?? "",
         category: r.category ?? "Item",
         quantity: r.quantity ?? 1,

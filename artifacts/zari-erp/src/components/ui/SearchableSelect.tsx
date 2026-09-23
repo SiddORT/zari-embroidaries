@@ -139,28 +139,35 @@ export default function SearchableSelect({
 }
 
 // ── Compact searchable select for use inside BOM / costing forms ──────────────
-interface SmallSearchSelectProps {
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (value: string) => void;
+export interface SmallSearchSelectOption {
+  value: string | number;
+  label: string;
+}
+
+export interface SmallSearchSelectProps {
+  options: SmallSearchSelectOption[];
+  value?: string | number | null;
+  onChange: (value: any) => void;
   onSearch?: (search: string) => void;
   placeholder?: string;
   disabled?: boolean;
   clearable?: boolean;
 }
 
-export function SmallSearchSelect({
-  options, value, onChange, onSearch, placeholder = "Select...", disabled = false, clearable = true,
-}: SmallSearchSelectProps) {
+export function SmallSearchSelect({ options, value, onChange, onSearch, placeholder = "Select...", disabled = false, clearable = true, }: SmallSearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-  
+
   const buttonRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const selected = options.find(o => o.value === value);
+  // Loose equality check to safely match numbers vs string types
+  const selected = options.find(
+    (o) => value !== null && value !== undefined && String(o.value) === String(value)
+  );
+  
   const filtered = options;
 
   // Dynamically calculate coordinates relative to the button
@@ -168,10 +175,9 @@ export function SmallSearchSelect({
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
-    const dropH = Math.min(220, 50 + filtered.length * 32); // Max height estimation
+    const dropH = Math.min(220, 50 + filtered.length * 32);
 
     if (spaceBelow < dropH && rect.top > dropH) {
-      // Place above button if space is constrained
       setDropdownStyle({
         position: "fixed",
         bottom: window.innerHeight - rect.top + 4,
@@ -180,7 +186,6 @@ export function SmallSearchSelect({
         zIndex: 9999,
       });
     } else {
-      // Place below button
       setDropdownStyle({
         position: "fixed",
         top: rect.bottom + 4,
@@ -194,20 +199,20 @@ export function SmallSearchSelect({
   function handleOpen() {
     if (disabled) return;
     reposition();
-    setOpen(v => !v);
+    setOpen((v) => !v);
     setSearch("");
   }
 
-  // Handle outside click, scrolls, and resizing
+  // Handle outside click, scroll, and window resize
   useEffect(() => {
     if (!open) return;
     setTimeout(() => searchRef.current?.focus(), 10);
 
     function handler(e: MouseEvent) {
       const target = e.target as Node;
-      // Close only if click is outside both trigger button AND the portal container
       if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target) &&
         !document.getElementById("small-select-portal")?.contains(target)
       ) {
         setOpen(false);
@@ -220,7 +225,7 @@ export function SmallSearchSelect({
     }
 
     document.addEventListener("mousedown", handler);
-    window.addEventListener("scroll", onScroll, true); // Capture scroll on table container
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", reposition);
 
     return () => {
@@ -239,7 +244,6 @@ export function SmallSearchSelect({
     );
   }
 
-  // Portal Dropdown Body
   const dropdown = open ? (
     <div
       id="small-select-portal"
@@ -267,26 +271,31 @@ export function SmallSearchSelect({
         {filtered.length === 0 ? (
           <div className="px-3 py-3 text-xs text-gray-400 text-center">No results</div>
         ) : (
-          filtered.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => {
-                onChange(o.value);
-                setOpen(false);
-                setSearch("");
-              }}
-              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                o.value === value ? "bg-gray-50 font-semibold text-gray-900" : "text-gray-700"
-              }`}
-            >
-              {o.label}
-            </button>
-          ))
+          filtered.map((o) => {
+            const isSelected = value !== null && value !== undefined && String(o.value) === String(value);
+            return (
+              <button
+                key={String(o.value)}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                  isSelected ? "bg-gray-50 font-semibold text-gray-900" : "text-gray-700"
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })
         )}
       </div>
     </div>
   ) : null;
+
+  const isValuePresent = value !== null && value !== undefined && value !== "" && value !== 0;
 
   return (
     <div className="flex-1 relative">
@@ -300,12 +309,12 @@ export function SmallSearchSelect({
           {selected?.label || placeholder}
         </span>
         <div className="flex items-center gap-0.5 shrink-0">
-          {clearable && value && (
+          {clearable && isValuePresent && (
             <span
               role="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onChange("");
+                onChange(typeof value === "number" ? 0 : "");
                 setSearch("");
               }}
               className="text-gray-300 hover:text-gray-500 p-0.5 rounded"

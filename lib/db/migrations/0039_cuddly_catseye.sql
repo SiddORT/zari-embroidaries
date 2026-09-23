@@ -1,0 +1,1 @@
+ALTER TYPE "public"."payment_tds_status_enum" ADD VALUE 'NOT_APPLICABLE';

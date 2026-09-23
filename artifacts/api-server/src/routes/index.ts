@@ -44,6 +44,7 @@ import packingListsRouter from "./packingLists";
 import itemsRouter from "./items";
 import vendorChallansRouter from "./vendorChallans";
 import entityTagsRouter from "./entityTags";
+import tdsMasterRouter from "./tdsMaster";
 
 const router: IRouter = Router();
 
@@ -92,5 +93,6 @@ router.use(packingListsRouter);
 router.use(itemsRouter);
 router.use(vendorChallansRouter);
 router.use(entityTagsRouter);
+router.use(tdsMasterRouter);
 
 export default router;
