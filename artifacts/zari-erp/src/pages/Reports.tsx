@@ -85,7 +85,7 @@ const REPORT_COLS: Record<ReportId, string[]> = {
   "order-profitability": ["Order ID", "Client", "Type", "Invoice Amount", "Shipping Cost", "Net Profit"],
   "purchase-vs-sales":   ["Period", "Total Sales", "Total Purchases", "Other Expenses", "Net Revenue"],
   "gst-summary":         ["Ref No", "Party Name", "Transaction Type", "Taxable Amount", "CGST", "SGST", "IGST", "Total GST", "Date"],
-  "tds-summary":         ["Transaction Type", "Date", "Ref No", "Party Name", "Section", "Rate", "Gross Amount", "Base Amount", "GST Amount", "TDS Amount", "Net Paid", "Status"],
+  "tds-summary":         ["Transaction Type", "Date", "Ref No", "Party Name", "Section", "Rate", "Gross Amount", "Base Amount", "GST Amount", "TDS Amount", "Net Paid"],
 };
 
 const REPORT_PERM_BASE: Record<ReportId, string> = {
