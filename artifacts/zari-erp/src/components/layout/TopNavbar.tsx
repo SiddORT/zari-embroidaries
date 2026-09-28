@@ -13,6 +13,7 @@ interface TopNavbarProps {
 
 const MASTERS_ITEMS = [
   { label: "HSN",               href: "/masters/hsn" },
+  { label: "TDS",               href: "/masters/tds"},
   { label: "Materials",         href: "/masters/materials" },
   { label: "Fabric",            href: "/masters/fabric" },
   { label: "Clients",           href: "/masters/clients" },
@@ -41,7 +42,7 @@ const OPERATIONS_SECTIONS = [
       { label: "Item Stock List",   href: "/inventory/items" },
       { label: "Low Stock Alerts",  href: "/inventory/low-stock-alerts" },
       { label: "Stock Ledger",      href: "/inventory/ledger" },
-      { label: "Reservations",      href: "/inventory/reservations" },
+      // { label: "Reservations",      href: "/inventory/reservations" },
       { label: "Stock Adjustments", href: "/inventory/adjustments" },
     ],
   },
@@ -74,6 +75,7 @@ const ACCOUNTS_ITEMS = [
 const HREF_PERMISSION_MAP: Record<string, string> = {
   "/dashboard": "dashboard",
   "/masters/hsn": "masters:hsn",
+  "/masters/tds": "masters:tds",
   "/masters/materials": "masters:materials",
   "/masters/fabric": "masters:fabric",
   "/masters/clients": "masters:clients",

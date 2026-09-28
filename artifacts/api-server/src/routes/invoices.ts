@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, invoicesTable, pool , eq, like, desc, ilike, and, or } from "@workspace/db";
+import { db, invoicesTable,invoiceLineItemsTable, invoicePayments, pool , eq, like, desc, asc, and, or } from "@workspace/db";
 // import { eq, like, desc, ilike, and, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { checkPermission } from "../middlewares/checkPermission";
@@ -81,15 +81,72 @@ router.get("/invoices", requireAuth,
 });
 
 // GET /invoices/:id — single
+// router.get("/invoices/:id", requireAuth, 
+//   checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.VIEW, STYLE_ORDER_TABS.INVOICES] }), 
+//   async (req, res) => {
+//   const id = parseInt(String(req.params.id));
+//   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+//   const [row] = await db.select().from(invoicesTable).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false)));
+//   if (!row) return res.status(404).json({ error: "Not found" });
+//   return res.json({ data: row });
+// });
+
 router.get("/invoices/:id", requireAuth, 
   checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.VIEW, STYLE_ORDER_TABS.INVOICES] }), 
   async (req, res) => {
   const id = parseInt(String(req.params.id));
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-  const [row] = await db.select().from(invoicesTable).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false)));
-  if (!row) return res.status(404).json({ error: "Not found" });
-  return res.json({ data: row });
+
+  try {
+    // 1. Get the invoice header
+    const [row] = await db
+      .select()
+      .from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.id, id),
+        eq(invoicesTable.isDeleted, false)
+      ));
+
+    if (!row) return res.status(404).json({ error: "Not found" });
+
+    // 2. Get active line items from the new table
+    const lineItems = await db
+      .select()
+      .from(invoiceLineItemsTable)
+      .where(and(
+        eq(invoiceLineItemsTable.invoiceId, id),
+        eq(invoiceLineItemsTable.isDeleted, false)
+      ))
+      .orderBy(asc(invoiceLineItemsTable.lineNo));
+
+    // 3. Map to the shape the frontend expects
+    const mappedLineItems = lineItems.map((l) => ({
+      id: l.id,                              
+      description: l.description,
+      category: l.category,
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unitPrice),
+      total: Number(l.total),
+      hsnCode: l.hsnCode ?? "",
+      hsnGstPct: l.hsnGstPct ?? "",
+      showHsn: l.showHsn,
+      unit: l.unit ?? "",
+      isLocked: l.isLocked,                   
+    }));
+
+    // 4. Return both for backward compatibility
+    return res.json({
+      data: {
+        ...row,
+        items: mappedLineItems.length > 0 ? mappedLineItems : (row.items ?? []), 
+        lineItems: mappedLineItems,          
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
+
 
 // GET /invoices/swatch/:swatchOrderId
 router.get("/invoices/swatch/:swatchOrderId", requireAuth, 
@@ -207,6 +264,80 @@ function validateInvoiceBody(b: any): string | null {
 }
 
 // POST /invoices — create
+// router.post("/invoices", requireAuth, 
+//   checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
+//   async (req, res) => {
+//   try {
+//     const b = req.body;
+//     const err = validateInvoiceBody(b);
+//     if (err) return res.status(400).json({ error: err });
+//     const invoiceNo = b.invoiceNo ?? (await getNextInvoiceNo());
+
+//     const invoiceCurrencyAmt = parseFloat(b.invoiceCurrencyAmount ?? b.totalAmount ?? "0");
+//     const rate = parseFloat(b.exchangeRateSnapshot ?? "1");
+//     const baseCurrencyAmt = invoiceCurrencyAmt * rate;
+//     const totalAmt = parseFloat(b.totalAmount ?? String(invoiceCurrencyAmt));
+//     const receivedAmt = parseFloat(b.receivedAmount ?? "0");
+//     const pendingAmt = totalAmt - receivedAmt;
+//     const autoStatus = computeAutoStatus(totalAmt, pendingAmt, b.dueDate ?? "", b.invoiceStatus ?? "Draft");
+
+//     const [row] = await db.insert(invoicesTable).values({
+//       invoiceNo,
+//       invoiceDirection: b.invoiceDirection ?? "Client",
+//       invoiceType: b.invoiceType ?? "Final Invoice",
+//       invoiceStatus: autoStatus,
+//       clientId: b.clientId ? Number(b.clientId) : null,
+//       vendorId: b.vendorId ? Number(b.vendorId) : null,
+//       referenceType: b.referenceType ?? "Manual",
+//       referenceId: b.referenceId ?? "",
+//       currencyCode: b.currencyCode ?? "INR",
+//       exchangeRateSnapshot: String(rate),
+//       subtotalAmount: String(parseFloat(b.subtotalAmount ?? "0")),
+//       shippingAmount: String(parseFloat(b.shippingAmount ?? "0")),
+//       adjustmentAmount: String(String(b.adjustmentAmount ?? "").trim() === "" ? 0 : parseFloat(String(b.adjustmentAmount))),
+//       totalAmount: String(totalAmt),
+//       invoiceCurrencyAmount: String(invoiceCurrencyAmt),
+//       baseCurrencyAmount: String(baseCurrencyAmt),
+//       receivedAmount: String(receivedAmt),
+//       pendingAmount: String(pendingAmt),
+//       invoiceDate: b.invoiceDate ?? new Date().toISOString().slice(0, 10),
+//       dueDate: b.dueDate ?? "",
+//       clientName: b.clientName ?? "",
+//       clientAddress: b.clientAddress ?? "",
+//       clientGstin: b.clientGstin ?? "",
+//       clientEmail: b.clientEmail ?? "",
+//       clientPhone: b.clientPhone ?? "",
+//       clientState: b.clientState ?? "",
+//       items: b.items ?? [],
+//       discountType: b.discountType ?? "flat",
+//       discountValue: String(b.discountValue ?? "0"),
+//       cgstRate: String(b.cgstRate ?? "0"),
+//       sgstRate: String(b.sgstRate ?? "0"),
+//       bankName: b.bankName ?? "",
+//       bankAccount: b.bankAccount ?? "",
+//       bankIfsc: b.bankIfsc ?? "",
+//       bankBranch: b.bankBranch ?? "",
+//       bankUpi: b.bankUpi ?? "",
+//       shippingAddress: b.shippingAddress ?? "",
+//       carrier: b.carrier ?? "",
+//       trackingNumber: b.trackingNumber ?? "",
+//       dispatchDate: b.dispatchDate ?? "",
+//       expectedDelivery: b.expectedDelivery ?? "",
+//       remarks: b.remarks ?? "",
+//       notes: b.notes ?? "",
+//       paymentTerms: b.paymentTerms ?? "",
+//       swatchOrderId: b.swatchOrderId ? Number(b.swatchOrderId) : null,
+//       styleOrderId: b.styleOrderId ? Number(b.styleOrderId) : null,
+//       createdBy: req.user?.email ?? "",
+//       status: autoStatus,
+//     }).returning();
+
+//     return res.status(201).json({ data: row });
+//   } catch (err: any) {
+//     return res.status(500).json({ error: err.message });
+//   }
+// });
+
 router.post("/invoices", requireAuth, 
   checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
   async (req, res) => {
@@ -214,6 +345,7 @@ router.post("/invoices", requireAuth,
     const b = req.body;
     const err = validateInvoiceBody(b);
     if (err) return res.status(400).json({ error: err });
+
     const invoiceNo = b.invoiceNo ?? (await getNextInvoiceNo());
 
     const invoiceCurrencyAmt = parseFloat(b.invoiceCurrencyAmount ?? b.totalAmount ?? "0");
@@ -224,64 +356,164 @@ router.post("/invoices", requireAuth,
     const pendingAmt = totalAmt - receivedAmt;
     const autoStatus = computeAutoStatus(totalAmt, pendingAmt, b.dueDate ?? "", b.invoiceStatus ?? "Draft");
 
-    const [row] = await db.insert(invoicesTable).values({
-      invoiceNo,
-      invoiceDirection: b.invoiceDirection ?? "Client",
-      invoiceType: b.invoiceType ?? "Final Invoice",
-      invoiceStatus: autoStatus,
-      clientId: b.clientId ? Number(b.clientId) : null,
-      vendorId: b.vendorId ? Number(b.vendorId) : null,
-      referenceType: b.referenceType ?? "Manual",
-      referenceId: b.referenceId ?? "",
-      currencyCode: b.currencyCode ?? "INR",
-      exchangeRateSnapshot: String(rate),
-      subtotalAmount: String(parseFloat(b.subtotalAmount ?? "0")),
-      shippingAmount: String(parseFloat(b.shippingAmount ?? "0")),
-      adjustmentAmount: String(String(b.adjustmentAmount ?? "").trim() === "" ? 0 : parseFloat(String(b.adjustmentAmount))),
-      totalAmount: String(totalAmt),
-      invoiceCurrencyAmount: String(invoiceCurrencyAmt),
-      baseCurrencyAmount: String(baseCurrencyAmt),
-      receivedAmount: String(receivedAmt),
-      pendingAmount: String(pendingAmt),
-      invoiceDate: b.invoiceDate ?? new Date().toISOString().slice(0, 10),
-      dueDate: b.dueDate ?? "",
-      clientName: b.clientName ?? "",
-      clientAddress: b.clientAddress ?? "",
-      clientGstin: b.clientGstin ?? "",
-      clientEmail: b.clientEmail ?? "",
-      clientPhone: b.clientPhone ?? "",
-      clientState: b.clientState ?? "",
-      items: b.items ?? [],
-      discountType: b.discountType ?? "flat",
-      discountValue: String(b.discountValue ?? "0"),
-      cgstRate: String(b.cgstRate ?? "0"),
-      sgstRate: String(b.sgstRate ?? "0"),
-      bankName: b.bankName ?? "",
-      bankAccount: b.bankAccount ?? "",
-      bankIfsc: b.bankIfsc ?? "",
-      bankBranch: b.bankBranch ?? "",
-      bankUpi: b.bankUpi ?? "",
-      shippingAddress: b.shippingAddress ?? "",
-      carrier: b.carrier ?? "",
-      trackingNumber: b.trackingNumber ?? "",
-      dispatchDate: b.dispatchDate ?? "",
-      expectedDelivery: b.expectedDelivery ?? "",
-      remarks: b.remarks ?? "",
-      notes: b.notes ?? "",
-      paymentTerms: b.paymentTerms ?? "",
-      swatchOrderId: b.swatchOrderId ? Number(b.swatchOrderId) : null,
-      styleOrderId: b.styleOrderId ? Number(b.styleOrderId) : null,
-      createdBy: req.user?.email ?? "",
-      status: autoStatus,
-    }).returning();
+    const result = await db.transaction(async (tx) => {
+      // 1. Insert Invoice Header
+      const [row] = await tx.insert(invoicesTable).values({
+        invoiceNo,
+        invoiceDirection: b.invoiceDirection ?? "Client",
+        invoiceType: b.invoiceType ?? "Final Invoice",
+        invoiceStatus: autoStatus,
+        clientId: b.clientId ? Number(b.clientId) : null,
+        vendorId: b.vendorId ? Number(b.vendorId) : null,
+        referenceType: b.referenceType ?? "Manual",
+        referenceId: b.referenceId ?? "",
+        currencyCode: b.currencyCode ?? "INR",
+        exchangeRateSnapshot: String(rate),
+        subtotalAmount: String(parseFloat(b.subtotalAmount ?? "0")),
+        shippingAmount: String(parseFloat(b.shippingAmount ?? "0")),
+        adjustmentAmount: String(String(b.adjustmentAmount ?? "").trim() === "" ? 0 : parseFloat(String(b.adjustmentAmount))),
+        totalAmount: String(totalAmt),
+        invoiceCurrencyAmount: String(invoiceCurrencyAmt),
+        baseCurrencyAmount: String(baseCurrencyAmt),
+        receivedAmount: String(receivedAmt),
+        pendingAmount: String(pendingAmt),
+        invoiceDate: b.invoiceDate ?? new Date().toISOString().slice(0, 10),
+        dueDate: b.dueDate ?? "",
+        clientName: b.clientName ?? "",
+        clientAddress: b.clientAddress ?? "",
+        clientGstin: b.clientGstin ?? "",
+        clientEmail: b.clientEmail ?? "",
+        clientPhone: b.clientPhone ?? "",
+        clientState: b.clientState ?? "",
+        items: b.items ?? [],                          
+        discountType: b.discountType ?? "flat",
+        discountValue: String(b.discountValue ?? "0"),
+        cgstRate: String(b.cgstRate ?? "0"),
+        sgstRate: String(b.sgstRate ?? "0"),
+        bankName: b.bankName ?? "",
+        bankAccount: b.bankAccount ?? "",
+        bankIfsc: b.bankIfsc ?? "",
+        bankBranch: b.bankBranch ?? "",
+        bankUpi: b.bankUpi ?? "",
+        shippingAddress: b.shippingAddress ?? "",
+        carrier: b.carrier ?? "",
+        trackingNumber: b.trackingNumber ?? "",
+        dispatchDate: b.dispatchDate ?? "",
+        expectedDelivery: b.expectedDelivery ?? "",
+        remarks: b.remarks ?? "",
+        notes: b.notes ?? "",
+        paymentTerms: b.paymentTerms ?? "",
+        swatchOrderId: b.swatchOrderId ? Number(b.swatchOrderId) : null,
+        styleOrderId: b.styleOrderId ? Number(b.styleOrderId) : null,
+        createdBy: req.user?.email ?? "",
+        status: autoStatus,
+      }).returning();
 
-    return res.status(201).json({ data: row });
+      // 2. Insert Line Items into invoice_line_items
+      if (Array.isArray(b.items) && b.items.length > 0) {
+        const lineRows = b.items.map((item: any, index: number) => ({
+          invoiceId: row.id,
+          lineNo: index + 1,
+          description: item.description ?? "",
+          category: item.category ?? "Item",
+          quantity: String(item.quantity ?? 1),
+          unitPrice: String(item.unitPrice ?? 0),
+          total: String(item.total ?? 0),
+          hsnCode: item.hsnCode ?? "",
+          hsnGstPct: String(item.hsnGstPct ?? ""),
+          showHsn: item.showHsn !== false,
+          unit: item.unit ?? "",
+          isLocked: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+        await tx.insert(invoiceLineItemsTable).values(lineRows);
+      }
+      return row;
+    });
+
+    return res.status(201).json({ data: result });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
 // PUT /invoices/:id — update
+// router.put("/invoices/:id", requireAuth, 
+//   checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
+//   async (req, res) => {
+//   const id = parseInt(String(req.params.id));
+//   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+//   try {
+//     const b = req.body;
+//     const err = validateInvoiceBody(b);
+//     if (err) return res.status(400).json({ error: err });
+
+//     const invoiceCurrencyAmt = parseFloat(b.invoiceCurrencyAmount ?? b.totalAmount ?? "0");
+//     const rate = parseFloat(b.exchangeRateSnapshot ?? "1");
+//     const baseCurrencyAmt = invoiceCurrencyAmt * rate;
+//     const totalAmt = parseFloat(b.totalAmount ?? String(invoiceCurrencyAmt));
+//     const receivedAmt = parseFloat(b.receivedAmount ?? "0");
+//     const pendingAmt = totalAmt - receivedAmt;
+//     const autoStatus = computeAutoStatus(totalAmt, pendingAmt, b.dueDate ?? "", b.invoiceStatus);
+
+//     const [row] = await db.update(invoicesTable).set({
+//       invoiceDirection: b.invoiceDirection,
+//       invoiceType: b.invoiceType,
+//       invoiceStatus: autoStatus,
+//       clientId: b.clientId ? Number(b.clientId) : null,
+//       vendorId: b.vendorId ? Number(b.vendorId) : null,
+//       referenceType: b.referenceType,
+//       referenceId: b.referenceId ?? "",
+//       currencyCode: b.currencyCode ?? "INR",
+//       exchangeRateSnapshot: String(rate),
+//       subtotalAmount: String(parseFloat(b.subtotalAmount ?? "0")),
+//       shippingAmount: String(parseFloat(b.shippingAmount ?? "0")),
+//       adjustmentAmount: String(String(b.adjustmentAmount ?? "").trim() === "" ? 0 : parseFloat(String(b.adjustmentAmount))),
+//       totalAmount: String(totalAmt),
+//       invoiceCurrencyAmount: String(invoiceCurrencyAmt),
+//       baseCurrencyAmount: String(baseCurrencyAmt),
+//       receivedAmount: String(receivedAmt),
+//       pendingAmount: String(pendingAmt),
+//       invoiceDate: b.invoiceDate,
+//       dueDate: b.dueDate ?? "",
+//       clientName: b.clientName ?? "",
+//       clientAddress: b.clientAddress ?? "",
+//       clientGstin: b.clientGstin ?? "",
+//       clientEmail: b.clientEmail ?? "",
+//       clientPhone: b.clientPhone ?? "",
+//       clientState: b.clientState ?? "",
+//       items: b.items ?? [],
+//       discountType: b.discountType ?? "flat",
+//       discountValue: String(b.discountValue ?? "0"),
+//       cgstRate: String(b.cgstRate ?? "0"),
+//       sgstRate: String(b.sgstRate ?? "0"),
+//       bankName: b.bankName ?? "",
+//       bankAccount: b.bankAccount ?? "",
+//       bankIfsc: b.bankIfsc ?? "",
+//       bankBranch: b.bankBranch ?? "",
+//       bankUpi: b.bankUpi ?? "",
+//       shippingAddress: b.shippingAddress ?? "",
+//       carrier: b.carrier ?? "",
+//       trackingNumber: b.trackingNumber ?? "",
+//       dispatchDate: b.dispatchDate ?? "",
+//       expectedDelivery: b.expectedDelivery ?? "",
+//       remarks: b.remarks ?? "",
+//       notes: b.notes ?? "",
+//       paymentTerms: b.paymentTerms ?? "",
+//       swatchOrderId: b.swatchOrderId === "" ? null : Number(b.swatchOrderId),
+//       styleOrderId: b.styleOrderId === "" ? null : Number(b.styleOrderId),      
+//       status: autoStatus,
+//       updatedAt: new Date(),
+//     }).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false))).returning();
+
+//     if (!row) return res.status(404).json({ error: "Not found" });
+//     return res.json({ data: row });
+//   } catch (err: any) {
+//     return res.status(500).json({ error: err.message });
+//   }
+// });
+
 router.put("/invoices/:id", requireAuth, 
   checkPermission({ any: [SWATCH_ORDER_TABS.INVOICES, ACCOUNTS_INVOICES.ADD_EDIT, STYLE_ORDER_TABS.INVOICES] }), 
   async (req, res) => {
@@ -300,58 +532,180 @@ router.put("/invoices/:id", requireAuth,
     const pendingAmt = totalAmt - receivedAmt;
     const autoStatus = computeAutoStatus(totalAmt, pendingAmt, b.dueDate ?? "", b.invoiceStatus);
 
-    const [row] = await db.update(invoicesTable).set({
-      invoiceDirection: b.invoiceDirection,
-      invoiceType: b.invoiceType,
-      invoiceStatus: autoStatus,
-      clientId: b.clientId ? Number(b.clientId) : null,
-      vendorId: b.vendorId ? Number(b.vendorId) : null,
-      referenceType: b.referenceType,
-      referenceId: b.referenceId ?? "",
-      currencyCode: b.currencyCode ?? "INR",
-      exchangeRateSnapshot: String(rate),
-      subtotalAmount: String(parseFloat(b.subtotalAmount ?? "0")),
-      shippingAmount: String(parseFloat(b.shippingAmount ?? "0")),
-      adjustmentAmount: String(String(b.adjustmentAmount ?? "").trim() === "" ? 0 : parseFloat(String(b.adjustmentAmount))),
-      totalAmount: String(totalAmt),
-      invoiceCurrencyAmount: String(invoiceCurrencyAmt),
-      baseCurrencyAmount: String(baseCurrencyAmt),
-      receivedAmount: String(receivedAmt),
-      pendingAmount: String(pendingAmt),
-      invoiceDate: b.invoiceDate,
-      dueDate: b.dueDate ?? "",
-      clientName: b.clientName ?? "",
-      clientAddress: b.clientAddress ?? "",
-      clientGstin: b.clientGstin ?? "",
-      clientEmail: b.clientEmail ?? "",
-      clientPhone: b.clientPhone ?? "",
-      clientState: b.clientState ?? "",
-      items: b.items ?? [],
-      discountType: b.discountType ?? "flat",
-      discountValue: String(b.discountValue ?? "0"),
-      cgstRate: String(b.cgstRate ?? "0"),
-      sgstRate: String(b.sgstRate ?? "0"),
-      bankName: b.bankName ?? "",
-      bankAccount: b.bankAccount ?? "",
-      bankIfsc: b.bankIfsc ?? "",
-      bankBranch: b.bankBranch ?? "",
-      bankUpi: b.bankUpi ?? "",
-      shippingAddress: b.shippingAddress ?? "",
-      carrier: b.carrier ?? "",
-      trackingNumber: b.trackingNumber ?? "",
-      dispatchDate: b.dispatchDate ?? "",
-      expectedDelivery: b.expectedDelivery ?? "",
-      remarks: b.remarks ?? "",
-      notes: b.notes ?? "",
-      paymentTerms: b.paymentTerms ?? "",
-      swatchOrderId: b.swatchOrderId === "" ? null : Number(b.swatchOrderId),
-      styleOrderId: b.styleOrderId === "" ? null : Number(b.styleOrderId),      
-      status: autoStatus,
-      updatedAt: new Date(),
-    }).where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false))).returning();
+    const result = await db.transaction(async (tx) => {
+      // 1. Update Invoice Header
+      const [row] = await tx.update(invoicesTable).set({
+        invoiceDirection: b.invoiceDirection,
+        invoiceType: b.invoiceType,
+        invoiceStatus: autoStatus,
+        clientId: b.clientId ? Number(b.clientId) : null,
+        vendorId: b.vendorId ? Number(b.vendorId) : null,
+        referenceType: b.referenceType,
+        referenceId: b.referenceId ?? "",
+        currencyCode: b.currencyCode ?? "INR",
+        exchangeRateSnapshot: String(rate),
+        subtotalAmount: String(parseFloat(b.subtotalAmount ?? "0")),
+        shippingAmount: String(parseFloat(b.shippingAmount ?? "0")),
+        adjustmentAmount: String(String(b.adjustmentAmount ?? "").trim() === "" ? 0 : parseFloat(String(b.adjustmentAmount))),
+        totalAmount: String(totalAmt),
+        invoiceCurrencyAmount: String(invoiceCurrencyAmt),
+        baseCurrencyAmount: String(baseCurrencyAmt),
+        receivedAmount: String(receivedAmt),
+        pendingAmount: String(pendingAmt),
+        invoiceDate: b.invoiceDate,
+        dueDate: b.dueDate ?? "",
+        clientName: b.clientName ?? "",
+        clientAddress: b.clientAddress ?? "",
+        clientGstin: b.clientGstin ?? "",
+        clientEmail: b.clientEmail ?? "",
+        clientPhone: b.clientPhone ?? "",
+        clientState: b.clientState ?? "",
+        items: b.items ?? [],                          
+        discountType: b.discountType ?? "flat",
+        discountValue: String(b.discountValue ?? "0"),
+        cgstRate: String(b.cgstRate ?? "0"),
+        sgstRate: String(b.sgstRate ?? "0"),
+        bankName: b.bankName ?? "",
+        bankAccount: b.bankAccount ?? "",
+        bankIfsc: b.bankIfsc ?? "",
+        bankBranch: b.bankBranch ?? "",
+        bankUpi: b.bankUpi ?? "",
+        shippingAddress: b.shippingAddress ?? "",
+        carrier: b.carrier ?? "",
+        trackingNumber: b.trackingNumber ?? "",
+        dispatchDate: b.dispatchDate ?? "",
+        expectedDelivery: b.expectedDelivery ?? "",
+        remarks: b.remarks ?? "",
+        notes: b.notes ?? "",
+        paymentTerms: b.paymentTerms ?? "",
+        swatchOrderId: b.swatchOrderId === "" ? null : Number(b.swatchOrderId),
+        styleOrderId: b.styleOrderId === "" ? null : Number(b.styleOrderId),
+        status: autoStatus,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invoicesTable.id, id), eq(invoicesTable.isDeleted, false)))
+      .returning();
 
-    if (!row) return res.status(404).json({ error: "Not found" });
-    return res.json({ data: row });
+      if (!row) throw new Error("Invoice not found");
+
+      // 2. Load existing active line items
+      const existingLines = await tx
+        .select()
+        .from(invoiceLineItemsTable)
+        .where(
+          and(
+            eq(invoiceLineItemsTable.invoiceId, id),
+            eq(invoiceLineItemsTable.isDeleted, false)
+          )
+        );
+
+      const existingMap = new Map(existingLines.map(l => [l.id, l]));
+      const incomingIds = new Set<number>();
+
+      // Check if invoice already has any payments (for locking logic)
+      const payments = await tx
+        .select({ id: invoicePayments.paymentId })
+        .from(invoicePayments)
+        .where(eq(invoicePayments.invoiceId, id))
+        .limit(1);
+
+      const hasPayments = payments.length > 0;
+
+      // 3. Process incoming items
+      if (Array.isArray(b.items)) {
+        for (let i = 0; i < b.items.length; i++) {
+          const item = b.items[i];
+          const lineNo = i + 1;
+
+          if (
+            !item.id ||
+            String(item.id).startsWith("temp-") ||
+            String(item.id).startsWith("item-")
+          ) {
+            await tx.insert(invoiceLineItemsTable).values({
+              invoiceId: id,
+              lineNo,
+              description: item.description ?? "",
+              category: item.category ?? "Item",
+              quantity: String(item.quantity ?? 1),
+              unitPrice: String(item.unitPrice ?? 0),
+              total: String(item.total ?? 0),
+              hsnCode: item.hsnCode ?? "",
+              hsnGstPct: String(item.hsnGstPct ?? ""),
+              showHsn: item.showHsn !== false,
+              unit: item.unit ?? "",
+              isLocked: false,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+            continue;
+          }
+
+          const dbId = Number(item.id);
+          if (isNaN(dbId)) continue;
+
+          incomingIds.add(dbId);
+          const existing = existingMap.get(dbId);
+          if (!existing) continue;
+
+          const isLocked = existing.isLocked || hasPayments;
+
+          if (isLocked) {
+            // Only allow non-financial fields
+            await tx.update(invoiceLineItemsTable)
+              .set({
+                description: item.description ?? existing.description,
+                category: item.category ?? existing.category,
+                showHsn: item.showHsn !== false,
+                unit: item.unit ?? existing.unit,
+                lineNo,
+                updatedAt: new Date(),
+              })
+              .where(eq(invoiceLineItemsTable.id, dbId));
+          } else {
+            // Full update allowed
+            await tx.update(invoiceLineItemsTable)
+              .set({
+                description: item.description ?? "",
+                category: item.category ?? "Item",
+                quantity: String(item.quantity ?? 1),
+                unitPrice: String(item.unitPrice ?? 0),
+                total: String(item.total ?? 0),
+                hsnCode: item.hsnCode ?? "",
+                hsnGstPct: String(item.hsnGstPct ?? ""),
+                showHsn: item.showHsn !== false,
+                unit: item.unit ?? "",
+                lineNo,
+                updatedAt: new Date(),
+              })
+              .where(eq(invoiceLineItemsTable.id, dbId));
+          }
+        }
+      }
+
+      // 4. Soft-delete lines that were removed from the payload
+      for (const existing of existingLines) {
+        if (!incomingIds.has(existing.id)) {
+          // Safety: do not delete if it is locked (has allocations)
+          if (existing.isLocked) {
+            throw new Error(
+              `Cannot delete line item "${existing.description}" because payments have already been applied to it.`
+            );
+          }
+
+          await tx.update(invoiceLineItemsTable)
+            .set({
+              isDeleted: true,
+              deletedAt: new Date(),
+              deletedBy: req.user?.email ?? "system",
+              updatedAt: new Date(),
+            })
+            .where(eq(invoiceLineItemsTable.id, existing.id));
+        }
+      }
+      return row;
+    });
+    return res.json({ data: result });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

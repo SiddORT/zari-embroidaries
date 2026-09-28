@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useGetMe } from "@workspace/api-client-react";
@@ -6,6 +6,7 @@ import { Plus, Trash2, Loader2, Pencil, X, Check, ChevronDown, ChevronUp } from 
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { SmallSearchSelect} from "@/components/ui/SearchableSelect";
 
 export interface CostingPaymentRecord {
   id: number;
@@ -21,6 +22,16 @@ export interface CostingPaymentRecord {
   payment_date: string | null;
   remarks: string | null;
   created_at: string;
+  tds?: {
+    id: number;
+    tdsMasterId: number;
+    paidAmount: string;
+    tdsRate: string;
+    tdsAmount: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string | null;
+  };
 }
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
@@ -42,6 +53,7 @@ const DEFAULT_FORM = {
   remarks:       "",
   currencyCode:  "INR",
   exchangeRateSnapshot: "1",
+  tdsMasterId: 0,
 };
 
 interface Props {
@@ -71,6 +83,8 @@ export default function CostingPaymentsPanel({
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [form, setForm] = useState(DEFAULT_FORM);
   const { canEdit, canDelete } = useFormAccessContext();
+  const [tdsSearch, setTdsSearch] = useState("");
+  const [tdsFilteredOptions, setTdsFilteredOptions] = useState<{ value: number; label: string }[]>([]);
 
   const queryKey = ["costing-payments", referenceType, referenceId];
   const { data: payments = [], isLoading } = useQuery<CostingPaymentRecord[]>({
@@ -83,6 +97,33 @@ export default function CostingPaymentsPanel({
     },
   });
 
+  const { data: tdsData } = useQuery({
+    queryKey: ["tds-masters"],
+    queryFn: async () => {
+      const res = await customFetch<{ data: any[] }>("/api/tds-master?limit=100&status=active");
+      return res.data ?? [];
+    },
+  });
+
+  const tdsOptions = useMemo(() => {
+    return (tdsData || []).map((item) => ({
+      value: Number(item.id),
+      label: `${item.serviceName} (${item.sectionCode}) – ${item.ratePercent}%`,
+    }));
+  }, [tdsData]);
+
+  useEffect(() => {
+    if (!tdsSearch.trim()) {
+      setTdsFilteredOptions(tdsOptions);
+    } else {
+      const filtered = tdsOptions.filter(opt =>
+        opt.label.toLowerCase().includes(tdsSearch.toLowerCase())
+      );
+      setTdsFilteredOptions(filtered);
+    }
+  }, [tdsSearch, tdsOptions]);
+
+  const totalTds = payments.reduce( (s, p) => s + (p.tds ? parseFloat(p.tds.tdsAmount) : 0), 0 );
   const totalPaid = payments.reduce((s, p) => s + parseFloat((p as any).base_currency_amount || p.payment_amount || "0"), 0);
   const hasCompleted = payments.some(p => p.payment_status === "Completed");
 
@@ -107,6 +148,7 @@ export default function CostingPaymentsPanel({
           remarks:       form.remarks       || null,
           currencyCode:  form.currencyCode  || "INR",
           exchangeRateSnapshot: form.currencyCode === "INR" ? "1" : (form.exchangeRateSnapshot || "1"),
+          tdsMasterId: form.tdsMasterId || null,
         }),
       });
       qc.invalidateQueries({ queryKey });
@@ -131,6 +173,7 @@ export default function CostingPaymentsPanel({
       remarks:       p.remarks        ?? "",
       currencyCode:  (p as any).currency_code ?? "INR",
       exchangeRateSnapshot: String((p as any).exchange_rate_snapshot ?? "1"),
+      tdsMasterId: p.tds?.tdsMasterId ?? 0,
     });
   }
 
@@ -150,6 +193,7 @@ export default function CostingPaymentsPanel({
           remarks:       editForm.remarks       || null,
           currencyCode:  editForm.currencyCode  || "INR",
           exchangeRateSnapshot: editForm.currencyCode === "INR" ? "1" : (editForm.exchangeRateSnapshot || "1"),
+          tdsMasterId: editForm.tdsMasterId || null,
         }),
       });
       qc.invalidateQueries({ queryKey });
@@ -251,6 +295,18 @@ export default function CostingPaymentsPanel({
               </div>
             )}
             <div>
+              <label className={lblCls}>TDS</label>
+              <SmallSearchSelect
+                options={tdsFilteredOptions}
+                value={form.tdsMasterId}
+                onChange={(val) => setForm(f => ({ ...f, tdsMasterId: val }))}
+                onSearch={(search) => setTdsSearch(search)}
+                placeholder="Select TDS"
+                disabled={!canEdit}
+                clearable
+              />
+            </div>
+            <div>
               <label className={lblCls}>Status</label>
               <select value={form.paymentStatus} onChange={e => setForm(f => ({ ...f, paymentStatus: e.target.value }))} className={inpCls}>
                 <option>Pending</option>
@@ -339,6 +395,18 @@ export default function CostingPaymentsPanel({
                     </div>
                   )}
                   <div>
+                    <label className={lblCls}>TDS</label>
+                    <SmallSearchSelect
+                      options={tdsFilteredOptions}
+                      value={editForm.tdsMasterId}
+                      onChange={(val) => setEditForm(f => ({ ...f, tdsMasterId: val }))}
+                      onSearch={(search) => setTdsSearch(search)}
+                      placeholder="Select TDS"
+                      disabled={!canEdit}
+                      clearable
+                    />
+                  </div>
+                  <div>
                     <label className={lblCls}>Status</label>
                     <select value={editForm.paymentStatus} onChange={e => setEditForm(f => ({ ...f, paymentStatus: e.target.value }))} className={inpCls}>
                       <option>Pending</option>
@@ -371,7 +439,7 @@ export default function CostingPaymentsPanel({
               </div>
             ) : (
               <div key={p.id} className="flex items-start gap-2 px-2.5 py-2 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 min-w-0">
+                <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-0.5 min-w-0">
                   <div>
                     <p className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold">Type / Mode</p>
                     <p className="text-[10px] text-gray-700 font-medium">{p.payment_type ?? "—"} {p.payment_mode ? `· ${p.payment_mode}` : ""}</p>
@@ -380,10 +448,26 @@ export default function CostingPaymentsPanel({
                     <p className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold">Amount</p>
                     <p className="text-[10px] font-bold text-amber-700">
                       {((p as any).currency_code && (p as any).currency_code !== "INR") ? `${(p as any).currency_code} ` : "₹"}
-                      {parseFloat(p.payment_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      {p.tds
+                        ? parseFloat(p.tds.paidAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })
+                        : parseFloat((p as any).base_currency_amount ?? p.payment_amount ?? "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })
+                      }
                     </p>
                     {(p as any).currency_code && (p as any).currency_code !== "INR" && (
                       <p className="text-[9px] text-gray-400">≈ ₹{parseFloat((p as any).base_currency_amount ?? "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-wide font-semibold">TDS</p>
+                    {p.tds ? (
+                      <p className="text-[10px] text-gray-700 font-medium">
+                        {((p as any).currency_code && (p as any).currency_code !== "INR")
+                          ? `${(p as any).currency_code} `
+                          : "₹"}
+                        {parseFloat(p.tds.tdsAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-gray-400">—</p>
                     )}
                   </div>
                   <div>
@@ -400,7 +484,7 @@ export default function CostingPaymentsPanel({
                     </p>
                   </div>
                   {p.remarks && (
-                    <div className="col-span-2 sm:col-span-4">
+                    <div className="col-span-2 sm:col-span-5">
                       <p className="text-[9px] text-gray-400">Note: {p.remarks}</p>
                     </div>
                   )}

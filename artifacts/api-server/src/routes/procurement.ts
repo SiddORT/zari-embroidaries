@@ -156,191 +156,265 @@ router.get("/procurement/purchase-orders/:id", requireAuth,
 });
 
 // CREATE PO (Inventory or Manual)
-router.post("/procurement/purchase-orders", requireAuth, 
-  checkPermission({ any: [STOCK_PURCHASE_ORDERS.ADD_EDIT] }), 
+router.post("/procurement/purchase-orders", requireAuth,
+  checkPermission({ any: [STOCK_PURCHASE_ORDERS.ADD_EDIT] }),
   async (req: AuthRequest, res) => {
-  const client = await (pool as any).connect();
-  try {
-    await client.query("BEGIN");
-    const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
-    const {
-      vendorId, vendorName, poDate, referenceType = "Manual", referenceId = null,
-      notes, items = [],
-    } = req.body as {
-      vendorId: number;
-      vendorName: string;
-      poDate?: string;
-      referenceType?: string;
-      referenceId?: number | null;
-      notes?: string;
-      items: {
-        inventoryItemId: number;
-        itemName: string;
-        itemCode: string;
-        orderedQuantity: number;
-        unitPrice: number;
-        warehouseLocation?: string;
-        remarks?: string;
-        itemImage?: string | null;
-      }[];
-    };
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
+      const {
+        vendorId, vendorName, poDate, referenceType = "Manual", referenceId = null,
+        notes, items = [],
+      } = req.body as {
+        vendorId: number;
+        vendorName: string;
+        poDate?: string;
+        referenceType?: string;
+        referenceId?: number | null;
+        notes?: string;
+        items: {
+          inventoryItemId: number;
+          itemName: string;
+          itemCode: string;
+          orderedQuantity: number;
+          unitPrice: number;
+          warehouseLocation?: string;
+          remarks?: string;
+          itemImage?: string | null;
+        }[];
+      };
 
-    if (!vendorId) { res.status(400).json({ error: "Vendor is required" }); return; }
-    if (!items.length) { res.status(400).json({ error: "At least one item is required" }); return; }
+      if (!vendorId) { res.status(400).json({ error: "Vendor is required" }); return; }
+      if (!items.length) { res.status(400).json({ error: "At least one item is required" }); return; }
 
-    const vendorMode = "header";
-    const isSwatchOrStyle = referenceType === "Swatch" || referenceType === "Style";
-    const effectiveReferenceId = referenceId ?? null;
+      const vendorMode = "header";
+      const isSwatchOrStyle = referenceType === "Swatch" || referenceType === "Style";
+      const effectiveReferenceId = referenceId ?? null;
 
-    // ─── RESOLVE BOM ROW IDs for Swatch/Style POs ──────────────────────────
-    let bomRowIds: number[] = [];
-    let bomItems: any[] = [];
-
-    if (isSwatchOrStyle && effectiveReferenceId) {
+      // ─── FETCH INVENTORY ITEMS WITH SOURCE INFO ─────────────────────────────
       const inventoryItemIds = items.map(i => i.inventoryItemId);
-
       const invRes = await client.query(
-        `SELECT id, item_code, item_name, source_type, source_id
+        `SELECT id, item_code, item_name, source_type, source_id, unit_type, 
+                average_price, current_stock, warehouse_location
          FROM inventory_items
          WHERE id = ANY($1) AND is_deleted = false`,
         [inventoryItemIds]
       );
-
-      const invMap = new Map<number, { source_type: string; source_id: string; item_code: string; item_name: string }>();
+      const invMap = new Map<number, any>();
       for (const row of invRes.rows) {
-        invMap.set(row.id, {
-          source_type: row.source_type,
-          source_id: String(row.source_id),
-          item_code: row.item_code,
-          item_name: row.item_name,
-        });
+        invMap.set(row.id, row);
       }
 
-      const orderIdColumn = referenceType === "Swatch" ? "swatch_order_id" : "style_order_id";
+      // ─── BATCH FETCH HSN & GST FROM SOURCE TABLES ──────────────────────────
+      const fabricIds: number[] = [];
+      const materialIds: number[] = [];
+      for (const row of invRes.rows) {
+        if (row.source_type === 'fabric') fabricIds.push(parseInt(row.source_id));
+        else if (row.source_type === 'material') materialIds.push(parseInt(row.source_id));
+      }
 
-      for (const item of items) {
-        const inv = invMap.get(item.inventoryItemId);
-        if (!inv) continue;
+      const hsnGstMap = new Map<number, { hsnCode: string; gstPercent: string }>();
 
-        // Only select columns that exist in swatch_bom table
-        const bomRes = await client.query(
-          `SELECT id, unit_type, avg_unit_price
-           FROM swatch_bom
-           WHERE ${orderIdColumn} = $1
-             AND material_type = $2
-             AND material_id::text = $3
-             AND material_code = $4
-             AND is_deleted = false
-           LIMIT 1`,
-          [effectiveReferenceId, inv.source_type, inv.source_id, item.itemCode]
+      if (fabricIds.length) {
+        const fabricRes = await client.query(
+          `SELECT id, hsn_code, gst_percent
+           FROM fabrics
+           WHERE id = ANY($1) AND is_deleted = false`,
+          [fabricIds]
         );
+        for (const row of fabricRes.rows) {
+          hsnGstMap.set(row.id, { hsnCode: row.hsn_code, gstPercent: row.gst_percent });
+        }
+      }
 
-        if (bomRes.rows.length) {
-          const bomRow = bomRes.rows[0];
-          const bomRowId = bomRow.id;
+      if (materialIds.length) {
+        const materialRes = await client.query(
+          `SELECT id, hsn_code, gst_percent
+           FROM materials
+           WHERE id = ANY($1) AND is_deleted = false`,
+          [materialIds]
+        );
+        for (const row of materialRes.rows) {
+          hsnGstMap.set(row.id, { hsnCode: row.hsn_code, gstPercent: row.gst_percent });
+        }
+      }
+
+      // ─── RESOLVE & CREATE BOM ROWS for Swatch/Style POs ──────────────────────
+      let bomRowIds: number[] = [];
+      let bomItems: any[] = [];
+
+      if (isSwatchOrStyle && effectiveReferenceId) {
+        const orderIdColumn = referenceType === "Swatch" ? "swatch_order_id" : "style_order_id";
+
+        for (const item of items) {
+          const inv = invMap.get(item.inventoryItemId);
+          if (!inv) continue;
+
+          // Try to find existing BOM row
+          const bomRes = await client.query(
+            `SELECT id
+            FROM swatch_bom
+            WHERE ${orderIdColumn} = $1
+              AND material_type = $2
+              AND material_id = $3
+              AND material_code = $4
+              AND is_deleted = false
+            LIMIT 1`,
+            [effectiveReferenceId, inv.source_type, parseInt(inv.source_id), item.itemCode]
+          );
+
+          let bomRowId: number;
+          if (bomRes.rows.length) {
+            bomRowId = bomRes.rows[0].id;
+          } else {
+            const requiredQty = item.orderedQuantity;
+            const unitPrice = item.unitPrice || parseFloat(inv.average_price) || 0;
+            const estimatedAmount = requiredQty * unitPrice;
+
+            const insertRes = await client.query(
+              `INSERT INTO swatch_bom
+              (${orderIdColumn}, material_type, material_id, material_code, material_name,
+                current_stock, avg_unit_price, unit_type, warehouse_location,
+                required_qty, estimated_amount, consumed_qty,
+                target_vendor_id, target_vendor_name, created_by, created_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+              RETURNING id`,
+              [
+                effectiveReferenceId,
+                inv.source_type,
+                parseInt(inv.source_id),
+                item.itemCode,
+                item.itemName,
+                String(inv.current_stock ?? 0),
+                unitPrice.toFixed(2),
+                inv.unit_type || "",
+                inv.warehouse_location ?? null,
+                requiredQty.toFixed(3),
+                estimatedAmount.toFixed(2),
+                "0",
+                vendorId,
+                vendorName,
+                userName,
+              ]
+            );
+            bomRowId = insertRes.rows[0].id;
+          }
 
           bomRowIds.push(bomRowId);
           bomItems.push({
-            bomRowId: bomRowId,
+            bomRowId,
             materialCode: item.itemCode,
             materialName: item.itemName,
-            unitType: bomRow.unit_type ?? "",
-            targetPrice: String(item.unitPrice ?? bomRow.avg_unit_price),
+            unitType: inv.unit_type || "",
+            targetPrice: String(item.unitPrice || 0),
             quantity: String(item.orderedQuantity),
             targetVendorId: vendorId,
             targetVendorName: vendorName,
           });
         }
       }
-    }
 
-    const poNumber = await nextPoNumber(client);
-    // ─── INSERT PO HEADER ──────────────────────────────────────────────────
-    const poRes = await client.query(
-      `INSERT INTO purchase_orders
-         (po_number, vendor_id, vendor_name, vendor_mode, po_date, status, notes,
-          reference_type, reference_id, swatch_order_id, style_order_id,
-          bom_row_ids, bom_items, created_by, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
-       RETURNING *`,
-      [
-        poNumber,
-        vendorId,
-        vendorName,
-        vendorMode,
-        poDate ? new Date(poDate).toISOString() : new Date().toISOString(),
-        "Draft",
-        notes ?? null,
-        referenceType,
-        effectiveReferenceId,
-        referenceType === "Swatch" ? effectiveReferenceId : null,
-        referenceType === "Style" ? effectiveReferenceId : null,
-        JSON.stringify(bomRowIds),
-        JSON.stringify(bomItems),
-        userName,
-      ]
-    );
-    const po = poRes.rows[0];
+      const poNumber = await nextPoNumber(client);
 
-    // ─── INSERT PO ITEMS with resolved bomRowId ────────────────────────────
-    for (const item of items) {
-      let itemBomRowId: number | null = null;
-
-      if (isSwatchOrStyle && effectiveReferenceId) {
-        const invRes = await client.query(
-          `SELECT source_type, source_id FROM inventory_items WHERE id = $1 AND is_deleted = false`,
-          [item.inventoryItemId]
-        );
-        if (invRes.rows.length) {
-          const inv = invRes.rows[0];
-          const orderIdColumn = referenceType === "Swatch" ? "swatch_order_id" : "style_order_id";
-
-          const bomRes = await client.query(
-            `SELECT id FROM swatch_bom
-             WHERE ${orderIdColumn} = $1
-               AND material_type = $2
-               AND material_id::text = $3
-               AND material_code = $4
-               AND is_deleted = false
-             LIMIT 1`,
-            [effectiveReferenceId, inv.source_type, String(inv.source_id), item.itemCode]
-          );
-          if (bomRes.rows.length) {
-            itemBomRowId = bomRes.rows[0].id;
-          }
-        }
-      }
-
-      await client.query(
-        `INSERT INTO purchase_order_items
-           (po_id, inventory_item_id, item_name, item_code,
-            ordered_quantity, received_quantity, unit_price,
-            warehouse_location, remarks, item_image)
-         VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8,$9)`,
+      // ─── INSERT PO HEADER ──────────────────────────────────────────────────
+      const poRes = await client.query(
+        `INSERT INTO purchase_orders
+           (po_number, vendor_id, vendor_name, vendor_mode, po_date, status, notes,
+            reference_type, reference_id, swatch_order_id, style_order_id,
+            bom_row_ids, bom_items, created_by, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
+         RETURNING *`,
         [
-          po.id,
-          item.inventoryItemId,
-          item.itemName,
-          item.itemCode,
-          item.orderedQuantity,
-          item.unitPrice,
-          item.warehouseLocation ?? null,
-          item.remarks ?? null,
-          item.itemImage ?? null,
+          poNumber,
+          vendorId,
+          vendorName,
+          vendorMode,
+          poDate ? new Date(poDate).toISOString() : new Date().toISOString(),
+          "Draft",
+          notes ?? null,
+          referenceType,
+          effectiveReferenceId,
+          referenceType === "Swatch" ? effectiveReferenceId : null,
+          referenceType === "Style" ? effectiveReferenceId : null,
+          JSON.stringify(bomRowIds),
+          JSON.stringify(bomItems),
+          userName,
         ]
       );
-    }
+      const po = poRes.rows[0];
 
-    await client.query("COMMIT");
-    res.status(201).json({ data: po });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error(err);
-    res.status(500).json({ error: "Failed to create purchase order" });
-  } finally {
-    client.release();
+      // ─── INSERT PO ITEMS (INCLUDING HSN & GST) ───────────────────────────
+      for (const item of items) {
+        let itemBomRowId: number | null = null;
+
+        if (isSwatchOrStyle && effectiveReferenceId) {
+          const inv = invMap.get(item.inventoryItemId);
+          if (inv) {
+            const orderIdColumn = referenceType === "Swatch" ? "swatch_order_id" : "style_order_id";
+            const bomRes = await client.query(
+              `SELECT id FROM swatch_bom
+               WHERE ${orderIdColumn} = $1
+                 AND material_type = $2
+                 AND material_id::text = $3
+                 AND material_code = $4
+                 AND is_deleted = false
+               LIMIT 1`,
+              [effectiveReferenceId, inv.source_type, String(inv.source_id), item.itemCode]
+            );
+            if (bomRes.rows.length) {
+              itemBomRowId = bomRes.rows[0].id;
+            }
+          }
+        }
+
+        // Look up HSN & GST from the map using the inventory's source_id
+        const inv = invMap.get(item.inventoryItemId);
+        let hsnCode: string | null = null;
+        let gstPercent: string | null = null;
+        if (inv) {
+          const sourceId = parseInt(inv.source_id);
+          const info = hsnGstMap.get(sourceId);
+          if (info) {
+            hsnCode = info.hsnCode;
+            gstPercent = info.gstPercent;
+          }
+        }
+
+        await client.query(
+          `INSERT INTO purchase_order_items
+             (po_id, inventory_item_id, item_name, item_code,
+              ordered_quantity, received_quantity, unit_price,
+              warehouse_location, remarks, item_image,
+              hsn_code, gst_percentage)
+           VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8,$9,$10,$11)`,
+          [
+            po.id,
+            item.inventoryItemId,
+            item.itemName,
+            item.itemCode,
+            item.orderedQuantity,
+            item.unitPrice,
+            item.warehouseLocation ?? null,
+            item.remarks ?? null,
+            item.itemImage ?? null,
+            hsnCode,
+            gstPercent,
+          ]
+        );
+      }
+
+      await client.query("COMMIT");
+      res.status(201).json({ data: po });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(err);
+      res.status(500).json({ error: "Failed to create purchase order" });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 // UPDATE PO STATUS
 router.patch("/procurement/purchase-orders/:id/status", requireAuth, 
@@ -515,150 +589,212 @@ router.get("/procurement/purchase-receipts/:id", requireAuth,
 });
 
 // CREATE PR (draft, linked to PO)
-router.post("/procurement/purchase-receipts", requireAuth, 
-  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.ADD_EDIT] }), 
+router.post("/procurement/purchase-receipts", requireAuth,
+  checkPermission({ any: [STOCK_PURCHASE_RECEIPTS.ADD_EDIT] }),
   async (req: AuthRequest, res) => {
-  const client = await (pool as any).connect();
-  try {
-    await client.query("BEGIN");
-    const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
+    const client = await (pool as any).connect();
+    try {
+      await client.query("BEGIN");
+      const userName = (req.user as any)?.name || (req.user as any)?.email || "Admin";
 
-    const { poId, receivedDate, remarks, items = [], confirmNow = false } = req.body as {
-      poId: number;
-      receivedDate?: string;
-      remarks?: string;
-      confirmNow?: boolean;
-      items: { poItemId: number; inventoryItemId: number; itemName: string; itemCode: string; quantity: number; unitPrice: number; warehouseLocation?: string; remarks?: string }[];
-    };
+      const { poId, receivedDate, remarks, items = [], confirmNow = false, vendorId } = req.body as {
+        poId: number;
+        receivedDate?: string;
+        remarks?: string;
+        confirmNow?: boolean;
+        vendorId?: number | null;
+        items: {
+          poItemId: number;
+          inventoryItemId: number;
+          itemName: string;
+          itemCode: string;
+          quantity: number;
+          unitPrice: number;
+          warehouseLocation?: string;
+          remarks?: string;
+        }[];
+      };
 
-    if (!poId) { res.status(400).json({ error: "PO is required" }); return; }
-    if (!items.length) { res.status(400).json({ error: "At least one item is required" }); return; }
+      if (!poId) { res.status(400).json({ error: "PO is required" }); return; }
+      if (!items.length) { res.status(400).json({ error: "At least one item is required" }); return; }
 
-    const poRes = await client.query(
-      `SELECT po.*, v.id AS vid FROM purchase_orders po LEFT JOIN vendors v ON v.id = po.vendor_id AND v.is_deleted = false WHERE po.id = $1 AND po.is_deleted = false`,
-      [poId]
-    );
-    if (!poRes.rows.length) { res.status(400).json({ error: "PO not found" }); return; }
-    const po = poRes.rows[0];
-    if (!["Approved", "Partially Received", "In Process"].includes(po.status)) {
-      res.status(400).json({ error: `PO must be Approved before creating a receipt. Current status: ${po.status}` }); return;
-    }
-
-    const isSwatchOrStyle = po.reference_type === 'Swatch' || po.reference_type === 'Style';
-    const bomRowId = po.bom_row_ids && po.bom_row_ids.length === 1 ? po.bom_row_ids[0] : null;
-    // Validate quantities against pending on each PO item
-    for (const item of items) {
-      if (!item.poItemId) { res.status(400).json({ error: "Each item must reference a PO line item" }); return; }
-      if (!item.quantity || item.quantity <= 0) {
-        res.status(400).json({ error: `Received quantity must be greater than zero for item ${item.itemName}` }); return;
-      }
-      if (!item.inventoryItemId) {
-        res.status(400).json({ error: `Missing inventory item reference for ${item.itemName}` }); return;
-      }
-      const poItem = await client.query(
-        `SELECT ordered_quantity, received_quantity FROM purchase_order_items WHERE id = $1 AND po_id = $2 AND is_deleted = false`,
-        [item.poItemId, poId]
+      // Fetch PO header
+      const poRes = await client.query(
+        `SELECT po.*, v.id AS vid 
+         FROM purchase_orders po 
+         LEFT JOIN vendors v ON v.id = po.vendor_id AND v.is_deleted = false 
+         WHERE po.id = $1 AND po.is_deleted = false`,
+        [poId]
       );
-      if (!poItem.rows.length) { res.status(400).json({ error: `PO item ${item.poItemId} not found` }); return; }
-      // const pending = Math.max( 0, parseFloat(poItem.rows[0].ordered_quantity) - parseFloat(poItem.rows[0].received_quantity));
-      // if (item.quantity > pending + 0.001) {
-      //   res.status(400).json({ error: `Received quantity (${item.quantity}) exceeds pending (${pending.toFixed(3)}) for item ${item.itemName}` }); return;
-      // }
-    }
+      if (!poRes.rows.length) { res.status(400).json({ error: "PO not found" }); return; }
+      const po = poRes.rows[0];
+      if (!["Approved", "Partially Received", "In Process"].includes(po.status)) {
+        res.status(400).json({ error: `PO must be Approved before creating a receipt. Current status: ${po.status}` }); return;
+      }
 
-    const prNumber = await nextPrNumber(client);
-    const status = confirmNow ? "Received" : "Open";
+      // Resolve vendor for PR header
+      let vendorIdToInsert: number | null = null;
+      let vendorNameToInsert: string | null = null;
+      if (vendorId != null && !isNaN(Number(vendorId))) {
+        const vendorRes = await client.query(
+          `SELECT id, brand_name FROM vendors WHERE id = $1 AND is_deleted = false`,
+          [Number(vendorId)]
+        );
+        if (vendorRes.rows.length) {
+          vendorIdToInsert = Number(vendorId);
+          vendorNameToInsert = vendorRes.rows[0].brand_name;
+        } else {
+          vendorIdToInsert = null;
+          vendorNameToInsert = po.vendor_mode === 'header' ? po.vendor_name : null;
+        }
+      } else {
+        vendorNameToInsert = po.vendor_mode === 'header' ? po.vendor_name : null;
+        vendorIdToInsert = po.vendor_mode === 'header' ? po.vendor_id : null;
+      }
 
-    // PR header
-    const headerVendorName = po.vendor_mode === 'header' ? po.vendor_name : null;
-    const totalReceivedQty = items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-    const totalActualPrice = items?.reduce((sum, item) => sum + (item.unitPrice || 0), 0) || 0;
-    
-    const prRes = await client.query(
-      `INSERT INTO purchase_receipts
-        (pr_number, po_id, vendor_name, received_date, 
-          received_qty, actual_price,
-          warehouse_location, status, 
-          swatch_order_id, style_order_id, bom_row_id,
-          created_by, created_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-      RETURNING *`,
-      [
-        prNumber, 
-        poId, 
-        headerVendorName,
-        receivedDate ? new Date(receivedDate).toISOString() : new Date().toISOString(),
-        isSwatchOrStyle ? totalReceivedQty : 0,   // Real qty for Swatch/Style, 0 otherwise
-        isSwatchOrStyle ? totalActualPrice : 0,   // Real price for Swatch/Style, 0 otherwise
-        '',
-        status,
-        po.swatch_order_id ?? null, 
-        po.style_order_id ?? null,
-        bomRowId || null,
-        userName,
-      ]
-    );
-    const pr = prRes.rows[0];
+      // Validate items
+      for (const item of items) {
+        if (!item.poItemId) { res.status(400).json({ error: "Each item must reference a PO line item" }); return; }
+        if (!item.quantity || item.quantity <= 0) {
+          res.status(400).json({ error: `Received quantity must be greater than zero for item ${item.itemName}` }); return;
+        }
+        if (!item.inventoryItemId) {
+          res.status(400).json({ error: `Missing inventory item reference for ${item.itemName}` }); return;
+        }
+      }
 
-    // Fetch all PO item vendors in one query
-    const poItemIds = items.map(i => i.poItemId);
-    const poItemsRes = await client.query(
-      `SELECT id, vendor_id, vendor_name FROM purchase_order_items 
-       WHERE id = ANY($1) AND po_id = $2 AND is_deleted = false`,
-      [poItemIds, poId]
-    );
-    interface VendorInfo {
-      vendorId: number | null;
-      vendorName: string | null;
-    }
+      // ─── FETCH PO ITEMS (CORRECT COLUMN: gst_percentage) ──────────────
+      const poItemIds = items.map(i => i.poItemId);
+      const poItemsRes = await client.query(
+        `SELECT id, vendor_id, vendor_name, hsn_code, gst_percentage 
+         FROM purchase_order_items 
+         WHERE id = ANY($1) AND po_id = $2 AND is_deleted = false`,
+        [poItemIds, poId]
+      );
 
-    const vendorMap = new Map<number, VendorInfo>(
-        poItemsRes.rows.map((r: { id: number; vendor_id: number | null; vendor_name: string | null }) => [
-            r.id,
-            { vendorId: r.vendor_id, vendorName: r.vendor_name }
-        ])
-    );
+      const poItemMap = new Map<number, {
+        vendorId: number | null;
+        vendorName: string | null;
+        hsnCode: string | null;
+        gstPercentage: string | null;
+      }>();
+      for (const row of poItemsRes.rows) {
+        poItemMap.set(row.id, {
+          vendorId: row.vendor_id,
+          vendorName: row.vendor_name,
+          hsnCode: row.hsn_code,
+          gstPercentage: row.gst_percentage,   
+        });
+      }
 
-    // PR items
-    for (const item of items) {
-      const vendor = vendorMap.get(item.poItemId);
-      await client.query(
-        `INSERT INTO purchase_receipt_items
-           (pr_id, po_item_id, inventory_item_id, item_name, item_code,
-            quantity, unit_price, warehouse_location, remarks, item_image,vendor_id, vendor_name)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      // ─── COMPUTE TOTALS ──────────────────────────────────────────────────
+      let totalReceivedQty = 0;
+      let totalActualPrice = 0;
+      let totalWithGst = 0;
+
+      for (const item of items) {
+        const poItemInfo = poItemMap.get(item.poItemId);
+        const gstPercent = parseFloat(poItemInfo?.gstPercentage ?? "0");
+        const lineBeforeTax = item.quantity * item.unitPrice;
+        const lineWithGst = lineBeforeTax * (1 + gstPercent / 100);
+
+        totalReceivedQty += item.quantity;
+        totalActualPrice += lineBeforeTax;
+        totalWithGst += lineWithGst;
+      }
+
+      totalActualPrice = Math.round(totalActualPrice * 100) / 100;
+      totalWithGst = Math.round(totalWithGst * 100) / 100;
+
+      // ─── INSERT PR HEADER ──────────────────────────────────────────────────
+      const prNumber = await nextPrNumber(client);
+      const status = confirmNow ? "Received" : "Open";
+
+      const isSwatchOrStyle = po.reference_type === 'Swatch' || po.reference_type === 'Style';
+      const bomRowId = po.bom_row_ids && po.bom_row_ids.length === 1 ? po.bom_row_ids[0] : null;
+
+      const prRes = await client.query(
+        `INSERT INTO purchase_receipts
+           (pr_number, po_id, vendor_name, vendor_id, received_date,
+            received_qty, actual_price, total_amount_with_gst,
+            warehouse_location, status,
+            swatch_order_id, style_order_id, bom_row_id,
+            created_by, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+         RETURNING *`,
         [
-          pr.id, item.poItemId, item.inventoryItemId,
-          item.itemName, item.itemCode, item.quantity, item.unitPrice,
-          item.warehouseLocation ?? null, item.remarks ?? null, (item as any).itemImage ?? null,
-          vendor?.vendorId ?? null,
-          vendor?.vendorName ?? null,
+          prNumber,
+          poId,
+          vendorNameToInsert,
+          vendorIdToInsert,
+          receivedDate ? new Date(receivedDate).toISOString() : new Date().toISOString(),
+          totalReceivedQty,
+          totalActualPrice,
+          totalWithGst,
+          '',
+          status,
+          po.swatch_order_id ?? null,
+          po.style_order_id ?? null,
+          bomRowId || null,
+          userName,
         ]
       );
-    }
+      const pr = prRes.rows[0];
 
-    if (confirmNow) {
-      await applyInventoryUpdate(client, pr.id, prNumber, items, userName);
-      // Update po_item received quantities
+      // ─── INSERT PR ITEMS (using gst_percentage consistently) ────────────
       for (const item of items) {
+        const poItemInfo = poItemMap.get(item.poItemId);
         await client.query(
-          `UPDATE purchase_order_items SET received_quantity = received_quantity + $1, updated_at = NOW() WHERE id = $2`,
-          [item.quantity, item.poItemId]
+          `INSERT INTO purchase_receipt_items
+             (pr_id, po_item_id, inventory_item_id, item_name, item_code,
+              quantity, unit_price, warehouse_location, remarks, item_image,
+              vendor_id, vendor_name, hsn_code, gst_percentage)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [
+            pr.id,
+            item.poItemId,
+            item.inventoryItemId,
+            item.itemName,
+            item.itemCode,
+            item.quantity,
+            item.unitPrice,
+            item.warehouseLocation ?? null,
+            item.remarks ?? null,
+            (item as any).itemImage ?? null,
+            poItemInfo?.vendorId ?? null,
+            poItemInfo?.vendorName ?? null,
+            poItemInfo?.hsnCode ?? null,
+            poItemInfo?.gstPercentage ?? null,   
+          ]
         );
       }
-      await recalcPoStatus(client, poId);
-    }
 
-    await client.query("COMMIT");
-    res.status(201).json({ data: { ...pr, pr_number: prNumber } });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error(err);
-    res.status(500).json({ error: "Failed to create purchase receipt" });
-  } finally {
-    client.release();
+      // ─── CONFIRM NOW: update inventory and PO status ────────────────────
+      if (confirmNow) {
+        await applyInventoryUpdate(client, pr.id, prNumber, items, userName);
+
+        for (const item of items) {
+          await client.query(
+            `UPDATE purchase_order_items 
+             SET received_quantity = received_quantity + $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [item.quantity, item.poItemId]
+          );
+        }
+        await recalcPoStatus(client, poId);
+      }
+
+      await client.query("COMMIT");
+      res.status(201).json({ data: { ...pr, pr_number: prNumber } });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(err);
+      res.status(500).json({ error: "Failed to create purchase receipt" });
+    } finally {
+      client.release();
+    }
   }
-});
+);
 
 // CONFIRM PR
 router.post("/procurement/purchase-receipts/:id/confirm", requireAuth, 

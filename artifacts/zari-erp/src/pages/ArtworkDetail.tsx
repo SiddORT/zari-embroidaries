@@ -285,6 +285,37 @@ export default function ArtworkDetail() {
     return null;
   }
 
+  function buildPayload() {
+    const {
+      outsourceVendorId,
+      outsourceVendorName,
+      outsourcePaymentDate,
+      outsourcePaymentAmount,
+      outsourcePaymentMode,
+      outsourceTransactionId,
+      outsourcePaymentStatus,
+      ...rest
+    } = form;
+
+    const payload: Record<string, unknown> = {
+      ...rest,
+      swatchOrderId: swatchOrderIdNum,
+    };
+
+    if (form.artworkCreated === "Outsource") {
+      Object.assign(payload, {
+        outsourceVendorId,
+        outsourceVendorName,
+        outsourcePaymentDate,
+        outsourcePaymentAmount,
+        outsourcePaymentMode,
+        outsourceTransactionId,
+        outsourcePaymentStatus,
+      });
+    }
+    return payload;
+  }
+
   async function handleSave() {
     if (saveInProgressRef.current) return;
     if (!form.artworkName.trim()) {
@@ -300,7 +331,7 @@ export default function ArtworkDetail() {
     setSaving(true);
     try {
       if (isNew) {
-        const payload = { ...form, swatchOrderId: swatchOrderIdNum };
+        const payload = buildPayload();         
         await createArtwork.mutateAsync(payload);
         toast({ title: "Artwork created" });
         savedFormRef.current = form;
@@ -324,7 +355,7 @@ export default function ArtworkDetail() {
         savedFormRef.current = form;
         toast({ title: "Artwork updated" });
       } else {
-        const payload = { ...form, swatchOrderId: swatchOrderIdNum };
+        const payload = buildPayload();         
         await updateArtwork.mutateAsync({ id: numericId!, data: payload });
         savedFormRef.current = form;
         toast({ title: "Artwork saved" });

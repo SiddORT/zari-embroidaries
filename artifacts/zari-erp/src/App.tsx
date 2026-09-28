@@ -73,6 +73,8 @@ import OtherExpenses from "@/pages/OtherExpenses";
 import AccountsDashboard from "@/pages/AccountsDashboard";
 import VendorChallans from "@/pages/VendorChallans";
 import VendorChallanDetail from "@/pages/VendorChallanDetail";
+import TDSMaster from "@/pages/TDSMaster";
+import VendorLedgerPayment from "@/pages/VendorLedgerPayment";
 
 import Reports from "@/pages/Reports";
 
@@ -107,6 +109,7 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <ProtectedRoute path="/masters/tds" component={TDSMaster} permission="masters:tds"/>
       <ProtectedRoute path="/dashboard" component={Dashboard} permission="dashboard" />
       <ProtectedRoute path="/masters" component={MastersRedirect} permission="masters:hsn" />
       <ProtectedRoute path="/masters/hsn" component={HSNMaster} permission="masters:hsn" />
@@ -144,6 +147,7 @@ function Router() {
       <ProtectedRoute path="/accounts" component={AccountsDashboard} permission="accounts:dashboard" />
       <ProtectedRoute path="/accounts/ledgers" component={VendorLedgers} permission="accounts:vendor_ledgers" />
       <ProtectedRoute path="/accounts/ledgers/:vendorId" component={VendorLedgerDetail} permission="accounts:vendor_ledgers" />
+      <ProtectedRoute path="/accounts/ledgers/:vendorId/payment" component={VendorLedgerPayment} permission="accounts:vendor_ledgers"/>
       <ProtectedRoute path="/accounts/invoices/new" component={InvoiceForm} permission="accounts:invoices" />
       <ProtectedRoute path="/accounts/invoices/:id/edit" component={InvoiceForm} permission="accounts:invoices" />
       <ProtectedRoute path="/accounts/invoices/:id" component={InvoiceForm} permission="accounts:invoices" />

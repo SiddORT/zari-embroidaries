@@ -56,6 +56,7 @@ interface POItem {
 interface PODetail {
   id: number;
   po_number: string;
+  vendor_id?: number;
   vendor_name: string;
   vendor_mode: string;
   reference_type: string;
@@ -290,6 +291,7 @@ export default function PurchaseReceiptForm() {
         poId: Number(selectedPoId),
         receivedDate,
         confirmNow,
+        vendorId: poDetail?.vendor_id ?? null,
         items: validLines.map(l => ({
           poItemId: l.poItemId,
           inventoryItemId: l.inventoryItemId,

@@ -414,5 +414,311 @@ router.get("/reports/gst-summary", requireAuth,
   }
 });
 
+router.get(
+  "/reports/tds-summary",
+  requireAuth,
+  checkPermission({ any: [REPORTS_GST_SUMMARY.VIEW] }),
+
+  async (req, res) => {
+    try {
+     const { from_date, to_date, client, vendor, section, status, } = req.query as Record<string, string>;
+
+      const fromDate = from_date || null;
+
+      const toDate = to_date || null;
+
+      const clientQ = client && client !== "all" ? client : null;
+
+      const vendorQ = vendor && vendor !== "all" ? vendor : null;
+
+      const sectionQ = section && section !== "all" ? section : null;
+
+      const statusQ = status && status !== "all" ? status : null;
+
+      const params = [fromDate, toDate, clientQ, vendorQ, sectionQ, statusQ];
+
+      const rows = await pool.query(
+        `
+
+        /* ──────────────────────────────────────────────────────────
+
+           TDS PAID — clients withheld from our invoices
+
+           Source: invoice_payment_tds
+
+        ────────────────────────────────────────────────────────── */
+
+        SELECT
+
+          ipt.id::text                                           AS source_id,
+
+          'TDS Paid'::text                                       AS transaction_type,
+
+          TO_CHAR(ipt.payment_date, 'YYYY-MM-DD')                AS date,
+
+          COALESCE(i.invoice_no, 'INV-' || ipt.invoice_id::text) AS ref_no,
+
+          COALESCE(c.brand_name, i.client_name, '—')             AS party_name,
+
+          ipt.client_id                                          AS party_id,
+
+          COALESCE(tm.section_code, '—')                         AS tds_section,
+
+          COALESCE(tm.service_name, '—')                         AS tds_service,
+
+          ipt.tds_rate::numeric                                  AS tds_rate,
+
+          ipt.gross_amount::numeric                              AS gross_amount,
+
+          ipt.base_amount::numeric                               AS base_amount,
+
+          ipt.gst_amount::numeric                                AS gst_amount,
+
+          ipt.gst_percentage::numeric                            AS gst_percentage,
+
+          ipt.tds_amount::numeric                                AS tds_amount,
+
+          ipt.paid_amount::numeric                               AS net_paid,
+
+          ipt.status::text                                       AS status,
+
+          ipt.payment_currency_code                              AS currency_code
+
+        FROM invoice_payment_tds ipt
+
+        LEFT JOIN invoices   i  ON i.id = ipt.invoice_id
+
+        LEFT JOIN clients    c  ON c.id = ipt.client_id
+
+        LEFT JOIN tds_master tm ON tm.id = ipt.tds_master_id
+
+        WHERE ipt.is_deleted = false
+
+          AND ($1::date IS NULL OR ipt.payment_date >= $1::date)
+
+          AND ($2::date IS NULL OR ipt.payment_date <  ($2::date + INTERVAL '1 day'))
+
+          AND ($3::text IS NULL OR COALESCE(c.brand_name, i.client_name) ILIKE '%' || $3::text || '%')
+
+          AND ($5::text IS NULL OR tm.section_code = $5::text)
+
+          AND ($6::text IS NULL OR ipt.status = $6::text)
+
+
+
+        UNION ALL
+
+
+
+        /* ──────────────────────────────────────────────────────────
+
+           TDS COLLECTED — we withheld from vendor payments
+
+           Source: payment_tds
+
+        ────────────────────────────────────────────────────────── */
+
+        SELECT
+
+          pt.id::text                                            AS source_id,
+
+          'TDS Collected'::text                                  AS transaction_type,
+
+          TO_CHAR(pt.payment_date, 'YYYY-MM-DD')                 AS date,
+
+          COALESCE(
+
+            pr.pr_number,
+
+            vc.challan_number,
+
+            sw.order_code,
+
+            st.order_code,
+
+            csw.order_code,
+
+            cst.order_code,
+
+            a.artwork_code,
+
+            soa_art.artwork_code,
+
+            soa_toile.artwork_code,
+
+            sop.product_name,
+
+            oe.expense_number,
+
+            oe2.expense_number,
+
+            vlc.description,
+
+            pt.base_document_type::text || ' #' || pt.base_document_id::text,
+
+            '—'
+
+          )                                                      AS ref_no,
+
+          COALESCE(v.brand_name, '—')                            AS party_name,
+
+          pt.vendor_id                                           AS party_id,
+
+          COALESCE(tm.section_code, '—')                         AS tds_section,
+
+          COALESCE(tm.service_name, '—')                         AS tds_service,
+
+          pt.tds_rate::numeric                                   AS tds_rate,
+
+          pt.gross_amount::numeric                               AS gross_amount,
+
+          pt.base_amount::numeric                                AS base_amount,
+
+          pt.gst_amount::numeric                                 AS gst_amount,
+
+          pt.gst_percentage::numeric                             AS gst_percentage,
+
+          pt.tds_amount::numeric                                 AS tds_amount,
+
+          pt.paid_amount::numeric                                AS net_paid,
+
+          pt.status::text                                        AS status,
+
+          pt.payment_currency_code                               AS currency_code
+
+        FROM payment_tds pt
+
+        LEFT JOIN vendors    v  ON v.id = pt.vendor_id
+
+        LEFT JOIN tds_master tm ON tm.id = pt.tds_master_id
+
+
+
+        /* ── Ref-resolution joins ────────────────────────────────── */
+
+        LEFT JOIN purchase_receipts    pr       ON pt.base_document_type = 'pr'                   AND pr.id         = pt.base_document_id
+
+        LEFT JOIN vendor_challans      vc       ON pt.base_document_type = 'vendor_challan'       AND vc.id         = pt.base_document_id
+
+
+
+        /* outsource_job — ref via swatch_orders / style_orders */
+
+        LEFT JOIN outsource_jobs       oj       ON pt.base_document_type = 'outsource_job'        AND oj.id         = pt.base_document_id
+
+        LEFT JOIN swatch_orders        sw       ON sw.id = oj.swatch_order_id
+
+        LEFT JOIN style_orders         st       ON st.id = oj.style_order_id
+
+
+
+        /* custom_charge — ref via swatch_orders / style_orders */
+
+        LEFT JOIN custom_charges       cc       ON pt.base_document_type = 'custom_charge'        AND cc.id         = pt.base_document_id
+
+        LEFT JOIN swatch_orders        csw      ON csw.id = cc.swatch_order_id
+
+        LEFT JOIN style_orders         cst      ON cst.id = cc.style_order_id
+
+
+
+        LEFT JOIN artworks             a        ON pt.base_document_type = 'artwork_swatch'       AND a.id          = pt.base_document_id
+
+        LEFT JOIN style_order_artworks soa_art  ON pt.base_document_type = 'artwork_style'        AND soa_art.id    = pt.base_document_id
+
+        LEFT JOIN style_order_artworks soa_toile ON pt.base_document_type = 'toile'               AND soa_toile.id  = pt.base_document_id
+
+        LEFT JOIN style_order_products sop      ON pt.base_document_type = 'style_order_product'  AND sop.id        = pt.base_document_id
+
+
+
+        /* other_expense — direct TDS row */
+
+        LEFT JOIN other_expenses       oe       ON pt.base_document_type = 'other_expense'        AND oe.expense_id = pt.base_document_id
+
+
+
+        /* ledger_charge — its order_id may point to an other_expenses row */
+
+        LEFT JOIN vendor_ledger_charges vlc     ON pt.base_document_type = 'ledger_charge'         AND vlc.id       = pt.base_document_id
+
+        LEFT JOIN other_expenses       oe2      ON vlc.order_type = 'other_expenses' AND oe2.expense_id = vlc.order_id
+
+
+
+        WHERE pt.is_deleted = false
+
+          AND ($1::date IS NULL OR pt.payment_date >= $1::date)
+
+          AND ($2::date IS NULL OR pt.payment_date <  ($2::date + INTERVAL '1 day'))
+
+          AND ($4::text IS NULL OR v.brand_name ILIKE '%' || $4::text || '%')
+
+          AND ($5::text IS NULL OR tm.section_code = $5::text)
+
+          AND ($6::text IS NULL OR pt.status::text = $6::text)
+
+
+
+        ORDER BY date DESC
+
+        `,
+
+        params,
+      );
+
+      // ── Split into paid / collected for the summary ──
+
+      const collected = rows.rows.filter(
+        (r) => r.transaction_type === "TDS Collected",
+      );
+
+      const paid = rows.rows.filter((r) => r.transaction_type === "TDS Paid");
+
+      const sumF = (arr: any[], key: string) =>
+        arr.reduce((s, r) => s + parseFloat(String(r[key] ?? "0")), 0);
+
+      const summary = {
+        collected: {
+          total: parseFloat(sumF(collected, "tds_amount").toFixed(2)),
+
+          base: parseFloat(sumF(collected, "base_amount").toFixed(2)),
+
+          gross: parseFloat(sumF(collected, "gross_amount").toFixed(2)),
+
+          count: collected.length,
+        },
+
+        paid: {
+          total: parseFloat(sumF(paid, "tds_amount").toFixed(2)),
+
+          base: parseFloat(sumF(paid, "base_amount").toFixed(2)),
+
+          gross: parseFloat(sumF(paid, "gross_amount").toFixed(2)),
+
+          count: paid.length,
+        },
+      };
+
+      const netPosition = parseFloat(
+        (summary.collected.total - summary.paid.total).toFixed(2),
+      );
+
+      res.json({
+        data: rows.rows,
+
+        summary,
+
+        netPosition,
+      });
+    } catch (err) {
+      console.error("[reports/tds-summary]", err);
+
+      res.status(500).json({ error: "Failed to load TDS summary" });
+    }
+  },
+);
+
+
 export default router;
 

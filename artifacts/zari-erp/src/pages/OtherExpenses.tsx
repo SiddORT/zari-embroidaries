@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Search, Plus, FileText, Eye, Trash2, X, CheckCircle2,
   Clock, AlertTriangle, DollarSign, Filter, RefreshCw,
@@ -11,6 +11,8 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useFormAccessContext } from "@/contexts/FormAccessContext";
+import { SmallSearchSelect, SmallSearchSelectOption } from "@/components/ui/SearchableSelect";
+import { useHsnSearch } from "@/hooks/useCosting";
 
 /* ── styles ─────────────────────────────────────────── */
 const CARD = "rounded-2xl bg-white border border-[#C6AF4B]/15 shadow-[0_2px_16px_rgba(198,175,75,0.12),0_1px_3px_rgba(0,0,0,0.06)]";
@@ -71,12 +73,81 @@ function ExpenseModal({
     payment_type:      initial?.payment_type ?? "",
     expense_date:      initial?.expense_date ?? today,
     remarks:           initial?.remarks ?? "",
+    hsn_id: String(initial?.hsn_id ?? ""),
+    hsn_code: initial?.hsn_code ?? "",
+    gst_percentage: initial?.gst_percentage ?? "",
   });
   const [file, setFile]   = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [hsnSearch, setHsnSearch] = useState("");
+  const [selectedHsn, setSelectedHsn] = useState<{
+    value: string | number;
+    label: string;
+    hsnCode: string;
+    gstPercentage: string;
+  } | null>(null);
+
+  // Use the existing hook
+  const { data: hsnData } = useHsnSearch(hsnSearch);
+
+  // Build options from API response
+  const hsnOptions = useMemo(() => {
+    if (!hsnData) return [];
+    return hsnData.map((item: any) => ({
+      value: item.id,
+      label: `${item.hsnCode} - ${item.gstPercentage || ""}%`,
+      hsnCode: item.hsnCode,
+      gstPercentage: item.gstPercentage,
+    }));
+  }, [hsnData]);
+
+  // Merge search results with the currently selected HSN (to keep label visible)
+  const displayOptions = useMemo(() => {
+    const opts = [...hsnOptions];
+    if (selectedHsn && !opts.some(o => o.value === selectedHsn.value)) {
+      opts.push(selectedHsn);
+    }
+    return opts;
+  }, [hsnOptions, selectedHsn]);
+
+  // Initialize selectedHsn from initial data (edit mode)
+  useEffect(() => {
+    if (initial?.hsn_id) {
+      setSelectedHsn({
+        value: initial.hsn_id,
+        label: `${initial.hsn_code} - ${initial.gst_percentage || ""}%`,
+        hsnCode: initial.hsn_code,
+        gstPercentage: initial.gst_percentage,
+      });
+    }
+  }, [initial]);
+
+  // Handle selection from dropdown
+  const handleHsnSelect = (value: any) => {
+    if (!value) {
+      setSelectedHsn(null);
+      setForm(f => ({ ...f, hsn_id: "", hsn_code: "", gst_percentage: "" }));
+      return;
+    }
+    const selected = displayOptions.find(o => String(o.value) === String(value));
+    if (selected) {
+      setSelectedHsn(selected);
+      setForm(f => ({
+        ...f,
+        hsn_id: String(selected.value),
+        hsn_code: selected.hsnCode || "",
+        gst_percentage: selected.gstPercentage || "",
+      }));
+    }
+  };
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  
+  // Debounced search: update hsnSearch when user types
+  const handleSearch = useCallback((search: string) => {
+    setHsnSearch(search);
+  }, []);
 
   const allCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...categories])).sort();
 
@@ -93,6 +164,7 @@ function ExpenseModal({
       setError("Payment Type is required when payment status is Paid or Partially Paid.");
       return;
     }
+   if (!form.hsn_id || !form.hsn_code || !form.gst_percentage) { setError("Please select a valid HSN code."); return; }
 
     const fd = new FormData();
     fd.append("expense_category", cat);
@@ -106,6 +178,9 @@ function ExpenseModal({
     fd.append("payment_type",     form.payment_type);
     fd.append("expense_date",     form.expense_date);
     fd.append("remarks",          form.remarks);
+    fd.append("hsn_id",           form.hsn_id);
+    fd.append("hsn_code",         form.hsn_code);
+    fd.append("gst_percentage",   form.gst_percentage);
     if (file) fd.append("attachment", file);
 
     setSaving(true);
@@ -180,6 +255,24 @@ function ExpenseModal({
 
           {/* Payment */}
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={LBL}>HSN Code <span className="text-red-500 ml-0.5">*</span></label>
+              <SmallSearchSelect
+                options={displayOptions}
+                value={form.hsn_id || null}
+                onChange={handleHsnSelect}
+                onSearch={handleSearch}
+                placeholder="Search HSN..."
+                clearable={true}
+              />
+              {/* GST info label - appears only when HSN is selected */}
+              {form.hsn_code && form.gst_percentage && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-xs flex items-center gap-2 mt-1">
+                  <span className="text-gray-500">GST from HSN {form.hsn_code}:</span>
+                  <span className="font-bold text-blue-700 text-sm">{form.gst_percentage}%</span>
+                </div>
+              )}
+            </div>
             <div>
               <label className={LBL}>Payment Status</label>
               <select className={INP} value={form.payment_status} onChange={e => set("payment_status", e.target.value)}>
@@ -364,9 +457,10 @@ export default function OtherExpenses() {
   const [viewRow, setViewRow]         = useState<any | null>(null);
 
   /* summary stats */
-  const totalAmt   = rows.reduce((s, r) => s + parseFloat(r.amount ?? 0), 0);
-  const unpaidAmt  = rows.filter(r => r.payment_status === "Unpaid").reduce((s, r) => s + parseFloat(r.amount ?? 0), 0);
-  const paidCount  = rows.filter(r => r.payment_status === "Paid").length;
+  const totalAmt = rows.reduce( (s, r) => s + parseFloat(r.amount_with_gst ?? 0), 0 );
+  const paidAmt = rows.reduce( (s, r) => s + parseFloat(r.paid_amount ?? 0), 0 );
+  const unpaidAmt = totalAmt - paidAmt;
+  const paidCount = rows.filter( r => r.payment_status === "Paid" ).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -587,7 +681,7 @@ export default function OtherExpenses() {
             <table className="min-w-full">
               <thead className="bg-gray-50/80 border-b border-gray-100">
                 <tr>
-                  {["Expense #", "Category", "Vendor", "Amount", "Currency", "Status", "Payment Type", "Date", "Attachment", "Created By", "Actions"]
+                  {["Expense #", "Category", "Vendor", "Amount", "GST", "Total (incl. GST", "Currency", "Status", "Payment Type", "Date", "Attachment", "Created By", "Actions"]
                   .filter((h) => h !== "Actions" || canEdit || canView)
                   .map(h => (
                     <th key={h} className={TH}>{h}</th>
@@ -615,6 +709,8 @@ export default function OtherExpenses() {
                       {row.currency_code === "INR" ? dc.symbol : row.currency_code + " "}
                       {parseFloat(row.amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    <td className={TD}> {row.gst_percentage}% ({fmt(row.gst_amount)}) </td>
+                    <td className={TD}> {fmt(row.amount_with_gst)} </td>
                     <td className={TD}>{row.currency_code}</td>
                     <td className={TD}>{badge(row.payment_status, STATUS_STYLES[row.payment_status] ?? "bg-gray-100 text-gray-700")}</td>
                     <td className={TD}>{row.payment_type || <span className="text-gray-400">—</span>}</td>

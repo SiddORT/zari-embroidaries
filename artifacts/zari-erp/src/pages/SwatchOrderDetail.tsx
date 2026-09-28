@@ -1538,14 +1538,14 @@ export default function SwatchOrderDetail() {
 
         {/* ══ TAB: Costing ══════════════════════════════════════════════════ */}
         {activeTab === "Costing" && numId && (
-          <FormAccessGate readOnly={!canEdit}>
+          // <FormAccessGate readOnly={!canEdit}>
           <CostingTab
             swatchOrderId={numId}
             orderCode={orderData?.data?.orderCode ?? undefined}
             swatchName={orderData?.data?.swatchName ?? undefined}
             clientName={orderData?.data?.clientName ?? undefined}
           />
-          </FormAccessGate>
+          // </FormAccessGate>
         )}
 
         {/* ══ TAB: Cost Sheet ════════════════════════════════════════════ */}

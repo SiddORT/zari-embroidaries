@@ -1,0 +1,1 @@
+ALTER TABLE "style_order_artworks" ADD COLUMN "toil_gst_percentage" numeric(5, 2) DEFAULT '18' NOT NULL;

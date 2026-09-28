@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, jsonb, timestamp, numeric } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const styleOrderProductsTable = pgTable("style_order_products", {
@@ -42,6 +42,7 @@ export const styleOrderProductsTable = pgTable("style_order_products", {
   patternTransactionId: text("pattern_transaction_id"),
   patternPaymentDate: text("pattern_payment_date"),
   patternRemarks: text("pattern_remarks"),
+  gstPercentage: numeric("gst_percentage", { precision: 5, scale: 2 }) .notNull() .default("18"),
 
   isDeleted: boolean("is_deleted").notNull().default(false),
   deletedBy: text("deleted_by"),

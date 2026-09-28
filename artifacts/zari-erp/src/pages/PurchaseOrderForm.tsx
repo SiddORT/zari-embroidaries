@@ -929,27 +929,35 @@ export default function PurchaseOrderForm() {
                         <td className="px-3 py-2 align-top">
                           <SmallSearchSelect
                             value={line.inventoryItemId ? String(line.inventoryItemId) : ""}
-                            options={itemsForCategory(line.itemCategory).map(item => ({
+                            options={(() => {
+                              const base = itemsForCategory(line.itemCategory).map(item => ({
                                 value: String(item.id),
                                 label: `${item.item_name} · ${
-                                    item.source_type === "fabric"
-                                        ? "Fabric"
-                                        : item.source_type === "material"
-                                        ? "Material"
-                                        : item.source_type === "packaging"
-                                        ? "Item Master"
-                                        : item.source_type
+                                  item.source_type === "fabric" ? "Fabric"
+                                  : item.source_type === "material" ? "Material"
+                                  : item.source_type === "packaging" ? "Item Master"
+                                  : item.source_type
                                 }${item.item_code ? ` (${item.item_code})` : ""}`,
-                            }))}
+                              }));
+                              if (
+                                line.inventoryItemId &&
+                                !base.some(o => o.value === String(line.inventoryItemId))
+                              ) {
+                                base.unshift({
+                                  value: String(line.inventoryItemId),
+                                  label: `${line.itemName}${line.itemCode ? ` (${line.itemCode})` : ""}`,
+                                });
+                              }
+
+                              return base;
+                            })()}
                             onSearch={(search) => fetchInventoryItems(search, line.itemCategory)}
                             onChange={(value) => {
-                                const item =
-                                    inventoryItems.find(i => String(i.id) === value) ?? null;
-
-                                selectItem(line.key, item);
+                              const item = inventoryItems.find(i => String(i.id) === value) ?? null;
+                              selectItem(line.key, item);
                             }}
                             placeholder="Select item..."
-                        />
+                          />
                                                 
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-500 align-top">{line.unitType || "—"}</td>

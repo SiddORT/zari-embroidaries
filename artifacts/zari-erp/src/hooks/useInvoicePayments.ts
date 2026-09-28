@@ -51,6 +51,19 @@ export interface InvoicePayment {
   remarks: string;
   created_by: string;
   created_at: string;
+
+  tds_id?: number | null;
+  tds_master_id?: number | null;
+  tds_rate?: number | string | null;
+  tds_amount?: number | string | null;
+  tds_base_amount?: number | string | null;
+  tds_gst_amount?: number | string | null;
+  tds_gst_percentage?: number | string | null;
+  tds_paid_amount?: number | string | null;
+  tds_status?: string | null;
+  tds_section_code?: string | null;
+  tds_service_name?: string | null;
+  tds_master_rate?: number | string | null;
 }
 
 export interface AccountsFilters {

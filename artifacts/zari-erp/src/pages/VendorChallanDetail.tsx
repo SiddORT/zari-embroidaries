@@ -11,6 +11,7 @@ import { useFormAccessContext } from "@/contexts/FormAccessContext";
 import { FormAccessGate } from "@/components/FormAccessGate";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { mediaUrl } from "@/utils/mediaUrl";
+import { useHsnSearch } from "@/hooks/useCosting";
 
 const G = "#C6AF4B";
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
@@ -35,12 +36,15 @@ type OrderHit   = { code: string; label: string; type: "SWATCH" | "STYLE" };
 type Attachment = { url: string; originalName: string; mimeType?: string; size?: number };
 
 interface LineItem {
-  _id:         string;
+  _id: string;
   description: string;
-  quantity:    string;
-  unit:        string;
-  rate:        string;
-  amount:      string;
+  quantity: string;
+  unit: string;
+  rate: string;
+  amount: string;
+  hsnId?: number;
+  hsnCode?: string;
+  gstPercentage?: string;
 }
 
 const card       = "bg-white rounded-2xl border border-gray-100 shadow-sm";
@@ -50,7 +54,7 @@ const labelCls   = "text-sm font-medium text-gray-700 block mb-1";
 const cellInput  = "w-full px-2 py-1.5 text-sm text-gray-900 border-0 focus:outline-none focus:ring-0 bg-transparent placeholder-gray-300";
 
 function newLine(): LineItem {
-  return { _id: crypto.randomUUID(), description: "", quantity: "", unit: "", rate: "", amount: "" };
+  return { _id: crypto.randomUUID(), description: "", quantity: "", unit: "", rate: "", amount: "", hsnId: undefined, hsnCode: "", gstPercentage: "" };
 }
 
 function authHeaders() {
@@ -364,7 +368,6 @@ function LineItemsTable({ items, onChange, disabled }: {
 }) {
   const { fmt } = useCurrency();
   function updateItem(id: string, field: keyof LineItem, value: string) {
-    // Block negative quantities/rates outright.
     if ((field === "quantity" || field === "rate") && value !== "" && parseFloat(value) < 0) {
       value = "";
     }
@@ -381,11 +384,38 @@ function LineItemsTable({ items, onChange, disabled }: {
     }));
   }
 
+  function handleHsnChange(id: string, hsn: { id: number; code: string; gst: string } | null) {
+    onChange(
+      items.map((item) => {
+        if (item._id !== id) return item;
+        return {
+          ...item,
+          hsnId: hsn?.id,
+          hsnCode: hsn?.code ?? "",
+          gstPercentage: hsn?.gst ?? "",
+        };
+      })
+    );
+  }
+
   function removeItem(id: string) { onChange(items.filter(i => i._id !== id)); }
 
-  const total = items.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+  // Compute totals
+  let totalBase = 0;
+  let totalGst = 0;
+  let totalWithGst = 0;
+
+  items.forEach(item => {
+    const base = parseFloat(item.amount) || 0;
+    const gstPct = parseFloat(item.gstPercentage ?? "") || 0;
+    const gstAmt = base * (gstPct / 100);
+    totalBase += base;
+    totalGst += gstAmt;
+    totalWithGst += base + gstAmt;
+  });
 
   const colBase = "border-r border-gray-100 last:border-r-0";
+  const totalCols = disabled ? 9 : 10;
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -393,72 +423,95 @@ function LineItemsTable({ items, onChange, disabled }: {
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200">
             <th className={`${colBase} text-left px-3 py-2.5 text-xs font-semibold text-gray-500 w-8`}>#</th>
-            <th className={`${colBase} text-left px-3 py-2.5 text-xs font-semibold text-gray-500`}>Description / Details</th>
-            <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-24`}>Quantity</th>
+            <th className={`${colBase} text-left px-3 py-2.5 text-xs font-semibold text-gray-500`}>Description</th>
+            <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-24`}>Qty</th>
             <th className={`${colBase} text-left px-3 py-2.5 text-xs font-semibold text-gray-500 w-20`}>Unit</th>
             <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-28`}>Rate</th>
-            <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-28`}>Amount</th>
+            <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-28`}>Base Amount</th>
+            <th className={`${colBase} text-left px-3 py-2.5 text-xs font-semibold text-gray-500 w-44`}>HSN - GST %</th>
+            <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-24`}>GST Amt</th>
+            <th className={`${colBase} text-right px-3 py-2.5 text-xs font-semibold text-gray-500 w-28`}>Total (incl. GST)</th>
             {!disabled && <th className="w-10 px-2 py-2.5" />}
           </tr>
         </thead>
         <tbody>
-          {items.map((item, idx) => (
-            <tr key={item._id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-              <td className={`${colBase} px-3 py-1.5 text-xs text-gray-400 text-center`}>{idx + 1}</td>
-              <td className={`${colBase} px-1 py-1`}>
-                <input value={item.description} onChange={e => updateItem(item._id, "description", e.target.value)}
-                  disabled={disabled} placeholder="Item description…"
-                  className={cellInput + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
-              </td>
-              <td className={`${colBase} px-1 py-1`}>
-                <input type="number" min="0" step="0.001" value={item.quantity}
-                  onChange={e => updateItem(item._id, "quantity", e.target.value)}
-                  disabled={disabled} placeholder="0.000"
-                  className={`${cellInput} text-right` + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
-              </td>
-              <td className={`${colBase} px-1 py-1`}>
-                <input value={item.unit} onChange={e => updateItem(item._id, "unit", e.target.value)}
-                  disabled={disabled} placeholder="pcs"
-                  className={cellInput + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
-              </td>
-              <td className={`${colBase} px-1 py-1`}>
-                <input type="number" min="0" step="0.01" value={item.rate}
-                  onChange={e => updateItem(item._id, "rate", e.target.value)}
-                  disabled={disabled} placeholder="0.00"
-                  className={`${cellInput} text-right` + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
-              </td>
-              <td className={`${colBase} px-3 py-1.5 text-sm text-right font-medium text-gray-700`}>
-                {item.amount ? `${fmt(parseFloat(item.amount))}` : "—"}
-              </td>
-              {!disabled && (
-                <td className="px-2 py-1 text-center">
-                  <button type="button" onClick={() => removeItem(item._id)}
-                    className="p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
+          {items.map((item, idx) => {
+            const baseAmt = parseFloat(item.amount) || 0;
+            const gstPct = parseFloat(item.gstPercentage ?? "") || 0;
+            const gstAmt = baseAmt * (gstPct / 100);
+            const totalAmt = baseAmt + gstAmt;
+
+            return (
+              <tr key={item._id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                <td className={`${colBase} px-3 py-1.5 text-xs text-gray-400 text-center`}>{idx + 1}</td>
+                <td className={`${colBase} px-1 py-1`}>
+                  <input value={item.description} onChange={e => updateItem(item._id, "description", e.target.value)}
+                    disabled={disabled} placeholder="Item description…"
+                    className={cellInput + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
                 </td>
-              )}
-            </tr>
-          ))}
+                <td className={`${colBase} px-1 py-1`}>
+                  <input type="number" min="0" step="0.001" value={item.quantity}
+                    onChange={e => updateItem(item._id, "quantity", e.target.value)}
+                    disabled={disabled} placeholder="0.000"
+                    className={`${cellInput} text-right` + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
+                </td>
+                <td className={`${colBase} px-1 py-1`}>
+                  <input value={item.unit} onChange={e => updateItem(item._id, "unit", e.target.value)}
+                    disabled={disabled} placeholder="pcs"
+                    className={cellInput + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
+                </td>
+                <td className={`${colBase} px-1 py-1`}>
+                  <input type="number" min="0" step="0.01" value={item.rate}
+                    onChange={e => updateItem(item._id, "rate", e.target.value)}
+                    disabled={disabled} placeholder="0.00"
+                    className={`${cellInput} text-right` + (disabled ? " opacity-50 cursor-not-allowed" : "")} />
+                </td>
+                <td className={`${colBase} px-3 py-1.5 text-sm text-right font-medium text-gray-700`}>
+                  {item.amount ? fmt(parseFloat(item.amount)) : "—"}
+                </td>
+                <td className={`${colBase} px-1 py-1`}>
+                  <HsnSelect
+                    value={item.hsnId}
+                    onChange={(hsn) => handleHsnChange(item._id, hsn)}
+                    disabled={disabled}
+                  />
+                  
+                </td>
+                <td className={`${colBase} px-3 py-1.5 text-sm text-right text-gray-600`}>
+                  {gstAmt > 0 ? fmt(gstAmt) : "—"}
+                </td>
+                <td className={`${colBase} px-3 py-1.5 text-sm text-right font-semibold text-gray-800`}>
+                  {totalAmt > 0 ? fmt(totalAmt) : "—"}
+                </td>
+                {!disabled && (
+                  <td className="px-2 py-1 text-center">
+                    <button type="button" onClick={() => removeItem(item._id)}
+                      className="p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
 
           {items.length === 0 && (
             <tr>
-              <td colSpan={disabled ? 6 : 7} className="px-4 py-6 text-center text-sm text-gray-400">
+              <td colSpan={totalCols} className="px-4 py-6 text-center text-sm text-gray-400">
                 {disabled ? "No line items recorded." : `No items yet — click "Add Row" to begin.`}
               </td>
             </tr>
           )}
 
-          {/* Total row */}
+          {/* Grand total row */}
           {items.length > 0 && (
             <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
-              <td colSpan={disabled ? 5 : 5} className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right uppercase tracking-wider">
-                Total
+              <td colSpan={totalCols - 1} className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right uppercase tracking-wider">
+                Grand Total (incl. GST)
               </td>
               <td className="px-3 py-2.5 text-sm text-right font-bold text-gray-900">
-                {fmt(total)}
+                {fmt(totalWithGst)}
               </td>
-              {!disabled && <td />}
             </tr>
           )}
         </tbody>
@@ -474,6 +527,49 @@ function LineItemsTable({ items, onChange, disabled }: {
         </div>
       )}
     </div>
+  );
+}
+
+function HsnSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value?: number;
+  onChange: (hsn: { id: number; code: string; gst: string } | null) => void;
+  disabled: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const { data, isLoading } = useHsnSearch(query);
+
+  const options =
+    data?.map((h) => ({
+      value: h.id,
+      label: `${h.hsnCode} - ${h.gstPercentage}%`,
+    })) ?? [];
+
+  return (
+    <SmallSearchSelect
+      options={options}
+      value={value}
+      onChange={(val) => {
+        const selected = data?.find((d) => d.id === val);
+        if (selected) {
+          onChange({
+            id: selected.id,
+            code: selected.hsnCode,
+            gst: selected.gstPercentage,
+          });
+        } else {
+          onChange(null);
+        }
+        setQuery("");
+      }}
+      onSearch={(q) => setQuery(q)}
+      placeholder="Search HSN…"
+      disabled={disabled}
+      clearable={true}
+    />
   );
 }
 
@@ -541,9 +637,17 @@ export default function VendorChallanDetail() {
         description:      c.description         ?? "",
         remarks:          c.remarks             ?? "",
       });
-      if (c.line_items && Array.isArray(c.line_items) && c.line_items.length > 0) {
-        setLineItems(c.line_items.map((li: any) => ({ ...li, _id: li._id ?? crypto.randomUUID() })));
-      } else {
+      if (c.line_items && Array.isArray(c.line_items)) {
+        setLineItems(
+          c.line_items.map((li: any) => ({
+            ...li,
+            _id: li._id ?? crypto.randomUUID(),
+            hsnId: li.hsn_id ?? undefined,
+            hsnCode: li.hsn_code ?? "",
+            gstPercentage: li.gst_percentage ?? "",
+          }))
+        );
+      }else {
         setLineItems([newLine()]);
       }
       setStatus(c.status ?? "Draft");
@@ -609,6 +713,9 @@ export default function VendorChallanDetail() {
         unit:        i.unit,
         rate:        i.rate,
         amount:      i.amount,
+        hsn_id: i.hsnId ?? null,          
+        hsn_code: i.hsnCode ?? null,      
+        gst_percentage: i.gstPercentage ? parseFloat(i.gstPercentage) : null, 
       })),
     };
 
