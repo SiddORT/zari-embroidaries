@@ -107,6 +107,7 @@ export interface PrPaymentRecord {
   baseAmount: string;
   paidAmount: string;
   tdsAmount: string;
+  grossAmount: string;
   transactionStatus: string;
   paymentStatus: string;
   attachment: { name: string; type: string; data: string; size: number } | null;

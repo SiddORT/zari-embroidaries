@@ -999,7 +999,6 @@ function PrPaymentsPanel({
     // selectedItemIds: [] as number[],
   });
   // const isMultiItem = items.length > 1;
-
   const { data: tdsData } = useQuery({
     queryKey: ["tds-masters"],
     queryFn: async () => {
@@ -1063,12 +1062,19 @@ function PrPaymentsPanel({
     setShowForm(false);
     toast({ title: "Payment recorded" });
   }
+  const totalGrossAmount = payments.reduce( (sum, payment) => sum + Number(payment.grossAmount || 0), 0 );
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-1">
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-          Payments {payments.length > 0 && <span className="text-gray-600">({payments.length})</span>}
+          Payments
+          {payments.length > 0 && (
+            <>
+              <span className="text-gray-600">({payments.length}) -</span>
+              <span className="text-gray-600 ml-2"> Total Paid : ₹{totalGrossAmount.toFixed(2)} </span>
+            </>
+          )}
         </p>
         {!isFullyPaid && (
           <button

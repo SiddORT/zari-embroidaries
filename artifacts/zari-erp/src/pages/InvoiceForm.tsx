@@ -181,8 +181,13 @@ function InvoicePaymentsPanel({
 
   const payments = data?.data ?? [];
   const fx = exchangeRate > 0 ? exchangeRate : 1;
-  const totalReceived = payments.filter(p => p.payment_status === "Completed")
-    .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0);
+  // const totalReceived = payments.filter(p => p.payment_status === "Completed")
+  //   .reduce((s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0);
+  // const pendingAmt = Math.max(0, totalAmount - totalReceived);
+  const completed = payments.filter(p => p.payment_status === "Completed");
+  const totalReceived = completed.reduce( (s, p) => s + parseFloat(String(p.base_currency_amount ?? 0)) / fx, 0 );
+  const totalTds = completed.reduce( (s, p) => s + parseFloat(String(p.tds_amount ?? 0)) / fx, 0 );
+
   const pendingAmt = Math.max(0, totalAmount - totalReceived);
   const pct = totalAmount > 0 ? Math.min(100, (totalReceived / totalAmount) * 100) : 0;
   const [showModal, setShowModal] = useState(false);
@@ -275,6 +280,12 @@ function InvoicePaymentsPanel({
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Received</p>
             <p className="text-sm font-bold text-emerald-600">{currencyCode} {fmtN(totalReceived)}</p>
           </div>
+          {totalTds > 0 && (
+            <div className="text-right">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">TDS</p>
+              <p className="text-sm font-bold text-amber-600">{currencyCode} {fmtN(totalTds)}</p>
+            </div>
+          )}
           <div className="text-right">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pending</p>
             <p className={`text-sm font-bold ${pendingAmt <= 0 ? "text-emerald-600" : "text-red-500"}`}>{currencyCode} {fmtN(pendingAmt)}</p>
@@ -319,6 +330,8 @@ function InvoicePaymentsPanel({
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Date</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Type</th>
                   <th className="py-2 text-right font-semibold uppercase tracking-wide">Amount ({currencyCode})</th>
+                  <th className="py-2 text-right font-semibold uppercase tracking-wide">TDS ({currencyCode})</th>
+                  <th className="py-2 text-right font-semibold uppercase tracking-wide">Net ({currencyCode})</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Status</th>
                   <th className="py-2 text-left font-semibold uppercase tracking-wide">Remarks</th>
                   {canDelete && <th className="py-2 w-6"></th>}
@@ -327,24 +340,51 @@ function InvoicePaymentsPanel({
               <tbody>
                 {payments.map((p, i) => {
                   const pmtInInvCcy = parseFloat(String(p.base_currency_amount ?? 0)) / fx;
+                  const tdsInInvCcy = parseFloat(String(p.tds_amount ?? 0)) / fx;
+                  const netInInvCcy = pmtInInvCcy - tdsInInvCcy;
                   const showOriginal = p.currency_code !== currencyCode;
+                  const hasTds = tdsInInvCcy > 0;
+
                   return (
                     <tr key={p.payment_id} className="border-b border-gray-50 last:border-0 hover:bg-amber-50/30 transition-colors">
                       <td className="py-2 text-gray-400">{i + 1}</td>
                       <td className="py-2 text-gray-700">{fmtDt(p.payment_date)}</td>
                       <td className="py-2 text-gray-700">{p.payment_type}</td>
+
                       <td className="py-2 text-right tabular-nums">
                         <span className="font-medium text-gray-900">{currencyCode} {fmtN(pmtInInvCcy)}</span>
                         {showOriginal && (
                           <div className="text-[10px] text-gray-400 mt-0.5">{p.currency_code} {fmtN(p.payment_amount)}</div>
                         )}
                       </td>
+
+                      <td className="py-2 text-right tabular-nums">
+                        {hasTds ? (
+                          <>
+                            <span className="font-medium text-amber-600">{currencyCode} {fmtN(tdsInInvCcy)}</span>
+                            {p.tds_section_code && (
+                              <div className="text-[10px] text-gray-400 mt-0.5">
+                                {p.tds_section_code} · {fmtN(p.tds_rate ?? 0)}%
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+
+                      <td className="py-2 text-right tabular-nums font-semibold text-emerald-700">
+                        {currencyCode} {fmtN(netInInvCcy)}
+                      </td>
+
                       <td className="py-2">
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${PMT_PILL[p.payment_status] ?? "bg-gray-100 text-gray-500"}`}>
                           {PMT_STATUS_ICON[p.payment_status]} {p.payment_status}
                         </span>
                       </td>
+
                       <td className="py-2 text-gray-400 max-w-[100px] truncate" title={p.remarks}>{p.remarks || "—"}</td>
+
                       {canDelete && (
                         <td className="py-2">
                           <button onClick={() => handleDelete(p)} disabled={deletePmt.isPending || !isEdit}
