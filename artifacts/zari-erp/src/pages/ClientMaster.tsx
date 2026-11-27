@@ -477,7 +477,7 @@ export default function ClientMaster() {
 
   const columns: Column[] = [
     { key: "_srNo", label: "Sr No" },
-    { key: "clientCode", label: "Client Code", render: (r) => asClient(r).clientCode },
+    { key: "clientCode", label: "Client Code", render: (r) => asClient(r).customClientCode },
     { key: "brandName", label: "Brand / Client Name", render: (r) => asClient(r).brandName },
     { key: "contactName", label: "Contact Name", render: (r) => asClient(r).contactName },
     { key: "email", label: "Email", render: (r) => asClient(r).email },
